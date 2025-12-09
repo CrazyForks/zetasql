@@ -1886,9 +1886,9 @@ absl::Status Resolver::ShouldMergeWithUpdateItem(
     // stuff> and we just want to log <array>.
     if (resolved_update_item->set_value() != nullptr) {
       return MakeSqlErrorAt(target_path)
-             << "Cannot modify an element of "
+             << "Cannot assign a value to "
              << GeneralizedPathAsString(update_item.one_target_path)
-             << " and also assign the whole array";
+             << " and also modify one of its elements";
     }
     if (resolved_update_item_is_nested_dml) {
       return MakeSqlErrorAt(target_path)
@@ -1917,7 +1917,8 @@ absl::Status Resolver::ShouldMergeWithUpdateItem(
     }
     if (resolved_update_item->update_item_element_list_size() > 0) {
       return MakeSqlErrorAt(target_path)
-             << "Cannot assign array " << GeneralizedPathAsString(target_path)
+             << "Cannot assign a value to "
+             << GeneralizedPathAsString(target_path)
              << " and also modify one of its elements";
     }
     ZETASQL_RET_CHECK(resolved_update_item_is_nested_dml);

@@ -98,8 +98,11 @@ class TestDatabaseCatalog {
     using BuiltinFunctionMap =
         absl::flat_hash_map<std::string, std::unique_ptr<Function>>;
     using BuiltinTypeMap = absl::flat_hash_map<std::string, const Type*>;
+    using BuiltinTableValuedFunctionMap =
+        absl::flat_hash_map<std::string, std::unique_ptr<TableValuedFunction>>;
     struct CacheEntry {
       BuiltinFunctionMap functions;
+      BuiltinTableValuedFunctionMap table_valued_functions;
       BuiltinTypeMap types;
     };
     int total_calls_ = 0;

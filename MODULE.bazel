@@ -61,7 +61,6 @@ bazel_dep(name = "googleapis-cc", version = "1.0.0")
 bazel_dep(name = "googletest", version = "1.17.0", repo_name = "com_google_googletest")
 bazel_dep(name = "grpc", version = "1.69.0", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "grpc-java", version = "1.75.0", repo_name = "io_grpc_grpc_java")
-bazel_dep(name = "icu", version = "76.1.bcr.3")
 bazel_dep(name = "nlohmann_json", version = "3.12.0", repo_name = "json")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "29.0", repo_name = "com_google_protobuf")
@@ -75,7 +74,6 @@ bazel_dep(name = "rules_go", version = "0.53.0", repo_name = "io_bazel_rules_go"
 bazel_dep(name = "rules_java", version = "8.15.2")
 bazel_dep(name = "rules_jvm_external", version = "6.8")
 bazel_dep(name = "rules_m4", version = "0.3")
-bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_proto", version = "7.0.2")
 bazel_dep(name = "rules_python", version = "1.6.1")
 bazel_dep(name = "toolchains_llvm", version = "1.5.0")
@@ -116,8 +114,28 @@ pip.parse(
 use_repo(pip, "pypi")
 
 # Dependencies from http_archive
+#
+# Notes for 'icu': The ICU module obtained from the Bazel Central Registry (BCR) uses a prebuilt ICU
+# data file, which is linked as a runfile dependency. This setup prevents
+# //zetasql/tools:execute_query target from being executed directly without setting an environment
+# variable to point to the data file.
+#
+# To resolve this, we are instead using http_archive to download the ICU library and applying a
+# custom BUILD file. This custom configuration ensures that the ICU data is used as a static library
+# (or statically linked), allowing our execute_query binary to run directly without any external
+# runtime dependencies.
 http_archive_deps = use_extension("@zetasql//bazel:http_archive_deps.bzl", "zetasql_http_archive_deps")
-use_repo(http_archive_deps, "com_google_cc_differential_privacy", "com_google_differential_privacy", "com_google_farmhash", "com_google_file_based_test_driver", "mstch", "native_utils", "org_publicsuffix")
+use_repo(
+    http_archive_deps,
+    "com_google_cc_differential_privacy",
+    "com_google_differential_privacy",
+    "com_google_farmhash",
+    "com_google_file_based_test_driver",
+    "icu",
+    "mstch",
+    "native_utils",
+    "org_publicsuffix",
+)
 
 # Dev toolchain.
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)

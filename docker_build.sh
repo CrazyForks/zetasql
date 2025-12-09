@@ -24,11 +24,8 @@ if [ "$MODE" = "build" ]; then
   bazel build ${BAZEL_ARGS} -c opt ...
 elif [ "$MODE" = "execute_query" ]; then
   # Install the execute_query tool.
-  bazel build ${BAZEL_ARGS} -c opt --dynamic_mode=off //zetasql/tools/execute_query:execute_query_release
-  cp /zetasql/bazel-bin/zetasql/tools/execute_query/execute_query_release.tar.gz $HOME/release/execute_query_release.tar.gz
-  # Extract the execute_query tool from the tarball so that users can run it
-  # directly from the image.
-  tar -xf $HOME/release/execute_query_release.tar.gz -C $HOME/bin/
+  bazel build ${BAZEL_ARGS} -c opt --dynamic_mode=off //zetasql/tools/execute_query:execute_query
+  cp /zetasql/bazel-bin/zetasql/tools/execute_query/execute_query $HOME/bin/execute_query
 else
   echo "Unknown mode: $MODE"
   echo "Supported modes are: build, execute_query"

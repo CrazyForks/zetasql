@@ -244,6 +244,7 @@ enum class FunctionKind {
   kSafeArrayAtOrdinal,
   kSafeArrayAtOffset,
   kArrayIsDistinct,
+  kArrayDistinct,
   kGenerateArray,
   kGenerateDateArray,
   kGenerateTimestampArray,
@@ -898,6 +899,9 @@ class BuiltinAnalyticFunction : public AnalyticFunctionBody {
 };
 
 // Provides a method to look up the implementation class for built-in functions.
+// Functions and TVFs should be registered with BuiltinFunctionRegistry when
+// they have large/expensive dependencies, this allows users of evaluator_lite
+// to avoid picking up the deps for functions they don't need.
 class BuiltinFunctionRegistry {
  public:
   BuiltinFunctionRegistry(const BuiltinFunctionRegistry&) = delete;
@@ -1075,6 +1079,14 @@ class ArrayReverseFunction : public SimpleBuiltinScalarFunction {
 };
 
 class ArrayIsDistinctFunction : public SimpleBuiltinScalarFunction {
+ public:
+  using SimpleBuiltinScalarFunction::SimpleBuiltinScalarFunction;
+  absl::StatusOr<Value> Eval(absl::Span<const TupleData* const> params,
+                             absl::Span<const Value> args,
+                             EvaluationContext* context) const override;
+};
+
+class ArrayDistinctFunction : public SimpleBuiltinScalarFunction {
  public:
   using SimpleBuiltinScalarFunction::SimpleBuiltinScalarFunction;
   absl::StatusOr<Value> Eval(absl::Span<const TupleData* const> params,

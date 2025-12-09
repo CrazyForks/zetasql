@@ -128,7 +128,7 @@ class QueryExpression {
     kPipe,
   };
 
-  QueryExpression() : target_syntax_mode_(TargetSyntaxMode::kStandard) {}
+  QueryExpression() = default;
   explicit QueryExpression(TargetSyntaxMode target_syntax_mode)
       : target_syntax_mode_(target_syntax_mode) {}
   QueryExpression(const QueryExpression&) = delete;
@@ -402,8 +402,6 @@ class QueryExpression {
 
   void ClearAllClauses();
 
-  TargetSyntaxMode target_syntax_mode_;
-
   // Fields below define the text associated with different clauses of a SQL
   // query. Some principles:
   // * The text does not include the keyword corresponding to the clause.
@@ -413,12 +411,6 @@ class QueryExpression {
   std::vector<
       std::pair<std::string /* with_alias */, std::string /* with_query */>>
       with_list_;
-  bool with_recursive_ = false;
-
-  // If true, the group-by clause is "GROUP BY ALL".
-  bool group_by_all_ = false;
-  // If true, the group-by clause contains only aggregate columns.
-  bool group_by_only_aggregate_columns_ = false;
 
   std::vector<std::pair<std::string /* select column */,
                         std::string /* select alias */>>
@@ -488,6 +480,16 @@ class QueryExpression {
   std::string match_recognize_;
 
   std::string lock_mode_;
+
+  TargetSyntaxMode target_syntax_mode_ = TargetSyntaxMode::kStandard;
+
+  bool with_recursive_ = false;
+
+  // If true, the group-by clause is "GROUP BY ALL".
+  bool group_by_all_ = false;
+
+  // If true, the group-by clause contains only aggregate columns.
+  bool group_by_only_aggregate_columns_ = false;
 };
 
 // Returns true if the aliases, which are the values of the given map are not

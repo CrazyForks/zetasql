@@ -40,6 +40,7 @@
 #include "zetasql/public/strings.h"
 #include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
+#include "zetasql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -1792,6 +1793,30 @@ std::string ASTSetOperationMetadata::GetSQLForOperation() const {
   // not include the metadata related to CORRESPONDING. Once all callers have
   // been updated we should update this function to include other metadata.
   return absl::StrCat(op_type_str, " ", all_or_distinct_str);
+}
+
+// TODO: b/430036320 - Cleanup after all usages are migrated
+std::vector<const ASTAliasedQuery*> ASTWithClause::with() const {
+  std::vector<const ASTAliasedQuery*> aliased_queries_;
+  for (const auto* e : entry_) {
+    ABSL_DCHECK(e->aliased_group_rows() == nullptr);
+    if (e->aliased_query() != nullptr) {
+      aliased_queries_.push_back(e->aliased_query());
+    }
+  }
+  return aliased_queries_;
+}
+
+const ASTAliasedQuery* ASTWithClause::with(int i) const { return with()[i]; }
+
+const ASTAliasedQuery* ASTWithClauseEntry::aliased_query() const {
+  ABSL_DCHECK_EQ(num_children(), 1);
+  return aliased_query_;
+}
+
+const ASTAliasedGroupRows* ASTWithClauseEntry::aliased_group_rows() const {
+  ABSL_DCHECK_EQ(num_children(), 1);
+  return aliased_group_rows_;
 }
 
 }  // namespace zetasql

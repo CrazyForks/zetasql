@@ -4829,11 +4829,15 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
   const Type* return_type = nullptr;
   const bool has_explicit_return_type = ast_statement->return_type() != nullptr;
   bool has_return_type = false;
+  TypeModifiers resolved_type_modifiers;
   if (has_explicit_return_type) {
     ZETASQL_RETURN_IF_ERROR(ResolveType(ast_statement->return_type(),
-                                {.context = "function signatures"},
-                                &return_type,
-                                /*resolved_type_modifiers=*/nullptr));
+                                // We do not currently support type parameters
+                                // or modifiers in the explicit RETURN type.
+                                {.allow_type_parameters = false,
+                                 .allow_collation = false,
+                                 .context = "function signatures"},
+                                &return_type, &resolved_type_modifiers));
     has_return_type = true;
   }
 
@@ -4950,21 +4954,40 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
       }
     }
 
-    // TODO: Support non-templated UDF with collation in the return
-    // type function body.
-    ZETASQL_RETURN_IF_ERROR(ThrowErrorIfExprHasCollation(
-        sql_function_body,
-        "Collation $0 in return type of user-defined function body is not "
-        "allowed",
-        resolved_expr.get()));
+    if (!language().LanguageFeatureEnabled(
+            FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+      // TODO: Support non-templated UDF with collation in the
+      // return type function body.
+      ZETASQL_RETURN_IF_ERROR(ThrowErrorIfExprHasCollation(
+          sql_function_body,
+          "Collation $0 in return type of user-defined function body is not "
+          "allowed",
+          resolved_expr.get()));
+    }
+    if (resolved_expr->type_annotation_map() != nullptr &&
+        !resolved_expr->type_annotation_map()->Empty()) {
+      std::unique_ptr<AnnotationMap> annotations_to_block =
+          resolved_expr->type_annotation_map()->Clone();
+      annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
+      if (!annotations_to_block->Empty()) {
+        return MakeSqlErrorAt(sql_function_body)
+               << "Annotations in return type of user-defined function body "
+                  "are not allowed";
+      }
+    }
 
-    const Type* function_body_type = resolved_expr->type();
+    const AnnotationMap* target_annotation_map;
     if (!has_return_type) {
-      return_type = function_body_type;
+      return_type = resolved_expr->type();
+      target_annotation_map = resolved_expr->type_annotation_map();
       has_return_type = true;
     } else {
+      ZETASQL_ASSIGN_OR_RETURN(target_annotation_map,
+                       CreateAnnotationMapFromTypeWithModifiers(
+                           return_type, resolved_type_modifiers));
       ZETASQL_RETURN_IF_ERROR(CoerceExprToType(
-          sql_function_body->expression(), return_type, kImplicitCoercion,
+          sql_function_body->expression(),
+          AnnotatedType(return_type, target_annotation_map), kImplicitCoercion,
           "Function declared to return $0 but the function body produces "
           "incompatible type $1",
           &resolved_expr));
@@ -6075,7 +6098,8 @@ absl::Status Resolver::ResolveScalarFunctionParameter(
         function_param.name()->GetAsIdString(), arg_kind,
         FunctionArgumentType(ARG_TYPE_ARBITRARY,
                              std::move(argument_type_options),
-                             /*num_occurrences=*/1));
+                             /*num_occurrences=*/1),
+        /*annotation_map=*/nullptr);
   }
 
   // Type is provided:
@@ -6131,7 +6155,8 @@ absl::Status Resolver::ResolveScalarFunctionParameter(
   }
   return arg_info.AddScalarArg(
       function_param.name()->GetAsIdString(), arg_kind,
-      FunctionArgumentType(resolved_type, std::move(argument_type_options)));
+      FunctionArgumentType(resolved_type, std::move(argument_type_options)),
+      /*annotation_map=*/nullptr);
 }
 
 absl::Status Resolver::ResolveFunctionParameters(

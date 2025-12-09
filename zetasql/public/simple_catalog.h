@@ -58,6 +58,7 @@
 
 namespace zetasql {
 
+class TestDatabaseCatalog;
 class ResolvedScan;
 class SimpleCatalogProto;
 class SimpleColumn;
@@ -605,9 +606,22 @@ class SimpleCatalog : public EnumerableCatalog {
   absl::Status DeserializeImpl(const SimpleCatalogProto& proto,
                                const TypeDeserializer& type_deserializer,
                                SimpleCatalog* catalog);
+  // Adds non-owned built-in functions, types, and TVFs to the catalog. For
+  // functions, owned sub-catalogs are created as required for the first part of
+  // their name path. Returns an error if any of the functions or TVFs are not
+  // ZetaSQL built-in.
+  //
+  // This function is protected for internal use, external callers should use
+  // the public functions and prefer adding owned objects.
+  absl::Status AddNonOwnedBuiltinFunctionsAndTypes(
+      const absl::flat_hash_map<std::string, const Function*>& functions,
+      const absl::flat_hash_map<std::string, const Type*>& types,
+      const absl::flat_hash_map<std::string, const TableValuedFunction*>&
+          table_valued_functions);
 
  private:
   friend class SimpleCatalogTestFriend;
+  friend class TestDatabaseCatalog;
 
   absl::Status SerializeImpl(absl::flat_hash_set<const Catalog*>* seen_catalogs,
                              FileDescriptorSetMap* file_descriptor_set_map,

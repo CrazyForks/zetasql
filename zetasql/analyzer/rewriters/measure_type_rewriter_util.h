@@ -18,6 +18,7 @@
 #define ZETASQL_ANALYZER_REWRITERS_MEASURE_TYPE_REWRITER_UTIL_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "zetasql/public/catalog.h"
@@ -28,6 +29,8 @@
 #include "zetasql/resolved_ast/resolved_column.h"
 #include "zetasql/resolved_ast/resolved_node.h"
 #include "zetasql/resolved_ast/rewrite_utils.h"
+#include "zetasql/base/case.h"
+#include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
@@ -72,7 +75,8 @@ struct RewriteMeasureExprResult {
 // overcounting.
 absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
     const ResolvedExpr* measure_expr, ResolvedColumn struct_column,
-    const std::vector<int>& row_identity_column_indices,
+    const absl::btree_set<std::string, zetasql_base::CaseLess>&
+        row_identity_column_names,
     bool struct_column_refs_are_correlated, const Function* any_value_fn,
     FunctionCallBuilder& function_call_builder,
     const LanguageOptions& language_options, ColumnFactory& column_factory,

@@ -248,6 +248,13 @@ class Resolver {
       std::unique_ptr<const ResolvedStatement>* output_stmt,
       std::shared_ptr<const NameList>* output_name_list);
 
+  // Creates an AnnotationMap from a given Type and TypeModifiers, which are
+  // typically resolved from an explicit type declaration, like the target
+  // of an explicit CAST or the explicit RETURN type of a user-defined function.
+  // The returned annotation map is internalized in the TypeFactory.
+  absl::StatusOr<const AnnotationMap*> CreateAnnotationMapFromTypeWithModifiers(
+      const Type* type, const TypeModifiers& type_modifiers) const;
+
   // If a CREATE TABLE FUNCTION statement contains RETURNS TABLE to explicitly
   // specify the output schema for the function's output table, this method
   // compares it against the schema actually returned by the SQL body (if
@@ -3791,6 +3798,9 @@ class Resolver {
   void MaybeRecordResolvedNodeOperatorKeywordLocation(
       const ASTNode* ast_node, ResolvedNode* resolved_node) const;
 
+  void MaybeRecordResolvedNodeOperatorKeywordLocation(
+      const ParseLocationRange& location, ResolvedNode* resolved_node) const;
+
   // Generate a ResolvedScan for the FROM clause, populating the
   // <output_name_list> with the names visible in the FROM.  If there
   // is no FROM clause, then a ResolvedSingleRowScan will be produced.
@@ -6517,6 +6527,8 @@ class FunctionArgumentInfo {
     FunctionArgumentType arg_type;
     // <arg_kind> is used only for scalar arguments.
     std::optional<ResolvedArgumentDef::ArgumentKind> arg_kind;
+    // Annotations are used only for scalar arguments.
+    const AnnotationMap* annotation_map = nullptr;
   };
 
   // Returns true if there is an arg <name>.
@@ -6552,7 +6564,8 @@ class FunctionArgumentInfo {
   // Add details of a scalar argument.
   absl::Status AddScalarArg(IdString name,
                             ResolvedArgumentDef::ArgumentKind arg_kind,
-                            FunctionArgumentType arg_type);
+                            FunctionArgumentType arg_type,
+                            const AnnotationMap* annotation_map);
 
   // Add details for a relation argument.
   absl::Status AddRelationArg(IdString name, FunctionArgumentType arg_type);

@@ -97,6 +97,7 @@ message MeasureColumnDefProto {
   optional string name = 1;
   optional string expression = 2;
   optional bool is_pseudo_column = 3;
+  repeated int32 row_identity_column_indices = 4 [packed = true];
 }
 
 message TestTVFProto {

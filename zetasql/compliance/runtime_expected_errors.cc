@@ -291,6 +291,9 @@ std::unique_ptr<MatcherCollection<absl::Status>> RuntimeExpectedErrorMatcher(
       "Error parsing proto: Expected identifier, got.*"));
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kOutOfRange,
+      R"(Error parsing proto: Expected "]", found.*)"));
+  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
+      absl::StatusCode::kOutOfRange,
       "Protocol buffer missing required field.*"));
   // Some parts of our code also use a different parsing API, leading to a
   // different error message.

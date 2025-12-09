@@ -754,10 +754,21 @@ Most functions on strings are also defined on bytes. The bytes version
 operates on raw bytes rather than Unicode characters. Casts between string and
 bytes enforce that the bytes are encoded using UTF-8.
 
+You can convert a base64-encoded `STRING` expression into the `BYTES` format
+using the
+[`FROM_BASE64` function][from-base].
+You can also convert a sequence of `BYTES` into a base64-encoded `STRING`
+expression using the
+[`TO_BASE64` function][to-base].
+
 To learn more about the literal representation of a bytes type,
 see [Bytes literals][bytes-literals].
 
 [bytes-literals]: https://github.com/google/zetasql/blob/master/docs/lexical.md#string_and_bytes_literals
+
+[from-base]: https://github.com/google/zetasql/blob/master/docs/string_functions.md#from_base64
+
+[to-base]: https://github.com/google/zetasql/blob/master/docs/string_functions.md#to_base64
 
 ## Date type 
 <a id="date_type"></a>

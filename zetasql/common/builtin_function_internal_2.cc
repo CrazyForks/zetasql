@@ -785,6 +785,7 @@ void GetDatetimeDiffTruncLastNextFunctions(
   const Type* int64_type = type_factory->get_int64();
   const Type* string_type = type_factory->get_string();
   const Type* datepart_type = types::DatePartEnumType();
+  const Type* double_type = type_factory->get_double();
 
   const Function::Mode SCALAR = Function::SCALAR;
   const FunctionArgumentType::ArgumentCardinality OPTIONAL =
@@ -975,6 +976,31 @@ void GetDatetimeDiffTruncLastNextFunctions(
            FN_NEXT_DAY_DATETIME,
            SetDefinitionForInlining(kNextDayDatetimeSQL)
                .AddRequiredLanguageFeature(FEATURE_CIVIL_TIME)},
+      },
+      FunctionOptions().AddRequiredLanguageFeature(
+          FEATURE_ADDITIONAL_DATE_TIME_FUNCTIONS));
+
+  InsertFunction(
+      functions, options, "months_between", SCALAR,
+      {
+          {double_type,
+           {FunctionArgumentType(
+                date_type, FunctionArgumentTypeOptions().set_argument_name(
+                               "date1", kPositionalOnly)),
+            FunctionArgumentType(
+                date_type, FunctionArgumentTypeOptions().set_argument_name(
+                               "date2", kPositionalOnly))},
+           FN_MONTHS_BETWEEN_DATE},
+          {double_type,
+           {FunctionArgumentType(
+                datetime_type, FunctionArgumentTypeOptions().set_argument_name(
+                                   "datetime1", kPositionalOnly)),
+            FunctionArgumentType(
+                datetime_type, FunctionArgumentTypeOptions().set_argument_name(
+                                   "datetime2", kPositionalOnly))},
+           FN_MONTHS_BETWEEN_DATETIME,
+           FunctionSignatureOptions().AddRequiredLanguageFeature(
+               FEATURE_CIVIL_TIME)},
       },
       FunctionOptions().AddRequiredLanguageFeature(
           FEATURE_ADDITIONAL_DATE_TIME_FUNCTIONS));

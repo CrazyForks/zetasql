@@ -2988,7 +2988,7 @@ absl::StatusOr<Value> DMLUpdateValueExpr::UpdateNode::GetNewValue(
         return zetasql_base::OutOfRangeErrorBuilder()
                << "Cannot set field of NULL "
                << original_value.type()->TypeName(
-                      ProductMode::PRODUCT_EXTERNAL);
+                      context->GetLanguageOptions().product_mode());
       }
 
       std::vector<Value> new_fields = original_value.fields();
@@ -3018,7 +3018,7 @@ absl::StatusOr<Value> DMLUpdateValueExpr::UpdateNode::GetNewValue(
         return zetasql_base::OutOfRangeErrorBuilder()
                << "Cannot use [] to modify a NULL array of type "
                << original_value.type()->TypeName(
-                      ProductMode::PRODUCT_EXTERNAL);
+                      context->GetLanguageOptions().product_mode());
       }
 
       std::vector<Value> new_elements = original_value.elements();
@@ -3036,7 +3036,7 @@ absl::StatusOr<Value> DMLUpdateValueExpr::UpdateNode::GetNewValue(
           return zetasql_base::OutOfRangeErrorBuilder()
                  << "Cannot SET array offset " << offset << " of an "
                  << original_value.type()->TypeName(
-                        ProductMode::PRODUCT_EXTERNAL)
+                        context->GetLanguageOptions().product_mode())
                  << " of size " << new_elements.size();
         }
 
@@ -3060,28 +3060,51 @@ absl::Status DMLUpdateValueExpr::UpdateNode::GetNewJsonValueHelper(
   for (const auto& entry : update_node.child_map()) {
     const UpdatePathComponent& component = entry.first;
     const UpdateNode& update_node = *entry.second;
-    ZETASQL_RET_CHECK(component.kind() == UpdatePathComponent::Kind::JSON_FIELD)
+    ZETASQL_RET_CHECK(component.kind() == UpdatePathComponent::Kind::JSON_FIELD ||
+              component.kind() == UpdatePathComponent::Kind::ARRAY_OFFSET)
         << "Unexpected non-json UpdatePathComponent::Kind in "
         << "GetNewJsonValue(): "
         << UpdatePathComponent::GetKindString(component.kind());
-
     // If a JSON is used to update a non-object or a non-null JSON,
     // an error will be thrown as this is an invalid JSON path update.
-    // TODO: Add capabilitiy to update JSON array elements when we
-    // support the subscript ([]) operator in UPDATEs for JSON.
-    if (!json_ref.IsObject() && !json_ref.IsNull()) {
-      return zetasql_base::OutOfRangeErrorBuilder() << "Cannot SET field of non-object "
-                                            << "JSON value.";
-    }
-    const std::string& json_field_name = component.json_field_name();
-    if (update_node.is_leaf()) {
-      ZETASQL_ASSIGN_OR_RETURN(zetasql::JSONValue new_json_value,
-                       zetasql::JSONValue::ParseJSONString(
-                           update_node.leaf_value().json_string()));
-      json_ref.GetMember(json_field_name).Set(std::move(new_json_value));
+    if (component.kind() == UpdatePathComponent::Kind::JSON_FIELD) {
+      if (!json_ref.IsObject() && !json_ref.IsNull()) {
+        return zetasql_base::OutOfRangeErrorBuilder()
+               << "Cannot SET field of non-object "
+               << "JSON value.";
+      }
+      const std::string& json_field_name = component.json_field_name();
+      if (update_node.is_leaf()) {
+        ZETASQL_ASSIGN_OR_RETURN(zetasql::JSONValue new_json_value,
+                         zetasql::JSONValue::ParseJSONString(
+                             update_node.leaf_value().json_string()));
+        json_ref.GetMember(json_field_name).Set(std::move(new_json_value));
+      } else {
+        ZETASQL_RETURN_IF_ERROR(GetNewJsonValueHelper(
+            json_ref.GetMember(json_field_name), update_node, context));
+      }
     } else {
-      ZETASQL_RETURN_IF_ERROR(GetNewJsonValueHelper(json_ref.GetMember(json_field_name),
-                                            update_node, context));
+      if (!json_ref.IsArray() && !json_ref.IsNull()) {
+        return zetasql_base::OutOfRangeErrorBuilder()
+               << "Cannot SET array offset of non-array JSON value.";
+      }
+      const int64_t offset = component.array_offset();
+      // Updates to JSON arrays do not support negative array offsets but will
+      // support out of bound array offsets inserting nulls until the modified
+      // index as this is the behavior of `JSON_SET`.
+      if (offset < 0) {
+        return zetasql_base::OutOfRangeErrorBuilder()
+               << "Cannot SET negative offset of JSON array: " << offset;
+      }
+      if (update_node.is_leaf()) {
+        ZETASQL_ASSIGN_OR_RETURN(zetasql::JSONValue new_json_value,
+                         zetasql::JSONValue::ParseJSONString(
+                             update_node.leaf_value().json_string()));
+        json_ref.GetArrayElement(offset).Set(std::move(new_json_value));
+      } else {
+        ZETASQL_RETURN_IF_ERROR(GetNewJsonValueHelper(json_ref.GetArrayElement(offset),
+                                              update_node, context));
+      }
     }
   }
   return absl::OkStatus();
@@ -3105,7 +3128,8 @@ absl::StatusOr<Value> DMLUpdateValueExpr::UpdateNode::GetNewProtoValue(
   if (original_value.is_null()) {
     return zetasql_base::OutOfRangeErrorBuilder()
            << "Cannot set field of NULL "
-           << original_value.type()->TypeName(ProductMode::PRODUCT_EXTERNAL);
+           << original_value.type()->TypeName(
+                  context->GetLanguageOptions().product_mode());
   }
 
   // TODO: Serializing and deserializing the protos over and over seems
@@ -3441,27 +3465,35 @@ absl::Status DMLUpdateValueExpr::AddToUpdateMap(
     ZETASQL_ASSIGN_OR_RETURN(const ValueExpr* offset_expr,
                      LookupResolvedExpr(update_array_item->subscript()));
 
-    ZETASQL_ASSIGN_OR_RETURN(const Value offset_value,
+    ZETASQL_ASSIGN_OR_RETURN(const Value subscript,
                      EvalExpr(*offset_expr, tuples_for_row, context));
-    ZETASQL_RET_CHECK_EQ(offset_value.type_kind(), TYPE_INT64);
-    if (offset_value.is_null()) {
+    if (subscript.is_null()) {
       return zetasql_base::OutOfRangeErrorBuilder()
-             << "Cannot SET a NULL offset of an "
+             << "Cannot SET a NULL offset of "
              << update_item->target()->type()->TypeName(
-                    ProductMode::PRODUCT_EXTERNAL);
+                    context->GetLanguageOptions().product_mode());
     }
-    const int64_t offset_int64 = offset_value.int64_value();
+    if (subscript.type_kind() == TYPE_INT64) {
+      const int64_t offset_int64 = subscript.int64_value();
 
-    if (!zetasql_base::InsertIfNotPresent(&used_array_offsets, offset_int64)) {
-      return zetasql_base::OutOfRangeErrorBuilder()
-             << "Cannot perform multiple updates to offset " << offset_int64
-             << " of an "
-             << update_item->target()->type()->TypeName(
-                    ProductMode::PRODUCT_EXTERNAL);
+      // For JSON updates we allow multiple updates to the same offset so skip
+      // the check here.
+      if (!zetasql_base::InsertIfNotPresent(&used_array_offsets, offset_int64) &&
+          !update_item->target()->type()->IsJson()) {
+        return zetasql_base::OutOfRangeErrorBuilder()
+               << "Cannot perform multiple updates to offset " << offset_int64
+               << " of an "
+               << update_item->target()->type()->TypeName(
+                      context->GetLanguageOptions().product_mode());
+      }
+
+      prefix_components->emplace_back(/*is_struct_field_index=*/false,
+                                      offset_int64);
+    } else {
+      ZETASQL_RET_CHECK(subscript.type_kind() == TYPE_STRING);
+      const std::string& offset_string = subscript.string_value();
+      prefix_components->emplace_back(offset_string);
     }
-
-    prefix_components->emplace_back(/*is_struct_field_index=*/false,
-                                    offset_int64);
     auto cleanup = absl::MakeCleanup(
         [prefix_components] { prefix_components->pop_back(); });
 
@@ -3566,7 +3598,17 @@ absl::Status DMLUpdateValueExpr::AddToUpdateNode(
   auto emplace_result =
       child_map->emplace(next_component, std::make_unique<UpdateNode>(is_leaf));
   UpdateNode& next_update_node = *emplace_result.first->second;
-  // If this fails, the analyzer allowed conflicting updates.
+  // If the emplace fails that means the path already exists.
+  bool path_exists = !emplace_result.second;
+  // If this fails, the analyzer allowed conflicting updates. This is expected
+  // when the path is a subscript containing an expression that cannot be
+  // determined at analysis time.
+  bool is_overlapping =
+      (is_leaf != next_update_node.is_leaf()) || (is_leaf && path_exists);
+  if (is_overlapping) {
+    return zetasql_base::OutOfRangeErrorBuilder()
+           << "Multiple updates to overlapping paths are not allowed.";
+  }
   ZETASQL_RET_CHECK_EQ(is_leaf, next_update_node.is_leaf());
 
   return AddToUpdateNode(start_component, end_component, leaf_value,

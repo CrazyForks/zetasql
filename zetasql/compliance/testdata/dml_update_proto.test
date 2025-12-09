@@ -1246,7 +1246,7 @@ UPDATE NestedProtoTable
 SET proto_value.repeated_int64_val[OFFSET(NULL)] = 1000
 WHERE primary_key = 2
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<INT64>
 ==
 
 [name=update_repeated_proto_field_with_set_negative_index]
@@ -1573,7 +1573,7 @@ UPDATE NestedProtoTable
 SET proto_value.nested_repeated_value[OFFSET(NULL)].nested_int64 = 10000
 WHERE primary_key = 2
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<`zetasql_test__.KitchenSinkPB.Nested`>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<`zetasql_test__.KitchenSinkPB.Nested`>
 ==
 
 [name=update_element_in_repeated_field_of_proto_type_with_set_negative_index]
@@ -1957,7 +1957,7 @@ UPDATE ArrayOfProtosTable
 SET array_value[OFFSET(NULL)].int64_key_1 = 1000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<`zetasql_test__.KitchenSinkPB`>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<`zetasql_test__.KitchenSinkPB`>
 ==
 
 [name=update_element_in_array_of_protos_with_set_negative_index]

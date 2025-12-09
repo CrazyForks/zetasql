@@ -65,7 +65,7 @@ PreparedModify::PreparedModify(const ResolvedStatement* stmt,
   internal::EnableFullEvaluatorFeatures();
 }
 
-PreparedStatement::PreparedStatement(const std::string& sql,
+PreparedStatement::PreparedStatement(absl::string_view sql,
                                      const EvaluatorOptions& options)
     : PreparedStatementBase(sql, options) {
   internal::EnableFullEvaluatorFeatures();

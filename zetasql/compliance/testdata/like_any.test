@@ -967,3 +967,103 @@ SELECT
 ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
   {true, NULL, true, true, false, true, false}
 ]
+==
+
+[required_features=LIKE_ANY_SOME_ALL]
+[name=like_any_string_with_underscore]
+# Verifies the functionality of the '_' single-character wildcard.
+SELECT
+  'Value1' LIKE ANY ('Val_e1', 'Value_'),
+  'a' LIKE ANY ('_'),
+  'a' LIKE ANY ('__'),
+  'Value1' LIKE ANY ('Value__', '%_')
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL>>[{true, true, false, true}]
+==
+
+[required_features=LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_ARRAY]
+[name=like_any_string_array_with_underscore]
+# Verifies the '_' wildcard when used with the UNNEST syntax.
+SELECT
+  'Value2' LIKE ANY UNNEST(['______', 'Valu_', 'Value_']),
+  'X' LIKE ANY UNNEST(['_']),
+  'X' LIKE ANY UNNEST(['__', 'X_'])
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{true, true, false}]
+==
+
+[required_features=LIKE_ANY_SOME_ALL]
+[name=like_any_bytes_with_underscore]
+# Verifies the '_' wildcard for the BYTES data type.
+SELECT
+  b'Value1' LIKE ANY (b'Val_e1', b'Value_'),
+  b'ab' LIKE ANY (b'a_', b'_b'),
+  b'a' LIKE ANY (b'_')
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{true, true, true}]
+==
+
+[required_features=LIKE_ANY_SOME_ALL]
+[name=not_like_any_string_with_escaped_wildcards]
+# Verifies that escaped wildcards '\%' and '\_' match literal characters.
+# Using NOT LIKE ANY to ensure that all patterns are matched to return false.
+SELECT
+  'path/to/a_file' NOT LIKE ANY ('path/to/afile', 'path/to/a%file'),
+  'path/to/a_file' NOT LIKE ANY (r'path/to/a\_file', 'path/to/a%file'),
+  'report_100%.pdf' NOT LIKE ANY (r'report_100\%.pdf', 'report_100_.pdf'),
+  'C:\\Users' NOT LIKE ANY (r'C:\\Users', 'C:%'),
+  'a__b' NOT LIKE ANY (r'a\_\_b', 'a%b'),
+  'a%%b' NOT LIKE ANY (r'a\%\%b', 'a__b')
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {true, false, false, false, false, false}
+]
+==
+
+[required_features=LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_ARRAY]
+[name=not_like_any_string_array_with_escaped_wildcards]
+# Verifies escaped wildcards with the UNNEST syntax.
+SELECT
+  'data_v1_100%.csv' NOT LIKE ANY UNNEST([r'data\_v1\_100\%.csv', 'data__']),
+  'data_v1_100%.csv' NOT LIKE ANY UNNEST(['data%csv', r'data_v1_100\%.csv']),
+  'data_v1_100%.csv' NOT LIKE ANY UNNEST([r'data\_v1%', r'%100\%.csv'])
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{true, false, false}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL]
+[name=like_any_collation_ci_with_underscore_error]
+# Verifies that the current implementation of collated LIKE does not support
+# the '_' wildcard and correctly returns an error.
+SELECT
+  collate('Google', 'en_US') LIKE ANY ('G__gle')
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL]
+[name=not_like_any_collation_ci_with_underscore_error]
+# Verifies that NOT LIKE ANY with a collated value correctly errors when a
+# pattern contains the unsupported '_' wildcard.
+SELECT
+  collate('Google', 'en_US') NOT LIKE ANY ('G__gle')
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_ARRAY]
+[name=not_like_any_collation_ci_with_underscore_error_with_array]
+SELECT
+  collate('Google', 'en_US') NOT LIKE ANY UNNEST(['G__gle'])
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL]
+[name=like_any_collation_binary_with_underscore_success]
+# Verifies that a 'binary' collation bypasses the collation logic and falls
+# back to the standard LIKE implementation, which correctly handles '_'.
+SELECT
+  collate('Google', 'binary') LIKE ANY ('Goo_le', 'Test')
+--
+ARRAY<STRUCT<BOOL>>[{true}]

@@ -441,6 +441,10 @@ known_errors {
   label: "aggregate_filter_test:filter_on_uda_1"
   label: "aggregate_filter_test:filter_on_uda_2"
   label: "aggregate_filter_test:filter_on_uda_containing_filter_in_body"
+  label: "aggregate_filter_test:filtered_mla_with_uda"
+  label: "aggregate_filter_test:mla_with_uda_containing_filter"
+  label: "aggregate_filter_test:nested_udas"
+  label: "aggregate_filter_test:uda_with_filter_calling_mla"
 }
 
 known_errors {

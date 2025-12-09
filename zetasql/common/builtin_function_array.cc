@@ -14,20 +14,14 @@
 // limitations under the License.
 //
 
-#include <ctype.h>
-
-#include <algorithm>
 #include <memory>
-#include <set>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "zetasql/base/logging.h"
 #include "zetasql/common/builtin_function_internal.h"
 #include "zetasql/proto/anon_output_with_report.pb.h"
-#include "zetasql/public/annotation/collation.h"
 #include "zetasql/public/builtin_function.pb.h"
 #include "zetasql/public/builtin_function_options.h"
 #include "zetasql/public/catalog.h"
@@ -52,7 +46,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "zetasql/base/ret_check.h"
-#include "zetasql/base/status.h"
 #include "zetasql/base/status_macros.h"
 
 namespace zetasql {
@@ -185,6 +178,38 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
       {{bool_type, {ARG_ARRAY_TYPE_ANY_1}, FN_ARRAY_IS_DISTINCT}},
       FunctionOptions().set_pre_resolution_argument_constraint(
           &CheckArrayIsDistinctArguments));
+
+  // ARRAY_DISTINCT: returns an array with distinct entries.
+  FunctionArgumentType array_distinct_arg(
+      ARG_ARRAY_TYPE_ANY_1,
+      FunctionArgumentTypeOptions()
+          .set_uses_array_element_for_collation()
+          .set_array_element_must_support_grouping()
+          .set_argument_name("input_array", kPositionalOnly));
+  constexpr absl::string_view kArrayDistinctSql = R"sql(
+    IF(
+      input_array IS NULL,
+      NULL,
+      ARRAY(
+        SELECT element
+        FROM
+          (
+            SELECT element, MIN(idx) AS idx
+            FROM UNNEST(input_array) AS element WITH OFFSET idx
+            GROUP BY element
+          )
+        ORDER BY idx
+      ))
+  )sql";
+  InsertFunction(functions, options, "array_distinct", SCALAR,
+                 {{ARG_ARRAY_TYPE_ANY_1,
+                   {array_distinct_arg},
+                   FN_ARRAY_DISTINCT,
+                   SetDefinitionForInlining(kArrayDistinctSql)
+                       .set_uses_operation_collation()
+                       .AddRequiredLanguageFeature(FEATURE_ARRAY_DISTINCT)}},
+                 FunctionOptions().set_pre_resolution_argument_constraint(
+                     &CheckArrayDistinctArguments));
 
   FunctionSignatureOptions has_numeric_type_argument;
   has_numeric_type_argument.set_constraints(&CheckHasNumericTypeArgument);

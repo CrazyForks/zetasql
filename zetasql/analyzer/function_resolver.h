@@ -137,6 +137,7 @@ class FunctionResolver {
       const ASTNode* ast_location, const TemplatedSQLFunction& function,
       const AnalyzerOptions& analyzer_options,
       absl::Span<const InputArgumentType> actual_arguments,
+      const std::vector<std::unique_ptr<const ResolvedExpr>>& argument_list,
       std::shared_ptr<ResolvedFunctionCallInfo>* function_call_info_out);
 
   // This is a helper method when parsing or analyzing the function's SQL

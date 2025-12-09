@@ -1088,3 +1088,67 @@ SELECT EUCLIDEAN_DISTANCE(ARRAY[(1, 10.0), (2, 30.0), (3, 40.0)], ARRAY(SELECT e
 
 --
 ARRAY<STRUCT<DOUBLE>>[{0}]
+==
+
+##
+## ARRAY_DISTINCT queries
+##
+[name=array_distinct_null_array]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT(NULL)
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>(NULL)}]
+==
+[name=array_distinct_empty_array]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[]}]
+==
+[name=array_distinct_simple_duplicates]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([2, 1, 3, 1])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[known order:2, 1, 3]}]
+==
+[name=array_distinct_adjacent_duplicates]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([1, 1, 2, 2, 1])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[known order:1, 2]}]
+==
+[name=array_distinct_no_duplicates]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([1, 2, 3])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[known order:1, 2, 3]}]
+==
+[name=array_distinct_with_nulls]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([1, NULL, 1, NULL])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[known order:1, NULL]}]
+==
+[name=array_distinct_only_nulls]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([NULL, NULL])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[NULL]}]
+==
+[name=array_distinct_nan]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([CAST('nan' AS DOUBLE), 1.0, CAST('nan' AS DOUBLE)])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<DOUBLE>[known order:nan, 1]}]
+==
+[name=array_distinct_string]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT(['a', 'b', 'a'])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<STRING>[known order:"a", "b"]}]
+==
+[name=array_distinct_bytes]
+[required_features=ARRAY_DISTINCT]
+SELECT ARRAY_DISTINCT([b'a', b'b', b'a'])
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<BYTES>[known order:b"a", b"b"]}]

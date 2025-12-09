@@ -667,7 +667,6 @@ LazyResolutionFunction::CreateImpl(
     std::unique_ptr<ParserOutput> parser_output, absl::Status function_status,
     ErrorMessageOptions error_message_options,
     FunctionEnums::Mode function_mode, ModuleDetails module_details) {
-  // LazyResolutionFunctions only support ASTCreateFunctionStatements.
   ZETASQL_RET_CHECK_NE(parser_output->statement(), nullptr);
   ZETASQL_RET_CHECK_EQ(AST_CREATE_FUNCTION_STATEMENT,
                parser_output->statement()->node_kind())
@@ -675,7 +674,6 @@ LazyResolutionFunction::CreateImpl(
   const ASTCreateFunctionStatement* ast_create_function_statement =
       parser_output->statement()->GetAs<ASTCreateFunctionStatement>();
 
-  // LazyResolutionFunctions only support functions with single-part names.
   ZETASQL_RET_CHECK_EQ(1, ast_create_function_statement->function_declaration()
                       ->name()
                       ->num_names())
@@ -915,7 +913,6 @@ LazyResolutionTableFunction::CreateImpl(
     std::unique_ptr<ParserOutput> parser_output, absl::Status function_status,
     RemoteTvfFactory* remote_tvf_factory, ModuleDetails module_details,
     ErrorMessageOptions error_message_options) {
-  // LazyResolutionTableFunctions only support ASTCreateTableFunctionStatements.
   ZETASQL_RET_CHECK_NE(parser_output->statement(), nullptr);
   ZETASQL_RET_CHECK_EQ(AST_CREATE_TABLE_FUNCTION_STATEMENT,
                parser_output->statement()->node_kind())
@@ -924,8 +921,6 @@ LazyResolutionTableFunction::CreateImpl(
   const ASTCreateTableFunctionStatement* ast_create_table_function_statement =
       parser_output->statement()->GetAs<ASTCreateTableFunctionStatement>();
 
-  // LazyResolutionTableFunctions only support table functions with
-  // single-part names.
   ZETASQL_RET_CHECK_EQ(1, ast_create_table_function_statement->function_declaration()
                       ->name()
                       ->num_names())
@@ -1080,7 +1075,6 @@ LazyResolutionConstant::Create(const ParseResumeLocation& parse_resume_location,
                                std::unique_ptr<ParserOutput> parser_output,
                                absl::Status constant_status,
                                ErrorMessageOptions error_message_options) {
-  // LazyResolutionConstants only support ASTCreateConstantStatements.
   ZETASQL_RET_CHECK_NE(parser_output->statement(), nullptr);
   ZETASQL_RET_CHECK_EQ(AST_CREATE_CONSTANT_STATEMENT,
                parser_output->statement()->node_kind())
@@ -1088,7 +1082,6 @@ LazyResolutionConstant::Create(const ParseResumeLocation& parse_resume_location,
   const ASTCreateConstantStatement* ast_create_constant_statement =
       parser_output->statement()->GetAs<ASTCreateConstantStatement>();
 
-  // LazyResolutionConstants only support functions with single-part names.
   ZETASQL_RET_CHECK_EQ(1, ast_create_constant_statement->name()->num_names())
       << "LazyResolutionConstants only support named constants with "
          "single-part names";

@@ -74,4 +74,15 @@ def _http_archive_deps_impl(_):
         url = "https://github.com/adamheinrich/native-utils/archive/e6a39489662846a77504634b6fafa4995ede3b1d.tar.gz",
     )
 
+    http_archive(
+        name = "icu",
+        build_file = "//bazel:icu.BUILD",
+        sha256 = "dfacb46bfe4747410472ce3e1144bf28a102feeaa4e3875bac9b4c6cf30f4f3e",
+        strip_prefix = "icu",
+        urls = ["https://github.com/unicode-org/icu/releases/download/release-76-1/icu4c-76_1-src.tgz"],
+        patch_cmds = [
+            "find source -name BUILD.bazel -delete",
+        ],
+    )
+
 zetasql_http_archive_deps = module_extension(implementation = _http_archive_deps_impl)

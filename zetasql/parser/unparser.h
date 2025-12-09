@@ -319,6 +319,10 @@ class Unparser : public ParseTreeVisitor {
   void visitASTModuleStatement(const ASTModuleStatement* node,
                                void* data) override;
   void visitASTWithClause(const ASTWithClause* node, void* data) override;
+  void visitASTWithClauseEntry(const ASTWithClauseEntry* node,
+                               void* data) override;
+  void visitASTAliasedGroupRows(const ASTAliasedGroupRows* node,
+                                void* data) override;
   void visitASTQuery(const ASTQuery* node, void* data) override;
   void visitASTAliasedQueryExpression(const ASTAliasedQueryExpression* node,
                                       void* data) override;
@@ -393,7 +397,7 @@ class Unparser : public ParseTreeVisitor {
   void visitASTSelect(const ASTSelect* node, void* data) override;
   void visitASTSelectAs(const ASTSelectAs* node, void* data) override;
   void visitASTSelectList(const ASTSelectList* node, void* data) override;
-  void visitASTSelectWith(const ASTSelectWith* node, void* data) override;
+  void visitASTWithModifier(const ASTWithModifier* node, void* data) override;
   void visitASTSelectColumn(const ASTSelectColumn* node, void* data) override;
   void visitASTAlias(const ASTAlias* node, void* data) override;
   void visitASTAliasedQuery(const ASTAliasedQuery* node, void* data) override;

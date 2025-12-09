@@ -21,6 +21,17 @@ package zetasql;
 option java_package = "com.google.zetasql";
 option java_outer_classname = "PropertyGraphProtos";
 
+// Describes a generic option key-value pair associated with any
+// Graph schema object.
+message OptionProto {
+  // The name of the option.
+  optional string name = 1;
+  // The type of the option value.
+  optional string type = 2;
+  // The SQL literal describing the value of this option, as a string.
+  optional string value = 3;
+}
+
 // Top-level protobuf to describe a property graph.
 message PropertyGraphProto {
   // Name of the catalog containing the property graph.
@@ -88,6 +99,8 @@ message GraphElementLabelProto {
   optional string name = 1;
   // Cross-references to the `name` field in `GraphPropertyDeclarationProto`.
   repeated string property_declaration_names = 2;
+  // OPTIONS for the label.
+  repeated OptionProto options = 3;
 }
 
 // To describe a property declaration.
@@ -104,4 +117,6 @@ message GraphPropertyDefinitionProto {
   optional string property_declaration_name = 1;
   // The SQL expression that defines the property.
   optional string value_expression_sql = 2;
+  // OPTIONS for property definition.
+  repeated OptionProto options = 3;
 }

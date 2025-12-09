@@ -18,10 +18,12 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
 
+#include "zetasql/common/measure_analysis_utils.h"
 #include "zetasql/base/testing/status_matchers.h"
 #include "zetasql/compliance/test_driver.pb.h"
 #include "zetasql/public/options.pb.h"
@@ -42,6 +44,7 @@
 namespace zetasql {
 
 using ::zetasql_test__::KitchenSinkPB;
+using ::testing::ElementsAre;
 
 TEST(TestDriverTest, ClassAndProtoSize) {
   // We're forced to replicate the exact structure for this test because the
@@ -74,9 +77,20 @@ TEST(TestDriverTest, ClassAndProtoSize) {
                 "Please change SerializeTestDatabase (test_driver.cc) and "
                 "TestDatabaseProto (test_driver.proto) tests if TestDatabase "
                 "is modified.");
+  struct MockMeasureColumnDef {
+    std::string name;
+    std::string expression;
+    bool is_pseudo_column;
+    std::optional<std::vector<int>> row_identity_column_indices;
+  };
+  static_assert(sizeof(MeasureColumnDef) == sizeof(MockMeasureColumnDef),
+                "Please change SerializeTestDatabase (test_driver.cc) and "
+                "TestDatabaseProto (test_driver.proto) tests if "
+                "MeasureColumnDef is modified.");
   EXPECT_EQ(TestDatabaseProto::descriptor()->field_count(), 8);
   EXPECT_EQ(7, TestTableOptionsProto::descriptor()->field_count());
   EXPECT_EQ(5, TestTableProto::descriptor()->field_count());
+  EXPECT_EQ(4, MeasureColumnDefProto::descriptor()->field_count());
 }
 
 Value KitchenSinkPBValue(const ProtoType* proto_type,
@@ -114,6 +128,16 @@ TEST(TestDriverTest, SerializeDeserializeTestDbWithProtos) {
                                          {KitchenSinkPBValue(proto_type, pb)}));
   TestTable t;
   t.table_as_value = Value::Array(array_struct_proto_type, {row1, row2});
+  t.measure_column_defs.push_back(
+      {.name = "measure1",
+       .expression = "COUNT(1)",
+       .is_pseudo_column = false,
+       .row_identity_column_indices = std::vector<int>{1, 2}});
+  t.measure_column_defs.push_back(
+      {.name = "measure2",
+       .expression = "SUM(a)",
+       .is_pseudo_column = true,
+       .row_identity_column_indices = std::nullopt});
   TestDatabase test_db;
   test_db.tables["t"] = t;
   test_db.measure_function_defs.push_back("CREATE MEASURE m1 AS (1)");
@@ -128,6 +152,20 @@ TEST(TestDriverTest, SerializeDeserializeTestDbWithProtos) {
   ASSERT_EQ(deserialized_db.tables["t"].table_as_value.DebugString(),
             test_db.tables["t"].table_as_value.DebugString())
       << "Table differs after round-trip serialization/deserialization";
+
+  ASSERT_EQ(deserialized_db.tables["t"].measure_column_defs.size(), 2);
+  const auto& m1 = deserialized_db.tables["t"].measure_column_defs[0];
+  EXPECT_EQ(m1.name, "measure1");
+  EXPECT_EQ(m1.expression, "COUNT(1)");
+  EXPECT_FALSE(m1.is_pseudo_column);
+  ASSERT_TRUE(m1.row_identity_column_indices.has_value());
+  EXPECT_THAT(*m1.row_identity_column_indices, ElementsAre(1, 2));
+
+  const auto& m2 = deserialized_db.tables["t"].measure_column_defs[1];
+  EXPECT_EQ(m2.name, "measure2");
+  EXPECT_EQ(m2.expression, "SUM(a)");
+  EXPECT_TRUE(m2.is_pseudo_column);
+  EXPECT_FALSE(m2.row_identity_column_indices.has_value());
 }
 
 TEST(TestDriverTest, SerializeDeserializeTableOptions) {

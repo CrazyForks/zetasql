@@ -312,6 +312,14 @@ class Validator {
   absl::Status ValidateResolvedTableScan(
       const ResolvedTableScan* scan,
       const std::set<ResolvedColumn>& visible_parameters);
+
+  // Performs the following validations for measure columns:
+  // 1. FEATURE_ENABLE_MEASURES is enabled.
+  // 2. The table supports NumColumns and GetColumn(i).
+  // 3. If a measure column does not have column-level row identity columns,
+  //    the table must have table-level row identity columns.
+  absl::Status ValidateMeasureColumns(const ResolvedScan* scan,
+                                      const Table* table);
   absl::Status ValidateResolvedJoinScan(
       const ResolvedJoinScan* scan,
       const std::set<ResolvedColumn>& visible_parameters);

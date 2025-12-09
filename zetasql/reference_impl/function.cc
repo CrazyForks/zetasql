@@ -557,6 +557,8 @@ FunctionMap::FunctionMap() {
                      "$safe_array_at_ordinal", "SafeArrayAtOrdinal");
     RegisterFunction(FunctionKind::kArrayIsDistinct, "array_is_distinct",
                      "ArrayIsDistinct");
+    RegisterFunction(FunctionKind::kArrayDistinct, "array_distinct",
+                     "ArrayDistinct");
     RegisterFunction(FunctionKind::kAvg, "avg", "Avg");
     RegisterFunction(FunctionKind::kBitwiseAnd, "$bitwise_and", "BitwiseAnd");
     RegisterFunction(FunctionKind::kBitwiseLeftShift, "$bitwise_left_shift",
@@ -2287,9 +2289,10 @@ BuiltinTableValuedFunction::CreateCall(
 absl::StatusOr<std::unique_ptr<BuiltinTableValuedFunction>>
 BuiltinTableValuedFunction::Create(FunctionKind kind) {
   switch (kind) {
-    // Reference implementation of builtin TVFs (concrete instances of
-    // `BuiltinTableValuedFunction`) should go here based on kind if those are
-    // not registered in `BuiltinFunctionRegistry`.
+    // Reference implementation of builtin TVFs with large dependencies should
+    // be registered with `BuiltinFunctionRegistry`, so that users of
+    // evaluator_lite can avoid picking up dependencies for TVFs they don't
+    // need. All other TVFs with small deps should be listed directly here.
     default:
       ZETASQL_ASSIGN_OR_RETURN(BuiltinTableValuedFunction * function,
                        BuiltinFunctionRegistry::GetTableValuedFunction(kind));
@@ -2327,6 +2330,10 @@ BuiltinScalarFunction::CreateValidatedRaw(
   ZETASQL_RETURN_IF_ERROR(ValidateSupportedTypes(language_options, {output_type}));
   ZETASQL_RETURN_IF_ERROR(ValidateSupportedTypes(language_options, input_types));
   switch (kind) {
+    // Reference implementation of builtin functions with large dependencies
+    // should be registered with `BuiltinFunctionRegistry`, so that users of
+    // evaluator_lite can avoid picking up dependencies for functions they don't
+    // need. All other functions with small deps should be listed directly here.
     case FunctionKind::kAdd:
     case FunctionKind::kSubtract:
     case FunctionKind::kMultiply:
@@ -2568,6 +2575,8 @@ BuiltinScalarFunction::CreateValidatedRaw(
       return new ArrayReverseFunction(output_type);
     case FunctionKind::kArrayIsDistinct:
       return new ArrayIsDistinctFunction(kind, output_type);
+    case FunctionKind::kArrayDistinct:
+      return new ArrayDistinctFunction(kind, output_type);
     case FunctionKind::kArrayIncludes:
       ZETASQL_RET_CHECK_EQ(arguments.size(), 2);
       if (arguments[1]->has_value_expr()) {
@@ -4223,6 +4232,38 @@ absl::StatusOr<Value> ArrayIsDistinctFunction::Eval(
   }
 
   return Value::Bool(true);
+}
+
+absl::StatusOr<Value> ArrayDistinctFunction::Eval(
+    absl::Span<const TupleData* const> params, absl::Span<const Value> args,
+    EvaluationContext* context) const {
+  ABSL_DCHECK_EQ(args.size(), 1);
+  if (HasNulls(args)) {
+    return Value::Null(output_type());
+  }
+
+  const Value& array = args[0];
+  const ArrayType* array_type = array.type()->AsArray();
+  ZETASQL_RET_CHECK_NE(array_type, nullptr)
+      << "ARRAY_DISTINCT cannot be used on non-array type "
+      << array.type()->DebugString();
+
+  ZETASQL_RET_CHECK(array_type->element_type()->SupportsGrouping(
+      context->GetLanguageOptions(), nullptr))
+      << "ARRAY_DISTINCT cannot be used on argument of type "
+      << array.type()->ShortTypeName(
+             context->GetLanguageOptions().product_mode())
+      << " because the array's element type does not support grouping";
+
+  absl::flat_hash_set<Value> values;
+  std::vector<Value> distinct_values;
+  for (int i = 0; i < array.num_elements(); ++i) {
+    if (values.insert(array.element(i)).second) {
+      distinct_values.push_back(array.element(i));
+    }
+  }
+
+  return Value::Array(output_type()->AsArray(), distinct_values);
 }
 
 absl::StatusOr<Value> ArrayIncludesFunction::Eval(

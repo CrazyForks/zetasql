@@ -84,6 +84,24 @@ public class AnnotationMap {
   }
 
   /**
+   * Clears annotation value for the given AnnotationSpec ID if it exists, including all nested
+   * levels.
+   */
+  public void unsetAnnotationRecursively(int id) {
+    annotations.remove(id);
+    if (!isStructMap()) {
+      return;
+    }
+    StructAnnotationMap structMap = asStructMap();
+    for (int i = 0; i < structMap.getFieldCount(); i++) {
+      AnnotationMap field = structMap.getField(i);
+      if (field != null) {
+        field.unsetAnnotationRecursively(id);
+      }
+    }
+  }
+
+  /**
    * Returns annotation value for given AnnotationSpec ID. Returns null if the ID is not in the map.
    */
   public SimpleValue getAnnotation(int id) {

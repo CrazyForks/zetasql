@@ -319,6 +319,30 @@ absl::Status ValidateNoDuplicateElementTable(
   return absl::OkStatus();
 }
 
+// Validates newly added `element_labels` does not have OPTIONS defined
+// previously according to `labels_with_options`.
+// Adds new labels with OPTIONS defined into `labels_with_options`.
+absl::Status ValidateLabelWithOptionsNotBoundInMultipleElementTables(
+    const std::vector<std::unique_ptr<const ResolvedGraphElementLabel>>&
+        element_labels,
+    StringViewHashSetCase& labels_with_options) {
+  for (const auto& element_label : element_labels) {
+    if (labels_with_options.contains(element_label->name())) {
+      ZETASQL_RET_CHECK(element_label->GetParseLocationOrNULL() != nullptr);
+      return MakeSqlErrorAtPoint(
+                 element_label->GetParseLocationOrNULL()->start())
+             << "The label "
+             << ToSingleQuotedStringLiteral(element_label->name())
+             << " is defined with OPTIONS clause in one of the element tables "
+                "and cannot be bound to another element table";
+    }
+    if (!element_label->options_list().empty()) {
+      labels_with_options.insert(element_label->name());
+    }
+  }
+  return absl::OkStatus();
+}
+
 // Validates a property definition pair: they must have the same expression
 // within the same element table. Used by element table resolution.
 absl::Status ValidateIdentical(const ResolvedGraphPropertyDefinition& def1,
@@ -433,16 +457,15 @@ absl::Status Dedupe(std::vector<std::unique_ptr<const T>>& resolved_nodes,
 }
 
 // Validates ResolvedGraphElementLabel.
-absl::Status ValidateElementLabel(
-    const ASTGraphElementLabelAndProperties* input_ast,
-    const ResolvedGraphElementLabel& label) {
+absl::Status ValidateElementLabel(const ASTNode& ast_location,
+                                  const ResolvedGraphElementLabel& label) {
   // Element label level validation:
   // No duplicate property name within a label.
   StringViewHashSetCase unique_properties;
   for (const std::string& property_name :
        label.property_declaration_name_list()) {
     if (!unique_properties.insert(property_name).second) {
-      return MakeSqlErrorAt(input_ast)
+      return MakeSqlErrorAt(&ast_location)
              << "Duplicate property name "
              << ToSingleQuotedStringLiteral(property_name)
              << " in the same label "
@@ -813,46 +836,86 @@ GraphStmtResolver::ResolveGraphProperties(
       ast_properties, ast_properties->all_except_columns(), base_table_scan);
 }
 
-absl::StatusOr<std::unique_ptr<const ResolvedGraphElementLabel>>
-GraphStmtResolver::ResolveLabelAndProperties(
-    const ASTGraphElementLabelAndProperties* ast_label_and_properties,
-    IdString element_table_alias, const ResolvedTableScan& base_table_scan,
-    const NameScope* input_scope,
-    std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>&
-        output_property_decls,
-    std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>&
-        output_property_defs) const {
-  // Resolves label name: either explicitly defined or implicitly the element
-  // table alias.
-  std::vector<std::unique_ptr<const ResolvedOption>> options_list;
-  if (ast_label_and_properties->label_options_list() != nullptr) {
-    if (!resolver_.language().LanguageFeatureEnabled(
-            FEATURE_SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS)) {
-      return MakeSqlErrorAt(ast_label_and_properties->label_options_list())
-             << "OPTIONS clause is not supported for labels";
+absl::StatusOr<GraphStmtResolver::LabelAndPropertiesList>
+GraphStmtResolver::ResolveLabelAndPropertiesList(
+    const ASTGraphElementLabelAndPropertiesList& ast_label_properties_list,
+    const ASTOptionsList* default_label_options, IdString element_table_alias,
+    const ResolvedTableScan& base_table_scan,
+    const NameScope* input_scope) const {
+  ZETASQL_RET_CHECK(!ast_label_properties_list.label_properties_list().empty());
+  bool label_options_enabled = resolver_.language().LanguageFeatureEnabled(
+      FEATURE_SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS);
+  if (default_label_options != nullptr && !label_options_enabled) {
+    return MakeSqlErrorAt(default_label_options)
+           << "OPTIONS clause is not supported for labels";
+  }
+  std::vector<std::unique_ptr<const ResolvedGraphElementLabel>> labels;
+  std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
+      property_defs;
+  for (const auto* ast_label_and_props :
+       ast_label_properties_list.label_properties_list()) {
+    bool is_default_label = ast_label_and_props->label_name() == nullptr;
+    absl::string_view label_name =
+        is_default_label ? element_table_alias.ToStringView()
+                         : ast_label_and_props->label_name()->GetAsStringView();
+    const ASTOptionsList* label_options =
+        ast_label_and_props->label_options_list();
+    if (label_options != nullptr) {
+      if (!label_options_enabled) {
+        return MakeSqlErrorAt(label_options)
+               << "OPTIONS clause is not supported for labels";
+      }
+      if (!is_default_label) {
+        return MakeSqlErrorAt(label_options)
+               << "OPTIONS clause is not supported for non-default labels";
+      }
+      if (default_label_options != nullptr) {
+        return MakeSqlErrorAt(label_options)
+               << "OPTIONS clause for the default label "
+               << ToSingleQuotedStringLiteral(label_name)
+               << " is defined more than once, consider dropping the OPTIONS "
+                  "clause before DEFAULT LABEL clause";
+      }
+    } else if (is_default_label && default_label_options != nullptr) {
+      label_options = default_label_options;
     }
-    ZETASQL_RET_CHECK_EQ(ast_label_and_properties->label_name(), nullptr)
-        << "OPTIONS clause is not supported for non-default labels";
+    ZETASQL_RET_CHECK(ast_label_and_props->properties() != nullptr);
+    ZETASQL_ASSIGN_OR_RETURN(
+        LabelAndProperties label_and_properties,
+        ResolveLabelAndProperties(*ast_label_and_props, label_name,
+                                  *ast_label_and_props->properties(),
+                                  label_options, base_table_scan, input_scope));
+    property_defs.insert(
+        property_defs.end(),
+        std::make_move_iterator(label_and_properties.property_defs.begin()),
+        std::make_move_iterator(label_and_properties.property_defs.end()));
+    labels.push_back(std::move(label_and_properties.label));
+  }
+  return LabelAndPropertiesList{
+      .labels = std::move(labels),
+      .property_defs = std::move(property_defs),
+  };
+}
+
+absl::StatusOr<GraphStmtResolver::LabelAndProperties>
+GraphStmtResolver::ResolveLabelAndProperties(
+    const ASTNode& ast_location, absl::string_view label_name,
+    const ASTGraphProperties& properties,
+    const ASTOptionsList* label_options_list,
+    const ResolvedTableScan& base_table_scan,
+    const NameScope* input_scope) const {
+  std::vector<std::unique_ptr<const ResolvedOption>> options_list;
+  if (label_options_list != nullptr) {
     ZETASQL_RETURN_IF_ERROR(resolver_.ResolveOptionsList(
-        ast_label_and_properties->label_options_list(),
+        label_options_list,
         /*allow_alter_array_operators=*/false, &options_list));
   }
-  IdString label_name =
-      ast_label_and_properties->label_name() == nullptr
-          ? element_table_alias
-          : ast_label_and_properties->label_name()->GetAsIdString();
-
-  // Resolves property declarations and definitions.
-  ZETASQL_RET_CHECK(ast_label_and_properties->properties() != nullptr);
   ZETASQL_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
           property_defs,
-      ResolveGraphProperties(ast_label_and_properties->properties(),
-                             base_table_scan, input_scope));
+      ResolveGraphProperties(&properties, base_table_scan, input_scope));
 
   std::vector<std::string> property_declaration_names;
-  output_property_decls.reserve(output_property_decls.size() +
-                                property_defs.size());
   property_declaration_names.reserve(property_defs.size());
   for (const auto& property_def : property_defs) {
     // Each property definition corresponds to a property declaration.
@@ -862,29 +925,24 @@ GraphStmtResolver::ResolveLabelAndProperties(
             .set_name(property_def->property_declaration_name())
             .set_type(property_def->expr()->type())
             .Build());
-    property_declaration_names.push_back(
-        property_def->property_declaration_name());
-    ZETASQL_RET_CHECK_NE(property_def->GetParseLocationRangeOrNULL(), nullptr);
-    output_property_decls.push_back(GetResolvedElementWithLocation(
-        std::move(property_decl),
-        *property_def->GetParseLocationRangeOrNULL()));
+    property_declaration_names.push_back(property_decl->name());
   }
 
   ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedGraphElementLabel> label,
                    ResolvedGraphElementLabelBuilder()
-                       .set_name(label_name.ToString())
+                       .set_name(label_name)
                        .set_property_declaration_name_list(
                            std::move(property_declaration_names))
                        .set_options_list(std::move(options_list))
                        .Build());
-
-  label = GetResolvedElementWithLocation(std::move(label),
-                                         ast_label_and_properties->location());
-  absl::c_move(property_defs, std::back_inserter(output_property_defs));
-
+  label =
+      GetResolvedElementWithLocation(std::move(label), ast_location.location());
   // Validates label.
-  ZETASQL_RETURN_IF_ERROR(ValidateElementLabel(ast_label_and_properties, *label));
-  return label;
+  ZETASQL_RETURN_IF_ERROR(ValidateElementLabel(ast_location, *label));
+  return LabelAndProperties{
+      .label = std::move(label),
+      .property_defs = std::move(property_defs),
+  };
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedTableScan>>
@@ -919,16 +977,12 @@ bool IsExprStringArray(const ResolvedExpr* expr) {
          expr->type()->AsArray()->element_type()->IsString();
 }
 
-absl::StatusOr<std::unique_ptr<const ResolvedGraphElementTable>>
+absl::StatusOr<GraphStmtResolver::ElementTableWithLabelsAndProperties>
 GraphStmtResolver::ResolveGraphElementTable(
     const ASTGraphElementTable* ast_element_table,
     const GraphElementTable::Kind element_kind,
     const StringViewHashMapCase<const ResolvedGraphElementTable*>&
-        node_table_map,
-    std::vector<std::unique_ptr<const ResolvedGraphElementLabel>>&
-        output_labels,
-    std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>&
-        output_property_decls) const {
+        node_table_map) const {
   // Resolves the underlying table.
   NameListPtr table_scan_name_list;
   ZETASQL_ASSIGN_OR_RETURN(
@@ -946,32 +1000,20 @@ GraphStmtResolver::ResolveGraphElementTable(
   const IdString alias = ast_element_table->alias() == nullptr
                              ? GetAliasForExpression(ast_element_table->name())
                              : ast_element_table->alias()->GetAsIdString();
-
-  std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
-      property_defs;
-
-  // Resolves labels and properties.
-  std::vector<std::string> label_names;
+  // Resolves all labels and properties.
   ZETASQL_RET_CHECK(ast_element_table->label_properties_list() != nullptr);
-  const auto& label_properties_list =
-      ast_element_table->label_properties_list()->label_properties_list();
-  ZETASQL_RET_CHECK(!label_properties_list.empty());
-  label_names.reserve(label_properties_list.size());
   const NameScope input_table_name_scope(*table_scan_name_list);
-  for (const auto* ast_label_and_props : label_properties_list) {
-    ZETASQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<const ResolvedGraphElementLabel> label,
-        ResolveLabelAndProperties(ast_label_and_props, alias, *table_scan,
-                                  &input_table_name_scope,
-                                  output_property_decls, property_defs));
-    label_names.push_back(label->name());
-    output_labels.push_back(std::move(label));
-  }
+  ZETASQL_ASSIGN_OR_RETURN(LabelAndPropertiesList label_and_properties_list,
+                   ResolveLabelAndPropertiesList(
+                       *ast_element_table->label_properties_list(),
+                       ast_element_table->default_label_options_list(), alias,
+                       *table_scan, &input_table_name_scope));
+
+  // Resolves dynamic labels
   std::unique_ptr<const ResolvedGraphDynamicLabelSpecification>
       dynamic_label_spec;
   if (ast_element_table->dynamic_label() != nullptr) {
     static constexpr char kDynamicLabelClause[] = "DYNAMIC LABEL clause";
-    const NameScope input_table_name_scope(*table_scan_name_list);
     auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
         &input_table_name_scope, kDynamicLabelClause);
     std::unique_ptr<const ResolvedExpr> resolved_expr;
@@ -1017,12 +1059,13 @@ GraphStmtResolver::ResolveGraphElementTable(
                          .set_label_expr(std::move(resolved_expr))
                          .Build());
   }
+
+  // Resolves dynamic properties
   std::unique_ptr<const ResolvedGraphDynamicPropertiesSpecification>
       dynamic_properties_spec;
   if (ast_element_table->dynamic_properties() != nullptr) {
     static constexpr char kDynamicPropertiesClause[] =
         "DYNAMIC PROPERTIES clause";
-    const NameScope input_table_name_scope(*table_scan_name_list);
     auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
         &input_table_name_scope, kDynamicPropertiesClause);
     std::unique_ptr<const ResolvedExpr> resolved_expr;
@@ -1067,8 +1110,32 @@ GraphStmtResolver::ResolveGraphElementTable(
 
   // Dedupe property definitions at element table level.
   ZETASQL_RETURN_IF_ERROR(
-      Dedupe(property_defs,
+      Dedupe(label_and_properties_list.property_defs,
              &ResolvedGraphPropertyDefinition::property_declaration_name));
+  // Build the property declarations from the property definitions resolved in
+  // this element table.
+  std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>
+      property_decls;
+  property_decls.reserve(label_and_properties_list.property_defs.size());
+  for (const std::unique_ptr<const ResolvedGraphPropertyDefinition>&
+           property_def : label_and_properties_list.property_defs) {
+    ZETASQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<const ResolvedGraphPropertyDeclaration> property_decl,
+        ResolvedGraphPropertyDeclarationBuilder()
+            .set_name(property_def->property_declaration_name())
+            .set_type(property_def->expr()->type())
+            .Build());
+    ZETASQL_RET_CHECK_NE(property_def->GetParseLocationRangeOrNULL(), nullptr);
+    property_decls.push_back(GetResolvedElementWithLocation(
+        std::move(property_decl),
+        *property_def->GetParseLocationRangeOrNULL()));
+  }
+  // Collect the labels names declared in this element table.
+  std::vector<std::string> label_names;
+  label_names.reserve(label_and_properties_list.labels.size());
+  absl::c_transform(label_and_properties_list.labels,
+                    std::back_inserter(label_names),
+                    [](const auto& label) { return label->name(); });
   ZETASQL_ASSIGN_OR_RETURN(
       std::unique_ptr<const ResolvedGraphElementTable> element_table,
       ResolvedGraphElementTableBuilder()
@@ -1076,7 +1143,8 @@ GraphStmtResolver::ResolveGraphElementTable(
           .set_key_list(std::move(key_list))
           .set_input_scan(std::move(table_scan))
           .set_label_name_list(std::move(label_names))
-          .set_property_definition_list(std::move(property_defs))
+          .set_property_definition_list(
+              std::move(label_and_properties_list.property_defs))
           .set_source_node_reference(std::move(source_node_ref))
           .set_dest_node_reference(std::move(dest_node_ref))
           .set_dynamic_label(std::move(dynamic_label_spec))
@@ -1085,7 +1153,10 @@ GraphStmtResolver::ResolveGraphElementTable(
   // Validates ResolvedGraphElementTable.
   ZETASQL_RETURN_IF_ERROR(
       ValidateElementTable(ast_element_table, *element_table, element_kind));
-  return element_table;
+  return ElementTableWithLabelsAndProperties{
+      .element_table = std::move(element_table),
+      .labels = std::move(label_and_properties_list.labels),
+      .property_decls = std::move(property_decls)};
 }
 
 absl::Status GraphStmtResolver::ResolveCreatePropertyGraphStmt(
@@ -1120,6 +1191,9 @@ absl::Status GraphStmtResolver::ResolveCreatePropertyGraphStmt(
   // Resolves node tables.
   ZETASQL_RET_CHECK(ast_stmt->node_table_list() != nullptr);
   StringViewHashMapCase<const ResolvedGraphElementTable*> node_table_map;
+  // Tracks labels that have OPTIONS defined, which have to be uniquely bound to
+  // a single element table.
+  StringViewHashSetCase labels_with_options;
   for (const auto* ast_node_table :
        ast_stmt->node_table_list()->element_tables()) {
     if (ast_node_table->dynamic_label() != nullptr) {
@@ -1140,11 +1214,28 @@ absl::Status GraphStmtResolver::ResolveCreatePropertyGraphStmt(
       }
     }
     ZETASQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<const ResolvedGraphElementTable> node_table,
+        ElementTableWithLabelsAndProperties
+            element_table_with_labels_and_properties,
         ResolveGraphElementTable(ast_node_table, GraphElementTable::Kind::kNode,
-                                 node_table_map, labels, property_decls));
-    node_table_map.emplace(node_table->alias(), node_table.get());
-    node_tables.push_back(std::move(node_table));
+                                 node_table_map));
+    node_table_map.emplace(
+        element_table_with_labels_and_properties.element_table->alias(),
+        element_table_with_labels_and_properties.element_table.get());
+    node_tables.push_back(
+        std::move(element_table_with_labels_and_properties.element_table));
+    ZETASQL_RETURN_IF_ERROR(ValidateLabelWithOptionsNotBoundInMultipleElementTables(
+        element_table_with_labels_and_properties.labels, labels_with_options));
+    labels.insert(labels.end(),
+                  std::make_move_iterator(
+                      element_table_with_labels_and_properties.labels.begin()),
+                  std::make_move_iterator(
+                      element_table_with_labels_and_properties.labels.end()));
+    property_decls.insert(
+        property_decls.end(),
+        std::make_move_iterator(
+            element_table_with_labels_and_properties.property_decls.begin()),
+        std::make_move_iterator(
+            element_table_with_labels_and_properties.property_decls.end()));
   }
 
   // Resolves edge tables if specified.
@@ -1169,11 +1260,27 @@ absl::Status GraphStmtResolver::ResolveCreatePropertyGraphStmt(
         }
       }
       ZETASQL_ASSIGN_OR_RETURN(
-          std::unique_ptr<const ResolvedGraphElementTable> edge_table,
-          ResolveGraphElementTable(ast_edge_table,
-                                   GraphElementTable::Kind::kEdge,
-                                   node_table_map, labels, property_decls));
-      edge_tables.push_back(std::move(edge_table));
+          ElementTableWithLabelsAndProperties
+              element_table_with_labels_and_properties,
+          ResolveGraphElementTable(
+              ast_edge_table, GraphElementTable::Kind::kEdge, node_table_map));
+      ZETASQL_RETURN_IF_ERROR(ValidateLabelWithOptionsNotBoundInMultipleElementTables(
+          element_table_with_labels_and_properties.labels,
+          labels_with_options));
+      edge_tables.push_back(
+          std::move(element_table_with_labels_and_properties.element_table));
+      labels.insert(
+          labels.end(),
+          std::make_move_iterator(
+              element_table_with_labels_and_properties.labels.begin()),
+          std::make_move_iterator(
+              element_table_with_labels_and_properties.labels.end()));
+      property_decls.insert(
+          property_decls.end(),
+          std::make_move_iterator(
+              element_table_with_labels_and_properties.property_decls.begin()),
+          std::make_move_iterator(
+              element_table_with_labels_and_properties.property_decls.end()));
     }
   }
 

@@ -79,6 +79,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
@@ -1922,7 +1923,7 @@ static absl::Status ValidateValueTableness(
 absl::Status SampleCatalogImpl::AddTableWithMeasures(
     AnalyzerOptions& analyzer_options, absl::string_view table_name,
     std::vector<const Column*> columns_not_owned,
-    std::optional<absl::flat_hash_set<int>> row_identity_column_indices,
+    std::optional<absl::btree_set<int>> row_identity_column_indices,
     std::vector<MeasureColumnDef> measures, bool is_value_table) {
   ZETASQL_RETURN_IF_ERROR(
       ValidateValueTableness(columns_not_owned, measures, is_value_table));
@@ -1977,7 +1978,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_SingleKey", "price",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)"},
        {"measure_count_star_per_key", "COUNT(* GROUP BY key)"},
@@ -2004,7 +2005,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
        new SimpleColumn("MeasureTable_TwoKeys", "Quantity",
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_TwoKeys", "Price", types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0, 1},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0, 1},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)"},
        {"measure_count_star_per_key", "COUNT(* GROUP BY key1,key2)"},
@@ -2028,7 +2029,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         "quantity_different_name", types_->get_int64()),
        new SimpleColumn("MeasureTable_DifferentNames", "price_different_name",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_count_star_different_name", "COUNT(*)"}},
       /*is_value_table=*/false));
@@ -2045,7 +2046,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
       analyzer_options, "MeasureTable_NonGroupableRowIdentity",
       {new SimpleColumn("MeasureTable_NonGroupableRowIdentity", "json_col",
                         types_->get_json())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)"}}, /*is_value_table=*/false));
 
@@ -2059,7 +2060,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithPseudoColumns", "price",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {
           {"measure_count_star", "COUNT(*)", /*is_pseudo_column=*/true},
@@ -2078,7 +2079,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithSubqueryMeasureExprs", "price",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_with_top_level_subquery",
         "SUM(price) + (SELECT SUM(1) FROM UNNEST([1]))"},
@@ -2107,7 +2108,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
        new SimpleColumn("MeasureTable_WithUdfs", "quantity",
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithUdfs", "price", types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {
           {"measure_with_top_level_udf", "SUM(price) + NullaryPi()"},
@@ -2136,7 +2137,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithTemplatedUdfs", "price",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {
           {"measure_with_top_level_udf",
@@ -2160,7 +2161,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         doubly_nested_struct_type_),
        new SimpleColumn("StructValueTable_WithMeasures", "key",
                         types_->get_int64(), {.is_pseudo_column = true})},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{1},
+      /*row_identity_column_indices=*/absl::btree_set<int>{1},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)", /*is_pseudo_column=*/true},
        {"measure_sum_e", "SUM(e)", /*is_pseudo_column=*/true},
@@ -2175,7 +2176,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         proto_KitchenSinkPB_),
        new SimpleColumn("KitchenSinkValueTable_WithMeasures", "key",
                         types_->get_int64(), {.is_pseudo_column = true})},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{1},
+      /*row_identity_column_indices=*/absl::btree_set<int>{1},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)", /*is_pseudo_column=*/true},
        {"measure_sum_int64", "SUM(int64_val)", /*is_pseudo_column=*/true},
@@ -2191,7 +2192,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("Int64ValueTable_WithMeasures", "key",
                         types_->get_int64(), {.is_pseudo_column = true})},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{1},
+      /*row_identity_column_indices=*/absl::btree_set<int>{1},
       /*measures=*/
       {{"measure_count_star", "COUNT(*)", /*is_pseudo_column=*/true},
        {"measure_sum_key", "SUM(key)", /*is_pseudo_column=*/true},
@@ -2214,7 +2215,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithRewritableExprs", "price",
                         types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_with_with_expr", "WITH(a AS SUM(price), a + 1)",
         /*is_pseudo_column=*/true},
@@ -2234,7 +2235,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
                         types_->get_string()),
        new SimpleColumn("MeasureTable_ComplexExprs", "array_val",
                         array_int64_type)},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_with_in_subquery",
         "COUNTIF(((key) IN (SELECT scan_alias.a_2 AS renamed FROM (SELECT "
@@ -2257,7 +2258,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
        new SimpleColumn("MeasureTable_WithUdas", "quantity",
                         types_->get_int64()),
        new SimpleColumn("MeasureTable_WithUdas", "price", types_->get_int64())},
-      /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+      /*row_identity_column_indices=*/absl::btree_set<int>{0},
       /*measures=*/
       {{"measure_uda_sum_price", "SumOfAggregateArgs(price)"},
        {"measure_uda_sum_price_per_key",
@@ -2278,7 +2279,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
          new SimpleColumn(table_name, "store_id", types_->get_int64()),
          new SimpleColumn(table_name, "price", types_->get_int64()),
          new SimpleColumn(table_name, "quantity", types_->get_int64())},
-        /*row_identity_column_indices=*/absl::flat_hash_set<int>{0, 1},
+        /*row_identity_column_indices=*/absl::btree_set<int>{0, 1},
         /*measures=*/
         {{
              .name = "measure_total_price",
@@ -2342,7 +2343,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
     ZETASQL_RETURN_IF_ERROR(AddTableWithMeasures(
         analyzer_options, table_name,
         {new SimpleColumn(table_name, "key", types_->get_int64())},
-        /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+        /*row_identity_column_indices=*/absl::btree_set<int>{0},
         /*measures=*/
         {{
             .name = "measure_count",
@@ -2360,7 +2361,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
     ZETASQL_RETURN_IF_ERROR(AddTableWithMeasures(
         analyzer_options, table_name,
         {new SimpleColumn(table_name, "key", types_->get_int64())},
-        /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+        /*row_identity_column_indices=*/absl::btree_set<int>{0},
         /*measures=*/
         {{
             .name = "measure_count",
@@ -2378,7 +2379,7 @@ absl::Status SampleCatalogImpl::LoadMeasureTables() {
     ZETASQL_RETURN_IF_ERROR(AddTableWithMeasures(
         analyzer_options, table_name,
         {new SimpleColumn(table_name, "json_col", types_->get_json())},
-        /*row_identity_column_indices=*/absl::flat_hash_set<int>{0},
+        /*row_identity_column_indices=*/absl::btree_set<int>{0},
         /*measures=*/
         {{
             .name = "measure_count",

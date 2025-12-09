@@ -17,6 +17,7 @@
 #include "zetasql/compliance/test_driver.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -72,6 +73,11 @@ absl::Status SerializeTestDatabase(const TestDatabase& database,
       measure_col_def_proto->set_expression(measure_column_def.expression);
       measure_col_def_proto->set_is_pseudo_column(
           measure_column_def.is_pseudo_column);
+      if (measure_column_def.row_identity_column_indices.has_value()) {
+        for (int index : *measure_column_def.row_identity_column_indices) {
+          measure_col_def_proto->add_row_identity_column_indices(index);
+        }
+      }
     }
     for (int row_identity_column_index : table.row_identity_columns) {
       t->mutable_row_identity_column_indices()->Add(row_identity_column_index);
@@ -238,11 +244,18 @@ absl::StatusOr<TestDatabase> DeserializeTestDatabase(
 
     for (const MeasureColumnDefProto& measure_col_def_proto :
          table_proto.measure_column_definitions()) {
+      std::vector<int> row_identity_column_indices(
+          measure_col_def_proto.row_identity_column_indices().begin(),
+          measure_col_def_proto.row_identity_column_indices().end());
       table.measure_column_defs.push_back(MeasureColumnDef{
           .name = std::string(measure_col_def_proto.name()),
           .expression = std::string(measure_col_def_proto.expression()),
           .is_pseudo_column = measure_col_def_proto.is_pseudo_column(),
-      });
+          .row_identity_column_indices =
+              row_identity_column_indices.empty()
+                  ? std::nullopt
+                  : std::make_optional(
+                        std::move(row_identity_column_indices))});
     }
     for (int row_identity_column_index :
          table_proto.row_identity_column_indices()) {

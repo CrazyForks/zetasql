@@ -288,6 +288,7 @@ cc_test(
         "//zetasql/public:catalog",
         "//zetasql/public:evaluator_table_iterator",
         "//zetasql/public:function",
+        "//zetasql/public:function_cc_proto",
         "//zetasql/public:function_headers",
         "//zetasql/public:language_options",
         "//zetasql/public:sql_view",

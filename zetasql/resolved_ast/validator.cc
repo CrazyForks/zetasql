@@ -1990,6 +1990,37 @@ absl::Status Validator::ValidateTableColumnTypeEquality(
   return absl::OkStatus();
 }
 
+// TODO: b/450295734 - Call this function to validate measures in TVFScan.
+absl::Status Validator::ValidateMeasureColumns(const ResolvedScan* scan,
+                                               const Table* table) {
+  VALIDATOR_RET_CHECK(
+      language_options_.LanguageFeatureEnabled(FEATURE_ENABLE_MEASURES))
+      << "TableScan projects a measure column, but "
+         "FEATURE_ENABLE_MEASURES is not enabled. Scan: "
+      << scan->DebugString();
+  // Measure tables must support NumColumns and GetColumn(i).
+  VALIDATOR_RET_CHECK(table->HasColumnList());
+
+  auto table_row_identity_columns = table->RowIdentityColumns();
+  for (int i = 0; i < table->NumColumns(); ++i) {
+    const Column* catalog_column = table->GetColumn(i);
+    if (!catalog_column->GetType()->IsMeasureType()) {
+      continue;
+    }
+    if (catalog_column->GetExpression().has_value() &&
+        catalog_column->GetExpression()->RowIdentityColumns().has_value()) {
+      continue;
+    }
+    VALIDATOR_RET_CHECK(table_row_identity_columns.has_value() &&
+                        !table_row_identity_columns.value().empty())
+        << "Table " << table->Name()
+        << " contains measure column: " << catalog_column->Name()
+        << ", but it does not have column-level row identity columns and "
+           "the table also does not have table-level row identity columns.";
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Validator::ValidateResolvedTableScan(
     const ResolvedTableScan* scan,
     const std::set<ResolvedColumn>& visible_parameters) {
@@ -2016,19 +2047,8 @@ absl::Status Validator::ValidateResolvedTableScan(
       perform_measure_column_checks = true;
     }
   }
-
   if (perform_measure_column_checks) {
-    VALIDATOR_RET_CHECK(
-        language_options_.LanguageFeatureEnabled(FEATURE_ENABLE_MEASURES))
-        << "TableScan projects a measure column, but "
-           "FEATURE_ENABLE_MEASURES is not enabled. Scan: "
-        << scan->DebugString();
-    auto row_identity_columns = table->RowIdentityColumns();
-    VALIDATOR_RET_CHECK(row_identity_columns.has_value() &&
-                        !row_identity_columns.value().empty())
-        << "TableScan projects a measure column, but the table does not have "
-           "row identity columns. Scan: "
-        << scan->DebugString();
+    ZETASQL_RETURN_IF_ERROR(ValidateMeasureColumns(scan, scan->table()));
   }
 
   VALIDATOR_RET_CHECK(scan->column_index_list().empty() ||

@@ -1,4 +1,4 @@
-[default language_features=NONE,+TABLE_VALUED_FUNCTIONS,+NAMED_ARGUMENTS,+CREATE_TABLE_FUNCTION,+TEMPLATE_FUNCTIONS,+FUNCTION_ARGUMENTS_WITH_DEFAULTS,+SQL_GRAPH_CALL,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,+SQL_GRAPH_PATH_TYPE,+GROUP_BY_GRAPH_PATH]
+[default language_features=NONE,+TABLE_VALUED_FUNCTIONS,+NAMED_ARGUMENTS,+CREATE_TABLE_FUNCTION,+TEMPLATE_FUNCTIONS,+FUNCTION_ARGUMENTS_WITH_DEFAULTS,+SQL_GRAPH_CALL,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,+SQL_GRAPH_PATH_TYPE,+GROUP_BY_GRAPH_PATH,+SQL_GRAPH_RETURN_EXTENSIONS]
 [default no_show_sqlbuilder_output]
 
 [language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY]
@@ -222,9 +222,8 @@ FROM
     RETURN
       (LENGTH(a_2.name)) > 10 AS a_3
     NEXT
-    RETURN
+    WITH
       a_3 AS b
-    NEXT
     CALL PER () TVF_ONE_RELATION_ARG_WITH_FIXED_OUTPUT() @{ hint = 1 } YIELD column_bool AS a_4, column_bytes AS a_5
     RETURN
       a_4 AS a_6,
@@ -242,9 +241,8 @@ FROM
     RETURN
       (LENGTH(a_2.name)) > 10 AS a_3
     NEXT
-    RETURN
+    WITH
       a_3 AS b
-    NEXT
     CALL PER () TVF_ONE_RELATION_ARG_WITH_FIXED_OUTPUT() @{ hint = 1 } YIELD column_bool AS a_4, column_bytes AS a_5
     RETURN
       a_4 AS a_6,
@@ -1446,3 +1444,218 @@ QueryStmt
                 | +-x#3 := Literal(type=INT64, value=1)
                 +-input_scan=
                   +-GraphRefScan(column_list=[tvf_append_no_column.where#2])
+
+==
+
+# CALL PER () must not use NEXT in sqlbuilder since SetOperations looks for NEXT
+# too.
+graph aml
+let x = 1
+return 1 as a
+union all
+let x = 2
+call per () tvf_optional_table_default_mandatory_string(foobar => "foo")
+yield column_bytes
+call per () tvf_optional_table_default_mandatory_string(foobar => "foo")
+return 1 as a
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.a#9 AS a [INT64]
++-query=
+  +-GraphTableScan
+    +-column_list=[$graph_set_op.a#9]
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-column_list=[$graph_set_op.a#9]
+        +-scan_list=
+          +-SetOperationScan
+            +-column_list=[$graph_set_op.a#9]
+            +-op_type=UNION_ALL
+            +-input_item_list=
+            | +-SetOperationItem
+            | | +-scan=
+            | | | +-GraphLinearScan
+            | | |   +-column_list=[$graph_table.a#2]
+            | | |   +-scan_list=
+            | | |     +-ProjectScan
+            | | |     | +-expr_list=
+            | | |     | | +-x#1 := Literal(type=INT64, value=1)
+            | | |     | +-input_scan=
+            | | |     |   +-SingleRowScan
+            | | |     +-ProjectScan
+            | | |       +-column_list=[$graph_table.a#2]
+            | | |       +-expr_list=
+            | | |       | +-a#2 := Literal(type=INT64, value=1)
+            | | |       +-input_scan=
+            | | |         +-GraphRefScan
+            | | +-output_column_list=[$graph_table.a#2]
+            | +-SetOperationItem
+            |   +-scan=
+            |   | +-GraphLinearScan
+            |   |   +-column_list=[$graph_table.a#8]
+            |   |   +-scan_list=
+            |   |     +-ProjectScan
+            |   |     | +-column_list=[$graph_table.x#3]
+            |   |     | +-expr_list=
+            |   |     | | +-x#3 := Literal(type=INT64, value=2)
+            |   |     | +-input_scan=
+            |   |     |   +-SingleRowScan
+            |   |     +-TVFScan
+            |   |     | +-column_list=tvf_optional_table_default_mandatory_string.[column_bool#4, column_bytes#5]
+            |   |     | +-tvf=tvf_optional_table_default_mandatory_string((optional ANY TABLE, optional STRING {default_value: "default"} foobar) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+            |   |     | +-signature=(TABLE<x INT64>, literal STRING) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     | +-argument_list=
+            |   |     | | +-FunctionArgument
+            |   |     | | | +-scan=
+            |   |     | | | | +-GraphRefScan(column_list=[$graph_table.x#3])
+            |   |     | | | +-argument_column_list=[$graph_table.x#3]
+            |   |     | | +-FunctionArgument
+            |   |     | |   +-expr=
+            |   |     | |     +-Literal(type=STRING, value="foo")
+            |   |     | +-column_index_list=[0, 1]
+            |   |     | +-function_call_signature=(optional(1) ANY TABLE, optional(1) STRING foobar) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     +-TVFScan
+            |   |     | +-column_list=tvf_optional_table_default_mandatory_string.[column_bool#6, column_bytes#7]
+            |   |     | +-tvf=tvf_optional_table_default_mandatory_string((optional ANY TABLE, optional STRING {default_value: "default"} foobar) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+            |   |     | +-signature=(TABLE<column_bytes BYTES>, literal STRING) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     | +-argument_list=
+            |   |     | | +-FunctionArgument
+            |   |     | | | +-scan=
+            |   |     | | | | +-GraphRefScan(column_list=[tvf_optional_table_default_mandatory_string.column_bytes#5])
+            |   |     | | | +-argument_column_list=[tvf_optional_table_default_mandatory_string.column_bytes#5]
+            |   |     | | +-FunctionArgument
+            |   |     | |   +-expr=
+            |   |     | |     +-Literal(type=STRING, value="foo")
+            |   |     | +-column_index_list=[0, 1]
+            |   |     | +-function_call_signature=(optional(1) ANY TABLE, optional(1) STRING foobar) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     +-ProjectScan
+            |   |       +-column_list=[$graph_table.a#8]
+            |   |       +-expr_list=
+            |   |       | +-a#8 := Literal(type=INT64, value=1)
+            |   |       +-input_scan=
+            |   |         +-GraphRefScan(column_list=tvf_optional_table_default_mandatory_string.[column_bool#6, column_bytes#7])
+            |   +-output_column_list=[$graph_table.a#8]
+            +-column_match_mode=CORRESPONDING
+
+==
+
+# Same test as above with an implicit table
+graph aml
+return 1 as a
+union all
+match (x)
+# Note: LET is also keeping `x`
+LET y = null, string = "abc", xxx = true, int64 = 5
+CALL PER() tvf_one_relation_arg_int64_string_input_columns()
+let string = "xyz", int64 = 6
+CALL PER() tvf_one_relation_arg_int64_string_input_columns()
+return 1 as a
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.a#14 AS a [INT64]
++-query=
+  +-GraphTableScan
+    +-column_list=[$graph_set_op.a#14]
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-column_list=[$graph_set_op.a#14]
+        +-scan_list=
+          +-SetOperationScan
+            +-column_list=[$graph_set_op.a#14]
+            +-op_type=UNION_ALL
+            +-input_item_list=
+            | +-SetOperationItem
+            | | +-scan=
+            | | | +-GraphLinearScan
+            | | |   +-column_list=[$graph_table.a#1]
+            | | |   +-scan_list=
+            | | |     +-ProjectScan
+            | | |       +-column_list=[$graph_table.a#1]
+            | | |       +-expr_list=
+            | | |       | +-a#1 := Literal(type=INT64, value=1)
+            | | |       +-input_scan=
+            | | |         +-SingleRowScan
+            | | +-output_column_list=[$graph_table.a#1]
+            | +-SetOperationItem
+            |   +-scan=
+            |   | +-GraphLinearScan
+            |   |   +-column_list=[$graph_table.a#13]
+            |   |   +-scan_list=
+            |   |     +-GraphScan
+            |   |     | +-column_list=[$element_table.x#2]
+            |   |     | +-input_scan_list=
+            |   |     | | +-GraphPathScan
+            |   |     | |   +-column_list=[$element_table.x#2]
+            |   |     | |   +-input_scan_list=
+            |   |     | |   | +-GraphNodeScan
+            |   |     | |   |   +-column_list=[$element_table.x#2]
+            |   |     | |   |   +-label_expr=
+            |   |     | |   |   | +-GraphLabelNaryExpr
+            |   |     | |   |   |   +-op=OR
+            |   |     | |   |   |   +-operand_list=
+            |   |     | |   |   |     +-GraphWildCardLabel
+            |   |     | |   |   |     +-GraphLabelNaryExpr
+            |   |     | |   |   |       +-op=NOT
+            |   |     | |   |   |       +-operand_list=
+            |   |     | |   |   |         +-GraphWildCardLabel
+            |   |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+            |   |     | |   +-head=$element_table.x#2
+            |   |     | |   +-tail=$element_table.x#2
+            |   |     | +-input_scan=
+            |   |     |   +-SingleRowScan
+            |   |     +-ProjectScan
+            |   |     | +-column_list=[$element_table.x#2, $graph_table.string#4, $graph_table.int64#6]
+            |   |     | +-expr_list=
+            |   |     | | +-y#3 := Literal(type=INT64, value=NULL)
+            |   |     | | +-string#4 := Literal(type=STRING, value="abc")
+            |   |     | | +-xxx#5 := Literal(type=BOOL, value=true)
+            |   |     | | +-int64#6 := Literal(type=INT64, value=5)
+            |   |     | +-input_scan=
+            |   |     |   +-GraphRefScan(column_list=[$element_table.x#2])
+            |   |     +-TVFScan
+            |   |     | +-column_list=tvf_one_relation_arg_int64_string_input_columns.[column_bool#7, column_bytes#8]
+            |   |     | +-tvf=tvf_one_relation_arg_int64_string_input_columns((TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+            |   |     | +-signature=(TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     | +-argument_list=
+            |   |     | | +-FunctionArgument
+            |   |     | |   +-scan=
+            |   |     | |   | +-ProjectScan
+            |   |     | |   |   +-column_list=$graph_table.[int64#6, string#4]
+            |   |     | |   |   +-input_scan=
+            |   |     | |   |     +-GraphRefScan(column_list=[$element_table.x#2, $graph_table.string#4, $graph_table.int64#6])
+            |   |     | |   +-argument_column_list=$graph_table.[int64#6, string#4]
+            |   |     | +-column_index_list=[0, 1]
+            |   |     | +-function_call_signature=(TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     +-ProjectScan
+            |   |     | +-column_list=[tvf_one_relation_arg_int64_string_input_columns.column_bool#7, tvf_one_relation_arg_int64_string_input_columns.column_bytes#8, $graph_table.string#9, $graph_table.int64#10]
+            |   |     | +-expr_list=
+            |   |     | | +-string#9 := Literal(type=STRING, value="xyz")
+            |   |     | | +-int64#10 := Literal(type=INT64, value=6)
+            |   |     | +-input_scan=
+            |   |     |   +-GraphRefScan(column_list=tvf_one_relation_arg_int64_string_input_columns.[column_bool#7, column_bytes#8])
+            |   |     +-TVFScan
+            |   |     | +-column_list=tvf_one_relation_arg_int64_string_input_columns.[column_bool#11, column_bytes#12]
+            |   |     | +-tvf=tvf_one_relation_arg_int64_string_input_columns((TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+            |   |     | +-signature=(TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     | +-argument_list=
+            |   |     | | +-FunctionArgument
+            |   |     | |   +-scan=
+            |   |     | |   | +-ProjectScan
+            |   |     | |   |   +-column_list=$graph_table.[int64#10, string#9]
+            |   |     | |   |   +-input_scan=
+            |   |     | |   |     +-GraphRefScan(column_list=[tvf_one_relation_arg_int64_string_input_columns.column_bool#7, tvf_one_relation_arg_int64_string_input_columns.column_bytes#8, $graph_table.string#9, $graph_table.int64#10])
+            |   |     | |   +-argument_column_list=$graph_table.[int64#10, string#9]
+            |   |     | +-column_index_list=[0, 1]
+            |   |     | +-function_call_signature=(TABLE<int64 INT64, string STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+            |   |     +-ProjectScan
+            |   |       +-column_list=[$graph_table.a#13]
+            |   |       +-expr_list=
+            |   |       | +-a#13 := Literal(type=INT64, value=1)
+            |   |       +-input_scan=
+            |   |         +-GraphRefScan(column_list=tvf_one_relation_arg_int64_string_input_columns.[column_bool#11, column_bytes#12])
+            |   +-output_column_list=[$graph_table.a#13]
+            +-column_match_mode=CORRESPONDING

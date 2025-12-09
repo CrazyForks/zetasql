@@ -1,0 +1,125 @@
+[default required_features=TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
+[prepare_database]
+CREATE TABLE StringTable(
+  primary_Key INT64,
+  col_ci STRING COLLATE 'und:ci',
+  col_binary STRING COLLATE 'binary',
+  col_no_collation STRING) AS
+SELECT 1 AS primary_Key, "a" AS col_ci, "a" col_binary, "a" UNION ALL
+SELECT 2, "A", "A", "A" UNION ALL
+SELECT 3, "a", "A", "a" UNION ALL
+SELECT 4, "A", "a", "A" UNION ALL
+SELECT 5, "b", "b", "b" UNION ALL
+SELECT 6, "B", "B", "B"
+--
+ARRAY<STRUCT<
+        primary_Key INT64,
+        col_ci STRING,
+        col_binary STRING,
+        col_no_collation STRING
+      >>
+[{1, "a", "a", "a"},
+ {2, "A", "A", "A"},
+ {3, "a", "A", "a"},
+ {4, "A", "a", "A"},
+ {5, "b", "b", "b"},
+ {6, "B", "B", "B"}]
+==
+
+[prepare_database]
+CREATE TEMP FUNCTION udf_with_fixed_args(s1 STRING, s2 STRING)
+AS (
+  s1 = s2
+);
+==
+
+[prepare_database]
+CREATE TEMP FUNCTION udf_fixed_calls_another_udf(a STRUCT<x STRING, y ARRAY<STRING>>)
+AS (
+  udf_with_fixed_args(a.x || 'suffix', ARRAY_FIRST(a.y) || 'suffix')
+);
+==
+
+[prepare_database]
+CREATE TEMP AGGREGATE FUNCTION uda_with_fixed_args(s1 STRING) AS (
+ (COUNT(distinct s1))
+);
+
+==
+
+[prepare_database]
+CREATE TEMP AGGREGATE FUNCTION uda_fixed_calls_another_uda(s1 STRING) AS (
+  uda_with_fixed_args(s1 || 'suffix')
+);
+==
+
+
+[prepare_database]
+CREATE TEMP FUNCTION udf_templated(s1 ANY TYPE, s2 ANY TYPE)
+AS (
+  s1 = s2
+);
+
+==
+
+[prepare_database]
+CREATE TEMP AGGREGATE FUNCTION uda_templated(s1 ANY TYPE)
+AS (
+  (COUNT(DISTINCT s1))
+);
+
+==
+
+[name=collation_in_fixed_udfs]
+SELECT
+  primary_key,
+  col_ci,
+  col_binary,
+  udf_with_fixed_args(col_ci, COLLATE(col_binary, 'und:ci')),
+  udf_fixed_calls_another_udf((COLLATE(col_ci, 'binary'), [col_binary, 'arg']))
+FROM StringTable
+ORDER BY primary_key
+--
+ARRAY<STRUCT<primary_key INT64, col_ci STRING, col_binary STRING, BOOL, BOOL>>[known order:
+  {1, "a", "a", true, true},
+  {2, "A", "A", true, true},
+  {3, "a", "A", false, false},
+  {4, "A", "a", false, false},
+  {5, "b", "b", true, true},
+  {6, "B", "B", true, true}
+]
+==
+
+[name=collation_in_fixed_udas]
+SELECT
+  uda_with_fixed_args(col_ci),
+  uda_fixed_calls_another_uda(col_ci)
+FROM StringTable
+--
+ARRAY<STRUCT<INT64, INT64>>[{4, 4}]
+==
+
+[name=collation_in_templated_udfs]
+SELECT
+  primary_key,
+  col_ci,
+  col_binary,
+  udf_templated(col_ci, COLLATE(col_binary, 'und:ci')),
+  udf_templated(COLLATE(col_ci, 'binary'), col_binary)
+FROM StringTable
+--
+ARRAY<STRUCT<primary_key INT64, col_ci STRING, col_binary STRING, BOOL, BOOL>>[unknown order:
+  {2, "A", "A", true, true},
+  {4, "A", "a", true, false},
+  {6, "B", "B", true, true},
+  {1, "a", "a", true, true},
+  {3, "a", "A", true, false},
+  {5, "b", "b", true, true}
+]
+==
+
+[name=collation_in_templated_udas]
+SELECT uda_templated(col_ci)
+FROM StringTable
+--
+ARRAY<STRUCT<INT64>>[{2}]

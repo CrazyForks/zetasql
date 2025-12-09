@@ -1531,6 +1531,41 @@ absl::Status CheckArrayIsDistinctArguments(
   return absl::OkStatus();
 }
 
+absl::Status CheckArrayDistinctArguments(
+    absl::Span<const InputArgumentType> arguments,
+    const LanguageOptions& language_options) {
+  if (arguments.empty()) {
+    // Let validation happen normally. It will return an error later.
+    return absl::OkStatus();
+  }
+  const InputArgumentType& arg0 = arguments[0];
+  if (arg0.is_null()) {
+    return absl::OkStatus();
+  }
+
+  if (arg0.type() == nullptr || !arg0.type()->IsArray()) {
+    return zetasql_base::InvalidArgumentErrorBuilder()
+           << "ARRAY_DISTINCT cannot be used on non-array type "
+           << arg0.UserFacingName(language_options.product_mode());
+  }
+
+  const ArrayType* array_type = arg0.type()->AsArray();
+  ZETASQL_RET_CHECK_NE(array_type, nullptr);
+
+  std::string type_description;
+  if (!array_type->element_type()->SupportsGrouping(language_options,
+                                                    &type_description)) {
+    return zetasql_base::InvalidArgumentErrorBuilder()
+           << "ARRAY_DISTINCT cannot be used on argument of type "
+           << array_type->ShortTypeName(language_options.product_mode())
+           << " because the array's element type does not support "
+              "grouping"
+           << (type_description.empty() ? "" : ": ") << type_description;
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status CheckInArrayArguments(
     const std::vector<InputArgumentType>& arguments,
     const LanguageOptions& language_options) {

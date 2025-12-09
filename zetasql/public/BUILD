@@ -1708,7 +1708,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:headers",
     ],
 )
 
@@ -2070,9 +2070,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "@icu//icu4c/source/common:headers",
-        "@icu//icu4c/source/i18n:collation",
-        "@icu//icu4c/source/i18n:headers",
+        "@icu//:headers",
     ],
 )
 
@@ -2102,9 +2100,8 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@icu//icu4c/source/common:headers",
-        "@icu//icu4c/source/i18n:collation",  # buildcleaner: keep
-        "@icu//icu4c/source/i18n:headers",
+        "@icu",  # buildcleaner: keep
+        "@icu//:common",
     ],
 )
 
@@ -2313,7 +2310,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:common",
     ],
 )
 
@@ -2901,7 +2898,7 @@ cc_test(
         "//zetasql/base/testing:zetasql_gtest_main",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:headers",
     ],
 )
 

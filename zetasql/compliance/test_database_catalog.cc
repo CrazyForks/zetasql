@@ -66,9 +66,9 @@ absl::Status TestDatabaseCatalog::BuiltinFunctionCache::SetLanguageOptions(
     CacheEntry entry;
     // We have to call type_factory() while not holding mutex_.
     TypeFactory* type_factory = catalog->type_factory();
-    ZETASQL_RETURN_IF_ERROR(GetBuiltinFunctionsAndTypes(BuiltinFunctionOptions(options),
-                                                *type_factory, entry.functions,
-                                                entry.types));
+    ZETASQL_RETURN_IF_ERROR(GetBuiltinFunctionsAndTypes(
+        BuiltinFunctionOptions(options), *type_factory, entry.functions,
+        entry.types, entry.table_valued_functions));
     cache_entry =
         &(builtins_cache_.emplace(options, std::move(entry)).first->second);
   }
@@ -83,24 +83,26 @@ absl::Status TestDatabaseCatalog::BuiltinFunctionCache::SetLanguageOptions(
     return type->IsEnum() && type->AsEnum()->IsOpaque();
   };
 
+  auto builtin_tvf_predicate = [](const TableValuedFunction* tvf) {
+    return tvf->IsZetaSQLBuiltin();
+  };
+
   catalog->RemoveFunctions(builtin_function_predicate);
+  catalog->RemoveTableValuedFunctions(builtin_tvf_predicate);
   catalog->RemoveTypes(builtin_type_predicate);
 
-  std::vector<const Function*> functions;
-  functions.reserve(cache_entry->functions.size());
-  for (const auto& [_, function] : cache_entry->functions) {
-    ZETASQL_RET_CHECK(builtin_function_predicate(function.get()));
-    functions.push_back(function.get());
+  absl::flat_hash_map<std::string, const Function*> raw_functions;
+  for (const auto& [name, func] : cache_entry->functions) {
+    raw_functions[name] = func.get();
   }
-  catalog->AddZetaSQLFunctions(functions);
 
-  for (const auto& [name, type] : cache_entry->types) {
-    // Make sure we are consistent with types we add and remove.
-    ZETASQL_RET_CHECK(builtin_type_predicate(type));
-    // Note, we currently don't support builtin types with catalog paths.
-    catalog->AddType(name, type);
+  absl::flat_hash_map<std::string, const TableValuedFunction*> raw_tvfs;
+  for (const auto& [name, tvf] : cache_entry->table_valued_functions) {
+    raw_tvfs[name] = tvf.get();
   }
-  return absl::OkStatus();
+
+  return catalog->AddNonOwnedBuiltinFunctionsAndTypes(
+      raw_functions, cache_entry->types, raw_tvfs);
 }
 
 absl::Status TestDatabaseCatalog::IsInitialized() const {
@@ -288,8 +290,8 @@ absl::Status TestDatabaseCatalog::AddTablesWithMeasures(
     ZETASQL_ASSIGN_OR_RETURN(
         Value new_array_value,
         UpdateTableRowsWithMeasureValues(
-            array_value, simple_table.get(), table.row_identity_columns,
-            type_factory_.get(), language_options));
+            array_value, simple_table.get(), table.measure_column_defs,
+            table.row_identity_columns, type_factory_.get(), language_options));
     table.table_as_value_with_measures = std::move(new_array_value);
     catalog_->AddOwnedTable(simple_table.release());
   }

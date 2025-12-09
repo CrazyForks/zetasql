@@ -684,10 +684,6 @@ absl::Status ValidateMeasureColumn(const ASTNode* ast_location,
       ZETASQL_RETURN_IF_ERROR(CheckRowIdentityColumns(
           ast_location, *expression_attributes.RowIdentityColumns(), table,
           language, measure_source_string, column_name.ToStringView()));
-      // TODO: b/450295734 - Support column-level row identity columns.
-      return MakeSqlErrorAt(ast_location)
-             << "Measure with column-level row identity columns are not "
-                "supported yet";
     } else {
       *needs_table_row_identity_columns = true;
     }
@@ -852,12 +848,15 @@ Resolver::ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
 
     // Check for duplicate WITH aliases
     IdStringHashSetCase alias_names;
-    for (const ASTAliasedQuery* with_entry : with_clause->with()) {
-      if (!zetasql_base::InsertIfNotPresent(&alias_names,
-                                   with_entry->alias()->GetAsIdString())) {
-        return MakeSqlErrorAt(with_entry->alias())
-               << "Duplicate alias " << with_entry->alias()->GetAsString()
-               << " for WITH subquery";
+    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+      if (entry->aliased_query() != nullptr) {
+        const ASTAliasedQuery* aliased_query = entry->aliased_query();
+        if (!zetasql_base::InsertIfNotPresent(&alias_names,
+                                     aliased_query->alias()->GetAsIdString())) {
+          return MakeSqlErrorAt(aliased_query->alias())
+                 << "Duplicate alias " << aliased_query->alias()->GetAsString()
+                 << " for WITH subquery";
+        }
       }
     }
 
@@ -880,11 +879,13 @@ Resolver::ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
       }
     } else {
       // Non-recursive WITH
-      for (const ASTAliasedQuery* with_entry : with_clause->with()) {
-        ZETASQL_ASSIGN_OR_RETURN(
-            std::unique_ptr<const ResolvedWithEntry> resolved_with_entry,
-            ResolveAliasedQuery(with_entry, /*recursive=*/false));
-        with_entries.push_back(std::move(resolved_with_entry));
+      for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+        if (entry->aliased_query() != nullptr) {
+          ZETASQL_ASSIGN_OR_RETURN(
+              std::unique_ptr<const ResolvedWithEntry> resolved_with_entry,
+              ResolveAliasedQuery(entry->aliased_query(), /*recursive=*/false));
+          with_entries.push_back(std::move(resolved_with_entry));
+        }
       }
     }
   }
@@ -900,9 +901,12 @@ absl::Status Resolver::FinishResolveWithClauseIfPresent(
   }
   // Now remove any WITH entry mappings we added, restoring what was visible
   // outside this WITH clause.
-  for (const ASTAliasedQuery* with_entry : query->with_clause()->with()) {
-    const IdString with_alias = with_entry->alias()->GetAsIdString();
-    ZETASQL_RETURN_IF_ERROR(RemoveInnermostNamedSubqueryWithAlias(with_alias));
+  for (const ASTWithClauseEntry* entry : query->with_clause()->entry()) {
+    if (entry->aliased_query() != nullptr) {
+      const IdString with_alias =
+          entry->aliased_query()->alias()->GetAsIdString();
+      ZETASQL_RETURN_IF_ERROR(RemoveInnermostNamedSubqueryWithAlias(with_alias));
+    }
   }
 
   // Wrap a ResolvedWithScan around the output query.
@@ -1413,8 +1417,8 @@ absl::Status Resolver::ResolvePipeSelect(
   analyzer_output_properties_.AddFeatureLabel("PipeOperator:SELECT");
   const ASTSelect* select = pipe_select->select();
 
-  if (select->select_with() != nullptr) {
-    return MakeSqlErrorAt(select->select_with())
+  if (select->with_modifier() != nullptr) {
+    return MakeSqlErrorAt(select->with_modifier())
            << "Pipe SELECT does not support SELECT WITH";
   }
   if (select->hint() != nullptr) {
@@ -1547,16 +1551,16 @@ absl::Status Resolver::ResolvePipeAggregate(
     std::unique_ptr<const ResolvedScan>* current_scan,
     std::shared_ptr<const NameList>* current_name_list) {
   WithModifierMode with_modifier_mode = WithModifierMode::NONE;
-  if (aggregate->select_with() != nullptr) {
-    ZETASQL_RET_CHECK_NE(aggregate->select_with()->identifier(), nullptr);
+  if (aggregate->with_modifier() != nullptr) {
+    ZETASQL_RET_CHECK_NE(aggregate->with_modifier()->identifier(), nullptr);
     absl::string_view with_modifier_mode_string =
-        aggregate->select_with()->identifier()->GetAsStringView();
+        aggregate->with_modifier()->identifier()->GetAsStringView();
     if (!zetasql_base::CaseEqual(
             with_modifier_mode_string,
             WithModifierModeToString(WithModifierMode::DIFFERENTIAL_PRIVACY)) ||
         !language().LanguageFeatureEnabled(
             FEATURE_PIPE_AGGREGATE_WITH_DIFFERENTIAL_PRIVACY)) {
-      return MakeSqlErrorAt(aggregate->select_with())
+      return MakeSqlErrorAt(aggregate->with_modifier())
              << "AGGREGATE WITH "
              << absl::AsciiStrToUpper(with_modifier_mode_string)
              << " is not supported";
@@ -2498,9 +2502,12 @@ absl::Status Resolver::ResolvePipeWith(
   ZETASQL_RET_CHECK(!with_entries.empty());
 
   // Record the CTE names created.
-  for (const ASTAliasedQuery* with_entry : pipe_with->with_clause()->with()) {
-    const IdString with_alias = with_entry->alias()->GetAsIdString();
-    named_subqueries_added->push_back(with_alias);
+  for (const ASTWithClauseEntry* entry : pipe_with->with_clause()->entry()) {
+    if (entry->aliased_query() != nullptr) {
+      const IdString with_alias =
+          entry->aliased_query()->alias()->GetAsIdString();
+      named_subqueries_added->push_back(with_alias);
+    }
   }
 
   // Create the scan with an empty column list and a placeholder input scan.
@@ -3634,18 +3641,18 @@ absl::Status Resolver::AddAnonymizedAggregateScan(
   std::vector<std::unique_ptr<const ResolvedOption>>
       resolved_anonymization_options;
   const ASTOptionsList* options_list = nullptr;
-  if (select->select_with() != nullptr &&
-      select->select_with()->options() != nullptr) {
-    options_list = select->select_with()->options();
+  if (select->with_modifier() != nullptr &&
+      select->with_modifier()->options() != nullptr) {
+    options_list = select->with_modifier()->options();
   } else if (query_resolution_info->IsPipeAggregate() &&
              query_resolution_info->with_modifier_mode() ==
                  WithModifierMode::DIFFERENTIAL_PRIVACY &&
              select->parent()->Is<ASTPipeAggregate>()) {
     const ASTPipeAggregate* pipe_aggregate =
         select->parent()->GetAsOrDie<ASTPipeAggregate>();
-    if (pipe_aggregate->select_with() != nullptr &&
-        pipe_aggregate->select_with()->options() != nullptr) {
-      options_list = pipe_aggregate->select_with()->options();
+    if (pipe_aggregate->with_modifier() != nullptr &&
+        pipe_aggregate->with_modifier()->options() != nullptr) {
+      options_list = pipe_aggregate->with_modifier()->options();
     }
   }
 
@@ -3730,10 +3737,10 @@ Resolver::AddAggregationThresholdAggregateScan(
 
   ZETASQL_RET_CHECK(!column_list.empty());
   std::vector<std::unique_ptr<const ResolvedOption>> resolved_options;
-  if (select->select_with() != nullptr &&
-      select->select_with()->options() != nullptr) {
+  if (select->with_modifier() != nullptr &&
+      select->with_modifier()->options() != nullptr) {
     ZETASQL_RETURN_IF_ERROR(ResolveAggregationThresholdOptionsList(
-        select->select_with()->options(), *query_resolution_info,
+        select->with_modifier()->options(), *query_resolution_info,
         &resolved_options));
   }
   auto aggregation_threshold_scan =
@@ -4547,10 +4554,10 @@ absl::Status Resolver::ResolveFromQuery(
 
 static absl::StatusOr<WithModifierMode> ExtractWithModifierMode(
     const LanguageOptions& language, const ASTSelect* select) {
-  if (select->select_with() == nullptr) {
+  if (select->with_modifier() == nullptr) {
     return WithModifierMode::NONE;
   }
-  ZETASQL_RET_CHECK_NE(select->select_with()->identifier(), nullptr);
+  ZETASQL_RET_CHECK_NE(select->with_modifier()->identifier(), nullptr);
   std::vector<absl::string_view> allowed_with_identifiers;
   if (language.LanguageFeatureEnabled(FEATURE_ANONYMIZATION)) {
     allowed_with_identifiers.push_back(
@@ -4565,10 +4572,10 @@ static absl::StatusOr<WithModifierMode> ExtractWithModifierMode(
         WithModifierModeToString(WithModifierMode::AGGREGATION_THRESHOLD));
   }
   if (allowed_with_identifiers.empty()) {
-    return MakeSqlErrorAt(select->select_with()) << "Unexpected keyword WITH";
+    return MakeSqlErrorAt(select->with_modifier()) << "Unexpected keyword WITH";
   }
   const absl::string_view select_with_identifier =
-      select->select_with()->identifier()->GetAsStringView();
+      select->with_modifier()->identifier()->GetAsStringView();
   ZETASQL_ASSIGN_OR_RETURN(
       WithModifierMode result, [&]() -> absl::StatusOr<WithModifierMode> {
         if (zetasql_base::CaseEqual(
@@ -4591,7 +4598,7 @@ static absl::StatusOr<WithModifierMode> ExtractWithModifierMode(
             language.LanguageFeatureEnabled(FEATURE_AGGREGATION_THRESHOLD)) {
           return WithModifierMode::AGGREGATION_THRESHOLD;
         }
-        return MakeSqlErrorAt(select->select_with()->identifier())
+        return MakeSqlErrorAt(select->with_modifier()->identifier())
                << "Invalid identifier after SELECT WITH; expected "
                << absl::StrJoin(allowed_with_identifiers, ", ")
                << " but got: " << select_with_identifier;
@@ -11099,6 +11106,17 @@ Resolver::SetOperationResolver::ResolveInputQuery(
   // Pipe-syntax set operations have one more input, which is the pipe input
   // table.
   result.query_idx = IsPipeSyntax() ? ast_input_index + 1 : ast_input_index;
+  // Record the location of the set operation keyword for standard set
+  // operations. Note that we skip the first input (ast_input_index == 0) so
+  // that each keyword is only recorded once.
+  if (input_kind_ == InputKind::kStandard && ast_input_index > 0) {
+    resolver_->MaybeRecordResolvedNodeOperatorKeywordLocation(
+        ast_set_operation()
+            ->metadata()
+            ->set_operation_metadata_list(ast_input_index - 1)
+            ->location(),
+        result.node.get());
+  }
   return result;
 }
 
@@ -14939,7 +14957,7 @@ namespace {
 // verification fails. The input <ast_locations> is expected to match 1:1 to the
 // arguments in the <resolved_tvf_args>, and it is mainly used for error
 // message.
-absl::Status CheckTVFArgumentHasNoCollation(
+absl::Status CheckTVFArgumentHasNoAnnotations(
     std::vector<ResolvedTVFArg>& resolved_tvf_args,
     const std::vector<const ASTNode*> ast_locations) {
   ZETASQL_RET_CHECK_EQ(ast_locations.size(), resolved_tvf_args.size());
@@ -14954,6 +14972,18 @@ absl::Status CheckTVFArgumentHasNoCollation(
                << expr->type_annotation_map()->DebugString(
                       CollationAnnotation::GetId())
                << " on argument of TVF call is not allowed";
+      }
+      if (expr->type_annotation_map() != nullptr &&
+          !expr->type_annotation_map()->Empty()) {
+        std::unique_ptr<AnnotationMap> annotations_to_block =
+            expr->type_annotation_map()->Clone();
+        // TODO: Block all other annotations
+        if (!annotations_to_block->Empty()) {
+          ZETASQL_RET_CHECK(ast_locations[i] != nullptr);
+          return MakeSqlErrorAt(ast_locations[i])
+                 << "Annotations on argument of TVF call is not allowed"
+                 << expr->type_annotation_map()->DebugString();
+        }
       }
     } else if (resolved_tvf_args[i].IsScan()) {
       ZETASQL_ASSIGN_OR_RETURN(std::shared_ptr<const NameList> name_list,
@@ -14972,6 +15002,25 @@ absl::Status CheckTVFArgumentHasNoCollation(
                         CollationAnnotation::GetId())
                  << " on " << column_str
                  << " of argument of TVF call is not allowed";
+        }
+        if (col.type_annotation_map() != nullptr) {
+          std::unique_ptr<AnnotationMap> annotations_to_block =
+              col.type_annotation_map()->Clone();
+          // TODO: Block all other annotations
+          annotations_to_block->UnsetAnnotationRecursively(100001);
+          annotations_to_block->UnsetAnnotationRecursively(613944552);
+          annotations_to_block->UnsetAnnotationRecursively(808504570);
+
+          if (!annotations_to_block->Empty()) {
+            std::string column_str = name_list->is_value_table()
+                                         ? "value-table column"
+                                         : "column " + col.name();
+            ZETASQL_RET_CHECK(ast_locations[i] != nullptr);
+            return MakeSqlErrorAt(ast_locations[i])
+                   << "Annotations on " << column_str
+                   << " of argument of TVF call is not allowed: "
+                   << annotations_to_block->DebugString();
+          }
         }
       }
     }
@@ -15872,8 +15921,10 @@ absl::Status Resolver::PrepareTVFInputArguments(
       ast_tvf, *function_signature, tvf_catalog_entry->SQLName(),
       /*is_tvf=*/true));
 
+  // TODO: b/166482992 - Implement annotations in SQL TVFs.
   ZETASQL_RETURN_IF_ERROR(
-      CheckTVFArgumentHasNoCollation(resolved_tvf_args, arg_locations));
+      CheckTVFArgumentHasNoAnnotations(resolved_tvf_args, arg_locations));
+
   // Add casts or coerce literals for TVF arguments.
   ZETASQL_RET_CHECK(result_signature->IsConcrete()) << ast_tvf->DebugString();
 

@@ -321,6 +321,7 @@ FunctionCall(ZetaSQL:$add(INT64, INT64) -> INT64)
           |     | |     +-SingleRowScan
           |     | +-output_column_list=[$union_all1.$col1#4]
           |     +-SetOperationItem
+          |       +-operator_keyword_location=64-73
           |       +-scan=
           |       | +-ProjectScan
           |       |   +-column_list=[$union_all2.$col1#5]

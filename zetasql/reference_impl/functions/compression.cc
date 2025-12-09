@@ -48,7 +48,7 @@ class ZstdCompressFunction : public SimpleBuiltinScalarFunction {
                              EvaluationContext* context) const override {
     ZETASQL_RET_CHECK_EQ(args.size(), 2);
     ZETASQL_RET_CHECK(args[0].type()->IsBytes() || args[0].type()->IsString());
-    if (args[0].is_null()) {
+    if (args[0].is_null() || args[1].is_null()) {
       return Value::NullBytes();
     }
     absl::string_view input;
@@ -74,7 +74,7 @@ class ZstdDecompressToBytesFunction : public SimpleBuiltinScalarFunction {
                              EvaluationContext* context) const override {
     ZETASQL_RET_CHECK_EQ(args.size(), 2);
     ZETASQL_RET_CHECK(args[0].type()->IsBytes());
-    if (args[0].is_null()) {
+    if (args[0].is_null() || args[1].is_null()) {
       return Value::NullBytes();
     }
     ZETASQL_ASSIGN_OR_RETURN(
@@ -96,7 +96,7 @@ class ZstdDecompressToStringFunction : public SimpleBuiltinScalarFunction {
                              EvaluationContext* context) const override {
     ZETASQL_RET_CHECK_EQ(args.size(), 2);
     ZETASQL_RET_CHECK(args[0].type()->IsBytes());
-    if (args[0].is_null()) {
+    if (args[0].is_null() || args[1].is_null()) {
       return Value::NullString();
     }
     ZETASQL_ASSIGN_OR_RETURN(

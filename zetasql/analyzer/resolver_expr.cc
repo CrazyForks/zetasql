@@ -1696,6 +1696,7 @@ absl::Status Resolver::MaybeResolvePathExpressionAsFunctionArgumentRef(
   auto resolved_argument_ref = MakeResolvedArgumentRef(
       arg_details->arg_type.type(), arg_details->name.ToString(),
       arg_details->arg_kind.value());
+  resolved_argument_ref->set_type_annotation_map(arg_details->annotation_map);
   MaybeRecordParseLocation(parse_location, resolved_argument_ref.get());
   if (arg_details->arg_kind.value() == ResolvedArgumentDef::AGGREGATE) {
     // Save the location for aggregate arguments because we generate
@@ -6667,6 +6668,22 @@ absl::StatusOr<bool> Resolver::ShouldTryCastConstantFold(
   return check_status.value_or(false);
 }
 
+absl::StatusOr<const AnnotationMap*>
+Resolver::CreateAnnotationMapFromTypeWithModifiers(
+    const Type* type, const TypeModifiers& type_modifiers) const {
+  std::unique_ptr<AnnotationMap> annotation_map = AnnotationMap::Create(type);
+  if (!type_modifiers.collation().Empty()) {
+    ZETASQL_RETURN_IF_ERROR(
+        type_modifiers.collation().PopulateAnnotationMap(*annotation_map));
+  }
+  annotation_map->Normalize();
+
+  if (annotation_map->Empty()) {
+    return nullptr;
+  }
+  return type_factory_->TakeOwnership(std::move(annotation_map));
+}
+
 // TODO: The noinline attribute is to prevent the stack usage
 // being added to its caller "Resolver::ResolveExpr" which is a recursive
 // function. Now the attribute has to be added for all callees. Hopefully
@@ -6689,20 +6706,9 @@ absl::Status Resolver::ResolveExplicitCast(
 
   // Create annotation map and populate it with collation & timestamp precision
   // annotations.
-  std::unique_ptr<AnnotationMap> annotation_map =
-      AnnotationMap::Create(resolved_cast_type);
-  if (!resolved_type_modifiers.collation().Empty()) {
-    ZETASQL_RETURN_IF_ERROR(resolved_type_modifiers.collation().PopulateAnnotationMap(
-        *annotation_map));
-  }
-  annotation_map->Normalize();
-
-  // Create cast type with annotations.
-  const AnnotationMap* cast_type_annotation_map = nullptr;
-  if (!annotation_map->Empty()) {
-    ZETASQL_ASSIGN_OR_RETURN(cast_type_annotation_map,
-                     type_factory_->TakeOwnership(std::move(annotation_map)));
-  }
+  ZETASQL_ASSIGN_OR_RETURN(const AnnotationMap* cast_type_annotation_map,
+                   CreateAnnotationMapFromTypeWithModifiers(
+                       resolved_cast_type, resolved_type_modifiers));
   AnnotatedType annotated_cast_type =
       AnnotatedType(resolved_cast_type, cast_type_annotation_map);
 
@@ -9720,6 +9726,34 @@ absl::Status Resolver::FinishResolvingAggregateFunction(
     }
   }
 
+  bool args_have_annotations = false;
+  for (const std::unique_ptr<const ResolvedExpr>& arg : arg_list) {
+    if (arg->type_annotation_map() != nullptr &&
+        !arg->type_annotation_map()->Empty()) {
+      args_have_annotations = true;
+      break;
+    }
+  }
+
+  auto compute_input_argument_types =
+      [&](const std::vector<std::unique_ptr<const ResolvedExpr>>& args)
+      -> absl::StatusOr<std::vector<InputArgumentType>> {
+    std::vector<InputArgumentType> input_arguments;
+    input_arguments.reserve(args.size());
+    for (const std::unique_ptr<const ResolvedExpr>& arg : args) {
+      ZETASQL_ASSIGN_OR_RETURN(
+          InputArgumentType input_argument,
+          GetInputArgumentTypeForExpr(
+              arg.get(),
+              /*pick_default_type_for_untyped_expr=*/
+              language().LanguageFeatureEnabled(
+                  FEATURE_TEMPLATED_SQL_FUNCTION_RESOLVE_WITH_TYPED_ARGS),
+              analyzer_options()));
+      input_arguments.push_back(input_argument);
+    }
+    return input_arguments;
+  };
+
   std::shared_ptr<ResolvedFunctionCallInfo> function_call_info = nullptr;
   if (function->Is<TemplatedSQLFunction>()) {
     // We do not support lambdas in UDF yet.
@@ -9732,20 +9766,9 @@ absl::Status Resolver::FinishResolvingAggregateFunction(
     function_call_info.reset(new ResolvedFunctionCallInfo());
     const TemplatedSQLFunction* sql_function =
         function->GetAs<TemplatedSQLFunction>();
-    std::vector<InputArgumentType> input_arguments;
-    input_arguments.reserve(arg_list.size());
-    for (const std::unique_ptr<const ResolvedExpr>& arg :
-         (*resolved_function_call)->argument_list()) {
-      ZETASQL_ASSIGN_OR_RETURN(
-          InputArgumentType input_argument,
-          GetInputArgumentTypeForExpr(
-              arg.get(),
-              /*pick_default_type_for_untyped_expr=*/
-              language().LanguageFeatureEnabled(
-                  FEATURE_TEMPLATED_SQL_FUNCTION_RESOLVE_WITH_TYPED_ARGS),
-              analyzer_options()));
-      input_arguments.push_back(input_argument);
-    }
+    ZETASQL_ASSIGN_OR_RETURN(std::vector<InputArgumentType> input_arguments,
+                     compute_input_argument_types(
+                         (*resolved_function_call)->argument_list()));
 
     // Call the TemplatedSQLFunction::Resolve() method to get the output type.
     // Use a new empty cycle detector, or the cycle detector from this
@@ -9760,7 +9783,7 @@ absl::Status Resolver::FinishResolvingAggregateFunction(
     const absl::Status resolve_status =
         function_resolver_->ResolveTemplatedSQLFunctionCall(
             ast_function_call, *sql_function, analyzer_options, input_arguments,
-            &function_call_info);
+            arg_list, &function_call_info);
 
     if (!resolve_status.ok()) {
       // TODO:  This code matches the code from

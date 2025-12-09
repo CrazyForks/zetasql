@@ -57,18 +57,18 @@ QueryStmt
     | |       | +-$col1#29 :=
     | |       |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<INT64, INT64>, MAP<INT64, INT64>) -> MAP<INT64, INT64>)
     | |       |     +-FunctionCall(ZetaSQL:$is_null(MAP<INT64, INT64>) -> BOOL)
-    | |       |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#6)
+    | |       |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4)
     | |       |     +-Literal(type=MAP<INT64, INT64>, value=NULL)
     | |       |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, INT64>>) -> MAP<INT64, INT64>)
     | |       |       +-SubqueryExpr
     | |       |         +-type=ARRAY<STRUCT<key INT64, INT64>>
     | |       |         +-subquery_type=ARRAY
     | |       |         +-parameter_list=
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key_1#4)
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key_2#5)
-    | |       |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#6)
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.val_1#7)
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.val_2#8)
+    | |       |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key#5)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_1#6)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_value_1#7)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.value#8)
     | |       |         +-subquery=
     | |       |           +-ProjectScan
     | |       |             +-column_list=[$expr_subquery.$col1#28]
@@ -131,7 +131,7 @@ QueryStmt
     | |       |                 |     | |       +-column_list=[$array.t#9]
     | |       |                 |     | |       +-array_expr_list=
     | |       |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<INT64, INT64>) -> ARRAY<STRUCT<key INT64, value INT64>>)
-    | |       |                 |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#6, is_correlated=TRUE)
+    | |       |                 |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4, is_correlated=TRUE)
     | |       |                 |     | |       +-element_column_list=[$array.t#9]
     | |       |                 |     | +-output_column_list=$union_all1.[key#10, value#11, is_new#12]
     | |       |                 |     +-SetOperationItem
@@ -150,8 +150,8 @@ QueryStmt
     | |       |                 |       |         | | +-ProjectScan
     | |       |                 |       |         | |   +-column_list=$union_all1.[key#13, value#14]
     | |       |                 |       |         | |   +-expr_list=
-    | |       |                 |       |         | |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.key_1#4, is_correlated=TRUE)
-    | |       |                 |       |         | |   | +-value#14 := ColumnRef(type=INT64, column=$subquery1.val_1#7, is_correlated=TRUE)
+    | |       |                 |       |         | |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.key#5, is_correlated=TRUE)
+    | |       |                 |       |         | |   | +-value#14 := ColumnRef(type=INT64, column=$subquery1.value#8, is_correlated=TRUE)
     | |       |                 |       |         | |   +-input_scan=
     | |       |                 |       |         | |     +-SingleRowScan
     | |       |                 |       |         | +-output_column_list=$union_all1.[key#13, value#14]
@@ -160,8 +160,8 @@ QueryStmt
     | |       |                 |       |           | +-ProjectScan
     | |       |                 |       |           |   +-column_list=$union_all2.[key#15, value#16]
     | |       |                 |       |           |   +-expr_list=
-    | |       |                 |       |           |   | +-key#15 := ColumnRef(type=INT64, column=$subquery1.key_2#5, is_correlated=TRUE)
-    | |       |                 |       |           |   | +-value#16 := ColumnRef(type=INT64, column=$subquery1.val_2#8, is_correlated=TRUE)
+    | |       |                 |       |           |   | +-key#15 := ColumnRef(type=INT64, column=$subquery1.repeated_key_1#6, is_correlated=TRUE)
+    | |       |                 |       |           |   | +-value#16 := ColumnRef(type=INT64, column=$subquery1.repeated_value_1#7, is_correlated=TRUE)
     | |       |                 |       |           |   +-input_scan=
     | |       |                 |       |           |     +-SingleRowScan
     | |       |                 |       |           +-output_column_list=$union_all2.[key#15, value#16]
@@ -186,15 +186,15 @@ QueryStmt
     | |       |                             +-ColumnRef(type=INT64, column=$union_all.is_new#22)
     | |       +-input_scan=
     | |         +-ProjectScan
-    | |           +-column_list=$subquery1.[key_1#4, key_2#5, map_arg#6, val_1#7, val_2#8]
+    | |           +-column_list=$subquery1.[input_map#4, key#5, repeated_key_1#6, repeated_value_1#7, value#8]
     | |           +-expr_list=
-    | |           | +-key_1#4 := Literal(type=INT64, value=1)
-    | |           | +-key_2#5 := Literal(type=INT64, value=2)
-    | |           | +-map_arg#6 :=
+    | |           | +-input_map#4 :=
     | |           | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
     | |           | |   +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}])
-    | |           | +-val_1#7 := Literal(type=INT64, value=1)
-    | |           | +-val_2#8 := Literal(type=INT64, value=2)
+    | |           | +-key#5 := Literal(type=INT64, value=1)
+    | |           | +-repeated_key_1#6 := Literal(type=INT64, value=2)
+    | |           | +-repeated_value_1#7 := Literal(type=INT64, value=2)
+    | |           | +-value#8 := Literal(type=INT64, value=1)
     | |           +-input_scan=
     | |             +-SingleRowScan
     | +-$col2#2 :=
@@ -258,18 +258,18 @@ QueryStmt
     |         | +-$col1#25 :=
     |         |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<INT64, STRUCT<a INT64>>, MAP<INT64, STRUCT<a INT64>>) -> MAP<INT64, STRUCT<a INT64>>)
     |         |     +-FunctionCall(ZetaSQL:$is_null(MAP<INT64, STRUCT<a INT64>>) -> BOOL)
-    |         |     | +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.map_arg#4)
+    |         |     | +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.input_map#2)
     |         |     +-Literal(type=MAP<INT64, STRUCT<a INT64>>, value=NULL)
     |         |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, STRUCT<a INT64>>>) -> MAP<INT64, STRUCT<a INT64>>)
     |         |       +-SubqueryExpr
     |         |         +-type=ARRAY<STRUCT<key INT64, STRUCT<a INT64>>>
     |         |         +-subquery_type=ARRAY
     |         |         +-parameter_list=
-    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key_1#2)
-    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key_2#3)
-    |         |         | +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.map_arg#4)
-    |         |         | +-ColumnRef(type=STRUCT<a INT64>, column=$subquery1.val_1#5)
-    |         |         | +-ColumnRef(type=STRUCT<a INT64>, column=$subquery1.val_2#6)
+    |         |         | +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.input_map#2)
+    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key#3)
+    |         |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_1#4)
+    |         |         | +-ColumnRef(type=STRUCT<a INT64>, column=$subquery1.repeated_value_1#5)
+    |         |         | +-ColumnRef(type=STRUCT<a INT64>, column=$subquery1.value#6)
     |         |         +-subquery=
     |         |           +-ProjectScan
     |         |             +-column_list=[$expr_subquery.$col1#24]
@@ -320,7 +320,7 @@ QueryStmt
     |         |                 |     | |       +-column_list=[$array.t#7]
     |         |                 |     | |       +-array_expr_list=
     |         |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<INT64, STRUCT<a INT64>>) -> ARRAY<STRUCT<key INT64, value STRUCT<a INT64>>>)
-    |         |                 |     | |       |   +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.map_arg#4, is_correlated=TRUE)
+    |         |                 |     | |       |   +-ColumnRef(type=MAP<INT64, STRUCT<a INT64>>, column=$subquery1.input_map#2, is_correlated=TRUE)
     |         |                 |     | |       +-element_column_list=[$array.t#7]
     |         |                 |     | +-output_column_list=$union_all1.[key#8, value#9, is_new#10]
     |         |                 |     +-SetOperationItem
@@ -339,8 +339,8 @@ QueryStmt
     |         |                 |       |         | | +-ProjectScan
     |         |                 |       |         | |   +-column_list=$union_all1.[key#11, value#12]
     |         |                 |       |         | |   +-expr_list=
-    |         |                 |       |         | |   | +-key#11 := ColumnRef(type=INT64, column=$subquery1.key_1#2, is_correlated=TRUE)
-    |         |                 |       |         | |   | +-value#12 := ColumnRef(type=STRUCT<a INT64>, column=$subquery1.val_1#5, is_correlated=TRUE)
+    |         |                 |       |         | |   | +-key#11 := ColumnRef(type=INT64, column=$subquery1.key#3, is_correlated=TRUE)
+    |         |                 |       |         | |   | +-value#12 := ColumnRef(type=STRUCT<a INT64>, column=$subquery1.value#6, is_correlated=TRUE)
     |         |                 |       |         | |   +-input_scan=
     |         |                 |       |         | |     +-SingleRowScan
     |         |                 |       |         | +-output_column_list=$union_all1.[key#11, value#12]
@@ -349,8 +349,8 @@ QueryStmt
     |         |                 |       |           | +-ProjectScan
     |         |                 |       |           |   +-column_list=$union_all2.[key#13, value#14]
     |         |                 |       |           |   +-expr_list=
-    |         |                 |       |           |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.key_2#3, is_correlated=TRUE)
-    |         |                 |       |           |   | +-value#14 := ColumnRef(type=STRUCT<a INT64>, column=$subquery1.val_2#6, is_correlated=TRUE)
+    |         |                 |       |           |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.repeated_key_1#4, is_correlated=TRUE)
+    |         |                 |       |           |   | +-value#14 := ColumnRef(type=STRUCT<a INT64>, column=$subquery1.repeated_value_1#5, is_correlated=TRUE)
     |         |                 |       |           |   +-input_scan=
     |         |                 |       |           |     +-SingleRowScan
     |         |                 |       |           +-output_column_list=$union_all2.[key#13, value#14]
@@ -371,15 +371,15 @@ QueryStmt
     |         |                             +-ColumnRef(type=INT64, column=$union_all.is_new#20)
     |         +-input_scan=
     |           +-ProjectScan
-    |             +-column_list=$subquery1.[key_1#2, key_2#3, map_arg#4, val_1#5, val_2#6]
+    |             +-column_list=$subquery1.[input_map#2, key#3, repeated_key_1#4, repeated_value_1#5, value#6]
     |             +-expr_list=
-    |             | +-key_1#2 := Literal(type=INT64, value=1)
-    |             | +-key_2#3 := Literal(type=INT64, value=3)
-    |             | +-map_arg#4 :=
+    |             | +-input_map#2 :=
     |             | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, value STRUCT<a INT64>>>) -> MAP<INT64, STRUCT<a INT64>>)
     |             | |   +-Literal(type=ARRAY<STRUCT<key INT64, value STRUCT<a INT64>>>, value=[{key:1, value:{a:1}}])
-    |             | +-val_1#5 := Literal(type=STRUCT<a INT64>, value={a:2})
-    |             | +-val_2#6 := Literal(type=STRUCT<a INT64>, value={a:3})
+    |             | +-key#3 := Literal(type=INT64, value=1)
+    |             | +-repeated_key_1#4 := Literal(type=INT64, value=3)
+    |             | +-repeated_value_1#5 := Literal(type=STRUCT<a INT64>, value={a:3})
+    |             | +-value#6 := Literal(type=STRUCT<a INT64>, value={a:2})
     |             +-input_scan=
     |               +-SingleRowScan
     +-input_scan=
@@ -431,18 +431,18 @@ QueryStmt
     |         | +-$col1#26 :=
     |         |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<INT64, ARRAY<INT64>>, MAP<INT64, ARRAY<INT64>>) -> MAP<INT64, ARRAY<INT64>>)
     |         |     +-FunctionCall(ZetaSQL:$is_null(MAP<INT64, ARRAY<INT64>>) -> BOOL)
-    |         |     | +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.map_arg#4)
+    |         |     | +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.input_map#2)
     |         |     +-Literal(type=MAP<INT64, ARRAY<INT64>>, value=NULL)
     |         |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, ARRAY<INT64>>>) -> MAP<INT64, ARRAY<INT64>>)
     |         |       +-SubqueryExpr
     |         |         +-type=ARRAY<STRUCT<key INT64, ARRAY<INT64>>>
     |         |         +-subquery_type=ARRAY
     |         |         +-parameter_list=
-    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key_1#2)
-    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key_2#3)
-    |         |         | +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.map_arg#4)
-    |         |         | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.val_1#5)
-    |         |         | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.val_2#6)
+    |         |         | +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.input_map#2)
+    |         |         | +-ColumnRef(type=INT64, column=$subquery1.key#3)
+    |         |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_1#4)
+    |         |         | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.repeated_value_1#5)
+    |         |         | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.value#6)
     |         |         +-subquery=
     |         |           +-ProjectScan
     |         |             +-column_list=[$expr_subquery.$col1#25]
@@ -501,7 +501,7 @@ QueryStmt
     |         |                 |     | |       +-column_list=[$array.t#7]
     |         |                 |     | |       +-array_expr_list=
     |         |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<INT64, ARRAY<INT64>>) -> ARRAY<STRUCT<key INT64, value ARRAY<INT64>>>)
-    |         |                 |     | |       |   +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.map_arg#4, is_correlated=TRUE)
+    |         |                 |     | |       |   +-ColumnRef(type=MAP<INT64, ARRAY<INT64>>, column=$subquery1.input_map#2, is_correlated=TRUE)
     |         |                 |     | |       +-element_column_list=[$array.t#7]
     |         |                 |     | +-output_column_list=$union_all1.[key#8, value#9, is_new#10]
     |         |                 |     +-SetOperationItem
@@ -520,8 +520,8 @@ QueryStmt
     |         |                 |       |         | | +-ProjectScan
     |         |                 |       |         | |   +-column_list=$union_all1.[key#11, value#12]
     |         |                 |       |         | |   +-expr_list=
-    |         |                 |       |         | |   | +-key#11 := ColumnRef(type=INT64, column=$subquery1.key_1#2, is_correlated=TRUE)
-    |         |                 |       |         | |   | +-value#12 := ColumnRef(type=ARRAY<INT64>, column=$subquery1.val_1#5, is_correlated=TRUE)
+    |         |                 |       |         | |   | +-key#11 := ColumnRef(type=INT64, column=$subquery1.key#3, is_correlated=TRUE)
+    |         |                 |       |         | |   | +-value#12 := ColumnRef(type=ARRAY<INT64>, column=$subquery1.value#6, is_correlated=TRUE)
     |         |                 |       |         | |   +-input_scan=
     |         |                 |       |         | |     +-SingleRowScan
     |         |                 |       |         | +-output_column_list=$union_all1.[key#11, value#12]
@@ -530,8 +530,8 @@ QueryStmt
     |         |                 |       |           | +-ProjectScan
     |         |                 |       |           |   +-column_list=$union_all2.[key#13, value#14]
     |         |                 |       |           |   +-expr_list=
-    |         |                 |       |           |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.key_2#3, is_correlated=TRUE)
-    |         |                 |       |           |   | +-value#14 := ColumnRef(type=ARRAY<INT64>, column=$subquery1.val_2#6, is_correlated=TRUE)
+    |         |                 |       |           |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.repeated_key_1#4, is_correlated=TRUE)
+    |         |                 |       |           |   | +-value#14 := ColumnRef(type=ARRAY<INT64>, column=$subquery1.repeated_value_1#5, is_correlated=TRUE)
     |         |                 |       |           |   +-input_scan=
     |         |                 |       |           |     +-SingleRowScan
     |         |                 |       |           +-output_column_list=$union_all2.[key#13, value#14]
@@ -555,15 +555,15 @@ QueryStmt
     |         |                             +-ColumnRef(type=INT64, column=$union_all.is_new#20)
     |         +-input_scan=
     |           +-ProjectScan
-    |             +-column_list=$subquery1.[key_1#2, key_2#3, map_arg#4, val_1#5, val_2#6]
+    |             +-column_list=$subquery1.[input_map#2, key#3, repeated_key_1#4, repeated_value_1#5, value#6]
     |             +-expr_list=
-    |             | +-key_1#2 := Literal(type=INT64, value=1)
-    |             | +-key_2#3 := Literal(type=INT64, value=2)
-    |             | +-map_arg#4 :=
+    |             | +-input_map#2 :=
     |             | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, value ARRAY<INT64>>>) -> MAP<INT64, ARRAY<INT64>>)
     |             | |   +-Literal(type=ARRAY<STRUCT<key INT64, value ARRAY<INT64>>>, value=[{key:1, value:[1]}, {key:2, value:[2, 2]}])
-    |             | +-val_1#5 := Literal(type=ARRAY<INT64>, value=[2, 2])
-    |             | +-val_2#6 := Literal(type=ARRAY<INT64>, value=[4, 4, 4, 4])
+    |             | +-key#3 := Literal(type=INT64, value=1)
+    |             | +-repeated_key_1#4 := Literal(type=INT64, value=2)
+    |             | +-repeated_value_1#5 := Literal(type=ARRAY<INT64>, value=[4, 4, 4, 4])
+    |             | +-value#6 := Literal(type=ARRAY<INT64>, value=[2, 2])
     |             +-input_scan=
     |               +-SingleRowScan
     +-input_scan=
@@ -642,16 +642,16 @@ QueryStmt
     |         | +-$col1#25 :=
     |         |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<STRING, INT64>, MAP<STRING, INT64>) -> MAP<STRING, INT64>)
     |         |     +-FunctionCall(ZetaSQL:$is_null(MAP<STRING, INT64>) -> BOOL)
-    |         |     | +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.map_arg#5)
+    |         |     | +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.input_map#3)
     |         |     +-Literal(type=MAP<STRING, INT64>, value=NULL)
     |         |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key STRING, INT64>>) -> MAP<STRING, INT64>)
     |         |       +-SubqueryExpr
     |         |         +-type=ARRAY<STRUCT<key STRING, INT64>>
     |         |         +-subquery_type=ARRAY
     |         |         +-parameter_list=
-    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key_1#3)
-    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key_2#4)
-    |         |         | +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.map_arg#5)
+    |         |         | +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.input_map#3)
+    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key#4)
+    |         |         | +-ColumnRef(type=STRING, column=$subquery1.repeated_key_1#5)
     |         |         +-subquery=
     |         |           +-ProjectScan
     |         |             +-column_list=[$expr_subquery.$col1#24]
@@ -729,7 +729,7 @@ QueryStmt
     |         |                 |     | |       +-column_list=[$array.t#6]
     |         |                 |     | |       +-array_expr_list=
     |         |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<STRING, INT64>) -> ARRAY<STRUCT<key STRING, value INT64>>)
-    |         |                 |     | |       |   +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.map_arg#5, is_correlated=TRUE)
+    |         |                 |     | |       |   +-ColumnRef(type=MAP<STRING, INT64>, column=$subquery1.input_map#3, is_correlated=TRUE)
     |         |                 |     | |       +-element_column_list=[$array.t#6]
     |         |                 |     | +-output_column_list=$union_all1.[key#7, value#8, is_new#9]
     |         |                 |     +-SetOperationItem
@@ -749,7 +749,7 @@ QueryStmt
     |         |                 |       |         | | +-ProjectScan
     |         |                 |       |         | |   +-column_list=[$union_all1.key#10]
     |         |                 |       |         | |   +-expr_list=
-    |         |                 |       |         | |   | +-key#10 := ColumnRef(type=STRING, column=$subquery1.key_1#3, is_correlated=TRUE)
+    |         |                 |       |         | |   | +-key#10 := ColumnRef(type=STRING, column=$subquery1.key#4, is_correlated=TRUE)
     |         |                 |       |         | |   +-input_scan=
     |         |                 |       |         | |     +-SingleRowScan
     |         |                 |       |         | +-output_column_list=[$union_all1.key#10]
@@ -758,7 +758,7 @@ QueryStmt
     |         |                 |       |           | +-ProjectScan
     |         |                 |       |           |   +-column_list=[$union_all2.key#11]
     |         |                 |       |           |   +-expr_list=
-    |         |                 |       |           |   | +-key#11 := ColumnRef(type=STRING, column=$subquery1.key_2#4, is_correlated=TRUE)
+    |         |                 |       |           |   | +-key#11 := ColumnRef(type=STRING, column=$subquery1.repeated_key_1#5, is_correlated=TRUE)
     |         |                 |       |           |   +-input_scan=
     |         |                 |       |           |     +-SingleRowScan
     |         |                 |       |           +-output_column_list=[$union_all2.key#11]
@@ -788,13 +788,13 @@ QueryStmt
     |         |                       +-ColumnRef(type=INT64, column=$union_all.value#16)
     |         +-input_scan=
     |           +-ProjectScan
-    |             +-column_list=$subquery1.[key_1#3, key_2#4, map_arg#5]
+    |             +-column_list=$subquery1.[input_map#3, key#4, repeated_key_1#5]
     |             +-expr_list=
-    |             | +-key_1#3 := Literal(type=STRING, value="a")
-    |             | +-key_2#4 := Literal(type=STRING, value="c")
-    |             | +-map_arg#5 :=
-    |             |   +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k STRING, v INT64>>) -> MAP<STRING, INT64>)
-    |             |     +-Literal(type=ARRAY<STRUCT<k STRING, v INT64>>, value=[{k:"a", v:1}, {k:"b", v:2}, {k:"c", v:3}])
+    |             | +-input_map#3 :=
+    |             | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k STRING, v INT64>>) -> MAP<STRING, INT64>)
+    |             | |   +-Literal(type=ARRAY<STRUCT<k STRING, v INT64>>, value=[{k:"a", v:1}, {k:"b", v:2}, {k:"c", v:3}])
+    |             | +-key#4 := Literal(type=STRING, value="a")
+    |             | +-repeated_key_1#5 := Literal(type=STRING, value="c")
     |             +-input_scan=
     |               +-SingleRowScan
     +-input_scan=
@@ -878,16 +878,16 @@ QueryStmt
     |         | +-$col1#52 :=
     |         |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<STRING, MAP<INT64, INT64>>, MAP<STRING, MAP<INT64, INT64>>) -> MAP<STRING, MAP<INT64, INT64>>)
     |         |     +-FunctionCall(ZetaSQL:$is_null(MAP<STRING, MAP<INT64, INT64>>) -> BOOL)
-    |         |     | +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.map_arg#31)
+    |         |     | +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.input_map#29)
     |         |     +-Literal(type=MAP<STRING, MAP<INT64, INT64>>, value=NULL)
     |         |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key STRING, MAP<INT64, INT64>>>) -> MAP<STRING, MAP<INT64, INT64>>)
     |         |       +-SubqueryExpr
     |         |         +-type=ARRAY<STRUCT<key STRING, MAP<INT64, INT64>>>
     |         |         +-subquery_type=ARRAY
     |         |         +-parameter_list=
-    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key_1#29)
-    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key_2#30)
-    |         |         | +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.map_arg#31)
+    |         |         | +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.input_map#29)
+    |         |         | +-ColumnRef(type=STRING, column=$subquery1.key#30)
+    |         |         | +-ColumnRef(type=STRING, column=$subquery1.repeated_key_1#31)
     |         |         +-subquery=
     |         |           +-ProjectScan
     |         |             +-column_list=[$expr_subquery.$col1#51]
@@ -930,18 +930,18 @@ QueryStmt
     |         |             |           |     | +-$col1#53 :=
     |         |             |           |     |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<INT64, INT64>, MAP<INT64, INT64>) -> MAP<INT64, INT64>)
     |         |             |           |     |     +-FunctionCall(ZetaSQL:$is_null(MAP<INT64, INT64>) -> BOOL)
-    |         |             |           |     |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#54)
+    |         |             |           |     |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#54)
     |         |             |           |     |     +-Literal(type=MAP<INT64, INT64>, value=NULL)
     |         |             |           |     |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, INT64>>) -> MAP<INT64, INT64>)
     |         |             |           |     |       +-SubqueryExpr
     |         |             |           |     |         +-type=ARRAY<STRUCT<key INT64, INT64>>
     |         |             |           |     |         +-subquery_type=ARRAY
     |         |             |           |     |         +-parameter_list=
-    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.key_1#55)
-    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.key_2#56)
-    |         |             |           |     |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#54)
-    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.val_1#57)
-    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.val_2#58)
+    |         |             |           |     |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#54)
+    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.key#55)
+    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_1#56)
+    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_value_1#57)
+    |         |             |           |     |         | +-ColumnRef(type=INT64, column=$subquery1.value#58)
     |         |             |           |     |         +-subquery=
     |         |             |           |     |           +-ProjectScan
     |         |             |           |     |             +-column_list=[$expr_subquery.$col1#59]
@@ -1004,7 +1004,7 @@ QueryStmt
     |         |             |           |     |                 |     | |       +-column_list=[$array.t#66]
     |         |             |           |     |                 |     | |       +-array_expr_list=
     |         |             |           |     |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<INT64, INT64>) -> ARRAY<STRUCT<key INT64, value INT64>>)
-    |         |             |           |     |                 |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#54, is_correlated=TRUE)
+    |         |             |           |     |                 |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#54, is_correlated=TRUE)
     |         |             |           |     |                 |     | |       +-element_column_list=[$array.t#66]
     |         |             |           |     |                 |     | +-output_column_list=$union_all1.[key#65, value#67, is_new#68]
     |         |             |           |     |                 |     +-SetOperationItem
@@ -1023,8 +1023,8 @@ QueryStmt
     |         |             |           |     |                 |       |         | | +-ProjectScan
     |         |             |           |     |                 |       |         | |   +-column_list=$union_all1.[key#70, value#71]
     |         |             |           |     |                 |       |         | |   +-expr_list=
-    |         |             |           |     |                 |       |         | |   | +-key#70 := ColumnRef(type=INT64, column=$subquery1.key_1#55, is_correlated=TRUE)
-    |         |             |           |     |                 |       |         | |   | +-value#71 := ColumnRef(type=INT64, column=$subquery1.val_1#57, is_correlated=TRUE)
+    |         |             |           |     |                 |       |         | |   | +-key#70 := ColumnRef(type=INT64, column=$subquery1.key#55, is_correlated=TRUE)
+    |         |             |           |     |                 |       |         | |   | +-value#71 := ColumnRef(type=INT64, column=$subquery1.value#58, is_correlated=TRUE)
     |         |             |           |     |                 |       |         | |   +-input_scan=
     |         |             |           |     |                 |       |         | |     +-SingleRowScan
     |         |             |           |     |                 |       |         | +-output_column_list=$union_all1.[key#70, value#71]
@@ -1033,8 +1033,8 @@ QueryStmt
     |         |             |           |     |                 |       |           | +-ProjectScan
     |         |             |           |     |                 |       |           |   +-column_list=$union_all2.[key#72, value#73]
     |         |             |           |     |                 |       |           |   +-expr_list=
-    |         |             |           |     |                 |       |           |   | +-key#72 := ColumnRef(type=INT64, column=$subquery1.key_2#56, is_correlated=TRUE)
-    |         |             |           |     |                 |       |           |   | +-value#73 := ColumnRef(type=INT64, column=$subquery1.val_2#58, is_correlated=TRUE)
+    |         |             |           |     |                 |       |           |   | +-key#72 := ColumnRef(type=INT64, column=$subquery1.repeated_key_1#56, is_correlated=TRUE)
+    |         |             |           |     |                 |       |           |   | +-value#73 := ColumnRef(type=INT64, column=$subquery1.repeated_value_1#57, is_correlated=TRUE)
     |         |             |           |     |                 |       |           |   +-input_scan=
     |         |             |           |     |                 |       |           |     +-SingleRowScan
     |         |             |           |     |                 |       |           +-output_column_list=$union_all2.[key#72, value#73]
@@ -1059,13 +1059,13 @@ QueryStmt
     |         |             |           |     |                             +-ColumnRef(type=INT64, column=$union_all.is_new#78)
     |         |             |           |     +-input_scan=
     |         |             |           |       +-ProjectScan
-    |         |             |           |         +-column_list=$subquery1.[key_1#55, key_2#56, map_arg#54, val_1#57, val_2#58]
+    |         |             |           |         +-column_list=$subquery1.[input_map#54, key#55, repeated_key_1#56, repeated_value_1#57, value#58]
     |         |             |           |         +-expr_list=
-    |         |             |           |         | +-key_1#55 := Literal(type=INT64, value=1)
-    |         |             |           |         | +-key_2#56 := Literal(type=INT64, value=2)
-    |         |             |           |         | +-map_arg#54 := ColumnRef(type=MAP<INT64, INT64>, column=$aggregate.$agg4#48, is_correlated=TRUE)
-    |         |             |           |         | +-val_1#57 := Literal(type=INT64, value=1)
-    |         |             |           |         | +-val_2#58 := Literal(type=INT64, value=2)
+    |         |             |           |         | +-input_map#54 := ColumnRef(type=MAP<INT64, INT64>, column=$aggregate.$agg4#48, is_correlated=TRUE)
+    |         |             |           |         | +-key#55 := Literal(type=INT64, value=1)
+    |         |             |           |         | +-repeated_key_1#56 := Literal(type=INT64, value=2)
+    |         |             |           |         | +-repeated_value_1#57 := Literal(type=INT64, value=2)
+    |         |             |           |         | +-value#58 := Literal(type=INT64, value=1)
     |         |             |           |         +-input_scan=
     |         |             |           |           +-SingleRowScan
     |         |             |           +-ColumnRef(type=MAP<INT64, INT64>, column=$aggregate.$agg5#49)
@@ -1100,7 +1100,7 @@ QueryStmt
     |         |                 |     | |       +-column_list=[$array.t#32]
     |         |                 |     | |       +-array_expr_list=
     |         |                 |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<STRING, MAP<INT64, INT64>>) -> ARRAY<STRUCT<key STRING, value MAP<INT64, INT64>>>)
-    |         |                 |     | |       |   +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.map_arg#31, is_correlated=TRUE)
+    |         |                 |     | |       |   +-ColumnRef(type=MAP<STRING, MAP<INT64, INT64>>, column=$subquery1.input_map#29, is_correlated=TRUE)
     |         |                 |     | |       +-element_column_list=[$array.t#32]
     |         |                 |     | +-output_column_list=$union_all1.[key#33, value#34, is_new#35]
     |         |                 |     +-SetOperationItem
@@ -1125,7 +1125,7 @@ QueryStmt
     |         |                 |       |             | | +-ProjectScan
     |         |                 |       |             | |   +-column_list=[$union_all1.key#36]
     |         |                 |       |             | |   +-expr_list=
-    |         |                 |       |             | |   | +-key#36 := ColumnRef(type=STRING, column=$subquery1.key_1#29, is_correlated=TRUE)
+    |         |                 |       |             | |   | +-key#36 := ColumnRef(type=STRING, column=$subquery1.key#30, is_correlated=TRUE)
     |         |                 |       |             | |   +-input_scan=
     |         |                 |       |             | |     +-SingleRowScan
     |         |                 |       |             | +-output_column_list=[$union_all1.key#36]
@@ -1134,7 +1134,7 @@ QueryStmt
     |         |                 |       |               | +-ProjectScan
     |         |                 |       |               |   +-column_list=[$union_all2.key#37]
     |         |                 |       |               |   +-expr_list=
-    |         |                 |       |               |   | +-key#37 := ColumnRef(type=STRING, column=$subquery1.key_2#30, is_correlated=TRUE)
+    |         |                 |       |               |   | +-key#37 := ColumnRef(type=STRING, column=$subquery1.repeated_key_1#31, is_correlated=TRUE)
     |         |                 |       |               |   +-input_scan=
     |         |                 |       |               |     +-SingleRowScan
     |         |                 |       |               +-output_column_list=[$union_all2.key#37]
@@ -1164,25 +1164,25 @@ QueryStmt
     |         |                       +-ColumnRef(type=MAP<INT64, INT64>, column=$union_all.value#42)
     |         +-input_scan=
     |           +-ProjectScan
-    |             +-column_list=$subquery1.[key_1#29, key_2#30, map_arg#31]
+    |             +-column_list=$subquery1.[input_map#29, key#30, repeated_key_1#31]
     |             +-expr_list=
-    |             | +-key_1#29 := Literal(type=STRING, value="a")
-    |             | +-key_2#30 := Literal(type=STRING, value="b")
-    |             | +-map_arg#31 :=
-    |             |   +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k STRING, v MAP<INT64, INT64>>>) -> MAP<STRING, MAP<INT64, INT64>>)
-    |             |     +-FunctionCall(ZetaSQL:$make_array(repeated(2) STRUCT<k STRING, v MAP<INT64, INT64>>) -> ARRAY<STRUCT<k STRING, v MAP<INT64, INT64>>>)
-    |             |       +-MakeStruct
-    |             |       | +-type=STRUCT<k STRING, v MAP<INT64, INT64>>
-    |             |       | +-field_list=
-    |             |       |   +-Literal(type=STRING, value="a")
-    |             |       |   +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
-    |             |       |     +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}])
-    |             |       +-MakeStruct
-    |             |         +-type=STRUCT<k STRING, v MAP<INT64, INT64>>
-    |             |         +-field_list=
-    |             |           +-Literal(type=STRING, value="b")
-    |             |           +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
-    |             |             +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}])
+    |             | +-input_map#29 :=
+    |             | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k STRING, v MAP<INT64, INT64>>>) -> MAP<STRING, MAP<INT64, INT64>>)
+    |             | |   +-FunctionCall(ZetaSQL:$make_array(repeated(2) STRUCT<k STRING, v MAP<INT64, INT64>>) -> ARRAY<STRUCT<k STRING, v MAP<INT64, INT64>>>)
+    |             | |     +-MakeStruct
+    |             | |     | +-type=STRUCT<k STRING, v MAP<INT64, INT64>>
+    |             | |     | +-field_list=
+    |             | |     |   +-Literal(type=STRING, value="a")
+    |             | |     |   +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
+    |             | |     |     +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}])
+    |             | |     +-MakeStruct
+    |             | |       +-type=STRUCT<k STRING, v MAP<INT64, INT64>>
+    |             | |       +-field_list=
+    |             | |         +-Literal(type=STRING, value="b")
+    |             | |         +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
+    |             | |           +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}])
+    |             | +-key#30 := Literal(type=STRING, value="a")
+    |             | +-repeated_key_1#31 := Literal(type=STRING, value="b")
     |             +-input_scan=
     |               +-SingleRowScan
     +-input_scan=
@@ -1244,17 +1244,17 @@ QueryStmt
     | |       | +-$col1#25 :=
     | |       |   +-FunctionCall(ZetaSQL:if(BOOL, MAP<INT64, INT64>, MAP<INT64, INT64>) -> MAP<INT64, INT64>)
     | |       |     +-FunctionCall(ZetaSQL:$is_null(MAP<INT64, INT64>) -> BOOL)
-    | |       |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#7)
+    | |       |     | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4)
     | |       |     +-Literal(type=MAP<INT64, INT64>, value=NULL)
     | |       |     +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<key INT64, INT64>>) -> MAP<INT64, INT64>)
     | |       |       +-SubqueryExpr
     | |       |         +-type=ARRAY<STRUCT<key INT64, INT64>>
     | |       |         +-subquery_type=ARRAY
     | |       |         +-parameter_list=
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key_1#4)
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key_2#5)
-    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key_3#6)
-    | |       |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#7)
+    | |       |         | +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.key#5)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_1#6)
+    | |       |         | +-ColumnRef(type=INT64, column=$subquery1.repeated_key_2#7)
     | |       |         +-subquery=
     | |       |           +-ProjectScan
     | |       |             +-column_list=[$expr_subquery.$col1#23]
@@ -1302,7 +1302,7 @@ QueryStmt
     | |       |                 |       |     | |       +-column_list=[$array.t#8]
     | |       |                 |       |     | |       +-array_expr_list=
     | |       |                 |       |     | |       | +-FunctionCall(ZetaSQL:map_entries_unsorted(MAP<INT64, INT64>) -> ARRAY<STRUCT<key INT64, value INT64>>)
-    | |       |                 |       |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.map_arg#7, is_correlated=TRUE)
+    | |       |                 |       |     | |       |   +-ColumnRef(type=MAP<INT64, INT64>, column=$subquery1.input_map#4, is_correlated=TRUE)
     | |       |                 |       |     | |       +-element_column_list=[$array.t#8]
     | |       |                 |       |     | +-output_column_list=$union_all1.[key#9, value#10, is_delete_key#11]
     | |       |                 |       |     +-SetOperationItem
@@ -1322,7 +1322,7 @@ QueryStmt
     | |       |                 |       |       |         | | +-ProjectScan
     | |       |                 |       |       |         | |   +-column_list=[$union_all1.key#12]
     | |       |                 |       |       |         | |   +-expr_list=
-    | |       |                 |       |       |         | |   | +-key#12 := ColumnRef(type=INT64, column=$subquery1.key_1#4, is_correlated=TRUE)
+    | |       |                 |       |       |         | |   | +-key#12 := ColumnRef(type=INT64, column=$subquery1.key#5, is_correlated=TRUE)
     | |       |                 |       |       |         | |   +-input_scan=
     | |       |                 |       |       |         | |     +-SingleRowScan
     | |       |                 |       |       |         | +-output_column_list=[$union_all1.key#12]
@@ -1331,7 +1331,7 @@ QueryStmt
     | |       |                 |       |       |         | | +-ProjectScan
     | |       |                 |       |       |         | |   +-column_list=[$union_all2.key#13]
     | |       |                 |       |       |         | |   +-expr_list=
-    | |       |                 |       |       |         | |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.key_2#5, is_correlated=TRUE)
+    | |       |                 |       |       |         | |   | +-key#13 := ColumnRef(type=INT64, column=$subquery1.repeated_key_1#6, is_correlated=TRUE)
     | |       |                 |       |       |         | |   +-input_scan=
     | |       |                 |       |       |         | |     +-SingleRowScan
     | |       |                 |       |       |         | +-output_column_list=[$union_all2.key#13]
@@ -1340,7 +1340,7 @@ QueryStmt
     | |       |                 |       |       |           | +-ProjectScan
     | |       |                 |       |       |           |   +-column_list=[$union_all3.key#14]
     | |       |                 |       |       |           |   +-expr_list=
-    | |       |                 |       |       |           |   | +-key#14 := ColumnRef(type=INT64, column=$subquery1.key_3#6, is_correlated=TRUE)
+    | |       |                 |       |       |           |   | +-key#14 := ColumnRef(type=INT64, column=$subquery1.repeated_key_2#7, is_correlated=TRUE)
     | |       |                 |       |       |           |   +-input_scan=
     | |       |                 |       |       |           |     +-SingleRowScan
     | |       |                 |       |       |           +-output_column_list=[$union_all3.key#14]
@@ -1360,14 +1360,14 @@ QueryStmt
     | |       |                     +-Literal(type=INT64, value=0)
     | |       +-input_scan=
     | |         +-ProjectScan
-    | |           +-column_list=$subquery1.[key_1#4, key_2#5, key_3#6, map_arg#7]
+    | |           +-column_list=$subquery1.[input_map#4, key#5, repeated_key_1#6, repeated_key_2#7]
     | |           +-expr_list=
-    | |           | +-key_1#4 := Literal(type=INT64, value=1)
-    | |           | +-key_2#5 := Literal(type=INT64, value=2)
-    | |           | +-key_3#6 := Literal(type=INT64, value=3)
-    | |           | +-map_arg#7 :=
-    | |           |   +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
-    | |           |     +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}, {k:1, v:1}, {k:2, v:2}])
+    | |           | +-input_map#4 :=
+    | |           | | +-FunctionCall(ZetaSQL:map_from_array(ARRAY<STRUCT<k INT64, v INT64>>) -> MAP<INT64, INT64>)
+    | |           | |   +-Literal(type=ARRAY<STRUCT<k INT64, v INT64>>, value=[{k:0, v:0}, {k:1, v:1}, {k:2, v:2}])
+    | |           | +-key#5 := Literal(type=INT64, value=1)
+    | |           | +-repeated_key_1#6 := Literal(type=INT64, value=2)
+    | |           | +-repeated_key_2#7 := Literal(type=INT64, value=3)
     | |           +-input_scan=
     | |             +-SingleRowScan
     | +-$col2#2 :=

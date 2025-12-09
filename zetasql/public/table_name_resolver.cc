@@ -1384,24 +1384,30 @@ absl::Status TableNameResolver::HandleWithClause(
   if (with_clause->recursive()) {
     // In WITH RECURSIVE, any entry can access an alias defined in any other
     // entry, regardless of declaration order.
-    for (const ASTAliasedQuery* with_entry : with_clause->with()) {
-      const std::string with_alias =
-          absl::AsciiStrToLower(with_entry->alias()->GetAsStringView());
-      zetasql_base::InsertIfNotPresent(&local_table_aliases_, with_alias);
+    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+      if (entry->aliased_query() != nullptr) {
+        const std::string with_alias = absl::AsciiStrToLower(
+            entry->aliased_query()->alias()->GetAsStringView());
+        zetasql_base::InsertIfNotPresent(&local_table_aliases_, with_alias);
+      }
     }
-    for (const ASTAliasedQuery* with_entry : with_clause->with()) {
-      ZETASQL_RETURN_IF_ERROR(FindInQuery(with_entry->query(), visible_aliases));
-      const std::string with_alias =
-          absl::AsciiStrToLower(with_entry->alias()->GetAsStringView());
+    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+      if (entry->aliased_query() != nullptr) {
+        const ASTAliasedQuery* aliased_query = entry->aliased_query();
+        ZETASQL_RETURN_IF_ERROR(FindInQuery(aliased_query->query(), visible_aliases));
+      }
     }
   } else {
     // In WITH without RECURSIVE, entries can only access with aliases defined
     // in prior entries.
-    for (const ASTAliasedQuery* with_entry : with_clause->with()) {
-      ZETASQL_RETURN_IF_ERROR(FindInQuery(with_entry->query(), visible_aliases));
-      const std::string with_alias =
-          absl::AsciiStrToLower(with_entry->alias()->GetAsStringView());
-      zetasql_base::InsertIfNotPresent(&local_table_aliases_, with_alias);
+    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+      if (entry->aliased_query() != nullptr) {
+        const ASTAliasedQuery* aliased_query = entry->aliased_query();
+        ZETASQL_RETURN_IF_ERROR(FindInQuery(aliased_query->query(), visible_aliases));
+        const std::string with_alias =
+            absl::AsciiStrToLower(aliased_query->alias()->GetAsStringView());
+        zetasql_base::InsertIfNotPresent(&local_table_aliases_, with_alias);
+      }
     }
   }
   return absl::OkStatus();

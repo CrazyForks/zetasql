@@ -957,3 +957,488 @@ ARRAY<STRUCT<INT64, INT64, ARRAY<>, ARRAY<>, INT64, INT64, ARRAY<>, ARRAY<>>>[
     ]
   }
 ]
+==
+
+[name=column_level_row_identity_columns_basic]
+SELECT
+  AGG(measure_total_revenue) AS total_revenue,
+  AGG(measure_categories) AS categories,
+  AGG(measure_regions) AS regions,
+  AGG(measure_category_and_region_combination) AS category_and_region_combination,
+  AGG(measure_total_units_sold) AS total_units_sold,
+  AGG(measure_promo_codes_ignore_nulls) AS promo_codes_ignore_nulls,
+  AGG(measure_promo_codes_respect_nulls) AS promo_codes_respect_nulls,
+  AGG(measure_product_categories_per_region) AS product_categories_per_region
+FROM
+  MeasureTable_Sales_Denormalized;
+--
+ARRAY<STRUCT<
+        total_revenue INT64,
+        categories ARRAY<>,
+        regions ARRAY<>,
+        category_and_region_combination ARRAY<>,
+        total_units_sold INT64,
+        promo_codes_ignore_nulls ARRAY<>,
+        promo_codes_respect_nulls ARRAY<>,
+        product_categories_per_region ARRAY<>
+      >>
+[{4200,
+  ARRAY<STRING>[unknown order:"Electronics", "Groceries"],
+  ARRAY<STRING>[unknown order:"South", "North"],
+  ARRAY<STRING>[unknown order:
+    "Electronics, North",
+    "Groceries, North",
+    "Electronics, South"
+  ],
+  57,
+  ARRAY<STRING>[unknown order:"SAVE15", "SAVE10"],
+  ARRAY<STRING>[unknown order:"SAVE15", NULL, "SAVE10", NULL],
+  ARRAY<STRUCT<
+          product_categories ARRAY<>,
+          store_region STRING
+        >>
+  [unknown order:
+    {
+      ARRAY<STRING>[unknown order:"Electronics", "Groceries"],
+      "North"
+    },
+    {
+      ARRAY<STRING>["Electronics"],
+      "South"
+    }
+  ]}]
+==
+
+[name=column_level_row_identity_columns_with_unnest]
+SELECT
+  AGG(measure_total_revenue) AS total_revenue,
+  AGG(measure_categories) AS categories,
+  AGG(measure_regions) AS regions,
+  AGG(measure_category_and_region_combination) AS category_and_region_combination,
+  AGG(measure_total_units_sold) AS total_units_sold,
+  AGG(measure_promo_codes_ignore_nulls) AS promo_codes_ignore_nulls,
+  AGG(measure_promo_codes_respect_nulls) AS promo_codes_respect_nulls
+FROM
+  MeasureTable_Sales_Denormalized, UNNEST([1, 2, 3]);
+--
+ARRAY<STRUCT<
+        total_revenue INT64,
+        categories ARRAY<>,
+        regions ARRAY<>,
+        category_and_region_combination ARRAY<>,
+        total_units_sold INT64,
+        promo_codes_ignore_nulls ARRAY<>,
+        promo_codes_respect_nulls ARRAY<>
+      >>
+[{4200,
+  ARRAY<STRING>[unknown order:"Electronics", "Groceries"],
+  ARRAY<STRING>[unknown order:"South", "North"],
+  ARRAY<STRING>[unknown order:
+    "Electronics, North",
+    "Groceries, North",
+    "Electronics, South"
+  ],
+  57,
+  ARRAY<STRING>[unknown order:"SAVE15", "SAVE10"],
+  ARRAY<STRING>[unknown order:"SAVE15", NULL, "SAVE10", NULL]}]
+==
+
+[name=column_level_row_identity_columns_with_inner_joins]
+SELECT
+  AGG(T1.measure_total_revenue),
+  AGG(T2.measure_categories),
+  AGG(T1.measure_regions),
+  AGG(T1.measure_category_and_region_combination),
+  AGG(T2.measure_total_units_sold),
+  AGG(T2.measure_promo_codes_ignore_nulls),
+  AGG(T1.measure_promo_codes_respect_nulls)
+FROM MeasureTable_Sales_Denormalized AS T1
+INNER JOIN MeasureTable_Sales_Denormalized AS T2 USING (row_id)
+--
+ARRAY<STRUCT<INT64, ARRAY<>, ARRAY<>, ARRAY<>, INT64, ARRAY<>, ARRAY<>>>[
+  {4200,
+   ARRAY<STRING>[unknown order:"Groceries", "Electronics"],
+   ARRAY<STRING>[unknown order:"South", "North"],
+   ARRAY<STRING>[unknown order:
+     "Electronics, South",
+     "Electronics, North",
+     "Groceries, North"
+   ],
+   57,
+   ARRAY<STRING>[unknown order:"SAVE15", "SAVE10"],
+   ARRAY<STRING>[unknown order:NULL, NULL, "SAVE15", "SAVE10"]}
+]
+==
+
+[name=column_level_row_identity_columns_with_cross_joins]
+SELECT
+  AGG(T1.measure_total_revenue),
+  AGG(T2.measure_categories),
+  AGG(T1.measure_regions),
+  AGG(T1.measure_category_and_region_combination),
+  AGG(T2.measure_total_units_sold),
+  AGG(T2.measure_promo_codes_ignore_nulls),
+  AGG(T1.measure_promo_codes_respect_nulls)
+FROM MeasureTable_Sales_Denormalized AS T1, MeasureTable_Sales_Denormalized AS T2
+--
+ARRAY<STRUCT<INT64, ARRAY<>, ARRAY<>, ARRAY<>, INT64, ARRAY<>, ARRAY<>>>[
+  {4200,
+   ARRAY<STRING>[unknown order:"Groceries", "Electronics"],
+   ARRAY<STRING>[unknown order:"South", "North"],
+   ARRAY<STRING>[unknown order:
+     "Electronics, North",
+     "Groceries, North",
+     "Electronics, South"
+   ],
+   57,
+   ARRAY<STRING>[unknown order:"SAVE15", "SAVE10"],
+   ARRAY<STRING>[unknown order:"SAVE15", NULL, "SAVE10", NULL]}
+]
+==
+
+[name=column_level_row_identity_columns_with_where]
+SELECT
+  AGG(measure_total_revenue),
+  AGG(measure_categories),
+  AGG(measure_regions),
+  AGG(measure_category_and_region_combination),
+  AGG(measure_total_units_sold),
+  AGG(measure_promo_codes_ignore_nulls),
+  AGG(measure_promo_codes_respect_nulls)
+FROM MeasureTable_Sales_Denormalized
+WHERE store_region = 'North'
+--
+ARRAY<STRUCT<INT64, ARRAY<>, ARRAY<>, ARRAY<>, INT64, ARRAY<>, ARRAY<>>>[
+  {
+    2700,
+    ARRAY<STRING>[unknown order:"Groceries", "Electronics"],
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>[unknown order:"Groceries, North", "Electronics, North"],
+    42,
+    ARRAY<STRING>[unknown order:"SAVE10", "SAVE15"],
+    ARRAY<STRING>[unknown order:"SAVE10", "SAVE15", NULL]
+  }
+]
+==
+
+[name=column_level_row_identity_columns_with_group_by]
+SELECT
+  product_category,
+  AGG(measure_total_revenue),
+  AGG(measure_categories),
+  AGG(measure_regions),
+  AGG(measure_category_and_region_combination),
+  AGG(measure_total_units_sold),
+  AGG(measure_promo_codes_ignore_nulls),
+  AGG(measure_promo_codes_respect_nulls)
+FROM MeasureTable_Sales_Denormalized, UNNEST([1, 2, 3])
+GROUP BY product_category
+ORDER BY 1
+--
+ARRAY<STRUCT<
+        product_category STRING,
+        INT64,
+        ARRAY<>,
+        ARRAY<>,
+        ARRAY<>,
+        INT64,
+        ARRAY<>,
+        ARRAY<>
+      >>
+[known order:
+  {
+    "Electronics",
+    3700,
+    ARRAY<STRING>["Electronics"],
+    ARRAY<STRING>[unknown order:"South", "North"],
+    ARRAY<STRING>[unknown order:"Electronics, South", "Electronics, North"],
+    37,
+    ARRAY<STRING>["SAVE15"],
+    ARRAY<STRING>[unknown order:NULL, "SAVE15", NULL]
+  },
+  {
+    "Groceries",
+    500,
+    ARRAY<STRING>["Groceries"],
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>["Groceries, North"],
+    20,
+    ARRAY<STRING>["SAVE10"],
+    ARRAY<STRING>["SAVE10"]
+  }
+]
+==
+
+[name=column_level_row_identity_columns_with_group_by_having_and_inner_join]
+SELECT
+  T1.product_category,
+  AGG(T1.measure_total_revenue) AS total_revenue,
+  AGG(T2.measure_categories),
+  AGG(T1.measure_regions),
+  AGG(T2.measure_total_units_sold)
+FROM MeasureTable_Sales_Denormalized AS T1
+INNER JOIN MeasureTable_Sales_Denormalized AS T2 USING (row_id)
+GROUP BY T1.product_category
+HAVING total_revenue > 1000
+ORDER BY 1
+--
+ARRAY<STRUCT<
+        product_category STRING,
+        total_revenue INT64,
+        ARRAY<>,
+        ARRAY<>,
+        INT64
+      >>
+[{
+   "Electronics",
+   3700,
+   ARRAY<STRING>["Electronics"],
+   ARRAY<STRING>[unknown order:"South", "North"],
+   37
+ }]
+==
+
+[name=column_level_row_identity_columns_in_order_by]
+SELECT
+  product_category
+FROM MeasureTable_Sales_Denormalized
+GROUP BY product_category
+ORDER BY AGG(measure_total_revenue) DESC
+--
+ARRAY<STRUCT<product_category STRING>>[known order:
+  {"Electronics"},
+  {"Groceries"}
+]
+==
+
+[name=column_level_row_identity_columns_with_grouping_sets]
+[required_features=ENABLE_MEASURES,GROUPING_SETS,GROUPING_BUILTIN]
+SELECT
+  product_category,
+  store_region,
+  GROUPING(product_category) AS product_category_is_aggregated,
+  GROUPING(store_region) AS store_region_is_aggregated,
+  AGG(measure_total_revenue) AS total_revenue,
+  AGG(measure_categories) AS categories,
+  AGG(measure_regions) AS regions,
+  AGG(measure_category_and_region_combination) AS category_and_region_combination,
+  AGG(measure_total_units_sold) AS total_units_sold,
+  AGG(measure_promo_codes_ignore_nulls) AS promo_codes_ignore_nulls,
+  AGG(measure_promo_codes_respect_nulls) AS promo_codes_respect_nulls
+FROM MeasureTable_Sales_Denormalized, UNNEST([1, 2])
+GROUP BY GROUPING SETS (product_category, store_region)
+ORDER BY 1, 2, 3, 4
+--
+ARRAY<STRUCT<
+        product_category STRING,
+        store_region STRING,
+        product_category_is_aggregated INT64,
+        store_region_is_aggregated INT64,
+        total_revenue INT64,
+        categories ARRAY<>,
+        regions ARRAY<>,
+        category_and_region_combination ARRAY<>,
+        total_units_sold INT64,
+        promo_codes_ignore_nulls ARRAY<>,
+        promo_codes_respect_nulls ARRAY<>
+      >>
+[known order:
+  {
+    NULL,
+    "North",
+    1,
+    0,
+    2700,
+    ARRAY<STRING>[unknown order:"Electronics", "Groceries"],
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>[unknown order:"Electronics, North", "Groceries, North"],
+    42,
+    ARRAY<STRING>[unknown order:"SAVE15", "SAVE10"],
+    ARRAY<STRING>[unknown order:"SAVE15", "SAVE10", NULL]
+  },
+  {
+    NULL,
+    "South",
+    1,
+    0,
+    1500,
+    ARRAY<STRING>["Electronics"],
+    ARRAY<STRING>["South"],
+    ARRAY<STRING>["Electronics, South"],
+    15,
+    ARRAY<STRING>(NULL),
+    ARRAY<STRING>[NULL]
+  },
+  {
+    "Electronics",
+    NULL,
+    0,
+    1,
+    3700,
+    ARRAY<STRING>["Electronics"],
+    ARRAY<STRING>[unknown order:"South", "North"],
+    ARRAY<STRING>[unknown order:"Electronics, South", "Electronics, North"],
+    37,
+    ARRAY<STRING>["SAVE15"],
+    ARRAY<STRING>[unknown order:NULL, "SAVE15", NULL]
+  },
+  {
+    "Groceries",
+    NULL,
+    0,
+    1,
+    500,
+    ARRAY<STRING>["Groceries"],
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>["Groceries, North"],
+    20,
+    ARRAY<STRING>["SAVE10"],
+    ARRAY<STRING>["SAVE10"]
+  }
+]
+==
+
+[name=column_level_row_identity_columns_propagating_past_subquery_in_from]
+SELECT
+  product_category,
+  AGG(measure_total_revenue)
+FROM (
+  SELECT
+    product_category,
+    measure_total_revenue
+  FROM MeasureTable_Sales_Denormalized
+  WHERE store_region = 'North'
+)
+GROUP BY product_category
+ORDER BY 1
+--
+ARRAY<STRUCT<
+        product_category STRING,
+        INT64
+      >>
+[known order:
+  {"Electronics", 2200},
+  {"Groceries", 500}
+]
+==
+
+[name=column_level_row_identity_columns_propagation_past_analytic_scan]
+[required_features=ENABLE_MEASURES,ANALYTIC_FUNCTIONS]
+SELECT
+  product_category,
+  AGG(measure_total_revenue),
+  COUNT(total_revenue_analytic)
+FROM (
+  SELECT
+    product_category,
+    measure_total_revenue,
+    SUM(revenue) OVER () AS total_revenue_analytic
+  FROM MeasureTable_Sales_Denormalized
+)
+GROUP BY product_category
+ORDER BY 1
+--
+ARRAY<STRUCT<
+        product_category STRING,
+        INT64,
+        INT64
+      >>
+[known order:
+  {"Electronics", 3700, 3},
+  {"Groceries", 500, 1}
+]
+==
+
+[name=column_level_row_identity_columns_propagation_past_left_outer_join]
+[required_features=ENABLE_MEASURES,AGGREGATE_FILTERING,NULL_HANDLING_MODIFIER_IN_AGGREGATE]
+SELECT
+  AGG(T2.measure_regions),
+  AGG(T2.measure_promo_codes_respect_nulls),
+  ARRAY_AGG(T2.promo_code RESPECT NULLS)
+FROM (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+) AS T1 LEFT OUTER JOIN (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+  WHERE row_id <= 2
+) AS T2
+ON T1.row_id = T2.row_id
+--
+ARRAY<STRUCT<ARRAY<>, ARRAY<>, ARRAY<>>>[
+  {
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>[unknown order:NULL, "SAVE10"],
+    ARRAY<STRING>[unknown order:NULL, NULL, "SAVE10", NULL]
+  }
+]
+==
+
+[name=column_level_row_identity_columns_propagation_past_right_outer_join]
+[required_features=ENABLE_MEASURES,AGGREGATE_FILTERING,NULL_HANDLING_MODIFIER_IN_AGGREGATE]
+SELECT
+  AGG(T1.measure_regions) AS T1_regions,
+  AGG(T2.measure_regions) AS T2_regions,
+  AGG(T1.measure_promo_codes_respect_nulls) AS T1_promo_codes_respect_nulls,
+  AGG(T2.measure_promo_codes_respect_nulls) AS T2_promo_codes_respect_nulls,
+  ARRAY_AGG(T1.promo_code RESPECT NULLS) AS T1_promo_codes,
+  ARRAY_AGG(T2.promo_code RESPECT NULLS) AS T2_promo_codes
+FROM (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+  WHERE row_id <= 2
+) AS T1 RIGHT OUTER JOIN (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+) AS T2
+ON T1.row_id = T2.row_id
+--
+ARRAY<STRUCT<
+        T1_regions ARRAY<>,
+        T2_regions ARRAY<>,
+        T1_promo_codes_respect_nulls ARRAY<>,
+        T2_promo_codes_respect_nulls ARRAY<>,
+        T1_promo_codes ARRAY<>,
+        T2_promo_codes ARRAY<>
+      >>
+[{
+   ARRAY<STRING>["North"],
+   ARRAY<STRING>[unknown order:"South", "North"],
+   ARRAY<STRING>[unknown order:NULL, "SAVE10"],
+   ARRAY<STRING>[unknown order:NULL, "SAVE15", "SAVE10", NULL],
+   ARRAY<STRING>[unknown order:"SAVE10", NULL, NULL, NULL],
+   ARRAY<STRING>[unknown order:"SAVE10", NULL, NULL, "SAVE15"]
+ }]
+==
+
+[name=column_level_row_identity_columns_propagation_past_full_outer_join]
+[required_features=ENABLE_MEASURES,AGGREGATE_FILTERING,NULL_HANDLING_MODIFIER_IN_AGGREGATE]
+SELECT
+  AGG(T1.measure_regions),
+  AGG(T1.measure_promo_codes_respect_nulls),
+  ARRAY_AGG(T1.promo_code RESPECT NULLS),
+  AGG(T2.measure_regions),
+  AGG(T2.measure_promo_codes_respect_nulls),
+  ARRAY_AGG(T2.promo_code RESPECT NULLS)
+FROM (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+  WHERE row_id <= 2
+) AS T1 FULL OUTER JOIN (
+  SELECT *
+  FROM MeasureTable_Sales_Denormalized
+  WHERE row_id >= 2 AND row_id <=3
+) AS T2
+ON T1.row_id = T2.row_id
+--
+ARRAY<STRUCT<ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>>>[
+  {
+    ARRAY<STRING>["North"],
+    ARRAY<STRING>[unknown order:NULL, "SAVE10"],
+    ARRAY<STRING>[unknown order:"SAVE10", NULL, NULL],
+    ARRAY<STRING>[unknown order:"South", "North"],
+    ARRAY<STRING>[unknown order:NULL, "SAVE10"],
+    ARRAY<STRING>[unknown order:"SAVE10", NULL, NULL]
+  }
+]
+

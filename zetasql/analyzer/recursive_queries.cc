@@ -17,6 +17,7 @@
 #include "zetasql/analyzer/recursive_queries.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <initializer_list>
 #include <stack>
 #include <string>
@@ -140,7 +141,7 @@ class FindTableReferencesVisitor : public NonRecursiveParseTreeVisitor {
       const ASTAliasedQuery* node) override {
     return VisitResult::VisitChildren(node, [this, node]() {
       if (node != static_cast<const ASTNode*>(root_node_) &&
-          !node->parent()->GetAsOrDie<ASTWithClause>()->recursive()) {
+          !node->parent()->parent()->GetAsOrDie<ASTWithClause>()->recursive()) {
         // After visiting the entry of an inner, non-recursive WITH, we need
         // to associate the alias as belonging to an inner WITH entry for the
         // duration of the WITH clause containing it.
@@ -157,8 +158,10 @@ class FindTableReferencesVisitor : public NonRecursiveParseTreeVisitor {
     if (node->with_clause() != nullptr) {
       return VisitResult::VisitChildren(node, [this, node]() {
         // Inner WITH entries are now out-of-scope.
-        for (const ASTAliasedQuery* entry : node->with_clause()->with()) {
-          RemoveInnerAlias(entry);
+        for (const ASTWithClauseEntry* entry : node->with_clause()->entry()) {
+          if (entry->aliased_query() != nullptr) {
+            RemoveInnerAlias(entry->aliased_query());
+          }
         }
         return absl::OkStatus();
       });
@@ -172,8 +175,10 @@ class FindTableReferencesVisitor : public NonRecursiveParseTreeVisitor {
     // clause; for non-recursive WITH, inner aliases are added only when we're
     // about to traverse the entry that defines it.
     if (node->recursive()) {
-      for (const ASTAliasedQuery* entry : node->with()) {
-        AddInnerAlias(entry);
+      for (const ASTWithClauseEntry* entry : node->entry()) {
+        if (entry->aliased_query() != nullptr) {
+          AddInnerAlias(entry->aliased_query());
+        }
       }
     }
     return VisitResult::VisitChildren(node);
@@ -329,15 +334,20 @@ absl::StatusOr<WithEntrySortResult> WithEntrySorter::RunInternal(
   using FindRefsInWithClause = FindTableReferencesVisitor<ASTAliasedQuery>;
 
   absl::flat_hash_map<const ASTAliasedQuery*, std::vector<IdString>> roots;
-  for (const ASTAliasedQuery* entry : with_clause_->with()) {
-    roots[entry] = {entry->alias()->GetAsIdString()};
+  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+    if (entry->aliased_query() != nullptr) {
+      const ASTAliasedQuery* aliased_query = entry->aliased_query();
+      roots[aliased_query] = {aliased_query->alias()->GetAsIdString()};
+    }
   }
   ZETASQL_ASSIGN_OR_RETURN(FindRefsInWithClause::NodeReferenceMap references,
                    FindRefsInWithClause::Run(roots));
 
-  absl::flat_hash_map<const ASTAliasedQuery*, int> entry_index_map;
-  for (const ASTAliasedQuery* entry : with_clause->with()) {
-    entry_index_map[entry] = entry_index_map.size();
+  absl::flat_hash_map<const ASTAliasedQuery*, size_t> entry_index_map;
+  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+    if (entry->aliased_query() != nullptr) {
+      entry_index_map[entry->aliased_query()] = entry_index_map.size();
+    }
   }
 
   for (const auto& pair : references) {
@@ -356,8 +366,10 @@ absl::StatusOr<WithEntrySortResult> WithEntrySorter::RunInternal(
     references_[pair.first] = sorted_references;
   }
 
-  for (const ASTAliasedQuery* entry : with_clause_->with()) {
-    stack_.push(Task{entry, Task::kStart});
+  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+    if (entry->aliased_query() != nullptr) {
+      stack_.push(Task{entry->aliased_query(), Task::kStart});
+    }
   }
 
   while (!stack_.empty()) {

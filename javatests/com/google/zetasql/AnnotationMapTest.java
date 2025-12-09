@@ -204,6 +204,46 @@ public final class AnnotationMapTest {
   }
 
   @Test
+  public void unsetCompositeAnnotation_existingAnnotationId_succeeds() {
+    AnnotationMap annotationMap = AnnotationMap.create(SIMPLE_ARRAY_TYPE);
+    SimpleValue testValue = SimpleValue.createString(TEST_STRING_VALUE);
+    annotationMap.setAnnotation(COLLATION_ANNOTATION_ID, testValue);
+    annotationMap.asStructMap().getField(0).setAnnotation(COLLATION_ANNOTATION_ID, testValue);
+
+    // Before unsetAnnotation
+    assertThat(annotationMap.getAnnotation(COLLATION_ANNOTATION_ID)).isEqualTo(testValue);
+    assertThat(annotationMap.asStructMap().getField(0).getAnnotation(COLLATION_ANNOTATION_ID))
+        .isEqualTo(testValue);
+
+    annotationMap.unsetAnnotationRecursively(COLLATION_ANNOTATION_ID);
+
+    // After unsetAnnotation
+    assertThat(annotationMap.getAnnotation(COLLATION_ANNOTATION_ID)).isNull();
+    assertThat(annotationMap.asStructMap().getField(0).getAnnotation(COLLATION_ANNOTATION_ID))
+        .isNull();
+  }
+
+  @Test
+  public void unsetCompositeAnnotation_nonExistingAnnotationId_unchanged() {
+    AnnotationMap annotationMap = AnnotationMap.create(SIMPLE_ARRAY_TYPE);
+    SimpleValue testValue = SimpleValue.createString(TEST_STRING_VALUE);
+    annotationMap.setAnnotation(COLLATION_ANNOTATION_ID, testValue);
+    annotationMap.asStructMap().getField(0).setAnnotation(COLLATION_ANNOTATION_ID, testValue);
+
+    // Before unsetAnnotation
+    assertThat(annotationMap.getAnnotation(COLLATION_ANNOTATION_ID)).isEqualTo(testValue);
+    assertThat(annotationMap.asStructMap().getField(0).getAnnotation(COLLATION_ANNOTATION_ID))
+        .isEqualTo(testValue);
+
+    annotationMap.unsetAnnotationRecursively(0x12345);
+
+    // After unsetAnnotation
+    assertThat(annotationMap.getAnnotation(COLLATION_ANNOTATION_ID)).isEqualTo(testValue);
+    assertThat(annotationMap.asStructMap().getField(0).getAnnotation(COLLATION_ANNOTATION_ID))
+        .isEqualTo(testValue);
+  }
+
+  @Test
   public void isStructMap_stringAnnotationMap_returnsFalse() {
     AnnotationMap annotationMap = AnnotationMap.create(STRING_TYPE);
 

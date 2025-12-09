@@ -435,6 +435,10 @@ absl::Status CheckArrayIsDistinctArguments(
     absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
+absl::Status CheckArrayDistinctArguments(
+    absl::Span<const InputArgumentType> arguments,
+    const LanguageOptions& language_options);
+
 absl::Status CheckInArrayArguments(
     const std::vector<InputArgumentType>& arguments,
     const LanguageOptions& language_options);

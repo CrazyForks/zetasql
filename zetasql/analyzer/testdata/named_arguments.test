@@ -375,6 +375,79 @@ ERROR: Named argument invalid_arg not found in signature for call to function TV
     ^
 ==
 
+[language_features=NONE,+NAMED_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+TOP_LEVEL_TABLE_STATEMENTS]
+# TVF call using named TABLE argument
+select * from tvf_named_optional_any_relation_arg(
+    any_relation_arg => TABLE KeyValue)
+--
+
+QueryStmt
++-output_column_list=
+| +-tvf_named_optional_any_relation_arg.column_bool#3 AS column_bool [BOOL]
+| +-tvf_named_optional_any_relation_arg.column_bytes#4 AS column_bytes [BYTES]
++-query=
+  +-ProjectScan
+    +-column_list=tvf_named_optional_any_relation_arg.[column_bool#3, column_bytes#4]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tvf_named_optional_any_relation_arg.[column_bool#3, column_bytes#4]
+        +-tvf=tvf_named_optional_any_relation_arg((optional ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+        +-signature=(TABLE<Key INT64, Value STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+        +-argument_list=
+        | +-FunctionArgument
+        |   +-scan=
+        |   | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+        |   +-argument_column_list=KeyValue.[Key#1, Value#2]
+        +-column_index_list=[0, 1]
+        +-function_call_signature=(optional(1) ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>
+==
+
+[language_features=NONE,+NAMED_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+TOP_LEVEL_TABLE_STATEMENTS]
+# TVF call using named TABLE argument
+select * from tvf_named_optional_any_relation_arg(
+    any_relation_arg => TABLE tvf_named_optional_any_relation_arg(any_relation_arg => TABLE KeyValue))
+--
+QueryStmt
++-output_column_list=
+| +-tvf_named_optional_any_relation_arg.column_bool#5 AS column_bool [BOOL]
+| +-tvf_named_optional_any_relation_arg.column_bytes#6 AS column_bytes [BYTES]
++-query=
+  +-ProjectScan
+    +-column_list=tvf_named_optional_any_relation_arg.[column_bool#5, column_bytes#6]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tvf_named_optional_any_relation_arg.[column_bool#5, column_bytes#6]
+        +-tvf=tvf_named_optional_any_relation_arg((optional ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+        +-signature=(TABLE<column_bool BOOL, column_bytes BYTES>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+        +-argument_list=
+        | +-FunctionArgument
+        |   +-scan=
+        |   | +-TVFScan
+        |   |   +-column_list=tvf_named_optional_any_relation_arg.[column_bool#3, column_bytes#4]
+        |   |   +-tvf=tvf_named_optional_any_relation_arg((optional ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+        |   |   +-signature=(TABLE<Key INT64, Value STRING>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+        |   |   +-argument_list=
+        |   |   | +-FunctionArgument
+        |   |   |   +-scan=
+        |   |   |   | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+        |   |   |   +-argument_column_list=KeyValue.[Key#1, Value#2]
+        |   |   +-column_index_list=[0, 1]
+        |   |   +-function_call_signature=(optional(1) ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>
+        |   +-argument_column_list=tvf_named_optional_any_relation_arg.[column_bool#3, column_bytes#4]
+        +-column_index_list=[0, 1]
+        +-function_call_signature=(optional(1) ANY TABLE any_relation_arg) -> TABLE<column_bool BOOL, column_bytes BYTES>
+==
+
+# TVF call using named TABLE argument but not providing table name
+select * from tvf_named_optional_any_relation_arg(
+    any_relation_arg => TABLE)
+--
+
+ERROR: Table-valued function TVF_NAMED_OPTIONAL_ANY_RELATION_ARG argument 1 ('any_relation_arg') must be a relation (i.e. table subquery); if you meant to refer to table TABLE then add the TABLE keyword before the table name (i.e. TABLE TABLE) [at 2:25]
+    any_relation_arg => TABLE)
+                        ^
+==
+
 # Valid TVF call with named arguments for a function with an optional relation
 # argument and an optional scalar argument.
 # The TVF signature looks like:

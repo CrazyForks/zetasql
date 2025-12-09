@@ -42,7 +42,7 @@ from zetasql.parser.generator_utils import UpperCamelCase
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 546
+NEXT_NODE_TAG_ID = 548
 
 
 def GetTempTagId():
@@ -1156,8 +1156,8 @@ def main(argv):
       """,
       fields=[
           Field(
-              'select_with',
-              'ASTSelectWith',
+              'with_modifier',
+              'ASTWithModifier',
               tag_id=3,
               comment="""
               If present, the WITH modifier specifying the mode of aggregation
@@ -1171,6 +1171,10 @@ def main(argv):
               field_loader=FieldLoaderMethod.REQUIRED,
           ),
       ],
+      extra_public_defs="""
+      ABSL_DEPRECATED("Use with_modifier() instead")
+      const ASTWithModifier* select_with() const { return with_modifier(); }
+         """,
   )
 
   gen.AddNode(
@@ -1623,52 +1627,28 @@ def main(argv):
       parent='ASTQueryExpression',
       use_custom_debug_string=True,
       fields=[
-          Field(
-              'hint',
-              'ASTHint',
-              tag_id=2),
-          Field(
-              'select_with',
-              'ASTSelectWith',
-              tag_id=3),
-          Field(
-              'distinct',
-              SCALAR_BOOL,
-              tag_id=4),
-          Field(
-              'select_as',
-              'ASTSelectAs',
-              tag_id=5),
+          Field('hint', 'ASTHint', tag_id=2),
+          Field('with_modifier', 'ASTWithModifier', tag_id=3),
+          Field('distinct', SCALAR_BOOL, tag_id=4),
+          Field('select_as', 'ASTSelectAs', tag_id=5),
           Field(
               'select_list',
               'ASTSelectList',
               tag_id=6,
-              field_loader=FieldLoaderMethod.REQUIRED),
-          Field(
-              'from_clause',
-              'ASTFromClause',
-              tag_id=7),
-          Field(
-              'where_clause',
-              'ASTWhereClause',
-              tag_id=8),
-          Field(
-              'group_by',
-              'ASTGroupBy',
-              tag_id=9),
-          Field(
-              'having',
-              'ASTHaving',
-              tag_id=10),
-          Field(
-              'qualify',
-              'ASTQualify',
-              tag_id=11),
-          Field(
-              'window_clause',
-              'ASTWindowClause',
-              tag_id=12),
-      ])
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+          Field('from_clause', 'ASTFromClause', tag_id=7),
+          Field('where_clause', 'ASTWhereClause', tag_id=8),
+          Field('group_by', 'ASTGroupBy', tag_id=9),
+          Field('having', 'ASTHaving', tag_id=10),
+          Field('qualify', 'ASTQualify', tag_id=11),
+          Field('window_clause', 'ASTWindowClause', tag_id=12),
+      ],
+      extra_public_defs="""
+      ABSL_DEPRECATED("Use with_modifier() instead")
+      const ASTWithModifier* select_with() const { return with_modifier(); }
+         """,
+  )
 
   gen.AddNode(
       name='ASTSelectList',
@@ -2659,19 +2639,86 @@ def main(argv):
        """)
 
   gen.AddNode(
+      name='ASTAliasedGroupRows',
+      tag_id=547,
+      parent='ASTNode',
+      comment="""
+      This represents an aliased group rows entry in the WITH clause.
+      """,
+      fields=[
+          Field(
+              'alias',
+              'ASTIdentifier',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+          )
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTWithClauseEntry',
+      tag_id=546,
+      parent='ASTNode',
+      comment="""
+      This represents a WITH clause entry that must contain either an aliased
+      query or a aliased group rows.
+
+      All these fields are mutually exclusive, meaning only one of them can be
+      populated at a time.
+      """,
+      fields=[
+          Field(
+              'aliased_query',
+              'ASTAliasedQuery',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              gen_setters_and_getters=False
+          ),
+          Field(
+              'aliased_group_rows',
+              'ASTAliasedGroupRows',
+              tag_id=3,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              gen_setters_and_getters=False
+          )
+      ],
+      extra_public_defs="""
+  // Custom field getters that ensure only one of the with clause entry fields
+  // are populated.
+  const ASTAliasedQuery* aliased_query() const;
+  const ASTAliasedGroupRows* aliased_group_rows() const;
+          """,
+  )
+
+  gen.AddNode(
       name='ASTWithClause',
       tag_id=35,
       parent='ASTNode',
       use_custom_debug_string=True,
+      comment="""
+      This represents a WITH clause, which defines one or more named entries
+      such as common table expressions (CTEs) via ASTAliasedQuery.
+      If `recursive` is true, this is a WITH RECURSIVE clause.
+      """,
       fields=[
           Field(
-              'with',
-              'ASTAliasedQuery',
+              'entry',
+              'ASTWithClauseEntry',
               tag_id=2,
               field_loader=FieldLoaderMethod.REST_AS_REPEATED,
           ),
           Field('recursive', SCALAR_BOOL, tag_id=3),
       ],
+      extra_public_defs="""
+  // Expose `with` field for backwards compatibility purposes with old API that
+  // held a list of ASTAliasedQuery.
+  // TODO: b/430036320 - Cleanup after all usages are migrated.
+  ABSL_DEPRECATED("Use entry() accessor instead.")
+  std::vector<const ASTAliasedQuery*> with() const;
+
+  ABSL_DEPRECATED("Use entry(i) accessor instead.")
+  const ASTAliasedQuery* with(int i) const;
+          """,
   )
 
   gen.AddNode(
@@ -10918,6 +10965,15 @@ def main(argv):
                 this ElementTable.
               """,
           ),
+          Field(
+              'default_label_options_list',
+              'ASTOptionsList',
+              tag_id=11,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+                If present, this is options associated with the default label
+                of this element table.
+              """),
       ],
   )
 
@@ -12159,24 +12215,27 @@ def main(argv):
   )
 
   gen.AddNode(
-      name='ASTSelectWith',
+      name='ASTWithModifier',
       tag_id=364,
       parent='ASTNode',
       comment="""
-      Represents SELECT WITH clause.
+      Represents WITH modifier clause (e.g., `SELECT WITH`, `|> AGGREGATE WITH`).
       """,
       fields=[
           Field(
               'identifier',
               'ASTIdentifier',
               tag_id=2,
-              field_loader=FieldLoaderMethod.REQUIRED),
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
           Field(
               'options',
               'ASTOptionsList',
               tag_id=3,
-              field_loader=FieldLoaderMethod.OPTIONAL),
-      ])
+              field_loader=FieldLoaderMethod.OPTIONAL,
+          ),
+      ],
+  )
 
   gen.AddNode(
       name='ASTColumnWithOptions',

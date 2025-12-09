@@ -66,22 +66,23 @@ class GraphStmtResolver {
       const ASTPathExpression* input_table_name,
       NameListPtr& input_table_scan_name_list) const;
 
-  // Resolves an element table definition `ast_element_table`. As part of
-  // resolution, it validates applied labels and property definitions against
-  // the global declarations of the graph.
+  // Resolves an element table definition `ast_element_table`.
+  // Returns the resolved element table and all the labels and properties
+  // declarations associated with it.
   //
   // `node_table_map` is used to resolve the referenced node tables for edge
   // tables.
-  absl::StatusOr<std::unique_ptr<const ResolvedGraphElementTable>>
-  ResolveGraphElementTable(
+  struct ElementTableWithLabelsAndProperties {
+    std::unique_ptr<const ResolvedGraphElementTable> element_table;
+    std::vector<std::unique_ptr<const ResolvedGraphElementLabel>> labels;
+    std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>
+        property_decls;
+  };
+  absl::StatusOr<ElementTableWithLabelsAndProperties> ResolveGraphElementTable(
       const ASTGraphElementTable* ast_element_table,
       GraphElementTable::Kind element_kind,
       const StringViewHashMapCase<const ResolvedGraphElementTable*>&
-          node_table_map,
-      std::vector<std::unique_ptr<const ResolvedGraphElementLabel>>&
-          output_labels,
-      std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>&
-          output_property_decls) const;
+          node_table_map) const;
 
   // Resolves the `ast_node_table_ref` into a ResolvedGraphNodeTableReference.
   //
@@ -93,19 +94,32 @@ class GraphStmtResolver {
       const StringViewHashMapCase<const ResolvedGraphElementTable*>&
           node_table_map) const;
 
-  // Resolves the `ast_label_and_properties` into a label and a list of
-  // properties.
-  //
-  // `element_table_alias` is used as the default label name.
-  absl::StatusOr<std::unique_ptr<const ResolvedGraphElementLabel>>
-  ResolveLabelAndProperties(
-      const ASTGraphElementLabelAndProperties* ast_label_and_properties,
-      IdString element_table_alias, const ResolvedTableScan& base_table_scan,
-      const NameScope* input_scope,
-      std::vector<std::unique_ptr<const ResolvedGraphPropertyDeclaration>>&
-          output_property_decls,
-      std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>&
-          output_property_defs) const;
+  // Resolves a single label with its `properties` and `label_options`.
+  struct LabelAndProperties {
+    std::unique_ptr<const ResolvedGraphElementLabel> label;
+    std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
+        property_defs;
+  };
+  absl::StatusOr<LabelAndProperties> ResolveLabelAndProperties(
+      const ASTNode& ast_location, absl::string_view label_name,
+      const ASTGraphProperties& properties, const ASTOptionsList* label_options,
+      const ResolvedTableScan& base_table_scan,
+      const NameScope* input_scope) const;
+
+  // Resolves all label and property definitions in `ast_label_properties_list`.
+  // `default_label_options` is the syntactic sugar form of DEFAULT LABEL
+  // OPTIONS clause. If present, the explicit DEFAULT LABEL clause cannot have
+  // OPTIONS defined.
+  struct LabelAndPropertiesList {
+    std::vector<std::unique_ptr<const ResolvedGraphElementLabel>> labels;
+    std::vector<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
+        property_defs;
+  };
+  absl::StatusOr<LabelAndPropertiesList> ResolveLabelAndPropertiesList(
+      const ASTGraphElementLabelAndPropertiesList& ast_label_properties_list,
+      const ASTOptionsList* default_label_options, IdString element_table_alias,
+      const ResolvedTableScan& base_table_scan,
+      const NameScope* input_scope) const;
 
   // Resolves `ast_properties` into a list of ResolvedGraphPropertyDefinitions.
   absl::StatusOr<

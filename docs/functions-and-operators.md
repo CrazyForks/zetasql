@@ -3173,19 +3173,10 @@ quantifier:
 
 patterns:
   {
-    pattern_expression_list
-    | pattern_subquery
-    | pattern_array
+    (expression[, ...])
+    (subquery)
+    UNNEST(array_expression)
   }
-
-pattern_expression_list:
-  (expression[, ...])
-
-pattern_subquery:
-  (subquery)
-
-pattern_array:
-  UNNEST(array_expression)
 ```
 
 **Description**
@@ -3198,20 +3189,20 @@ isn't found, or otherwise `NULL`. `NOT LIKE` returns `FALSE` if a
 matching pattern is found, `TRUE` if a matching pattern isn't found, or
 otherwise `NULL`.
 
-+ `search_value`: The value to search for matching patterns. This value can be a
-  `STRING` or `BYTES` type.
-+ `patterns`: The patterns to look for in the search value. Each pattern must
-  resolve to the same type as `search_value`.
++   `search_value`: The value to search for matching patterns. This value can be
+    a `STRING` or `BYTES` type.
++   `patterns`: The patterns to look for in the search value. Each pattern must
+    resolve to the same type as `search_value`. Each pattern is one of the
+    following:
 
-  + `pattern_expression_list`: A list of one or more patterns that match the
-    `search_value` type.
+    +   A list of one or more patterns that match the `search_value` type.
 
-  + `pattern_subquery`: A [subquery][operators-subqueries] that returns
-    a single column with the same type as `search_value`.
+ + A [subquery][operators-subqueries] that
+returns a single column with the same type as `search_value`. 
 
-  + `pattern_array`: An [`UNNEST`][operators-link-to-unnest]
-    operation that returns a column of values with
-    the same type as `search_value` from an array expression.
+ + An
+[`UNNEST`][operators-link-to-unnest] operation that returns a column of values
+with the same type as `search_value` from an array expression. 
 
   The regular expressions that are supported by the
   [`LIKE` operator][like-operator] are also supported by `patterns` in the
@@ -3245,39 +3236,39 @@ otherwise `NULL`.
 When using the quantified `LIKE` operator with `ANY` or `SOME`, the
 following semantics apply in this order:
 
-+ Returns `FALSE` if `patterns` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
-+ Returns `TRUE` if `search_value` matches at least one value in `patterns`.
-+ Returns `NULL` if a pattern in `patterns` is `NULL`.
-+ Returns `FALSE`.
+1. Returns `FALSE` if `patterns` is empty.
+1. Returns `NULL` if `search_value` is `NULL`.
+1. Returns `TRUE` `search_value LIKE pattern` is `TRUE` for at least one value in `patterns`.
+1. Returns `NULL` if a pattern in `patterns` is `NULL`.
+1. Returns `FALSE`.
 
 When using the quantified `LIKE` operator with `ALL`, the following semantics
 apply in this order:
 
-+ Returns `TRUE` if `patterns` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
-+ Returns `FALSE` if `search_value LIKE pattern` is `FALSE` for at least one value in `patterns`.
-+ Returns `NULL` if a pattern in `patterns` is `NULL`.
-+ Returns `TRUE`.
+1. Returns `TRUE` if `patterns` is empty.
+1. Returns `NULL` if `search_value` is `NULL`.
+1. Returns `FALSE` if `search_value LIKE pattern` is `FALSE` for at least one value in `patterns`.
+1. Returns `NULL` if a pattern in `patterns` is `NULL`.
+1. Returns `TRUE`.
 
 When using the quantified `NOT LIKE` operator with `ANY` or `SOME`, the
 following semantics apply in this order:
 
-+ Returns `FALSE` if `patterns` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
-+ Returns `TRUE` if `search_value LIKE pattern` is `FALSE` for at least one value in `patterns`.
-+ Returns `NULL` if a pattern in `patterns` is `NULL`.
-+ Returns `FALSE`.
+1. Returns `FALSE` if `patterns` is empty.
+1. Returns `NULL` if `search_value` is `NULL`.
+1. Returns `TRUE` if `search_value LIKE pattern` is `FALSE` for at least one value in `patterns`.
+1. Returns `NULL` if a pattern in `patterns` is `NULL`.
+1. Returns `FALSE`.
 
 When using the quantified `NOT LIKE` operator with `ALL`, the following
 semantics apply in this order:
 
-+ Returns `TRUE` if `patterns` is empty.
-+ For `pattern_array`, returns `TRUE` if `patterns` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
-+ Returns `FALSE` if `search_value` matches at least one value in `patterns`.
-+ Returns `NULL` if a pattern in `patterns` is `NULL`.
-+ Returns `TRUE`.
+1. Returns `TRUE` if `patterns` is empty.
+1. For `pattern_array`, returns `TRUE` if `patterns` is empty.
+1. Returns `NULL` if `search_value` is `NULL`.
+1. Returns `FALSE` if `search_value LIKE pattern` is `TRUE` for at least one value in `patterns`.
+1. Returns `NULL` if a pattern in `patterns` is `NULL`.
+1. Returns `TRUE`.
 
 **Return Data Type**
 
@@ -3285,14 +3276,28 @@ semantics apply in this order:
 
 **Examples**
 
-The following example checks to see if the `Intend%` or `%intention%`
-pattern exists in a value and produces that value if either pattern is found:
+You can use these `WITH` clauses to emulate temporary tables for
+`Words` in the following examples:
 
 ```zetasql
 WITH Words AS
  (SELECT 'Intend with clarity.' as value UNION ALL
   SELECT 'Secure with intention.' UNION ALL
   SELECT 'Clarity and security.')
+
+/*------------------------+
+ | value                  |
+ +------------------------+
+ | Intend with clarity.   |
+ | Secure with intention. |
+ | Clarity and security.  |
+ +------------------------*/
+```
+
+The following example checks to see if the `Intend%` or `%intention%`
+pattern exists in a value and produces that value if either pattern is found:
+
+```zetasql
 SELECT * FROM Words WHERE value LIKE ANY ('Intend%', '%intention%');
 
 /*------------------------+
@@ -3309,10 +3314,6 @@ pattern exists in a value and produces that value if the pattern is found.
 Example with `LIKE ALL`:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT * FROM Words WHERE value LIKE ALL ('%ity%');
 
 /*-----------------------+
@@ -3328,10 +3329,6 @@ pattern exists in a value produces that value if the pattern
 isn't found:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT * FROM Words WHERE value NOT LIKE ('%ity%');
 
 /*------------------------+
@@ -3344,10 +3341,6 @@ SELECT * FROM Words WHERE value NOT LIKE ('%ity%');
 You can use a subquery as an expression in `patterns`. For example:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT * FROM Words WHERE value LIKE ANY ((SELECT '%ion%'), '%and%');
 
 /*------------------------+
@@ -3361,10 +3354,6 @@ SELECT * FROM Words WHERE value LIKE ANY ((SELECT '%ion%'), '%and%');
 You can pass in a subquery for `patterns`. For example:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT * FROM Words WHERE value LIKE ANY (SELECT '%with%');
 
 /*------------------------+
@@ -3378,10 +3367,6 @@ SELECT * FROM Words WHERE value LIKE ANY (SELECT '%with%');
 You can pass in an array for `patterns`. For example:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT * FROM Words WHERE value LIKE ANY UNNEST(['%ion%', '%and%']);
 
 /*------------------------+
@@ -3395,10 +3380,6 @@ SELECT * FROM Words WHERE value LIKE ANY UNNEST(['%ion%', '%and%']);
 You can pass in an array and subquery for `patterns`. For example:
 
 ```zetasql
-WITH Words AS
- (SELECT 'Intend with clarity.' as value UNION ALL
-  SELECT 'Secure with intention.' UNION ALL
-  SELECT 'Clarity and security.')
 SELECT *
 FROM Words
 WHERE

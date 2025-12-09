@@ -1479,6 +1479,22 @@ void Unparser::visitASTWithClause(const ASTWithClause* node, void* data) {
   }
 }
 
+void Unparser::visitASTWithClauseEntry(const ASTWithClauseEntry* node,
+                                       void* data) {
+  ABSL_DCHECK_EQ(node->num_children(), 1);
+  if (node->aliased_query() != nullptr) {
+    node->aliased_query()->Accept(this, data);
+  } else if (node->aliased_group_rows() != nullptr) {
+    node->aliased_group_rows()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTAliasedGroupRows(const ASTAliasedGroupRows* node,
+                                        void* data) {
+  node->alias()->Accept(this, data);
+  print("() AS GROUP ROWS");
+}
+
 void Unparser::visitASTQuery(const ASTQuery* node, void* data) {
   PrintOpenParenIfNeeded(node);
   if (node->is_nested()) {
@@ -1592,8 +1608,8 @@ void Unparser::visitASTPipeRename(const ASTPipeRename* node, void* data) {
 void Unparser::visitASTPipeAggregate(const ASTPipeAggregate* node, void* data) {
   Formatter::PipeAndIndent pipe_and_indent(&formatter_);
   print("AGGREGATE");
-  if (node->select_with() != nullptr) {
-    node->select_with()->Accept(this, data);
+  if (node->with_modifier() != nullptr) {
+    node->with_modifier()->Accept(this, data);
   }
   // Only the SELECT and GROUP BY should be present.  The ASTSelect visitor
   // would print "SELECT" which we don't want, but we can visit all the
@@ -1818,12 +1834,12 @@ void Unparser::visitASTSelect(const ASTSelect* node, void* data) {
   if (node->hint() != nullptr) {
     node->hint()->Accept(this, data);
   }
-  if (node->select_with() != nullptr) {
-    node->select_with()->Accept(this, data);
+  if (node->with_modifier() != nullptr) {
+    node->with_modifier()->Accept(this, data);
   }
   if (node->distinct()) {
     print("DISTINCT");
-  } else if (node->select_with() != nullptr) {
+  } else if (node->with_modifier() != nullptr) {
     // Omitting 'ALL' when the query uses `SELECT WITH kind OPTIONS()` can
     // cause the unparser to change the meaning of the query.
     // See: b/333428605
@@ -1836,7 +1852,7 @@ void Unparser::visitASTSelect(const ASTSelect* node, void* data) {
   // modifier after the hint and anonymization nodes and before everything else.
   for (int i = 0; i < node->num_children(); ++i) {
     const ASTNode* child = node->child(i);
-    if (child != node->hint() && child != node->select_with()) {
+    if (child != node->hint() && child != node->with_modifier()) {
       child->Accept(this, data);
     }
   }
@@ -1863,7 +1879,7 @@ void Unparser::visitASTSelectList(const ASTSelectList* node, void* data) {
   }
 }
 
-void Unparser::visitASTSelectWith(const ASTSelectWith* node, void* data) {
+void Unparser::visitASTWithModifier(const ASTWithModifier* node, void* data) {
   print("WITH");
   if (node->identifier() != nullptr) {
     node->identifier()->Accept(this, data);
@@ -5248,6 +5264,11 @@ void Unparser::visitASTGraphElementTable(const ASTGraphElementTable* node,
     node->dest_node_reference()->Accept(this, data);
   }
 
+  if (node->default_label_options_list() != nullptr) {
+    println();
+    print("OPTIONS");
+    visitASTOptionsList(node->default_label_options_list(), data);
+  }
   println();
   visitASTGraphElementLabelAndPropertiesList(node->label_properties_list(),
                                              data);

@@ -17,6 +17,7 @@
 #ifndef ZETASQL_ANALYZER_REWRITERS_MEASURE_COLLECTOR_H_
 #define ZETASQL_ANALYZER_REWRITERS_MEASURE_COLLECTOR_H_
 
+#include <string>
 #include <vector>
 
 #include "zetasql/public/types/measure_type.h"
@@ -24,6 +25,8 @@
 #include "zetasql/resolved_ast/column_factory.h"
 #include "zetasql/resolved_ast/resolved_ast.h"
 #include "zetasql/resolved_ast/resolved_column.h"
+#include "zetasql/base/case.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -41,8 +44,15 @@ struct MeasureInfo {
   // `measure_expr` and row identity columns from the source table.
   ResolvedColumn closure_struct;
 
-  // Indices of row identity columns in source table, w.r.t. `Table::Columns()`.
-  std::vector<int> row_identity_column_indices;
+  // Names of row identity columns for the measure, retrieved from
+  // `Column::Name()`. They are used to fetch the
+  // corresponding fields from the "key_columns" sub-struct from
+  // `closure_struct`.
+  //
+  // These names match `Column::Name()` for consistency in the printed
+  // resolved AST.
+  absl::btree_set<std::string, zetasql_base::CaseLess>
+      row_identity_column_names;
 
   // The measure-typed column from whence the measure originates,
   // e.g., a measure-typed ResolvedColumn on a ResolvedTableScan::column_list().

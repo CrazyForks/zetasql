@@ -370,8 +370,9 @@ AddMeasureColumnsToTable(SimpleTable& table,
 
 absl::StatusOr<Value> UpdateTableRowsWithMeasureValues(
     const Value& array_value, const SimpleTable* simple_table,
-    std::vector<int> row_identity_columns, TypeFactory* type_factory,
-    const LanguageOptions& language_options) {
+    const std::vector<MeasureColumnDef>& measure_column_defs,
+    std::vector<int> table_level_row_identity_columns,
+    TypeFactory* type_factory, const LanguageOptions& language_options) {
   ZETASQL_RET_CHECK(array_value.type()->IsArray());
   ZETASQL_RET_CHECK(array_value.type()->AsArray()->element_type()->IsStruct());
   const StructType* row_as_struct_type =
@@ -380,6 +381,10 @@ absl::StatusOr<Value> UpdateTableRowsWithMeasureValues(
   std::vector<StructField> new_row_fields = row_as_struct_type->fields();
   const int num_existing_fields = row_as_struct_type->num_fields();
   const int num_new_columns = simple_table->NumColumns();
+  // The number of provided measure definitions must match the number of new
+  // measure columns in the table.
+  ZETASQL_RET_CHECK_EQ(measure_column_defs.size(),
+               num_new_columns - num_existing_fields);
 
   for (int i = num_existing_fields; i < num_new_columns; ++i) {
     const Column* column = simple_table->GetColumn(i);
@@ -405,6 +410,16 @@ absl::StatusOr<Value> UpdateTableRowsWithMeasureValues(
     // Add measure values.
     for (int i = num_existing_fields; i < new_row_fields.size(); ++i) {
       ZETASQL_RET_CHECK(new_row_fields[i].type->IsMeasureType());
+      ZETASQL_RET_CHECK_LT(i - num_existing_fields, measure_column_defs.size());
+      const auto& measure_def = measure_column_defs[i - num_existing_fields];
+      // If the measure definition does not specify any row identity columns,
+      // then use the table-level row identity columns.
+      const std::vector<int>& row_identity_columns =
+          measure_def.row_identity_column_indices.has_value()
+              ? *measure_def.row_identity_column_indices
+              : table_level_row_identity_columns;
+      ZETASQL_RET_CHECK(!row_identity_columns.empty())
+          << "row identity columns cannot be empty";
       ZETASQL_ASSIGN_OR_RETURN(
           Value measure_value,
           InternalValue::MakeMeasure(new_row_fields[i].type->AsMeasure(), row,

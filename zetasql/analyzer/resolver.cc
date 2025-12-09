@@ -353,7 +353,8 @@ absl::Status Resolver::ResolveExprWithFunctionArguments(
   for (auto& [arg_name, resolved_arg] : function_arguments) {
     ZETASQL_RETURN_IF_ERROR(
         arg_info->AddScalarArg(arg_name, resolved_arg->argument_kind(),
-                               FunctionArgumentType(resolved_arg->type())));
+                               FunctionArgumentType(resolved_arg->type()),
+                               resolved_arg->type_annotation_map()));
   }
   auto scoped_reset = SetArgumentInfo(arg_info.get());
   disallowing_query_parameters_with_error_ =
@@ -380,7 +381,8 @@ absl::Status Resolver::ResolveQueryStatementWithFunctionArguments(
   for (auto& [arg_name, resolved_arg] : *function_arguments) {
     ZETASQL_RETURN_IF_ERROR(
         arg_info->AddScalarArg(arg_name, resolved_arg->argument_kind(),
-                               FunctionArgumentType(resolved_arg->type())));
+                               FunctionArgumentType(resolved_arg->type()),
+                               resolved_arg->type_annotation_map()));
   }
   for (auto& [arg_name, tvf_relation] : *function_table_arguments) {
     // The 'extra_relation_input_columns_allowed' argument value does not matter
@@ -2492,10 +2494,12 @@ FunctionArgumentInfo::FindScalarArg(IdString name) const {
 
 absl::Status FunctionArgumentInfo::AddScalarArg(
     IdString name, ResolvedArgumentDef::ArgumentKind arg_kind,
-    FunctionArgumentType arg_type) {
+    FunctionArgumentType arg_type, const AnnotationMap* annotation_map) {
   ZETASQL_RET_CHECK(!arg_type.IsRelation());
-  return AddArgCommon(
-      {.name = name, .arg_type = arg_type, .arg_kind = arg_kind});
+  return AddArgCommon({.name = name,
+                       .arg_type = arg_type,
+                       .arg_kind = arg_kind,
+                       .annotation_map = annotation_map});
 }
 
 absl::Status FunctionArgumentInfo::AddRelationArg(
@@ -2525,11 +2529,18 @@ const FunctionArgumentInfo::ArgumentDetails* FunctionArgumentInfo::FindArg(
 }
 
 void Resolver::MaybeRecordResolvedNodeOperatorKeywordLocation(
+    const ParseLocationRange& location, ResolvedNode* resolved_node) const {
+  if (analyzer_options_.parse_location_record_type() ==
+      PARSE_LOCATION_RECORD_FULL_NODE_SCOPE) {
+    resolved_node->SetOperatorKeywordLocationRange(location);
+  }
+}
+
+void Resolver::MaybeRecordResolvedNodeOperatorKeywordLocation(
     const ASTNode* ast_node, ResolvedNode* resolved_node) const {
-  if (ast_node != nullptr && analyzer_options_.parse_location_record_type() ==
-                                 PARSE_LOCATION_RECORD_FULL_NODE_SCOPE) {
-    resolved_node->SetOperatorKeywordLocationRange(
-        ast_node->operator_keyword_location());
+  if (ast_node != nullptr) {
+    MaybeRecordResolvedNodeOperatorKeywordLocation(
+        ast_node->operator_keyword_location(), resolved_node);
   }
 }
 

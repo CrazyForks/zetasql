@@ -35,6 +35,7 @@
 #include "zetasql/public/type.h"
 #include "zetasql/resolved_ast/resolved_ast.h"
 #include "absl/base/nullability.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
@@ -103,7 +104,7 @@ class SampleCatalogImpl {
   absl::Status AddTableWithMeasures(
       AnalyzerOptions& analyzer_options, absl::string_view table_name,
       std::vector<const Column*> columns_not_owned,
-      std::optional<absl::flat_hash_set<int>> row_identity_column_indices,
+      std::optional<absl::btree_set<int>> row_identity_column_indices,
       std::vector<MeasureColumnDef> measures, bool is_value_table);
 
   void AddFunctionWithArgumentType(std::string type_name, const Type* arg_type);

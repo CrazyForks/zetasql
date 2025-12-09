@@ -1776,6 +1776,11 @@ absl::Status FunctionResolver::CustomPropagateAnnotations(
   return absl::OkStatus();
 }
 
+static bool IsSqlFunction(const Function* function) {
+  return function->Is<SQLFunctionInterface>() ||
+         function->Is<TemplatedSQLFunction>();
+}
+
 absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     const ASTNode* ast_location,
     const std::vector<const ASTNode*>& arg_locations_in,
@@ -2119,7 +2124,7 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     }
     const absl::Status resolve_status = ResolveTemplatedSQLFunctionCall(
         ast_location, *sql_function, analyzer_options, input_argument_types,
-        &function_call_info);
+        arguments, &function_call_info);
 
     if (!resolve_status.ok()) {
       // The Resolve method returned an error status that reflects the
@@ -2252,13 +2257,15 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
   ZETASQL_RETURN_IF_ERROR(resolver_->MaybeResolveCollationForFunctionCallBase(
       /*error_location=*/ast_location, (*resolved_expr_out).get()));
 
+  // Perform the required re-resolutions for annotations.
   if (!resolved_expr_out->get()->generic_argument_list().empty()) {
     ZETASQL_RETURN_IF_ERROR(ReResolveLambdasIfNecessary(result_signature.get(),
                                                 name_scope, lambda_ast_nodes,
                                                 resolved_expr_out->get()));
   }
 
-  if (result_signature->options().rejects_collation()) {
+  if (!IsSqlFunction(function) &&
+      result_signature->options().rejects_collation()) {
     absl::Status collation_check_status =
         CollationAnnotation::RejectsCollationOnFunctionArguments(
             **resolved_expr_out);
@@ -2275,6 +2282,7 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
       annotation_callback != nullptr) {
     // This function signature has a custom callback to compute the result
     // annotations.
+    ZETASQL_RET_CHECK(!IsSqlFunction(function));
     ZETASQL_RETURN_IF_ERROR(CustomPropagateAnnotations(
         annotation_callback, ast_location, *resolved_expr_out->get()));
   } else {
@@ -2310,8 +2318,8 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
 // Returns a new error message reporting a failure parsing or analyzing the
 // SQL body. If 'message' is not empty, appends it to the end of the error
 // string.
-static absl::Status MakeFunctionExprAnalysisError(
-    const TemplatedSQLFunction& function, absl::string_view message) {
+static absl::Status MakeFunctionExprAnalysisError(const Function& function,
+                                                  absl::string_view message) {
   std::string result =
       absl::StrCat("Analysis of function ", function.FullName(), " failed");
   if (!message.empty()) {
@@ -2363,6 +2371,7 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
     const ASTNode* ast_location, const TemplatedSQLFunction& function,
     const AnalyzerOptions& analyzer_options,
     absl::Span<const InputArgumentType> actual_arguments,
+    const std::vector<std::unique_ptr<const ResolvedExpr>>& argument_list,
     std::shared_ptr<ResolvedFunctionCallInfo>* function_call_info_out) {
   // Check if this function calls itself. If so, return an error. Otherwise, add
   // a pointer to this class to the cycle detector in the analyzer options.
@@ -2402,8 +2411,31 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
     } else {
       arg_kind = ResolvedArgumentDefEnums::SCALAR;
     }
-    function_arguments[arg_name] =
+    auto arg_ref =
         MakeResolvedArgumentRef(arg_type.type(), arg_name.ToString(), arg_kind);
+
+    if (argument_list[i]->type_annotation_map() != nullptr &&
+        !argument_list[i]->type_annotation_map()->Empty()) {
+      std::unique_ptr<AnnotationMap> annotations_to_block =
+          argument_list[i]->type_annotation_map()->Clone();
+      // Allow collation if the flag is on. If the flag is off, block all
+      // annotations.
+      if (resolver_->language().LanguageFeatureEnabled(
+              FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+        annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
+      }
+
+      if (!annotations_to_block->Empty()) {
+        return MakeFunctionExprAnalysisError(
+            function,
+            absl::StrCat("Annotations on arguments of SQL functions are not "
+                         "supported, but found annotations on argument ",
+                         arg_name.ToStringView()));
+      }
+    }
+
+    arg_ref->set_type_annotation_map(argument_list[i]->type_annotation_map());
+    function_arguments[arg_name] = std::move(arg_ref);
   }
 
   std::unique_ptr<ParserOutput> parser_output_storage;
@@ -2493,13 +2525,32 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
     }
   }
 
-  // TODO: Support templated UDF with collation in the return type
-  // of function body.
-  ZETASQL_RETURN_IF_ERROR(resolver_->ThrowErrorIfExprHasCollation(
-      /*error_node=*/nullptr,
-      "Collation $0 in return type of user-defined function body is not "
-      "allowed",
-      resolved_sql_body.get()));
+  if (resolved_sql_body->type_annotation_map() != nullptr &&
+      !resolved_sql_body->type_annotation_map()->Empty()) {
+    if (!resolver->language().LanguageFeatureEnabled(
+            FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+      // The flag is off, so not even collation is allowed.
+      ZETASQL_RETURN_IF_ERROR(resolver_->ThrowErrorIfExprHasCollation(
+          /*error_node=*/nullptr,
+          "Collation $0 in return type of user-defined function body is not "
+          "allowed",
+          resolved_sql_body.get()));
+    }
+
+    std::unique_ptr<AnnotationMap> annotations_to_block =
+        resolved_sql_body->type_annotation_map()->Clone();
+    annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
+
+    // The flag is on, so we allow collation on arguments, but not other
+    // annotations. Create a copy without annotations and produce an error if
+    // it's not empty.
+    if (!annotations_to_block->Empty()) {
+      return MakeFunctionExprAnalysisError(
+          function,
+          "Annotations in return type of user-defined function body is not "
+          "supported");
+    }
+  }
 
   // Check the result type of the resolved expression against the expected
   // concrete return type of the function signature, if any. If the types do not

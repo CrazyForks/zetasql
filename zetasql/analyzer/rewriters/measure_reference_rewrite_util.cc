@@ -144,7 +144,7 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
     ZETASQL_ASSIGN_OR_RETURN(
         RewriteMeasureExprResult result,
         RewriteMeasureExpr(measure_info.measure_expr, closure_column,
-                           measure_info.row_identity_column_indices,
+                           measure_info.row_identity_column_names,
                            measure_col_ref->is_correlated(), any_value_fn_,
                            function_call_builder_, language_options_,
                            column_factory_, type_factory_));

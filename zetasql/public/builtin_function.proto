@@ -48,12 +48,12 @@ enum FunctionSignatureId {
   // 1500-1599 Analytic functions             (NextId: 1519)
   // 1600-1699 Misc functions                 (Fully used)
   // 1700-1799 Net functions                  (NextId: 1716)
-  // 1800-1899 More time functions            (NextId: 1874)
+  // 1800-1899 More time functions            (NextId: 1876)
   // 1900-1999 Hashing/encryption functions   (NextId: 1952)
   // 2000-2199 Geography functions            (NextId: 2096)
   // 2200-2299 Anonymization functions        (NextId: 2232)
   // 2300-2499 Numeric, more math & distances (NextId: 2394)
-  // 2500-2599 Array and proto map functions  (NextId: 2561)
+  // 2500-2599 Array and proto map functions  (NextId: 2562)
   // 2600-2699 More misc functions.           (Fully used)
   // 2700-2799 Aggregate functions II         (Fully used)
   // 2800-2899 Differential Privacy functions (NextId: 2840)
@@ -383,6 +383,9 @@ enum FunctionSignatureId {
   FN_ADD_MONTHS_DATETIME = 1871;  // add_months(datetime, int64) -> datetime
   FN_NEXT_DAY_DATE = 1872;        // next_day(date, string) -> date
   FN_NEXT_DAY_DATETIME = 1873;    // next_day(datetime, string) -> date
+  FN_MONTHS_BETWEEN_DATE = 1874;  // months_between(date, date) -> double
+  FN_MONTHS_BETWEEN_DATETIME =
+      1875;  // months_between(datetime, datetime) -> double
 
   FN_DATE_FROM_UNIX_DATE = 1225;  // date_from_unix_date
   FN_TIMESTAMP_FROM_INT64_SECONDS = 1289;  // timestamp_seconds
@@ -1381,6 +1384,8 @@ enum FunctionSignatureId {
   // ARRAY_ZIP(array<T1>, array<T2>, array<T3>, array<T4>, LAMBDA(T1, T2, T3,
   // T4) -> T5[, ARRAY_ZIP_MODE]) -> ARRAY<T5>
   FN_ARRAY_ZIP_FOUR_ARRAY_LAMBDA = 2559;
+
+  FN_ARRAY_DISTINCT = 2561;  // ARRAY_DISTINCT(array<T>) -> array<T>
 
   // Deprecated ARRAY_ZIP signatures.
   reserved 2554, 2557, 2560;

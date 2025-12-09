@@ -3113,6 +3113,172 @@ void SQLTestBase::MaybeAddMeasureTables(
     *measure_table_single_key.options.mutable_required_features() =
         test_case_options.required_features();
     test_db.tables.insert({"MeasureTable_SingleKey", measure_table_single_key});
+
+    // Add a table that represents a joint structure of multiple tables, where
+    // measure columns may have column-level row identity columns.
+    constexpr int kStoreIdIndex = 1;
+    constexpr int kProductIdIndex = 2;
+    constexpr int kSaleDateIndex = 3;
+    Value sales_denormalized_as_value = test_values::StructArray(
+        {
+            // The compliance test framework requires the first column to be
+            // a primary key, so we include a unique `row_id` column here.
+            "row_id",
+            // (store_id, product_id, sale_date) forms the primary key of the
+            // table, although it is not enforced by the compliance test
+            // framework.
+            "store_id",
+            "product_id",
+            "sale_date",
+            // The revenue for a (store_id, product_id, sale_date).
+            "revenue",
+            // The number of units sold for a (store_id, product_id,
+            // sale_date).
+            "units_sold",
+            // Determined only by product_id.
+            "product_category",
+            // Determined only by store_id.
+            "store_region",
+            // Promo code for a (store_id, product_id, sale_date).
+            "promo_code",
+        },
+        {
+            // Row 1.
+            {
+                1ll,                  // row_id
+                1ll,                  // store_id
+                101ll,                // product_id
+                "2025-01-01",         // sale_date
+                1000ll,               // revenue
+                10ll,                 // units_sold
+                "Electronics",        // product_category
+                "North",              // store_region
+                Value::NullString(),  // promo_code
+            },
+            // Row 2: Shares the same `store_id` as Row 1. `measure_regions`
+            // will treat Row 1 and Row 2 as the same row.
+            {
+                2ll,           // row_id
+                1ll,           // store_id
+                102ll,         // product_id
+                "2025-01-01",  // sale_date
+                500ll,         // revenue
+                20ll,          // units_sold
+                "Groceries",   // product_category
+                "North",       // store_region
+                "SAVE10",      // promo_code
+            },
+            // Row 3: Shares the same `product_id` as Row 1.
+            // `measure_categories` will treat Row 1 and Row 3 as the same row.
+            {
+                3ll,                  // row_id
+                2ll,                  // store_id
+                101ll,                // product_id
+                "2025-01-01",         // sale_date
+                1500ll,               // revenue
+                15ll,                 // units_sold
+                "Electronics",        // product_category
+                "South",              // store_region
+                Value::NullString(),  // promo_code
+            },
+            // Row 4: Shares the same `store_id` and `product_id` as Row 1 but
+            // with a different `sale_date`.
+            // `measure_category_and_region_combination` will treat Row 1 and
+            // Row 4 as the same row.
+            {
+                4ll,            // row_id
+                1ll,            // store_id
+                101ll,          // product_id
+                "2025-01-02",   // sale_date
+                1200ll,         // revenue
+                12ll,           // units_sold
+                "Electronics",  // product_category
+                "North",        // store_region
+                "SAVE15",       // promo_code
+            },
+        },
+        InternalValue::kIgnoresOrder);
+
+    std::vector<MeasureColumnDef> sales_denormalized_measure_defs = {
+        // Default to the table-level grain locking keys.
+        {.name = "measure_total_revenue", .expression = "SUM(revenue)"},
+
+        // Measures demonstrating grain locking on column-level row identity
+        // columns. These measures aggregate attributes that depend on a subset
+        // of table row identity columns (e.g. product_category depends on
+        // product_id).
+        {
+            .name = "measure_categories",
+            .expression = "ARRAY_AGG(product_category)",
+            .row_identity_column_indices = std::vector<int>{kProductIdIndex},
+        },
+        {
+            .name = "measure_regions",
+            .expression = "ARRAY_AGG(store_region)",
+            .row_identity_column_indices = std::vector<int>{kStoreIdIndex},
+        },
+        {
+            .name = "measure_category_and_region_combination",
+            .expression =
+                "ARRAY_AGG(CONCAT(product_category, ', ', store_region))",
+            .row_identity_column_indices =
+                std::vector<int>{kStoreIdIndex, kProductIdIndex},
+        },
+
+        // Measure column with its own grain locking key but happens to be the
+        // same as that of the table.
+        {
+            .name = "measure_total_units_sold",
+            .expression = "SUM(units_sold)",
+            .row_identity_column_indices =
+                std::vector<int>{kStoreIdIndex, kProductIdIndex,
+                                 kSaleDateIndex},
+        },
+
+        // Measures for testing nullability
+        {
+            .name = "measure_promo_codes_ignore_nulls",
+            .expression = "ARRAY_AGG(promo_code IGNORE NULLS)",
+            .row_identity_column_indices =
+                std::vector<int>{kStoreIdIndex, kProductIdIndex,
+                                 kSaleDateIndex},
+        },
+        {
+            .name = "measure_promo_codes_respect_nulls",
+            .expression = "ARRAY_AGG(promo_code RESPECT NULLS)",
+            // Tests aggregation on a nullable column with table-level grain.
+            .row_identity_column_indices = std::nullopt,
+        },
+
+        // Pseudo-column definitions + multi-level aggregates.
+        {
+            .name = "measure_product_categories_per_region",
+            .expression = R"sql(
+              ARRAY_AGG(
+                STRUCT(
+                  ARRAY_AGG(product_category) AS product_categories,
+                  ANY_VALUE(store_region) AS store_region
+                )
+                GROUP BY store_region
+              )
+            )sql",
+            .is_pseudo_column = true,
+            .row_identity_column_indices =
+                std::vector<int>{kStoreIdIndex, kProductIdIndex},
+        },
+    };
+
+    std::vector<int> sales_denormalized_row_identity_columns = {
+        kStoreIdIndex, kProductIdIndex, kSaleDateIndex};
+    TestTable measure_table_sales_denormalized = {
+        .table_as_value = std::move(sales_denormalized_as_value),
+        .measure_column_defs = std::move(sales_denormalized_measure_defs),
+        .row_identity_columns =
+            std::move(sales_denormalized_row_identity_columns)};
+    *measure_table_sales_denormalized.options.mutable_required_features() =
+        test_case_options.required_features();
+    test_db.tables.insert(
+        {"MeasureTable_Sales_Denormalized", measure_table_sales_denormalized});
   }
 }
 

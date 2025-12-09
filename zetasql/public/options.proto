@@ -1246,8 +1246,7 @@ enum LanguageFeature {
   // Enable support for aggregate functions with WITH GROUP ROWS syntax.
   FEATURE_WITH_GROUP_ROWS = 13021 [
     (language_feature_options).language_version = VERSION_1_3,
-    (language_feature_options).in_development = true,
-    (language_feature_options).ideally_enabled = false
+    (language_feature_options).in_development = true
   ];
   FEATURE_V_1_3_WITH_GROUP_ROWS = 13021 [deprecated = true];
 
@@ -1584,10 +1583,8 @@ enum LanguageFeature {
   // REQUIRES: SQL_GRAPH feature to be enabled.
   // Enables the column propagation mode for graph set operation.
   // See (broken link):gql-full-union for more details.
-  FEATURE_SQL_GRAPH_SET_OPERATION_PROPAGATION_MODE = 14120 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
+  FEATURE_SQL_GRAPH_SET_OPERATION_PROPAGATION_MODE = 14120
+      [(language_feature_options).language_version = VERSION_1_4];
 
   // Enables options clause for default labels and property definitions
   // inside a graph element table.
@@ -2217,6 +2214,21 @@ enum LanguageFeature {
     (language_feature_options).language_version = VERSION_1_4,
     (language_feature_options).in_development = true
   ];
+
+  FEATURE_ARRAY_DISTINCT = 14123 [
+    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).in_development = true
+  ];
+
+  // Enables collation on arguments of SQL functions, and on the resolved
+  // body being coerced to the explicit return type, all of which are error
+  // cases without this flag.
+  //
+  // Currently, only collation is supported - other type annotations still
+  // produce an error until their behavior is defined.
+  // See (broken link) for more details.
+  FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS = 14124
+      [(language_feature_options).language_version = VERSION_1_4];
 
   // EXPERIMENTAL FEATURES -
   //    Do not add features in this section. Use the in_development annotation

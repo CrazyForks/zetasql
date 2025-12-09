@@ -45,6 +45,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "zetasql/base/map_util.h"
 #include "zetasql/base/ret_check.h"
@@ -749,7 +750,7 @@ class RowTypeRewriterVisitor : public ResolvedASTRewriteVisitor {
       const Table* table,
       absl::Span<const ResolvedColumn> orig_resolved_columns,
       const std::vector<const Column*>& orig_table_columns,
-      const std::string& alias = "");
+      absl::string_view alias = "");
 
   // Make the rewrite expression for the input column with `row_type`.
   // This adds any needed input columns to `read_columns_set`, and then
@@ -1125,7 +1126,7 @@ absl::StatusOr<std::unique_ptr<const ResolvedScan>>
 RowTypeRewriterVisitor::MakeRewrittenTableScan(
     const Table* table, absl::Span<const ResolvedColumn> orig_resolved_columns,
     const std::vector<const Column*>& orig_table_columns,
-    const std::string& alias) {
+    absl::string_view alias) {
   ZETASQL_RET_CHECK_EQ(orig_resolved_columns.size(), orig_table_columns.size());
 
   ABSL_LOG(INFO) << "MakeRewrittenTableScan";

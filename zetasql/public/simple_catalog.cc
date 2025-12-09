@@ -928,6 +928,55 @@ void SimpleCatalog::AddZetaSQLFunctions(
   }
 }
 
+absl::Status SimpleCatalog::AddNonOwnedBuiltinFunctionsAndTypes(
+    const absl::flat_hash_map<std::string, const Function*>& functions,
+    const absl::flat_hash_map<std::string, const Type*>& types,
+    const absl::flat_hash_map<std::string, const TableValuedFunction*>&
+        table_valued_functions) {
+  TypeFactory* type_factory = this->type_factory();
+  for (auto& function_pair : functions) {
+    const Function* function = function_pair.second;
+    ZETASQL_RET_CHECK(function->IsZetaSQLBuiltin())
+        << "Non-ZetaSQL builtin function found: " << function->Name();
+    const std::vector<std::string>& path = function->FunctionNamePath();
+    SimpleCatalog* catalog = this;
+    if (path.size() > 1) {
+      ZETASQL_RET_CHECK_LE(path.size(), 2);
+      absl::MutexLock l(&mutex_);
+      const std::string& space = path[0];
+      auto sub_entry = owned_zetasql_subcatalogs_.find(space);
+      if (sub_entry != owned_zetasql_subcatalogs_.end()) {
+        catalog = sub_entry->second.get();
+        ZETASQL_RET_CHECK(catalog != nullptr) << "internal state corrupt: " << space;
+      } else {
+        auto new_catalog = std::make_unique<SimpleCatalog>(space, type_factory);
+        AddCatalogLocked(space, new_catalog.get());
+        catalog = new_catalog.get();
+        ZETASQL_RET_CHECK(
+            owned_zetasql_subcatalogs_.emplace(space, std::move(new_catalog))
+                .second);
+      }
+    }
+    catalog->AddFunction(path.back(), function);
+  }
+
+  for (auto& table_valued_function_pair : table_valued_functions) {
+    const TableValuedFunction* tvf = table_valued_function_pair.second;
+    ZETASQL_RET_CHECK(tvf->IsZetaSQLBuiltin())
+        << "Non-ZetaSQL builtin table valued function found: " << tvf->Name();
+    const std::vector<std::string>& path = tvf->function_name_path();
+    // Namespaced TVFs are not supported for builtins. Change this when
+    // there is need for namespaced TVF support.
+    ZETASQL_RET_CHECK_EQ(path.size(), 1);
+    AddTableValuedFunction(path.back(), tvf);
+  }
+
+  for (const auto& [name, type] : types) {
+    AddTypeIfNotPresent(name, type);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status SimpleCatalog::AddBuiltinFunctionsAndTypesImpl(
     const BuiltinFunctionOptions& options, bool add_types) {
   absl::flat_hash_map<std::string, std::unique_ptr<Function>> function_map;

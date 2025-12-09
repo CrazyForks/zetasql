@@ -1022,7 +1022,6 @@ cc_test(
         "//zetasql/public:id_string",
         "//zetasql/public:type",
         "//zetasql/testing:test_value",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],

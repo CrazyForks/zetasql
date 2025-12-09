@@ -619,29 +619,34 @@ std::vector<FunctionTestCall> GetFunctionTestsAddMonths() {
   };
 
   std::vector<FunctionTestCall> tests;
-  // Tests for NULL params.
+
+  // Tests for NULL DATE params.
   tests.push_back(add_months_date_test({{NullDate(), Int64(123)}, NullDate()}));
   tests.push_back(add_months_date_test(
       {{DateFromStr("1998-09-04"), NullInt64()}, NullDate()}));
   tests.push_back(
       add_months_date_test({{NullDate(), NullInt64()}, NullDate()}));
-  // The DATE tests.
-  std::transform(
-      testcases.begin(), testcases.end(), std::back_inserter(tests),
-      [add_months_date_test](const testcase& tc) {
-        return add_months_date_test({{DateFromStr(tc.input), Int64(tc.months)},
-                                     DateFromStr(tc.result),
-                                     tc.code});
-      });
-  // The DATETIME tests.
-  std::transform(testcases.begin(), testcases.end(), std::back_inserter(tests),
-                 [add_months_datetime_test](const testcase& tc) {
-                   std::string time = " 09:30:04";
-                   return add_months_datetime_test(
-                       {{DatetimeFromStr(tc.input + time), Int64(tc.months)},
-                        DatetimeFromStr(tc.result + time),
-                        tc.code});
-                 });
+
+  // Tests for NULL DATETIME params.
+  tests.push_back(
+      add_months_datetime_test({{NullDatetime(), Int64(123)}, NullDatetime()}));
+  tests.push_back(add_months_datetime_test(
+      {{DatetimeFromStr("1998-09-04 01:33:12"), NullInt64()}, NullDatetime()}));
+  tests.push_back(add_months_datetime_test(
+      {{NullDatetime(), NullInt64()}, NullDatetime()}));
+
+  // The DATE and DATETIME tests.
+  for (const auto& tc : testcases) {
+    tests.push_back(
+        add_months_date_test({{DateFromStr(tc.input), Int64(tc.months)},
+                              DateFromStr(tc.result),
+                              tc.code}));
+    const std::string time = " 09:30:04";
+    tests.push_back(add_months_datetime_test(
+        {{DatetimeFromStr(tc.input + time), Int64(tc.months)},
+         DatetimeFromStr(tc.result + time),
+         tc.code}));
+  }
   return tests;
 }
 

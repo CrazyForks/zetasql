@@ -95,12 +95,25 @@ class AnnotationMap {
   // Clears annotation value for the given AnnotationSpec ID if it exists.
   void UnsetAnnotation(int id) { annotations_.erase(id); }
 
+  // Clears annotation value for the given AnnotationSpec ID if it exists,
+  // including all nested levels.
+  void UnsetAnnotationRecursively(int id);
+
   // Clears annotation value for the given AnnotationSpec ID if it exists.
   template <class T>
   void UnsetAnnotation() {
     static_assert(std::is_base_of<AnnotationSpec, T>::value,
                   "Must be a subclass of AnnotationSpec");
     return UnsetAnnotation(T::GetId());
+  }
+
+  // Clears annotation value for the given AnnotationSpec ID if it exists at
+  // all levels.
+  template <class T>
+  void UnsetAnnotationRecursively() {
+    static_assert(std::is_base_of<AnnotationSpec, T>::value,
+                  "Must be a subclass of AnnotationSpec");
+    return UnsetAnnotationRecursively(T::GetId());
   }
 
   // Returns annotation value for given AnnotationSpec ID. Returns nullptr if

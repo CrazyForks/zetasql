@@ -236,9 +236,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@icu//icu4c/source/common:headers",
-        "@icu//icu4c/source/common:platform",
-        "@icu//icu4c/source/common:uset_props",
+        "@icu//:headers",
     ],
 )
 
@@ -793,9 +791,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
-        "@icu//icu4c/source/common:headers",
-        "@icu//icu4c/source/common:platform",
-        "@icu//icu4c/source/common:uset_props",
+        "@icu//:common",
     ],
 )
 
@@ -823,7 +819,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_googlesource_code_re2//:re2",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:headers",
     ],
 )
 

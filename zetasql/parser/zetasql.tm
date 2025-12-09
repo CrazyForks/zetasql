@@ -2686,6 +2686,7 @@ element_table_definition {ASTNode*}:
     path_expression as_alias_with_required_as?
     key_clause?
     source_node_table_clause? dest_node_table_clause?
+    opt_options_list[default_label_options]
     opt_label_and_properties_clause
     dynamic_label_and_properties?
     {
@@ -2699,7 +2700,8 @@ element_table_definition {ASTNode*}:
           $dynamic_label_and_properties.has_value() ?
               $dynamic_label_and_properties->dynamic_label : nullptr,
           $dynamic_label_and_properties.has_value() ?
-              $dynamic_label_and_properties->dynamic_properties : nullptr
+              $dynamic_label_and_properties->dynamic_properties : nullptr,
+          $default_label_options
         );
     }
 ;
@@ -5085,14 +5087,14 @@ pipe_rename {ASTPipeOperator*}:
 ;
 
 pipe_aggregate {ASTPipeOperator*}:
-    "AGGREGATE" opt_select_with[select_with]
+    "AGGREGATE" opt_with_modifier[with_modifier]
                 pipe_selection_item_list_with_order_or_empty[agg_list]
                 opt_group_by_clause_in_pipe[group_by]
     {
       // Pipe AGGREGATE is represented as an ASTSelect inside an
       // ASTPipeAggregate.  This allows more resolver code sharing.
       ASTSelect* select = MakeNode<ASTSelect>(@$, $agg_list, $group_by);
-      $$ = MakeNode<ASTPipeAggregate>(@$, $select_with, select);
+      $$ = MakeNode<ASTPipeAggregate>(@$, $with_modifier, select);
     }
 ;
 
@@ -5674,7 +5676,7 @@ query_primary {ASTNode*}:
 // This makes an ASTSelect with none of the clauses after SELECT filled in.
 select_clause {ASTSelect*}:
     "SELECT" hint?
-    opt_select_with
+    opt_with_modifier
     opt_all_or_distinct
     opt_select_as_clause select_list
     {
@@ -5683,7 +5685,7 @@ select_clause {ASTSelect*}:
       $$ = select;
     }
   | "SELECT" hint?
-      opt_select_with
+      opt_with_modifier
       opt_all_or_distinct
       opt_select_as_clause "FROM"
     {
@@ -5702,23 +5704,23 @@ select {ASTNode*}:
     }
 ;
 
-pre_select_with:
+pre_with_modifier:
     %empty
     {
       OVERRIDE_NEXT_TOKEN_LOOKBACK(KW_WITH, LB_WITH_IN_WITH_OPTIONS);
     }
 ;
 
-opt_select_with {ASTSelectWith*}:
-    pre_select_with "WITH"[with] identifier
+opt_with_modifier {ASTWithModifier*}:
+    pre_with_modifier "WITH"[with] identifier
     {
-      $$ = MakeNode<ASTSelectWith>(@$, $identifier);
+      $$ = MakeNode<ASTWithModifier>(@$, $identifier);
     }
-  | pre_select_with "WITH"[with] identifier KW_OPTIONS_IN_WITH_OPTIONS options_list
+  | pre_with_modifier "WITH"[with] identifier KW_OPTIONS_IN_WITH_OPTIONS options_list
     {
-      $$ = MakeNode<ASTSelectWith>(@$, $identifier, $options_list);
+      $$ = MakeNode<ASTWithModifier>(@$, $identifier, $options_list);
     }
-  | pre_select_with
+  | pre_with_modifier
     {
       $$ = nullptr;
     }
@@ -6640,6 +6642,15 @@ input_table_argument {ASTNode*}:
     }
 ;
 
+named_non_expr_argument {ASTNamedArgument*}:
+    identifier "=>" table_clause
+    {
+      auto* query = MakeNode<ASTQuery>(@3, $table_clause);
+      auto* expr_subquery = MakeNode<ASTExpressionSubquery>(@3, query);
+      $$ = MakeNode<ASTNamedArgument>(@$, $identifier, expr_subquery);
+    }
+;
+
 tvf_argument {ASTNode*}:
     expression
     {
@@ -6662,6 +6673,10 @@ tvf_argument {ASTNode*}:
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
   | named_argument
+    {
+      $$ = MakeNode<ASTTVFArgument>(@$, $1);
+    }
+  | named_non_expr_argument
     {
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
@@ -8617,21 +8632,22 @@ aliased_query_with_overridden_next_token_lookback {ASTNode*}:
     }
 ;
 
-aliased_query {ASTNode*}:
+aliased_query {ASTAliasedQuery*}:
     identifier "AS" aliased_query_with_overridden_next_token_lookback[query]
     recursion_depth_modifier[modifiers]?
     {
-      $$ = MakeNode<ASTAliasedQuery>(@$, $1, $query, @modifiers.has_value()
+      $$ = MakeNode<ASTAliasedQuery>(
+              @$, $identifier, $query, @modifiers.has_value()
                       ? MakeNode<ASTAliasedQueryModifiers>(
                                  @modifiers.value(), $modifiers)
                       : nullptr);
     }
 ;
 
-aliased_query_list {ASTNode*}:
+aliased_query_list {ASTAliasedQueryList*}:
     aliased_query
     {
-      $$ = MakeNode<ASTAliasedQueryList>(@$, $1);
+      $$ = MakeNode<ASTAliasedQueryList>(@$, $aliased_query);
     }
   | aliased_query_list "," aliased_query
     {
@@ -8639,22 +8655,31 @@ aliased_query_list {ASTNode*}:
     }
 ;
 
-with_clause {ASTNode*}:
-    "WITH" aliased_query
-    {
-      $$ = MakeNode<ASTWithClause>(@$, $2);
-      $$ = WithEndLocation($$, @$);
+with_clause_entry {ASTWithClauseEntry*}:
+  aliased_query
+  {
+    $$ = MakeNode<ASTWithClauseEntry>(@$, $aliased_query);
+  }
+| identifier "(" ")" "AS" "GROUP" "ROWS"
+  {
+    if (!language_options.LanguageFeatureEnabled(FEATURE_WITH_GROUP_ROWS)) {
+      return MakeSyntaxError(@5, "GROUP ROWS is not supported.");
     }
-  | "WITH" "RECURSIVE" aliased_query
+    auto aliased_group_rows = MakeNode<ASTAliasedGroupRows>(@$, $identifier);
+    $$ = MakeNode<ASTWithClauseEntry>(@$, aliased_group_rows);
+    $$ = WithEndLocation($$, @$);
+  }
+;
+
+with_clause {ASTWithClause*}:
+    "WITH" "RECURSIVE"[recursive]? with_clause_entry
     {
-      ASTWithClause* with_clause = MakeNode<ASTWithClause>(@$, $3);
-      with_clause = WithEndLocation(with_clause, @$);
-      with_clause->set_recursive(true);
-      $$ = with_clause;
+      $$ = MakeNode<ASTWithClause>(@$, $with_clause_entry);
+      $$->set_recursive(@recursive.has_value());
     }
-  | with_clause "," aliased_query
+  | with_clause "," with_clause_entry
     {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = ExtendNodeRight($with_clause, $with_clause_entry);
     }
 ;
 

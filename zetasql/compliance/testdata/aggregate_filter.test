@@ -148,6 +148,44 @@ CREATE TEMP FUNCTION NullaryUdfContainingHavingFilterReturnsOne() AS (
 );
 ==
 [prepare_database]
+CREATE TEMP AGGREGATE FUNCTION MaxPlusOne(value INT64) AS (
+  MAX(value) + 1
+);
+==
+[prepare_database]
+[prepare_database_additional_features=AGGREGATE_FILTERING]
+[required_features=AGGREGATE_FILTERING,MULTILEVEL_AGGREGATION]
+CREATE TEMP AGGREGATE FUNCTION FilteredMaxPlusOne(value INT64, filter_key INT64) AS (
+  MAX(value where filter_key < 40) + 1
+);
+==
+[prepare_database]
+[prepare_database_additional_features=MULTILEVEL_AGGREGATION]
+[required_features=AGGREGATE_FILTERING,MULTILEVEL_AGGREGATION]
+CREATE TEMP AGGREGATE FUNCTION OnePlusSumOfMaxValuePerKey(value INT64, group_by_key INT64) AS (
+  SUM(MAX(value) + 1 GROUP BY group_by_key)
+);
+==
+[prepare_database]
+CREATE TEMP AGGREGATE FUNCTION NativeMax(value INT64) AS (
+  MAX(value)
+);
+==
+[prepare_database]
+[prepare_database_additional_features=AGGREGATE_FILTERING]
+[required_features=AGGREGATE_FILTERING]
+CREATE TEMP AGGREGATE FUNCTION FilteredNativeMax(value INT64, filter_key INT64) AS (
+  MAX(value where filter_key < 40)
+);
+==
+[prepare_database]
+[prepare_database_additional_features=AGGREGATE_FILTERING]
+[required_features=AGGREGATE_FILTERING]
+CREATE TEMP AGGREGATE FUNCTION DoubleFilteredMax(value INT64, filter_key INT64) AS (
+  NativeMax(value WHERE filter_key < 40) + FilteredNativeMax(value, filter_key)
+);
+==
+[prepare_database]
 [prepare_database_additional_features=AGGREGATE_FILTERING,MULTILEVEL_AGGREGATION]
 [required_features=AGGREGATE_FILTERING,TEMPLATE_FUNCTIONS,MULTILEVEL_AGGREGATION]
 CREATE TEMP FUNCTION TemplatedUdfContainingHavingFilterReturnsCount(arg ANY TYPE) AS (
@@ -671,3 +709,41 @@ ARRAY<STRUCT<one INT64>>[{1}]
 SELECT * FROM TemplatedTvfContainingHavingFilterReturnsSumofSalaryValuesForEmployeesFiveAndSix(TABLE Employees)
 --
 ARRAY<STRUCT<sum_salary INT64>>[{150000}]
+==
+
+[name=mla_with_uda_containing_filter]
+[required_features=AGGREGATE_FILTERING,MULTILEVEL_AGGREGATION]
+SELECT SUM(MaxPlusOne(salary WHERE age < 40 ) GROUP BY status_code)
+FROM Employees
+--
+ARRAY<STRUCT<INT64>>[{310003}]
+==
+
+[name=filtered_mla_with_uda]
+[required_features=AGGREGATE_FILTERING,MULTILEVEL_AGGREGATION]
+SELECT
+  SUM(FilteredMaxPlusOne(salary, age) GROUP BY status_code),
+  SUM(FilteredMaxPlusOne(salary, age WHERE dept_id = 101) GROUP BY status_code)
+FROM Employees
+--
+ARRAY<STRUCT<INT64, INT64>>[{310003, 150001}]
+==
+
+[name=uda_with_filter_calling_mla]
+[required_features=AGGREGATE_FILTERING]
+SELECT
+  OnePlusSumOfMaxValuePerKey(salary, status_code),
+  OnePlusSumOfMaxValuePerKey(salary, status_code WHERE age < 40)
+FROM Employees
+--
+ARRAY<STRUCT<INT64, INT64>>[{530003, 310003}]
+==
+
+[name=nested_udas]
+[required_features=AGGREGATE_FILTERING]
+SELECT
+  DoubleFilteredMax(salary, age),
+  DoubleFilteredMax(salary, age WHERE status_code = 1)
+FROM Employees
+--
+ARRAY<STRUCT<INT64, INT64>>[{300000, 160000}]

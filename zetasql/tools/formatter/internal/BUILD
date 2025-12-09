@@ -112,7 +112,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_googlesource_code_re2//:re2",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:unicode",
     ],
 )
 
@@ -138,7 +138,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@icu//icu4c/source/common:headers",
+        "@icu//:unicode",
     ],
 )
 

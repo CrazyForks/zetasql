@@ -6271,7 +6271,7 @@ absl::Status SQLBuilder::ProcessTableElementsBase(
 
 absl::StatusOr<std::string> SQLBuilder::ProcessCreateTableStmtBase(
     const ResolvedCreateTableStmtBase* node, bool process_column_definitions,
-    const std::string& table_type) {
+    absl::string_view table_type) {
   std::string sql;
 
   ZETASQL_RETURN_IF_ERROR(GetCreateStatementPrefix(node, table_type, &sql));
@@ -7829,7 +7829,8 @@ absl::Status SQLBuilder::VisitResolvedUpdateItem(
   // Use an empty offset for now. VisitResolvedUpdateArrayItem will fill it in
   // later if needed.
   mutable_update_item_targets_and_offsets().back().emplace_back(
-      target->GetSQL(), CopyableState::UpdateItemOffset());
+      target->GetSQL(),
+      CopyableState::UpdateItemOffset({.target_type = node->target()->type()}));
 
   if (node->update_item_element_list_size() > 0) {
     // Use kEmptyAlias as the path so that VisitResolvedGet{Proto,Struct}Field
@@ -7955,12 +7956,20 @@ absl::Status SQLBuilder::VisitResolvedUpdateItemElement(
   ZETASQL_RET_CHECK(!offset_sql.empty());
   mutable_update_item_targets_and_offsets().back().back().second.offset_sql =
       offset_sql;
-  if (node->subscript()->type()->IsInteger()) {
+
+  const Type* target_type =
+      update_item_targets_and_offsets().back().back().second.target_type;
+
+  if (node->subscript()->type()->IsInteger() && target_type->IsArray()) {
     mutable_update_item_targets_and_offsets().back().back().second = {
-        .offset_sql = offset_sql, .offset_type = CopyableState::kOffset};
+        .target_type = target_type,
+        .offset_sql = offset_sql,
+        .offset_type = CopyableState::kOffset};
   } else {
     mutable_update_item_targets_and_offsets().back().back().second = {
-        .offset_sql = offset_sql, .offset_type = CopyableState::kNone};
+        .target_type = target_type,
+        .offset_sql = offset_sql,
+        .offset_type = CopyableState::kNone};
   }
 
   ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> update,
@@ -9791,6 +9800,14 @@ absl::Status SQLBuilder::ProcessResolvedGqlNamedCallOp(
   ZETASQL_RET_CHECK(implicit_input_scan != nullptr);
   ZETASQL_RET_CHECK_GE(first_relation_arg_index, 0);
 
+  // Today we produce a query with a WITH statement which requires the
+  // SQL_GRAPH_RETURN_EXTENSIONS feature. When we support CALL PER (variables)
+  // we could consider stringifying this query as:
+  //   CALL PER (...existing_vars...) {
+  //     RETURN 1 as x, ..etc
+  //     NEXT
+  //     CALL PER (x) tvf()
+  //   }
   if (implicit_input_scan->Is<ResolvedProjectScan>()) {
     // This projection may be casting to the correct types, reordering columns,
     // etc.
@@ -9802,9 +9819,8 @@ absl::Status SQLBuilder::ProcessResolvedGqlNamedCallOp(
     std::vector<std::string> dummy_columns;
     ZETASQL_RETURN_IF_ERROR(CollapseResolvedGqlReturnScans(
         input_project_scan,
-        /*output_column_to_alias=*/std::nullopt, output_sql, dummy_columns));
-
-    absl::StrAppend(&output_sql, " NEXT ");
+        /*output_column_to_alias=*/std::nullopt, output_sql, dummy_columns,
+        /*generate_with=*/true));
   } else {
     ZETASQL_RETURN_IF_ERROR(CheckScanIsGraphRefOrSingleRowScan(implicit_input_scan));
   }
@@ -9820,7 +9836,7 @@ absl::Status SQLBuilder::ProcessResolvedGqlNamedCallOp(
 
   for (int i = 0; i < schema.num_columns(); ++i) {
     if (i == 0) {
-      absl::StrAppend(&output_sql, " RETURN ");
+      absl::StrAppend(&output_sql, " WITH ");
     } else {
       absl::StrAppend(&output_sql, ", ");
     }
@@ -9833,7 +9849,7 @@ absl::Status SQLBuilder::ProcessResolvedGqlNamedCallOp(
 
   ZETASQL_ASSIGN_OR_RETURN(std::string tvf_sql,
                    ProcessResolvedTVFScan(node, TVFBuildMode::kGqlImplicit));
-  absl::StrAppend(&output_sql, " NEXT CALL PER() ", std::move(tvf_sql));
+  absl::StrAppend(&output_sql, " CALL PER() ", std::move(tvf_sql));
   return absl::OkStatus();
 }
 
@@ -9919,7 +9935,12 @@ absl::Status SQLBuilder::ProcessResolvedGqlForOp(const ResolvedArrayScan* node,
 
   absl::StrAppend(&output_sql, " FOR ", column_alias, " IN ", result->GetSQL());
 
-  if (node->array_offset_column() != nullptr) {
+  if (node->array_offset_column() == nullptr) {
+    // If the next statement is a WITH statement, there is an ambiguity that
+    // gets resolved in favor of FOR .. IN .. WITH OFFSET. To avoid that, we
+    // pick some alias.
+    absl::StrAppend(&output_sql, " WITH OFFSET AS ", GenerateUniqueAliasName());
+  } else {
     ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                      ProcessNode(node->array_offset_column()));
     absl::StrAppend(&output_sql, " WITH OFFSET AS ", result->GetSQL());
@@ -10449,8 +10470,6 @@ absl::Status SQLBuilder::ProcessGqlSetOp(const ResolvedSetOperationScan* node,
   // Mark fields as accessed. The validator should already check the shape.
   ZETASQL_RET_CHECK_EQ(node->column_match_mode(),
                ResolvedSetOperationScan::CORRESPONDING);
-  ZETASQL_RET_CHECK_EQ(node->column_propagation_mode(),
-               ResolvedSetOperationScan::STRICT);
 
   // Populate the output column aliases for the set operation first.
   std::vector<std::string> aliases(node->column_list_size());
@@ -10792,13 +10811,15 @@ absl::Status SQLBuilder::CollapseResolvedGqlReturnScans(
     const ResolvedScan* ret_scan,
     std::optional<absl::btree_map<ResolvedColumn, std::string>>
         output_column_to_alias,
-    std::string& output_sql, std::vector<std::string>& columns) {
+    std::string& output_sql, std::vector<std::string>& columns,
+    bool generate_with) {
   std::unique_ptr<GqlReturnOpSQLBuilder> return_builder =
       CreateGqlReturnOpSQLBuilder(
           ret_scan->column_list(), output_column_to_alias,
           mutable_max_seen_alias_id(), options_, state_);
   ZETASQL_RETURN_IF_ERROR(ret_scan->Accept(return_builder.get()));
-  absl::StrAppend(&output_sql, " RETURN ", return_builder->gql());
+  absl::StrAppend(&output_sql, generate_with ? " WITH " : " RETURN ",
+                  return_builder->gql());
 
   // Update internal states back to the SQLBuilder.
   columns = return_builder->GetOutputColumnAliases();

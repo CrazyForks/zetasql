@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -42,6 +43,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "zetasql/base/ret_check.h"
 #include "zetasql/base/status_macros.h"
 
@@ -120,7 +122,7 @@ class ExpressionColumnNameCollector : public ResolvedASTVisitor {
 // building the closure struct in BuildClosureColumn().
 static absl::StatusOr<std::unique_ptr<ResolvedMakeStruct>>
 MakeStructFromColumnListWithCustomNames(
-    const std::vector<std::pair<std::string, ResolvedColumn>>& named_columns,
+    absl::Span<const std::pair<std::string, ResolvedColumn>> named_columns,
     TypeFactory& type_factory) {
   std::vector<StructField> struct_fields;
   std::vector<std::unique_ptr<const ResolvedExpr>> struct_field_exprs;
@@ -184,12 +186,10 @@ class MeasureSourceColumnReplacer {
     // Step 1: Collect measure column information.
     ZETASQL_ASSIGN_OR_RETURN(std::vector<MeasureSourceInfo> measure_infos,
                      CollectMeasureInfos());
-
     if (measure_infos.empty()) {
       // No measure definitions are found, nothing to rewrite.
       return std::move(scan_);
     }
-
     // Step 2: Build the closure struct.
     NameToResolvedColumn missing_columns_from_scan;
     absl::flat_hash_set<ResolvedColumn> measure_cols_with_expr_set;
@@ -197,15 +197,22 @@ class MeasureSourceColumnReplacer {
         std::unique_ptr<ResolvedComputedColumn> closure,
         BuildClosureColumn(measure_infos, missing_columns_from_scan,
                            measure_cols_with_expr_set));
-
     // Step 3: Store the relevant information for each measure definition.
+    const Table* table = GetTable();
     for (const auto& info : measure_infos) {
       ZETASQL_RET_CHECK(info.measure_col.type()->IsMeasureType());
+      absl::btree_set<std::string, zetasql_base::CaseLess>
+          row_identity_column_names;
+      for (const int index : info.row_identity_column_indices) {
+        const std::string column_name = table->GetColumn(index)->Name();
+        ZETASQL_RET_CHECK(row_identity_column_names.insert(column_name).second)
+            << "Duplicate row identity column name: " << column_name;
+      }
       ZETASQL_RETURN_IF_ERROR(measure_collector_.AddMeasureInfo(
           info.measure_col.type()->AsMeasure(),
           {.measure_expr = info.measure_expr,
            .closure_struct = closure->column(),
-           .row_identity_column_indices = info.row_identity_column_indices,
+           .row_identity_column_names = std::move(row_identity_column_names),
            .measure_source_column = info.measure_col}));
     }
 
@@ -245,11 +252,17 @@ class MeasureSourceColumnReplacer {
                        ExpressionColumnNameCollector::GetExpressionColumnNames(
                            measure_expr));
 
-      // TODO: b/450295734 - Fetch row identity columns from
-      // ExpressionAttributes instead to support column-level row identity
-      // columns.
-      std::vector<int> row_identity_column_indices =
-          table->RowIdentityColumns().value_or(std::vector<int>{});
+      std::vector<int> row_identity_column_indices;
+      if (std::optional<std::vector<int>> column_level_row_identity_columns =
+              catalog_column->GetExpression()->RowIdentityColumns();
+          column_level_row_identity_columns.has_value()) {
+        row_identity_column_indices =
+            *std::move(column_level_row_identity_columns);
+      } else {
+        row_identity_column_indices =
+            table->RowIdentityColumns().value_or(std::vector<int>{});
+      }
+      ZETASQL_RET_CHECK(!row_identity_column_indices.empty());
       absl::c_sort(row_identity_column_indices);
 
       measure_infos.push_back({
@@ -283,7 +296,7 @@ class MeasureSourceColumnReplacer {
   // `measure_cols_with_expr_set` with measure columns that have measure
   // expressions.
   absl::StatusOr<std::unique_ptr<ResolvedComputedColumn>> BuildClosureColumn(
-      const std::vector<MeasureSourceInfo>& measure_infos,
+      absl::Span<const MeasureSourceInfo> measure_infos,
       NameToResolvedColumn& missing_columns_from_scan,
       absl::flat_hash_set<ResolvedColumn>& measure_cols_with_expr_set) {
     // Step 1: Aggregates all `referenced_column_names` and

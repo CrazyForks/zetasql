@@ -65,6 +65,17 @@ absl::Status AnnotationMap::Serialize(AnnotationMapProto* proto) const {
   return absl::OkStatus();
 }
 
+void AnnotationMap::UnsetAnnotationRecursively(int id) {
+  UnsetAnnotation(id);
+  if (IsStructMap()) {
+    for (int i = 0; i < AsStructMap()->num_fields(); i++) {
+      if (AsStructMap()->field(i) != nullptr) {
+        AsStructMap()->mutable_field(i)->UnsetAnnotationRecursively(id);
+      }
+    }
+  }
+}
+
 // static
 absl::StatusOr<std::unique_ptr<AnnotationMap>> AnnotationMap::Deserialize(
     const AnnotationMapProto& proto) {

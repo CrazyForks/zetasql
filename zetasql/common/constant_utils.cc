@@ -32,7 +32,7 @@ namespace zetasql {
 enum class ConstnessLevel {
   kForeverConst,
   kAnalysisConst,
-  kPlanningConst,
+  kImmutableConst,
   kStatementConst,
   kQueryConst,
   kNotConst,
@@ -46,8 +46,8 @@ std::ostream& operator<<(std::ostream& os,
       return os << "FOREVER_CONST";
     case ConstnessLevel::kAnalysisConst:
       return os << "ANALYSIS_CONST";
-    case ConstnessLevel::kPlanningConst:
-      return os << "PLANNING_CONST";
+    case ConstnessLevel::kImmutableConst:
+      return os << "IMMUTABLE_CONST";
     case ConstnessLevel::kStatementConst:
       return os << "STATEMENT_CONST";
     case ConstnessLevel::kQueryConst:
@@ -89,7 +89,7 @@ absl::StatusOr<ConstnessLevel> GetConstnessLevel(const ResolvedNode* node) {
     }
 
     case RESOLVED_FLATTENED_ARG: {
-      // TODO: b/277365877 - Implement PLANNING_CONST.
+      // TODO: b/277365877 - Implement IMMUTABLE_CONST.
       return ConstnessLevel::kNotConst;
     }
 
@@ -122,7 +122,7 @@ absl::StatusOr<ConstnessLevel> GetConstnessLevel(const ResolvedNode* node) {
         return max_constness_level;
       }
 
-      // TODO: b/277365877 - Implement PLANNING_CONST.
+      // TODO: b/277365877 - Implement IMMUTABLE_CONST.
       return ConstnessLevel::kNotConst;
     }
     case RESOLVED_MAKE_STRUCT: {

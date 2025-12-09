@@ -255,6 +255,7 @@ cc_test(
         "//zetasql/base:check",
         "//zetasql/base/testing:status_matchers",
         "//zetasql/base/testing:zetasql_gtest_main",
+        "//zetasql/common:measure_analysis_utils",
         "//zetasql/public:options_cc_proto",
         "//zetasql/public:value",
         "//zetasql/public/types",

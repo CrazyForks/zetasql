@@ -1,4 +1,77 @@
-[default language_features=MAXIMUM,+CREATE_TABLE_AS_SELECT_COLUMN_LIST,+ORDER_BY_IN_AGGREGATE,+ORDER_BY_COLLATE,+ANALYTIC_FUNCTIONS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+GROUP_BY_ARRAY,+GROUP_BY_STRUCT,+CREATE_TABLE_FIELD_ANNOTATIONS,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+NAMED_ARGUMENTS,+INLINE_LAMBDA_ARGUMENT,+ARRAY_ORDERING,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+COLLATION_IN_EXPLICIT_CAST,+PRESERVE_ANNOTATION_IN_IMPLICIT_CAST_IN_SCAN,+GROUPING_SETS,+GROUP_BY_ROLLUP,+GROUPING_BUILTIN,+USE_OPERATION_COLLATION_FOR_NULLIF]
+## Create some functions to test annotation propagation.
+##
+[default language_features=MAXIMUM,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+PRESERVE_ANNOTATION_IN_IMPLICIT_CAST_IN_SCAN,+USE_OPERATION_COLLATION_FOR_NULLIF]
+[prepare_database=db1]
+CREATE FUNCTION TemplatedStringEq(a ANY TYPE, b ANY TYPE) AS (
+  a = b
+);
+--
+CreateFunctionStmt(name_path=TemplatedStringEq, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="a = b")
+==
+
+[prepare_database=db1]
+CREATE FUNCTION ConcreteUdfImplicitReturnType(a STRING, b STRING) AS (
+  STRUCT(a, b)
+);
+--
+CreateFunctionStmt
++-name_path=ConcreteUdfImplicitReturnType
++-return_type=STRUCT<a STRING, b STRING>
++-argument_name_list=[a, b]
++-signature=(STRING a, STRING b) -> STRUCT<a STRING, b STRING> rejects_collation=TRUE
++-language="SQL"
++-code="STRUCT(a, b)"
++-function_expression=
+  +-MakeStruct
+    +-type=STRUCT<a STRING, b STRING>
+    +-field_list=
+      +-ArgumentRef(type=STRING, name="a")
+      +-ArgumentRef(type=STRING, name="b")
+==
+
+[prepare_database=db1]
+CREATE FUNCTION TemplatedUdfImplicitReturnType(a ANY TYPE, b ANY TYPE) AS (
+  (a, b)
+);
+--
+CreateFunctionStmt(name_path=TemplatedUdfImplicitReturnType, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="(a, b)")
+==
+
+[prepare_database=db1]
+CREATE FUNCTION ConcreteUdfExplicitReturnType()
+RETURNS STRUCT<x STRING, y STRING> AS (
+  STRUCT(COLLATE('a', 'und:ci'), 'A')
+);
+--
+CreateFunctionStmt
++-name_path=ConcreteUdfExplicitReturnType
++-has_explicit_return_type=TRUE
++-return_type=STRUCT<x STRING, y STRING>
++-signature=() -> STRUCT<x STRING, y STRING> rejects_collation=TRUE
++-language="SQL"
++-code="STRUCT(COLLATE('a', 'und:ci'), 'A')"
++-function_expression=
+  +-MakeStruct
+    +-type=STRUCT<x STRING, y STRING>
+    +-field_list=
+      +-Cast(STRING -> STRING)
+      | +-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+      |   +-type_annotation_map={Collation:"und:ci"}
+      |   +-Literal(type=STRING, value="a")
+      |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+      +-Literal(type=STRING, value="A")
+==
+
+[prepare_database=db1]
+#TODO: b/456550678 - Also test with TemplatedUdfExplicitReturnType()
+# which returns STRUCT once the bug about field parse locations is fixed.
+CREATE FUNCTION TemplatedUdfExplicitStringReturnType(arg1 ANY TYPE)
+RETURNS STRING AS (
+  arg1
+);
+--
+CreateFunctionStmt(name_path=TemplatedUdfExplicitStringReturnType, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[arg1], signature=(ANY TYPE arg1) -> STRING rejects_collation=TRUE, language="SQL", code="arg1")
+==
 
 # Cast string with collation to string type.
 select cast(string_ci AS STRING),
@@ -9411,6 +9484,7 @@ select * from ValueTableArgWithCollatedOutputCols((select as struct COLLATE('...
 ==
 
 # Collation in return type of SQL function body is not allowed.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
 create function myfunc(x STRING) as (COLLATE(x, 'und:ci'));
 --
 ERROR: Collation "und:ci" in return type of user-defined function body is not allowed [at 1:37]
@@ -9419,6 +9493,7 @@ create function myfunc(x STRING) as (COLLATE(x, 'und:ci'));
 ==
 
 # Collation in return type of SQL function body is not allowed.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
 create function myfunc(x STRING) as ([COLLATE(x, 'und:ci')]);
 --
 ERROR: Collation <"und:ci"> in return type of user-defined function body is not allowed [at 1:37]
@@ -9427,6 +9502,8 @@ create function myfunc(x STRING) as ([COLLATE(x, 'und:ci')]);
 ==
 
 # Collation in return type of SQL function body is not allowed.
+# Add a case where the flag is disabled to ensure we get the correct errors.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
 create function myfunc(x STRING) as ((COLLATE(x, 'und:ci'), 1));
 --
 ERROR: Collation <"und:ci",_> in return type of user-defined function body is not allowed [at 1:37]
@@ -9435,6 +9512,7 @@ create function myfunc(x STRING) as ((COLLATE(x, 'und:ci'), 1));
 ==
 
 # Collation in return type of SQL function body is not allowed.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
 create function myfunc(x STRING) as (COLLATE(x, 'binary'));
 --
 ERROR: Collation "binary" in return type of user-defined function body is not allowed [at 1:37]
@@ -9462,6 +9540,7 @@ CreateFunctionStmt
 # Collation in return type of SQL function body is not allowed.
 # Returns an error even if the function has an explicit return type without
 # collation.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
 create function myfunc(x STRING) returns string
 as (COLLATE(x, 'und:ci'));
 --
@@ -9482,7 +9561,34 @@ as (MIN(COLLATE(x, 'und:ci')));
 ==
 
 # Collation in return type of templated SQL function body is not allowed.
+[language_features=MAXIMUM,{{|-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,}}+ANALYTIC_FUNCTIONS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+COLLATION_IN_EXPLICIT_CAST,+PRESERVE_ANNOTATION_IN_IMPLICIT_CAST_IN_SCAN]
 select udf_templated_collate_function('abc');
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1{Collation:"und:ci"} AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1{Collation:"und:ci"}]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf_templated_collate_function(STRING) -> STRING)
+    |     +-type_annotation_map={Collation:"und:ci"}
+    |     +-Literal(type=STRING, value="abc")
+    +-input_scan=
+      +-SingleRowScan
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf_templated_collate_function(STRING) -> STRING
+containing resolved templated expression:
+FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ArgumentRef(type=STRING, name="x")
++-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,
 --
 ERROR: Invalid function udf_templated_collate_function [at 1:8]
 select udf_templated_collate_function('abc');
@@ -9491,42 +9597,387 @@ Collation "und:ci" in return type of user-defined function body is not allowed
 ==
 
 # Collation in return type of templated SQL function body is not allowed.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
 select udf_templated_collate_function_in_array('abc');
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
 --
 ERROR: Invalid function udf_templated_collate_function_in_array [at 1:8]
 select udf_templated_collate_function_in_array('abc');
        ^
 Collation <"und:ci"> in return type of user-defined function body is not allowed
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1<{Collation:"und:ci"}> AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1<{Collation:"und:ci"}>]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf_templated_collate_function_in_array(STRING) -> ARRAY<STRING>)
+    |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |     +-Literal(type=STRING, value="abc")
+    +-input_scan=
+      +-SingleRowScan
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf_templated_collate_function_in_array(STRING) -> ARRAY<STRING>
+containing resolved templated expression:
+FunctionCall(ZetaSQL:$make_array(repeated(1) STRING) -> ARRAY<STRING>)
++-type_annotation_map=<{Collation:"und:ci"}>
++-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+  +-type_annotation_map={Collation:"und:ci"}
+  +-ArgumentRef(type=STRING, name="x")
+  +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+==
+
+# Collation in templated UDF's body
+[use_database=db1]
+[language_features=MAXIMUM,+COLLATION_SUPPORT,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
+SELECT TemplatedStringEq(string_ci, string_ci)
+FROM CollatedTable;
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-FunctionCall(Templated_SQL_Function:TemplatedStringEq(STRING a, STRING b) -> BOOL)
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=CollatedTable.string_ci#1{Collation:"und:ci"})
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=CollatedTable.string_ci#1{Collation:"und:ci"})
+    +-input_scan=
+      +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
+
+With Templated SQL function call:
+  Templated_SQL_Function:TemplatedStringEq(STRING a, STRING b) -> BOOL rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(ZetaSQL:$equal(STRING, STRING) -> BOOL)
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="a")
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="b")
++-collation_list=[und:ci]
+==
+
+# Collation in templated UDA's: Ensure conflicting collations are caught.
+[use_database=db1]
+[language_features=MAXIMUM,+COLLATION_SUPPORT,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
+select TemplatedStringEq(string_ci, string_binary)
+from CollatedTable;
+--
+ERROR: Invalid function TemplatedStringEq [at 1:8]
+select TemplatedStringEq(string_ci, string_binary)
+       ^
+Analysis of function Templated_SQL_Function:TemplatedStringEq failed [at 1:1]
+a = b
+^
+Collation conflict: "binary" vs. "und:ci". Collation on argument 2 ("binary") in function = is not compatible with other arguments [at 1:1]
+a = b
+^
 ==
 
 # Collation in return type of templated SQL function body is not allowed.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
 select udf_templated_collate_function_in_struct('abc');
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
 --
 ERROR: Invalid function udf_templated_collate_function_in_struct [at 1:8]
 select udf_templated_collate_function_in_struct('abc');
        ^
 Collation <"und:ci",_> in return type of user-defined function body is not allowed
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1<{Collation:"und:ci"},_> AS `$col1` [STRUCT<STRING, INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1<{Collation:"und:ci"},_>]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf_templated_collate_function_in_struct(STRING) -> STRUCT<STRING, INT64>)
+    |     +-type_annotation_map=<{Collation:"und:ci"},_>
+    |     +-Literal(type=STRING, value="abc")
+    +-input_scan=
+      +-SingleRowScan
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf_templated_collate_function_in_struct(STRING) -> STRUCT<STRING, INT64>
+containing resolved templated expression:
+MakeStruct
++-type=STRUCT<STRING, INT64>
++-type_annotation_map=<{Collation:"und:ci"},_>
++-field_list=
+  +-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+  | +-type_annotation_map={Collation:"und:ci"}
+  | +-ArgumentRef(type=STRING, name="x")
+  | +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+  +-Literal(type=INT64, value=1)
+==
+
+# Fixed UDA
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
+SELECT UdaWithHavingMax(string_ci, 1)
+FROM CollatedTable;
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#5 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#5]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#5]
+        +-input_scan=
+        | +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
+        +-aggregate_list=
+          +-$agg1#5 :=
+            +-AggregateFunctionCall(Lazy_resolution_function:UdaWithHavingMax(STRING agg_arg, INT64 another_agg_arg) -> ARRAY<STRING>)
+              +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=CollatedTable.string_ci#1{Collation:"und:ci"})
+              +-Literal(type=INT64, value=1)
+==
+
+# Templated UDA
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
+SELECT UdaTemplateWithHavingMax(struct_with_string_ci)
+FROM CollatedTable;
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+ERROR: Invalid function UdaTemplateWithHavingMax [at 1:8]
+SELECT UdaTemplateWithHavingMax(struct_with_string_ci)
+       ^
+Analysis of function Templated_SQL_Function:UdaTemplateWithHavingMax failed:
+Annotations on arguments of SQL functions are not supported, but found annotations on argument agg_arg
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#5 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#5]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#5]
+        +-input_scan=
+        | +-TableScan(column_list=[CollatedTable.struct_with_string_ci#3<_,{Collation:"und:ci"}>], table=CollatedTable, column_index_list=[2])
+        +-aggregate_list=
+          +-$agg1#5 :=
+            +-AggregateFunctionCall(Templated_SQL_Function:UdaTemplateWithHavingMax(STRUCT<a INT32, b STRING> agg_arg) -> ARRAY<INT32>)
+              +-ColumnRef(type=STRUCT<a INT32, b STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, column=CollatedTable.struct_with_string_ci#3<_,{Collation:"und:ci"}>)
+
+With Templated SQL function call:
+  Templated_SQL_Function:UdaTemplateWithHavingMax(STRUCT<a INT32, b STRING> agg_arg) -> ARRAY<INT32> rejects_collation=TRUE
+containing resolved templated expression:
+ColumnRef(type=ARRAY<INT32>, column=$aggregate.$agg1#1)
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(ZetaSQL:array_agg(INT32) -> ARRAY<INT32>)
+      +-GetStructField
+        +-type=INT32
+        +-expr=
+        | +-ArgumentRef(parse_location=10-17, type=STRUCT<a INT32, b STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, name="agg_arg", argument_kind=AGGREGATE)
+        +-field_idx=0
+      +-having_modifier=
+        +-AggregateHavingModifier
+          +-kind=MAX
+          +-having_expr=
+            +-GetStructField
+              +-type=STRING
+              +-type_annotation_map={Collation:"und:ci"}
+              +-expr=
+              | +-ArgumentRef(parse_location=31-38, type=STRUCT<a INT32, b STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, name="agg_arg", argument_kind=AGGREGATE)
+              +-field_idx=1
+==
+
+# Multi-level aggregation
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
+SELECT UdaWithMultilevelAggMultiArg(1, 2, string_ci, CAST(NULL AS BYTES))
+FROM CollatedTable
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#5 AS `$col1` [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#5]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#5]
+        +-input_scan=
+        | +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
+        +-aggregate_list=
+          +-$agg1#5 :=
+            +-AggregateFunctionCall(Lazy_resolution_function:UdaWithMultilevelAggMultiArg(INT64 arg1, INT64 arg2, STRING arg3, BYTES arg4) -> DOUBLE)
+              +-Literal(type=INT64, value=1)
+              +-Literal(type=INT64, value=2)
+              +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=CollatedTable.string_ci#1{Collation:"und:ci"})
+              +-Literal(type=BYTES, value=NULL, has_explicit_type=TRUE)
 ==
 
 # Collation in return type of templated SQL function body is not allowed, even
 # if the function has an explicit return type without collation.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
 select udf_templated_collate_function_return_string('abc');
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
 --
 ERROR: Invalid function udf_templated_collate_function_return_string [at 1:8]
 select udf_templated_collate_function_return_string('abc');
        ^
 Collation "und:ci" in return type of user-defined function body is not allowed
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf_templated_collate_function_return_string(STRING) -> STRING)
+    |     +-Literal(type=STRING, value="abc")
+    +-input_scan=
+      +-SingleRowScan
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf_templated_collate_function_return_string(STRING) -> STRING
+containing resolved templated expression:
+Cast(STRING -> STRING)
++-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+  +-type_annotation_map={Collation:"und:ci"}
+  +-ArgumentRef(type=STRING, name="x")
+  +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
 ==
 
 # Collation in return type of templated SQL function body is not allowed. The
 # function is a SQL aggregate function.
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
 select uda_templated_aggregate_with_min_collate_function(x)
 from unnest(['a', 'b', 'c']) x;
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
 --
 ERROR: Invalid function uda_templated_aggregate_with_min_collate_function [at 1:8]
 select uda_templated_aggregate_with_min_collate_function(x)
        ^
 Collation "und:ci" in return type of user-defined function body is not allowed
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#2{Collation:"und:ci"} AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#2{Collation:"und:ci"}]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#2{Collation:"und:ci"}]
+        +-input_scan=
+        | +-ArrayScan
+        |   +-column_list=[$array.x#1]
+        |   +-array_expr_list=
+        |   | +-Literal(type=ARRAY<STRING>, value=["a", "b", "c"])
+        |   +-element_column_list=[$array.x#1]
+        +-aggregate_list=
+          +-$agg1#2 :=
+            +-AggregateFunctionCall(Templated_SQL_Function:uda_templated_aggregate_with_min_collate_function(STRING) -> STRING)
+              +-type_annotation_map={Collation:"und:ci"}
+              +-ColumnRef(type=STRING, column=$array.x#1)
+
+With Templated SQL function call:
+  Templated_SQL_Function:uda_templated_aggregate_with_min_collate_function(STRING) -> STRING
+containing resolved templated expression:
+ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(ZetaSQL:min(STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+        +-type_annotation_map={Collation:"und:ci"}
+        +-ArgumentRef(parse_location=12-13, type=STRING, name="x", argument_kind=AGGREGATE)
+        +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+      +-collation_list=[und:ci]
+==
+
+[use_database=db1]
+[language_features=MAXIMUM,+COLLATION_SUPPORT,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
+SELECT
+  # Concrete args are dropping collation.
+  ConcreteUdfImplicitReturnType(str_ci, str),
+
+  # Templated args propagate collation.
+  TemplatedUdfImplicitReturnType(str_ci, str),
+
+  # Explicit return has no collation, so it gets dropped.
+  ConcreteUdfExplicitReturnType(),
+  TemplatedUdfExplicitStringReturnType(str_ci)
+FROM
+  (SELECT COLLATE('a', 'und:ci') AS str_ci, 'A' AS str)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [STRUCT<a STRING, b STRING>]
+| +-$query.$col2#4<{Collation:"und:ci"},_> AS `$col2` [STRUCT<STRING, STRING>]
+| +-$query.$col3#5 AS `$col3` [STRUCT<x STRING, y STRING>]
+| +-$query.$col4#6 AS `$col4` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#3, $col2#4, $col3#5, $col4#6]
+    +-expr_list=
+    | +-$col1#3 :=
+    | | +-FunctionCall(Lazy_resolution_function:ConcreteUdfImplicitReturnType(STRING a, STRING b) -> STRUCT<a STRING, b STRING>)
+    | |   +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.str_ci#1{Collation:"und:ci"})
+    | |   +-ColumnRef(type=STRING, column=$subquery1.str#2)
+    | +-$col2#4 :=
+    | | +-FunctionCall(Templated_SQL_Function:TemplatedUdfImplicitReturnType(STRING a, STRING b) -> STRUCT<STRING, STRING>)
+    | |   +-type_annotation_map=<{Collation:"und:ci"},_>
+    | |   +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.str_ci#1{Collation:"und:ci"})
+    | |   +-ColumnRef(type=STRING, column=$subquery1.str#2)
+    | +-$col3#5 := FunctionCall(Lazy_resolution_function:ConcreteUdfExplicitReturnType() -> STRUCT<x STRING, y STRING>)
+    | +-$col4#6 :=
+    |   +-FunctionCall(Templated_SQL_Function:TemplatedUdfExplicitStringReturnType(STRING arg1) -> STRING)
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.str_ci#1{Collation:"und:ci"})
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[str_ci#1, str#2]
+        +-expr_list=
+        | +-str_ci#1 :=
+        | | +-FunctionCall(ZetaSQL:collate(STRING, STRING) -> STRING)
+        | |   +-type_annotation_map={Collation:"und:ci"}
+        | |   +-Literal(type=STRING, value="a")
+        | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+        | +-str#2 := Literal(type=STRING, value="A")
+        +-input_scan=
+          +-SingleRowScan
+
+With Templated SQL function call:
+  Templated_SQL_Function:TemplatedUdfImplicitReturnType(STRING a, STRING b) -> STRUCT<STRING, STRING> rejects_collation=TRUE
+containing resolved templated expression:
+MakeStruct
++-type=STRUCT<STRING, STRING>
++-type_annotation_map=<{Collation:"und:ci"},_>
++-field_list=
+  +-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="a")
+  +-ArgumentRef(type=STRING, name="b")
+
+With Templated SQL function call:
+  Templated_SQL_Function:TemplatedUdfExplicitStringReturnType(STRING arg1) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+Cast(STRING -> STRING)
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="arg1")
 ==
 
 # Coercing struct in scan through internal CAST - IN subquery.

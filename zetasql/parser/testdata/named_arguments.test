@@ -353,12 +353,63 @@ select * from mytvf((date_string => "12/25/08"));
                     ^
 ==
 
-# Invalid TVF call with a named argument with the TABLE keyword.
-select * from mytvf(date_string => table keyvalue);
+select * from mytvf(table_arg => table keyvalue);
 --
-ERROR: Syntax error: Expected ")" but got identifier "keyvalue" [at 1:42]
-select * from mytvf(date_string => table keyvalue);
-                                         ^
+QueryStatement [0-48] [select * from...keyvalue)]
+  Query [0-48] [select * from...keyvalue)]
+    Select [0-48] [select * from...keyvalue)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-48] [from mytvf...keyvalue)]
+        TVF [14-48] [mytvf(table_arg...keyvalue)]
+          PathExpression [14-19] [mytvf]
+            Identifier(mytvf) [14-19] [mytvf]
+          TVFArgument [20-47] [table_arg => table keyvalue]
+            NamedArgument [20-47] [table_arg => table keyvalue]
+              Identifier(table_arg) [20-29] [table_arg]
+              ExpressionSubquery [33-47] [table keyvalue]
+                Query [33-47] [table keyvalue]
+                  TableClause [33-47] [table keyvalue]
+                    PathExpression [39-47] [keyvalue]
+                      Identifier(keyvalue) [39-47] [keyvalue]
+--
+SELECT
+  *
+FROM
+  mytvf(table_arg  => (TABLE keyvalue))
+==
+
+select * from mytvf(table_arg => table another_tvf(TABLE keyvalue));
+--
+QueryStatement [0-67] [select * from...keyvalue))]
+  Query [0-67] [select * from...keyvalue))]
+    Select [0-67] [select * from...keyvalue))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-67] [from mytvf...keyvalue))]
+        TVF [14-67] [mytvf(table_arg...keyvalue))]
+          PathExpression [14-19] [mytvf]
+            Identifier(mytvf) [14-19] [mytvf]
+          TVFArgument [20-66] [table_arg...keyvalue)]
+            NamedArgument [20-66] [table_arg...keyvalue)]
+              Identifier(table_arg) [20-29] [table_arg]
+              ExpressionSubquery [33-66] [table another_tvf...keyvalue)]
+                Query [33-66] [table another_tvf...keyvalue)]
+                  TableClause [33-66] [table another_tvf...keyvalue)]
+                    TVF [39-66] [another_tvf(TABLE keyvalue)]
+                      PathExpression [39-50] [another_tvf]
+                        Identifier(another_tvf) [39-50] [another_tvf]
+                      TVFArgument [51-65] [TABLE keyvalue]
+                        TableClause [51-65] [TABLE keyvalue]
+                          PathExpression [57-65] [keyvalue]
+                            Identifier(keyvalue) [57-65] [keyvalue]
+--
+SELECT
+  *
+FROM
+  mytvf(table_arg  => (TABLE another_tvf(TABLE keyvalue)))
 ==
 
 # Invalid TVF call with a named argument with the MODEL keyword.

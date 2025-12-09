@@ -77,14 +77,20 @@ AddMeasureColumnsToTable(SimpleTable& table,
 //     as well as N additional measure columns ( N > 0). All measure columns
 //     in `simple_table` must appear after all non-measure columns specified in
 //     `array_value`.
-//   - `row_identity_columns`: A vector of integers specifying the indices of
-//     the row identity columns in `simple_table` used to grain-lock measures.
+//   - `measure_column_defs`: A vector of `MeasureColumnDef`s describing each
+//     measure column in `simple_table`. The size of this vector must match the
+//     number of measure columns in `simple_table`, i.e., N.
+//   - `table_level_row_identity_columns`: A vector of integers specifying the
+//     indices of the row identity columns in `simple_table` used to grain-lock
+//     measures. If a measure in `measure_column_defs` contains measure-level
+//     row identity columns, those will be used instead.
 //   - `type_factory`: Used to create types.
 //   - `language_options`: Used to create the measure values.
 absl::StatusOr<Value> UpdateTableRowsWithMeasureValues(
     const Value& array_value, const SimpleTable* simple_table,
-    std::vector<int> row_identity_columns, TypeFactory* type_factory,
-    const LanguageOptions& language_options);
+    const std::vector<MeasureColumnDef>& measure_column_defs,
+    std::vector<int> table_level_row_identity_columns,
+    TypeFactory* type_factory, const LanguageOptions& language_options);
 
 }  // namespace zetasql
 

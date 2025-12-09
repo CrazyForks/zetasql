@@ -952,7 +952,7 @@ UPDATE TableArrayValue
 SET array_value[OFFSET(NULL)] = 100
 WHERE array_value IS NOT NULL
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<INT64>
 ==
 
 [name=update_array_element_with_set_negative_index]

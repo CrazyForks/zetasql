@@ -31,6 +31,7 @@
 #include "zetasql/parser/visit_result.h"
 #include "zetasql/public/id_string.h"
 #include "zetasql/public/parse_location.h"
+#include "absl/base/attributes.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -38,6 +39,10 @@
 #include "zetasql/base/status_macros.h"
 
 namespace zetasql {
+
+ABSL_DEPRECATED("Inline me!")
+constexpr ASTNodeKind AST_SELECT_WITH = AST_WITH_MODIFIER;
+using ASTSelectWith ABSL_DEPRECATED("Inline me!") = ASTWithModifier;
 
 // This is a fake ASTNode implementation that exists only for tests,
 // which may need to pass an ASTNode* to some methods.

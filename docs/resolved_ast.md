@@ -778,38 +778,6 @@ class ResolvedNonScalarFunctionCallBase : public <a href="#ResolvedFunctionCallB
   // values.</font>
   <a href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>::NullHandlingModifier null_handling_modifier() const;
 
-<font color="brown">  // Holds a table subquery defined in WITH GROUP ROWS(...) that is
-  // evaluated over the input rows of a <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>
-  // corresponding to the current group. The function itself is
-  // evaluated over the rows returned from the subquery.
-  //
-  // The subquery should refer to a special TVF GROUP_ROWS(), which
-  // resolves as <a href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a>. The subquery will be run for
-  // each group produced by <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>.
-  //
-  // GROUP_ROWS() produces a row for each source row in the
-  // <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>&#39;s input that matches current group.
-  //
-  // The subquery cannot reference any <a href="#ResolvedColumn">ResolvedColumns</a> from the outer
-  // query except what comes in via &lt;with_group_rows_parameter_list&gt;,
-  // and GROUP_ROWS().
-  //
-  // The subquery can return more than one column, and these columns
-  // can be referenced by the function.
-  //
-  // The subquery can be correlated. In this case the
-  // &lt;with_group_rows_parameter_list&gt; gives the set of <a href="#ResolvedColumn">ResolvedColumns</a>
-  // from outside the subquery that are used inside. The subuery cannot
-  // refer to correlated columns that are used as aggregation input in
-  // the immediate outer query. The same rules apply to
-  // &lt;with_group_rows_parameter_list&gt; as in <a href="#ResolvedSubqueryExpr">ResolvedSubqueryExpr</a>.</font>
-  const <a href="#ResolvedScan">ResolvedScan</a>* with_group_rows_subquery() const;
-
-<font color="brown">  // Correlated parameters to &lt;with_group_rows_subquery&gt;</font>
-  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>&gt;&gt;&amp; with_group_rows_parameter_list() const;
-  int with_group_rows_parameter_list_size() const;
-  const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* with_group_rows_parameter_list(int i) const;
-
 <font color="brown">  // A scalar filtering expression to apply before supplying rows to
   // the function. Allowed only when FEATURE_AGGREGATE_FILTERING
   // is enabled.</font>
@@ -8421,7 +8389,9 @@ class ResolvedGraphNodeTableReference : public <a href="#ResolvedArgument">Resol
 
 <p><pre><code class="lang-c++"><font color="brown">// &lt;name&gt; is the name of the label.
 // &lt;property_declaration_name_list&gt; is a list of property declarations
-// exposed by the label.</font>
+// exposed by the label.
+// &lt;options_list&gt; is the list of engine-specific options applied to
+// the label.</font>
 class ResolvedGraphElementLabel : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_ELEMENT_LABEL;
 
@@ -8430,6 +8400,10 @@ class ResolvedGraphElementLabel : public <a href="#ResolvedArgument">ResolvedArg
   const std::vector&lt;std::string&gt;&amp; property_declaration_name_list() const;
   int property_declaration_name_list_size() const;
   std::string property_declaration_name_list(int i) const;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedOption">ResolvedOption</a>&gt;&gt;&amp; options_list() const;
+  int options_list_size() const;
+  const <a href="#ResolvedOption">ResolvedOption</a>* options_list(int i) const;
 };
 </code></pre></p>
 
@@ -8451,12 +8425,14 @@ class ResolvedGraphPropertyDeclaration : public <a href="#ResolvedArgument">Reso
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a property exposed by a GraphElementLabel on a specific
 // GraphElementTable.
-// &lt;expr&gt; [ AS &lt;property_declaration_name&gt; ]
+// &lt;expr&gt; [ AS &lt;property_declaration_name&gt; ] [ OPTIONS (&lt;options_list&gt;) ]
 //
 // &lt;expr&gt; is the property definition, a <a href="#ResolvedExpression">ResolvedExpression</a> to identify a
 // column.
 // &lt;sql&gt; is the original sql string of the property definition.
-// &lt;property_declaration_name&gt; refers to a property declaration.</font>
+// &lt;property_declaration_name&gt; refers to a property declaration.
+// &lt;options_list&gt; is the list of engine-specific options applied to
+// the property definition.</font>
 class ResolvedGraphPropertyDefinition : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_PROPERTY_DEFINITION;
 
@@ -8465,6 +8441,10 @@ class ResolvedGraphPropertyDefinition : public <a href="#ResolvedArgument">Resol
   const std::string&amp; sql() const;
 
   const std::string&amp; property_declaration_name() const;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedOption">ResolvedOption</a>&gt;&gt;&amp; options_list() const;
+  int options_list_size() const;
+  const <a href="#ResolvedOption">ResolvedOption</a>* options_list(int i) const;
 };
 </code></pre></p>
 

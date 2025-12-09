@@ -752,7 +752,7 @@ UPDATE Table2
 SET struct_value.array_value[OFFSET(NULL)] = 100
 WHERE primary_key <= 2
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<INT64>
 ==
 
 [name=update_array_struct_with_set_negative_index]
@@ -1000,7 +1000,7 @@ UPDATE Table6
 SET array_value[OFFSET(NULL)].value1 = 1000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot SET a NULL offset of an ARRAY<STRUCT<value1 INT64, value2 INT64>>
+ERROR: generic::out_of_range: Cannot SET a NULL offset of ARRAY<STRUCT<value1 INT64, value2 INT64>>
 ==
 
 [name=update_element_in_array_of_structs_with_set_negative_index]

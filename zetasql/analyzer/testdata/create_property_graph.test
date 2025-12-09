@@ -5231,3 +5231,60 @@ CreatePropertyGraphStmt
 +-property_declaration_list=
   +-GraphPropertyDeclaration(parse_location=153-183, name="id", type=INT64)
   +-GraphPropertyDeclaration(parse_location=193-225, name="name", type=STRING)
+==
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS]
+CREATE PROPERTY GRAPH aml_with_options
+  NODE TABLES(
+    Person
+      OPTIONS (description = "v1")
+      DEFAULT LABEL NO PROPERTIES
+  );
+--
+
+CreatePropertyGraphStmt
++-name_path=aml_with_options
++-node_table_list=
+| +-GraphElementTable
+|   +-alias="Person"
+|   +-input_scan=
+|   | +-TableScan(column_list=Person.[id#1, name#2, gender#3, birthday#4, email#5, age#6, data#7], table=Person, column_index_list=[0, 1, 2, 3, 4, 5, 6])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=Person.id#1)
+|   +-label_name_list=[Person]
++-label_list=
+  +-GraphElementLabel
+    +-parse_location=106-133
+    +-name="Person"
+    +-options_list=
+      +-description := Literal(type=STRING, value="v1")
+==
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS]
+CREATE PROPERTY GRAPH aml_with_options
+  NODE TABLES(
+    Person
+      OPTIONS (description = "v1")
+      DEFAULT LABEL OPTIONS(description = "v1")
+  );
+--
+
+ERROR: OPTIONS clause for the default label 'Person' is defined more than once, consider dropping the OPTIONS clause before DEFAULT LABEL clause [at 5:28]
+      DEFAULT LABEL OPTIONS(description = "v1")
+                           ^
+==
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS]
+CREATE PROPERTY GRAPH aml_with_options
+  NODE TABLES(
+    Person
+      OPTIONS (description = "v1")
+      NO PROPERTIES,
+    Person AS AnotherPerson
+      OPTIONS (description = "v2")
+      LABEL Person NO PROPERTIES
+  );
+--
+ERROR: The label 'Person' is defined with OPTIONS clause in one of the element tables and cannot be bound to another element table [at 8:7]
+      LABEL Person NO PROPERTIES
+      ^

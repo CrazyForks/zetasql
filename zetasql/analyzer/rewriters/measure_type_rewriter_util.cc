@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -38,9 +39,12 @@
 #include "zetasql/resolved_ast/resolved_column.h"
 #include "zetasql/resolved_ast/resolved_node.h"
 #include "zetasql/resolved_ast/rewrite_utils.h"
+#include "zetasql/base/case.h"
 #include "absl/algorithm/container.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "zetasql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -192,6 +196,21 @@ absl::Status HasUnsupportedQueryShape(const ResolvedNode* input) {
   return UnsupportedQueryShapeFinder::HasUnsupportedQueryShape(input);
 }
 
+// Validates the struct field names in `key_columns_struct_type` are the same
+// as those in `row_identity_column_names`.
+static absl::Status CheckEqualRowIdentityColumnNames(
+    const StructType* key_columns_struct_type,
+    const absl::btree_set<std::string, zetasql_base::CaseLess>&
+        row_identity_column_names) {
+  absl::btree_set<std::string, zetasql_base::CaseLess>
+      key_columns_field_names;
+  for (const StructField& field : key_columns_struct_type->fields()) {
+    ZETASQL_RET_CHECK(key_columns_field_names.insert(field.name).second);
+  }
+  ZETASQL_RET_CHECK(key_columns_field_names == row_identity_column_names);
+  return absl::OkStatus();
+}
+
 // `MultiLevelAggregateRewriter` rewrites a measure expression to use
 // multi-level aggregation to grain-lock and avoid overcounting. A measure
 // expression is a scalar expression over one or more constituent aggregate
@@ -215,14 +234,16 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
       const Function* any_value_fn, FunctionCallBuilder& function_call_builder,
       const LanguageOptions& language_options, ColumnFactory& column_factory,
       TypeFactory& type_factory, ResolvedColumn struct_column,
-      const std::vector<int>& row_identity_column_indices,
+      const absl::btree_set<std::string, zetasql_base::CaseLess>&
+          row_identity_column_names,
       bool struct_column_refs_are_correlated)
       : any_value_fn_(any_value_fn),
         function_call_builder_(function_call_builder),
         language_options_(language_options),
         column_factory_(column_factory),
+        type_factory_(type_factory),
         struct_column_(struct_column),
-        row_identity_column_indices_(row_identity_column_indices),
+        row_identity_column_names_(row_identity_column_names),
         struct_column_refs_are_correlated_(struct_column_refs_are_correlated) {
         };
   MultiLevelAggregateRewriter(const MultiLevelAggregateRewriter&) = delete;
@@ -358,33 +379,17 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
           any_value_column.type(), any_value_column, /*is_correlated=*/false));
     }
 
-    // Step 2: Compute the `group_by_list`. This should just be a
+    // Step 2: Compute the `group_by_list`. This should be based on
     // `GetStructField` accessing the `kKeyColumnsFieldIndex` field of the
     // `struct_column_`.
     std::vector<std::unique_ptr<const ResolvedComputedColumn>> group_by_list;
-    ZETASQL_RET_CHECK(struct_column_.type()->IsStruct());
-    ZETASQL_RET_CHECK(struct_column_.type()->AsStruct()->num_fields() == 2);
-    std::unique_ptr<ResolvedColumnRef> struct_column_ref =
-        MakeStructColumnRef();
-    ZETASQL_RET_CHECK(struct_column_ref->type()->IsStruct());
-    ZETASQL_RET_CHECK(struct_column_ref->type()->AsStruct()->num_fields() == 2);
-    const StructField& key_columns_field =
-        struct_column_ref->type()->AsStruct()->field(kKeyColumnsFieldIndex);
-
-    const StructType* key_columns_struct_type =
-        key_columns_field.type->AsStruct();
-    // TODO: b/450295734 - Relax this constraint when supporting column-level
-    // row-identity-columns.
-    ZETASQL_RET_CHECK_EQ(key_columns_struct_type->num_fields(),
-                 row_identity_column_indices_.size());
-    std::unique_ptr<ResolvedGetStructField> get_struct_field_expr =
-        MakeResolvedGetStructField(key_columns_field.type,
-                                   std::move(struct_column_ref),
-                                   kKeyColumnsFieldIndex);
+    ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> grain_lock_key_expr,
+                     CreateGrainLockingKey());
+    const Type* grain_lock_key_type = grain_lock_key_expr->type();
     group_by_list.push_back(MakeResolvedComputedColumn(
         column_factory_.MakeCol("$groupbymod", "grain_lock_key",
-                                key_columns_field.type),
-        std::move(get_struct_field_expr)));
+                                grain_lock_key_type),
+        std::move(grain_lock_key_expr)));
 
     // Step 3: Set the `group_by_aggregate_list`, `group_by_list` and
     // `argument_list` on the rewritten aggregate function call.
@@ -416,6 +421,84 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   }
 
  private:
+  // Returns an expression that will serve as the grain locking key.
+  //
+  // If all row identity columns of `struct_column_` are needed for grain
+  // locking, e.g., when the measure column uses the source table's row identity
+  // columns, this function returns a GetStructField expression that
+  // accesses the `kKeyColumnsFieldIndex` field of `struct_column_`.
+  //
+  // If only a subset of row identity columns are needed, then this function
+  // returns a MakeStruct expression that creates a new struct containing only
+  // the needed row identity columns.
+  absl::StatusOr<std::unique_ptr<const ResolvedExpr>> CreateGrainLockingKey() {
+    ZETASQL_RET_CHECK(struct_column_.type()->IsStruct());
+    ZETASQL_RET_CHECK(struct_column_.type()->AsStruct()->num_fields() == 2);
+
+    const StructField& key_columns_field =
+        struct_column_.type()->AsStruct()->field(kKeyColumnsFieldIndex);
+
+    const StructType* key_columns_struct_type =
+        key_columns_field.type->AsStruct();
+
+    std::unique_ptr<const ResolvedExpr> grain_lock_key_expr;
+    ZETASQL_RET_CHECK_GE(key_columns_struct_type->num_fields(),
+                 row_identity_column_names_.size());
+    if (key_columns_struct_type->num_fields() ==
+        row_identity_column_names_.size()) {
+      // All available row identity columns are needed; use the "key_columns"
+      // sub-struct directly.
+      //
+      // Correctness check: the field names and the row identity columns
+      // must match.
+      ZETASQL_DCHECK_OK(CheckEqualRowIdentityColumnNames(key_columns_struct_type,
+                                                 row_identity_column_names_));
+      grain_lock_key_expr = MakeResolvedGetStructField(
+          key_columns_field.type, MakeStructColumnRef(), kKeyColumnsFieldIndex);
+    } else {
+      // This measure column only needs some of the row identity columns;
+      std::vector<StructField> grain_lock_struct_fields;
+      std::vector<std::unique_ptr<const ResolvedExpr>>
+          grain_lock_struct_field_exprs;
+      for (const std::string& field_name : row_identity_column_names_) {
+        bool is_ambiguous = false;
+        int field_idx = -1;
+        const StructField* field = key_columns_struct_type->FindField(
+            field_name, &is_ambiguous, &field_idx);
+        ZETASQL_RET_CHECK(field != nullptr) << "Cannot find field " << field_name
+                                    << " from the key_columns struct: "
+                                    << key_columns_struct_type->DebugString();
+        ZETASQL_RET_CHECK(!is_ambiguous)
+            << field_name << " is ambiguous, key_columns struct: "
+            << key_columns_struct_type->DebugString();
+
+        grain_lock_struct_fields.push_back(
+            StructField(field_name, field->type));
+        grain_lock_struct_field_exprs.push_back(MakeResolvedGetStructField(
+            field->type,
+            MakeResolvedGetStructField(key_columns_field.type,
+                                       MakeStructColumnRef(),
+                                       kKeyColumnsFieldIndex),
+            field_idx));
+      }
+
+      if (row_identity_column_names_.size() == 1) {
+        // If there is only one row identity column name, we access it directly
+        // via GetStructField.
+        grain_lock_key_expr = std::move(grain_lock_struct_field_exprs[0]);
+      } else {
+        // Create a new struct out of those needed row identity columns and use
+        // it as the grain locking key.
+        const StructType* grain_lock_struct_type = nullptr;
+        ZETASQL_RETURN_IF_ERROR(type_factory_.MakeStructTypeFromVector(
+            grain_lock_struct_fields, &grain_lock_struct_type));
+        grain_lock_key_expr = MakeResolvedMakeStruct(
+            grain_lock_struct_type, std::move(grain_lock_struct_field_exprs));
+      }
+    }
+    return grain_lock_key_expr;
+  }
+
   // Modify the aggregate function call to inject a WHERE modifier to discard
   // NULL STRUCT values. NULL STRUCT values may be introduced if the measure
   // propagates past OUTER JOINs. NULL STRUCT values represent invalid captured
@@ -468,11 +551,23 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   const LanguageOptions& language_options_;
   // Used to create new columns.
   ColumnFactory& column_factory_;
+
+  // Used to create new types, e.g., in `CreateGrainLockingKey()` to create
+  // struct types for the grain locking key if a measure column uses
+  // column-level row identity columns.
+  TypeFactory& type_factory_;
+
   // The special STRUCT-typed column that contains the grouping keys needed for
   // grain-locking.
   ResolvedColumn struct_column_;
-  // Indices of row identity columns for the measure being rewritten.
-  const std::vector<int>& row_identity_column_indices_;
+
+  // Names of row identity columns for the measure being rewritten.
+  //
+  // These names match `Column::Name()` for consistency in the printed
+  // resolved AST.
+  const absl::btree_set<std::string, zetasql_base::CaseLess>&
+      row_identity_column_names_;
+
   // A list of (rewritten) constituent aggregates that compose a measure
   // expression.
   std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
@@ -674,7 +769,8 @@ class StructColumnReferenceRewriter : public ResolvedASTDeepCopyVisitor {
 
 absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
     const ResolvedExpr* measure_expr, ResolvedColumn struct_column,
-    const std::vector<int>& row_identity_column_indices,
+    const absl::btree_set<std::string, zetasql_base::CaseLess>&
+        row_identity_column_names,
     bool struct_column_refs_are_correlated, const Function* any_value_fn,
     FunctionCallBuilder& function_call_builder,
     const LanguageOptions& language_options, ColumnFactory& column_factory,
@@ -699,7 +795,7 @@ absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
   // grain-lock and avoid overcounting.
   MultiLevelAggregateRewriter multi_level_aggregate_rewriter(
       any_value_fn, function_call_builder, language_options, column_factory,
-      type_factory, struct_column, row_identity_column_indices,
+      type_factory, struct_column, row_identity_column_names,
       struct_column_refs_are_correlated);
   ZETASQL_ASSIGN_OR_RETURN(rewritten_measure_expr,
                    multi_level_aggregate_rewriter.RewriteMultiLevelAggregate(

@@ -111,7 +111,12 @@ struct CopyableState {
     kOffset = 1,
   };
   struct UpdateItemOffset {
+    // The type of the subscript target (the container that is being
+    // subscripted).
+    const Type* target_type;
+    // The SQL for the subscript expression.
     std::string offset_sql;
+    // The type of the subscript expression.
     OffsetType offset_type;
   };
   // A stack of stacks. An element of an inner stack corresponds to a
@@ -877,9 +882,10 @@ class SQLBuilder : public ResolvedASTVisitor {
       std::vector<const ResolvedScan*>& return_scans,
       const ResolvedLimitOffsetScan*& limit_offset_scan) const;
 
-  // Helper method to collapse the sequence of scans of a GQL RETURN clause.
+  // Helper method to collapse the sequence of scans of a GQL RETURN or WITH
+  // clause.
   // `output_column_to_alias` contains an ordered map of the output column to
-  //     output alias. It only has value if the RETURN clause belongs to a
+  //     output alias. It only has value if the RETURN/WITH clause belongs to a
   //     linear scan that is an input to a set operation input. If it has value,
   //     reuse the aliases. Otherwise, always generate new aliases for output
   //     columns.
@@ -887,7 +893,8 @@ class SQLBuilder : public ResolvedASTVisitor {
       const ResolvedScan* ret_scan,
       std::optional<absl::btree_map<ResolvedColumn, std::string>>
           output_column_to_alias,
-      std::string& output_sql, std::vector<std::string>& columns);
+      std::string& output_sql, std::vector<std::string>& columns,
+      bool generate_with = false);
 
   // Helper method to append a path mode to the SQL string.
   absl::Status AppendPathMode(const ResolvedGraphPathMode* path_mode,
@@ -1226,7 +1233,7 @@ class SQLBuilder : public ResolvedASTVisitor {
 
   absl::StatusOr<std::string> ProcessCreateTableStmtBase(
       const ResolvedCreateTableStmtBase* node, bool process_column_definitions,
-      const std::string& table_type);
+      absl::string_view table_type);
 
   // Helper function for adding SQL for aggregate and group by lists.
   absl::Status ProcessAggregateScanBase(

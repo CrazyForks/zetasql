@@ -389,6 +389,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -598,6 +599,7 @@ cc_library(
     srcs = ["variadic_function_signature_expander.cc"],
     hdrs = ["variadic_function_signature_expander.h"],
     deps = [
+        "//zetasql/base:check",
         "//zetasql/base:ret_check",
         "//zetasql/base:status",
         "//zetasql/public:analyzer_options",
@@ -612,8 +614,10 @@ cc_library(
         "//zetasql/resolved_ast",
         "//zetasql/resolved_ast:resolved_ast_builder",
         "//zetasql/resolved_ast:resolved_ast_rewrite_visitor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

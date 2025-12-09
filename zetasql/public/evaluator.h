@@ -66,7 +66,7 @@ class PreparedModify : public PreparedModifyBase {
 // See evaluator_base.h for the full interface and usage instructions.
 class PreparedStatement : public PreparedStatementBase {
  public:
-  PreparedStatement(const std::string& sql, const EvaluatorOptions& options);
+  PreparedStatement(absl::string_view sql, const EvaluatorOptions& options);
   PreparedStatement(const ResolvedStatement* stmt,
                     const EvaluatorOptions& options);
 };

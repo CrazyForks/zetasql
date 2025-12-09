@@ -2156,7 +2156,8 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
   EXPECT_THAT(info.SignatureArguments(), testing::ElementsAre());
 
   ZETASQL_ASSERT_OK(info.AddScalarArg(name1, ResolvedArgumentDef::SCALAR,
-                              FunctionArgumentType(types::Int64Type())));
+                              FunctionArgumentType(types::Int64Type()),
+                              /*annotation_map=*/nullptr));
   EXPECT_TRUE(info.HasArg(name1));
   EXPECT_EQ(info.FindTableArg(name1), nullptr);
   EXPECT_NE(info.FindScalarArg(name1), nullptr);
@@ -2180,7 +2181,8 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
 
   // Do not accept duplicate argument names.
   EXPECT_THAT(info.AddScalarArg(name1, ResolvedArgumentDef::SCALAR,
-                                FunctionArgumentType(types::Int64Type())),
+                                FunctionArgumentType(types::Int64Type()),
+                                /*annotation_map=*/nullptr),
               zetasql_base::testing::StatusIs(absl::StatusCode::kInternal));
 
   // Test adding a concrete relation argument and observing its details.
@@ -2211,7 +2213,8 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
     ZETASQL_ASSERT_OK(info.AddScalarArg(
         name3, ResolvedArgumentDef::SCALAR,
         FunctionArgumentType(SignatureArgumentKind::ARG_TYPE_ARBITRARY,
-                             /*num_occurrences=*/1)));
+                             /*num_occurrences=*/1),
+        /*annotation_map=*/nullptr));
     EXPECT_TRUE(info.contains_templated_arguments());
     EXPECT_TRUE(info.HasArg(name3));
     EXPECT_EQ(info.FindTableArg(name3), nullptr);

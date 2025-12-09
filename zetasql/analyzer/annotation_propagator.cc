@@ -24,7 +24,10 @@
 #include "zetasql/parser/parse_tree_errors.h"
 #include "zetasql/public/analyzer_options.h"
 #include "zetasql/public/annotation/collation.h"
+#include "zetasql/public/function.h"
 #include "zetasql/public/options.pb.h"
+#include "zetasql/public/sql_function.h"
+#include "zetasql/public/templated_sql_function.h"
 #include "zetasql/public/types/annotation.h"
 #include "zetasql/public/types/type_factory.h"
 #include "zetasql/resolved_ast/resolved_ast.h"
@@ -123,6 +126,63 @@ static absl::Status CheckAndPropagateAnnotationsImpl(
   return absl::OkStatus();
 }
 
+static bool IsSqlFunctionCall(const ResolvedNode& expr) {
+  if (!expr.Is<ResolvedFunctionCallBase>()) {
+    return false;
+  }
+  const Function* function = expr.GetAs<ResolvedFunctionCallBase>()->function();
+  return function->Is<SQLFunctionInterface>() ||
+         function->Is<TemplatedSQLFunction>();
+}
+
+// Annotation propagation in SQL functions is defined to be exactly that outside
+// of them. It is not to be customized by annotation specs.
+static absl::Status PropagateAnnotationsForSqlFunctionCall(ResolvedExpr& expr) {
+  const Function* function = expr.GetAs<ResolvedFunctionCallBase>()->function();
+  const ResolvedFunctionCallInfo* function_call_info = nullptr;
+  switch (expr.node_kind()) {
+    case RESOLVED_FUNCTION_CALL: {
+      function_call_info =
+          expr.GetAs<ResolvedFunctionCall>()->function_call_info().get();
+      break;
+    }
+    case RESOLVED_AGGREGATE_FUNCTION_CALL: {
+      function_call_info = expr.GetAs<ResolvedAggregateFunctionCall>()
+                               ->function_call_info()
+                               .get();
+      break;
+    }
+    default:
+      ZETASQL_RET_CHECK_FAIL() << "Unsupported node kind: " << expr.node_kind_string();
+  }
+
+  AnnotatedType resolved_annotated_type(nullptr, nullptr);
+  if (function_call_info == nullptr ||
+      !function_call_info->Is<TemplatedSQLFunctionCall>()) {
+    ZETASQL_RET_CHECK(!function->Is<TemplatedSQLFunction>());
+    ZETASQL_RET_CHECK(function->Is<SQLFunctionInterface>());
+    resolved_annotated_type = function->GetAs<SQLFunctionInterface>()
+                                  ->FunctionExpression()
+                                  ->annotated_type();
+  } else {
+    ZETASQL_RET_CHECK(function->Is<TemplatedSQLFunction>());
+    resolved_annotated_type =
+        function_call_info->GetAs<TemplatedSQLFunctionCall>()
+            ->expr()
+            ->annotated_type();
+  }
+
+  const auto [resolved_type, annotations] = resolved_annotated_type;
+
+  // The resolved type must be identical except for annotations.
+  // Any propagation errors (e.g. conflicting annotations) would have
+  // already been reported.
+  ZETASQL_RET_CHECK(expr.type()->Equivalent(resolved_type))
+      << expr.type()->DebugString() << " vs " << resolved_type->DebugString();
+  expr.set_type_annotation_map(annotations);
+  return absl::OkStatus();
+}
+
 absl::Status AnnotationPropagator::CheckAndPropagateAnnotations(
     const ASTNode* error_node, ResolvedNode* resolved_node) {
   if (!analyzer_options_.language().LanguageFeatureEnabled(
@@ -131,6 +191,11 @@ absl::Status AnnotationPropagator::CheckAndPropagateAnnotations(
   }
   if (resolved_node->IsExpression()) {
     auto* expr = resolved_node->GetAs<ResolvedExpr>();
+
+    if (IsSqlFunctionCall(*resolved_node)) {
+      return PropagateAnnotationsForSqlFunctionCall(*expr);
+    }
+
     // TODO: support annotation for Proto and ExtendedType.
     if (expr->type()->IsProto() || expr->type()->IsExtendedType()) {
       return absl::OkStatus();
