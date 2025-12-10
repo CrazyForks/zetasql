@@ -39,7 +39,7 @@ namespace zetasql {
 namespace {
 
 // Callback to compute the result type of the TUMBLE and HOP TVF.
-absl::StatusOr<std::unique_ptr<TVFSignature>> TimeSeriesComputeResultType(
+absl::StatusOr<std::shared_ptr<TVFSignature>> TimeSeriesComputeResultType(
     Catalog* /*catalog*/, TypeFactory* /*type_factory*/,
     const FunctionSignature& signature,
     const std::vector<TVFInputArgumentType>& actual_arguments,
@@ -73,8 +73,8 @@ absl::StatusOr<std::unique_ptr<TVFSignature>> TimeSeriesComputeResultType(
   tvf_signature_options.additional_deprecation_warnings =
       signature.AdditionalDeprecationWarnings();
 
-  return std::make_unique<TVFSignature>(actual_arguments, result_schema,
-                                        tvf_signature_options);
+  return TVFSignature::Create(actual_arguments, result_schema,
+                              tvf_signature_options);
 }
 
 }  // namespace

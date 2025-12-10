@@ -37,6 +37,7 @@
 #include "zetasql/public/simple_catalog_util.h"
 #include "zetasql/public/type.h"
 #include "zetasql/public/types/struct_type.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "zetasql/base/check.h"
@@ -254,47 +255,52 @@ void TestDatabaseCatalog::AddTable(const std::string& table_name,
   catalog_->AddOwnedTable(simple_table.release());
 }
 
-absl::Status TestDatabaseCatalog::AddTablesWithMeasures(
-    const TestDatabase& test_db, const LanguageOptions& language_options) {
-  ZETASQL_RETURN_IF_ERROR(IsInitialized());
-
-  for (const auto& [table_name, table] : test_db.tables) {
-    if (table.measure_column_defs.empty()) {
-      continue;
-    }
-    ZETASQL_RET_CHECK(!table.row_identity_columns.empty());
-    // TODO: b/350555383 - Value tables should be supported. Remove this.
-    ZETASQL_RET_CHECK(!table.options.is_value_table());
-    const Value& array_value = table.table_as_value;
-    ZETASQL_RET_CHECK(array_value.type()->IsArray())
-        << table_name << " " << array_value.DebugString(true);
-    auto element_type = array_value.type()->AsArray()->element_type();
+absl::Status TestDatabaseCatalog::AddTableWithStatus(
+    const std::string& table_name, const TestTable& table,
+    const LanguageOptions& language_options) {
+  if (table.measure_column_defs.empty()) {
     std::unique_ptr<SimpleTable> simple_table =
         MakeSimpleTable(table_name, table);
+    catalog_->AddOwnedTable(simple_table.release());
+    return absl::OkStatus();
+  }
+
+  if (table.row_identity_columns.empty()) {
+    // We are processing measure tables, validate row identity columns first.
+    ZETASQL_RET_CHECK(
+        absl::c_all_of(table.measure_column_defs,
+                       [](const MeasureColumnDef& def) {
+                         return def.row_identity_column_indices.has_value();
+                       }))
+        << "Table " << table_name
+        << " does not have row identity columns, so all of its measure "
+           "columns must specify column-level row identity columns";
+  }
+  // TODO: b/350555383 - Value tables should be supported. Remove this.
+  ZETASQL_RET_CHECK(!table.options.is_value_table());
+  const Value& array_value = table.table_as_value;
+  ZETASQL_RET_CHECK(array_value.type()->IsArray())
+      << table_name << " " << array_value.DebugString(true);
+  std::unique_ptr<SimpleTable> simple_table =
+      MakeSimpleTable(table_name, table);
+  if (!table.row_identity_columns.empty()) {
     ZETASQL_RET_CHECK_OK(
         simple_table->SetRowIdentityColumns(table.row_identity_columns));
-    AnalyzerOptions analyzer_options(language_options);
-    // Make sure that the test table's required features are enabled.
-    for (LanguageFeature feature : table.options.required_features()) {
-      analyzer_options.mutable_language()->EnableLanguageFeature(feature);
-    }
-    ZETASQL_ASSIGN_OR_RETURN(
-        auto measure_expr_analyzer_outputs,
-        AddMeasureColumnsToTable(*simple_table, table.measure_column_defs,
-                                 *type_factory_, *catalog_, analyzer_options));
-    sql_object_artifacts_.insert(
-        sql_object_artifacts_.end(),
-        std::make_move_iterator(measure_expr_analyzer_outputs.begin()),
-        std::make_move_iterator(measure_expr_analyzer_outputs.end()));
-    ZETASQL_RET_CHECK(element_type->IsStruct());
-    ZETASQL_ASSIGN_OR_RETURN(
-        Value new_array_value,
-        UpdateTableRowsWithMeasureValues(
-            array_value, simple_table.get(), table.measure_column_defs,
-            table.row_identity_columns, type_factory_.get(), language_options));
-    table.table_as_value_with_measures = std::move(new_array_value);
-    catalog_->AddOwnedTable(simple_table.release());
   }
+  AnalyzerOptions analyzer_options(language_options);
+  // Make sure that the test table's required features are enabled.
+  for (LanguageFeature feature : table.options.required_features()) {
+    analyzer_options.mutable_language()->EnableLanguageFeature(feature);
+  }
+  ZETASQL_ASSIGN_OR_RETURN(
+      auto measure_expr_analyzer_outputs,
+      AddMeasureColumnsToTable(*simple_table, table.measure_column_defs,
+                               *type_factory_, *catalog_, analyzer_options));
+  sql_object_artifacts_.insert(
+      sql_object_artifacts_.end(),
+      std::make_move_iterator(measure_expr_analyzer_outputs.begin()),
+      std::make_move_iterator(measure_expr_analyzer_outputs.end()));
+  catalog_->AddOwnedTable(simple_table.release());
   return absl::OkStatus();
 }
 
@@ -367,7 +373,8 @@ absl::Status TestDatabaseCatalog::SetTestDatabaseWithLeakyDescriptors(
 }
 
 absl::Status TestDatabaseCatalog::SetTestDatabase(
-    const TestDatabaseProto& test_db_proto) {
+    const TestDatabaseProto& test_db_proto,
+    const LanguageOptions& language_options) {
   importer_ = std::make_unique<ProtoImporter>(test_db_proto.runs_as_test());
   catalog_ =
       std::make_unique<SimpleCatalog>("root_catalog", type_factory_.get());
@@ -388,13 +395,28 @@ absl::Status TestDatabaseCatalog::SetTestDatabase(
                    DeserializeTestDatabase(test_db_proto, type_factory_.get(),
                                            descriptor_pool()));
 
+  // Measure definitions may use built-in functions and UDF/UDAs, add them
+  // first before adding functions.
+  ZETASQL_RETURN_IF_ERROR(SetLanguageOptions(language_options));
+
+  // The catalog and type setup has been finished. We set `is_initialized_`
+  // to true here because AddUdfsForMeasureDefinitions() checks IsInitialized()
+  // and requires the catalog and types to be set up.
+  is_initialized_ = true;
+  if (!test_db.measure_function_defs.empty()) {
+    // The UDFs and UDAs referenced by measure definitions must be added to the
+    // catalog before the tables are added, so that the measures can be
+    // analyzed.
+    ZETASQL_RETURN_IF_ERROR(AddUdfsForMeasureDefinitions(test_db, language_options));
+  }
+
   // Add tables to the catalog.
   for (const auto& t : test_db.tables) {
     const std::string& table_name = t.first;
     const TestTable& test_table = t.second;
-    AddTable(table_name, test_table);
+    ZETASQL_RETURN_IF_ERROR(
+        AddTableWithStatus(table_name, test_table, language_options));
   }
-  is_initialized_ = true;
   return absl::OkStatus();
 }
 

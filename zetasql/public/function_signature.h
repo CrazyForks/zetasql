@@ -132,6 +132,9 @@ class FunctionArgumentTypeOptions {
   bool must_be_analysis_constant() const {
     return data_->constness_level == ConstnessLevelProto::ANALYSIS_CONST;
   }
+  bool must_be_immutable_constant() const {
+    return data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST;
+  }
   bool must_be_constant_expression() const {
     return data_->constness_level ==
            ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION;
@@ -221,6 +224,19 @@ class FunctionArgumentTypeOptions {
           << "Cannot set must_be_analysis_constant when another constness "
              "level is already set.";
       data_->constness_level = ConstnessLevelProto::ANALYSIS_CONST;
+      return *this;
+    }
+    data_->constness_level = ConstnessLevelProto::CONSTNESS_UNSPECIFIED;
+    return *this;
+  }
+  FunctionArgumentTypeOptions& set_must_be_immutable_constant(bool v = true) {
+    if (v) {
+      ABSL_DCHECK(data_->constness_level ==
+                 ConstnessLevelProto::CONSTNESS_UNSPECIFIED ||
+             data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST)
+          << "Cannot set must_be_immutable_constant when another constness "
+             "level is already set.";
+      data_->constness_level = ConstnessLevelProto::IMMUTABLE_CONST;
       return *this;
     }
     data_->constness_level = ConstnessLevelProto::CONSTNESS_UNSPECIFIED;
@@ -725,6 +741,9 @@ class FunctionArgumentType {
   bool must_be_constant() const { return options_->must_be_constant(); }
   bool must_be_analysis_constant() const {
     return options_->must_be_analysis_constant();
+  }
+  bool must_be_immutable_constant() const {
+    return options_->must_be_immutable_constant();
   }
   bool must_be_constant_expression() const {
     return options_->must_be_constant_expression();

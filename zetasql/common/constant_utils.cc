@@ -107,23 +107,26 @@ absl::StatusOr<ConstnessLevel> GetConstnessLevel(const ResolvedNode* node) {
         return ConstnessLevel::kNotConst;
       }
 
-      // A collapsed array literal is an ANALYSIS_CONST. It's a `$make_array`
-      // function call with all arguments satisfying ANALYSIS_CONST constraint.
-      // So an ARRAY constructor is at least an ANALYSIS_CONST.
-      ConstnessLevel max_constness_level = ConstnessLevel::kAnalysisConst;
+      ZETASQL_RET_CHECK(function_call->function()->function_options().volatility ==
+                FunctionEnums::IMMUTABLE);
+      ConstnessLevel max_constness_level;
       if (function_call->function()->IsZetaSQLBuiltin() &&
           function_call->function()->Name() == "$make_array") {
-        for (auto& arg : function_call->argument_list()) {
-          ZETASQL_ASSIGN_OR_RETURN(ConstnessLevel arg_constness_level,
-                           GetConstnessLevel(arg.get()));
-          max_constness_level =
-              std::max(max_constness_level, arg_constness_level);
-        }
-        return max_constness_level;
+        // A collapsed array literal is an ANALYSIS_CONST. It's a
+        // `$make_array` function call with all arguments satisfying
+        // ANALYSIS_CONST constraint. So an ARRAY constructor is at least an
+        // ANALYSIS_CONST.
+        max_constness_level = ConstnessLevel::kAnalysisConst;
+      } else {
+        max_constness_level = ConstnessLevel::kImmutableConst;
       }
-
-      // TODO: b/277365877 - Implement IMMUTABLE_CONST.
-      return ConstnessLevel::kNotConst;
+      for (const auto& arg : function_call->argument_list()) {
+        ZETASQL_ASSIGN_OR_RETURN(ConstnessLevel arg_constness_level,
+                         GetConstnessLevel(arg.get()));
+        max_constness_level =
+            std::max(max_constness_level, arg_constness_level);
+      }
+      return max_constness_level;
     }
     case RESOLVED_MAKE_STRUCT: {
       auto* make_struct = node->GetAs<ResolvedMakeStruct>();
@@ -224,6 +227,14 @@ bool IsAnalysisConstant(const ResolvedNode* node) {
     return false;
   }
   return constness_level.value() <= ConstnessLevel::kAnalysisConst;
+}
+
+bool IsImmutableConstant(const ResolvedNode* node) {
+  absl::StatusOr<ConstnessLevel> constness_level = GetConstnessLevel(node);
+  if (!constness_level.ok()) {
+    return false;
+  }
+  return constness_level.value() <= ConstnessLevel::kImmutableConst;
 }
 
 }  // namespace zetasql

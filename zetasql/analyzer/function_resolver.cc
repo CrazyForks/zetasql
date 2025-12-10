@@ -2751,6 +2751,16 @@ absl::Status FunctionResolver::CheckArgumentConstraints(
           ->set_preserve_in_literal_remover(true);
     }
   }
+  bool satisfies_immutable_constant_requirement = true;
+  if (concrete_argument.must_be_immutable_constant()) {
+    satisfies_immutable_constant_requirement = IsImmutableConstant(arg_expr);
+    if (arg_expr->Is<ResolvedLiteral>()) {
+      // Ensure it doesn't get replaced by a parameter in tests.
+      const_cast<ResolvedLiteral*>(arg_expr->GetAs<ResolvedLiteral>())
+          ->set_preserve_in_literal_remover(true);
+    }
+  }
+
   // TODO: b/323602106 - Improve correctness of error message
   if (!satisfies_constant_requirement || !satisfies_non_aggregate_requirement) {
     return MakeSqlErrorAt(arg_location)
@@ -2759,6 +2769,10 @@ absl::Status FunctionResolver::CheckArgumentConstraints(
   if (!satisfies_analysis_constant_requirement) {
     return MakeSqlErrorAt(arg_location)
            << BadArgErrorPrefix(idx) << " must be an analysis time constant";
+  }
+  if (!satisfies_immutable_constant_requirement) {
+    return MakeSqlErrorAt(arg_location)
+           << BadArgErrorPrefix(idx) << " must be an immutable constant";
   }
   return absl::OkStatus();
 }

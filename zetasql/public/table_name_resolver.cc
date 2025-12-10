@@ -1384,14 +1384,14 @@ absl::Status TableNameResolver::HandleWithClause(
   if (with_clause->recursive()) {
     // In WITH RECURSIVE, any entry can access an alias defined in any other
     // entry, regardless of declaration order.
-    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+    for (const ASTWithClauseEntry* entry : with_clause->entries()) {
       if (entry->aliased_query() != nullptr) {
         const std::string with_alias = absl::AsciiStrToLower(
             entry->aliased_query()->alias()->GetAsStringView());
         zetasql_base::InsertIfNotPresent(&local_table_aliases_, with_alias);
       }
     }
-    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+    for (const ASTWithClauseEntry* entry : with_clause->entries()) {
       if (entry->aliased_query() != nullptr) {
         const ASTAliasedQuery* aliased_query = entry->aliased_query();
         ZETASQL_RETURN_IF_ERROR(FindInQuery(aliased_query->query(), visible_aliases));
@@ -1400,7 +1400,7 @@ absl::Status TableNameResolver::HandleWithClause(
   } else {
     // In WITH without RECURSIVE, entries can only access with aliases defined
     // in prior entries.
-    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+    for (const ASTWithClauseEntry* entry : with_clause->entries()) {
       if (entry->aliased_query() != nullptr) {
         const ASTAliasedQuery* aliased_query = entry->aliased_query();
         ZETASQL_RETURN_IF_ERROR(FindInQuery(aliased_query->query(), visible_aliases));

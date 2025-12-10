@@ -53,17 +53,9 @@ SELECT * from mytable;
 mode_unanalyze
 sql_mode_query
 target_syntax_mode_standard
-result_unanalyzed:WITH
-  mytable AS (
-    SELECT
-      1 AS a_1,
-      2 AS a_2
-  )
-SELECT
-  withrefscan_3.a_1 AS Key,
-  withrefscan_3.a_2 AS Value
-FROM
-  mytable AS withrefscan_3;
+result_unanalyzed:WITH mytable AS (SELECT 1 AS a_1, 2 AS a_2)
+SELECT withrefscan_3.a_1 AS Key, withrefscan_3.a_2 AS Value
+FROM mytable AS withrefscan_3
 \
 ==
 
@@ -84,23 +76,11 @@ GROUP BY ALL;
 mode_unanalyze
 sql_mode_query
 target_syntax_mode_pipe
-result_unanalyzed:WITH
-  mytable AS (
-    SELECT
-      1 AS a_1,
-      2 AS a_2
-  )
-FROM
-  mytable AS withrefscan_3
-|&gt; EXTEND
-     withrefscan_3.a_1 AS a_4,
-     withrefscan_3.a_2 AS a_5
-|&gt; AGGREGATE
-   GROUP BY a_4, a_5
+result_unanalyzed:WITH mytable AS (SELECT 1 AS a_1, 2 AS a_2) FROM mytable AS withrefscan_3
+|&gt; EXTEND withrefscan_3.a_1 AS a_4, withrefscan_3.a_2 AS a_5
+|&gt; AGGREGATE GROUP BY a_4, a_5
 |&gt; AS aggregatescan_6
-|&gt; SELECT
-     aggregatescan_6.a_4 AS Key,
-     aggregatescan_6.a_5 AS Value;
+|&gt; SELECT aggregatescan_6.a_4 AS Key, aggregatescan_6.a_5 AS Value
 \
 ==
 

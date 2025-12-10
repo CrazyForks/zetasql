@@ -67,36 +67,3 @@ FROM
             customer_id
        |> DISTINCT)
    GROUP BY State
-==
-
-# Pipe with operator doesn't support WITH GROUP ROWS (should fail)
-# TODO: b/430036320 - Enforce this rule in the resolver.
-FROM Transactions
-|> WITH group_rows() AS GROUP ROWS
-|> SELECT col
---
-QueryStatement [0-66] [FROM Transactions...SELECT col]
-  Query [0-66] [FROM Transactions...SELECT col]
-    FromQuery [0-17] [FROM Transactions]
-      FromClause [0-17] [FROM Transactions]
-        TablePathExpression [5-17] [Transactions]
-          PathExpression [5-17] [Transactions]
-            Identifier(Transactions) [5-17] [Transactions]
-    PipeWith [18-52] [|> WITH group_row...GROUP ROWS]
-      WithClause [21-52] [WITH group_rows...GROUP ROWS]
-        WithClauseEntry [26-52] [group_rows() AS GROUP ROWS]
-          AliasedGroupRows [26-52] [group_rows() AS GROUP ROWS]
-            Identifier(group_rows) [26-36] [group_rows]
-    PipeSelect [53-66] [|> SELECT col]
-      Select [56-66] [SELECT col]
-        SelectList [63-66] [col]
-          SelectColumn [63-66] [col]
-            PathExpression [63-66] [col]
-              Identifier(col) [63-66] [col]
---
-FROM
-  Transactions
-|> WITH
-     group_rows() AS GROUP ROWS
-|> SELECT
-     col

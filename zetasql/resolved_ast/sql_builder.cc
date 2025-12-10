@@ -11756,8 +11756,8 @@ absl::Status SQLBuilder::VisitResolvedStatementWithPipeOperatorsStmt(
     const ResolvedStatementWithPipeOperatorsStmt* node) {
   ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                    ProcessNode(node->statement()));
-  std::string sql =
-      absl::StrCat(result->GetSQL(), "\n", node->suffix_subpipeline_sql());
+  std::string sql = absl::StrCat(result->GetSQL(), "\n",
+                                 node->suffix_subpipeline_sql()->value());
   PushQueryFragment(node, sql);
   return absl::OkStatus();
 }

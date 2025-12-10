@@ -7,7 +7,7 @@
 # ExpressionAttributesProto on columns. The Java serialization/deserialization
 # code needs to be updated to be aware of this field.
 [default no_java]
-[default language_features=NONE,+ENABLE_MEASURES,+MULTILEVEL_AGGREGATION,+GROUP_BY_STRUCT,+AGGREGATE_FILTERING,+CREATE_TABLE_FUNCTION,+PIPES]
+[default language_features=NONE,+ENABLE_MEASURES,+MULTILEVEL_AGGREGATION,+GROUP_BY_STRUCT,+AGGREGATE_FILTERING,+CREATE_TABLE_FUNCTION,+PIPES,+HAVING_IN_AGGREGATE]
 [default enabled_ast_rewrites=DEFAULTS,+MEASURE_TYPE]
 [default sql_builder_target_syntax_mode=standard]
 [default show_sqlbuilder_output]
@@ -13433,3 +13433,299 @@ FROM
         GROUP BY 1
       ) AS aggregatescan_9
   ) AS projectscan_11;
+==
+
+# From b/467432858: Expression subquery does not reference correlated column
+# parameter.
+SELECT
+  AVG(1
+    HAVING MAX EXISTS(
+      SELECT
+        AGG(measure_literal_one)
+      FROM
+        (
+          SELECT
+            1
+        )
+    ))
+FROM MeasureTable_WithSubqueryMeasureExprs
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#15 AS `$col1` [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#15]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#15]
+        +-input_scan=
+        | +-TableScan(column_list=[MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10], table=MeasureTable_WithSubqueryMeasureExprs, column_index_list=[9])
+        +-aggregate_list=
+          +-$agg1#15 :=
+            +-AggregateFunctionCall(ZetaSQL:avg(INT64) -> DOUBLE)
+              +-Literal(type=INT64, value=1)
+              +-having_modifier=
+                +-AggregateHavingModifier
+                  +-kind=MAX
+                  +-having_expr=
+                    +-SubqueryExpr
+                      +-type=BOOL
+                      +-subquery_type=EXISTS
+                      +-parameter_list=
+                      | +-ColumnRef(type=MEASURE<INT64>, column=MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10)
+                      +-subquery=
+                        +-ProjectScan
+                          +-column_list=[$aggregate.$agg1#14]
+                          +-input_scan=
+                            +-AggregateScan
+                              +-column_list=[$aggregate.$agg1#14]
+                              +-input_scan=
+                              | +-ProjectScan
+                              |   +-column_list=[$subquery1.$col1#13]
+                              |   +-expr_list=
+                              |   | +-$col1#13 := Literal(type=INT64, value=1)
+                              |   +-input_scan=
+                              |     +-SingleRowScan
+                              +-aggregate_list=
+                                +-$agg1#14 :=
+                                  +-AggregateFunctionCall(ZetaSQL:AGG(MEASURE<INT64>) -> INT64)
+                                    +-ColumnRef(type=MEASURE<INT64>, column=MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10, is_correlated=TRUE)
+
+[SQLBUILDER_OUTPUT]
+SELECT
+  AVG(1
+    HAVING MAX EXISTS(
+      SELECT
+        AGG(measuretable_withsubquerymeasureexprs_2.a_1) AS a_5
+      FROM
+        (
+          SELECT
+            1 AS a_3
+        ) AS projectscan_4
+    )) AS a_6
+FROM
+  (
+    SELECT
+      MeasureTable_WithSubqueryMeasureExprs.measure_literal_one AS a_1
+    FROM
+      MeasureTable_WithSubqueryMeasureExprs
+  ) AS measuretable_withsubquerymeasureexprs_2;
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#15 AS `$col1` [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#15]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#15]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=[MeasureTable_WithSubqueryMeasureExprs.struct_for_measures_from_table_MeasureTable_WithSubqueryMeasureExprs#17]
+        |   +-expr_list=
+        |   | +-struct_for_measures_from_table_MeasureTable_WithSubqueryMeasureExprs#17 :=
+        |   |   +-MakeStruct
+        |   |     +-type=STRUCT<referenced_columns STRUCT<>, key_columns STRUCT<key INT64>>
+        |   |     +-field_list=
+        |   |       +-MakeStruct(type=STRUCT<>)
+        |   |       +-MakeStruct
+        |   |         +-type=STRUCT<key INT64>
+        |   |         +-field_list=
+        |   |           +-ColumnRef(type=INT64, column=MeasureTable_WithSubqueryMeasureExprs.key#16)
+        |   +-input_scan=
+        |     +-TableScan(column_list=[MeasureTable_WithSubqueryMeasureExprs.key#16], table=MeasureTable_WithSubqueryMeasureExprs, column_index_list=[0])
+        +-aggregate_list=
+          +-$agg1#15 :=
+            +-AggregateFunctionCall(ZetaSQL:avg(INT64) -> DOUBLE)
+              +-Literal(type=INT64, value=1)
+              +-having_modifier=
+                +-AggregateHavingModifier
+                  +-kind=MAX
+                  +-having_expr=
+                    +-SubqueryExpr
+                      +-type=BOOL
+                      +-subquery_type=EXISTS
+                      +-subquery=
+                        +-ProjectScan
+                          +-column_list=[$aggregate.$agg1#14]
+                          +-input_scan=
+                            +-ProjectScan
+                              +-column_list=[$aggregate.$agg1#14]
+                              +-expr_list=
+                              | +-$agg1#14 := Literal(type=INT64, value=1)
+                              +-input_scan=
+                                +-AggregateScan
+                                  +-input_scan=
+                                    +-ProjectScan
+                                      +-column_list=[$subquery1.$col1#13]
+                                      +-expr_list=
+                                      | +-$col1#13 := Literal(type=INT64, value=1)
+                                      +-input_scan=
+                                        +-SingleRowScan
+[SQLBUILDER_OUTPUT]
+SELECT
+  AVG(1
+    HAVING MAX EXISTS(
+      SELECT
+        1 AS a_8
+      FROM
+        (
+          SELECT
+            NULL
+          FROM
+            (
+              SELECT
+                1 AS a_5
+            ) AS projectscan_6
+        ) AS aggregatescan_7
+    )) AS a_9
+FROM
+  (
+    SELECT
+      STRUCT< referenced_columns STRUCT< >, key_columns STRUCT< key INT64 > > (STRUCT< > (), STRUCT< key INT64 >
+        (measuretable_withsubquerymeasureexprs_2.a_1)) AS a_3
+    FROM
+      (
+        SELECT
+          MeasureTable_WithSubqueryMeasureExprs.key AS a_1
+        FROM
+          MeasureTable_WithSubqueryMeasureExprs
+      ) AS measuretable_withsubquerymeasureexprs_2
+  ) AS projectscan_4;
+==
+
+SELECT
+  (
+    SELECT AGG(measure_literal_one)
+    FROM (SELECT 1)
+  )
+FROM MeasureTable_WithSubqueryMeasureExprs
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#15 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#15]
+    +-expr_list=
+    | +-$col1#15 :=
+    |   +-SubqueryExpr
+    |     +-type=INT64
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=MEASURE<INT64>, column=MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$aggregate.$agg1#14]
+    |         +-input_scan=
+    |           +-AggregateScan
+    |             +-column_list=[$aggregate.$agg1#14]
+    |             +-input_scan=
+    |             | +-ProjectScan
+    |             |   +-column_list=[$subquery1.$col1#13]
+    |             |   +-expr_list=
+    |             |   | +-$col1#13 := Literal(type=INT64, value=1)
+    |             |   +-input_scan=
+    |             |     +-SingleRowScan
+    |             +-aggregate_list=
+    |               +-$agg1#14 :=
+    |                 +-AggregateFunctionCall(ZetaSQL:AGG(MEASURE<INT64>) -> INT64)
+    |                   +-ColumnRef(type=MEASURE<INT64>, column=MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10, is_correlated=TRUE)
+    +-input_scan=
+      +-TableScan(column_list=[MeasureTable_WithSubqueryMeasureExprs.measure_literal_one#10], table=MeasureTable_WithSubqueryMeasureExprs, column_index_list=[9])
+
+[SQLBUILDER_OUTPUT]
+SELECT
+  (
+    SELECT
+      AGG(measuretable_withsubquerymeasureexprs_2.a_1) AS a_6
+    FROM
+      (
+        SELECT
+          1 AS a_4
+      ) AS projectscan_5
+  ) AS a_3
+FROM
+  (
+    SELECT
+      MeasureTable_WithSubqueryMeasureExprs.measure_literal_one AS a_1
+    FROM
+      MeasureTable_WithSubqueryMeasureExprs
+  ) AS measuretable_withsubquerymeasureexprs_2;
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#15 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#15]
+    +-expr_list=
+    | +-$col1#15 :=
+    |   +-SubqueryExpr
+    |     +-type=INT64
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$aggregate.$agg1#14]
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$aggregate.$agg1#14]
+    |             +-expr_list=
+    |             | +-$agg1#14 := Literal(type=INT64, value=1)
+    |             +-input_scan=
+    |               +-AggregateScan
+    |                 +-input_scan=
+    |                   +-ProjectScan
+    |                     +-column_list=[$subquery1.$col1#13]
+    |                     +-expr_list=
+    |                     | +-$col1#13 := Literal(type=INT64, value=1)
+    |                     +-input_scan=
+    |                       +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[MeasureTable_WithSubqueryMeasureExprs.struct_for_measures_from_table_MeasureTable_WithSubqueryMeasureExprs#17]
+        +-expr_list=
+        | +-struct_for_measures_from_table_MeasureTable_WithSubqueryMeasureExprs#17 :=
+        |   +-MakeStruct
+        |     +-type=STRUCT<referenced_columns STRUCT<>, key_columns STRUCT<key INT64>>
+        |     +-field_list=
+        |       +-MakeStruct(type=STRUCT<>)
+        |       +-MakeStruct
+        |         +-type=STRUCT<key INT64>
+        |         +-field_list=
+        |           +-ColumnRef(type=INT64, column=MeasureTable_WithSubqueryMeasureExprs.key#16)
+        +-input_scan=
+          +-TableScan(column_list=[MeasureTable_WithSubqueryMeasureExprs.key#16], table=MeasureTable_WithSubqueryMeasureExprs, column_index_list=[0])
+[SQLBUILDER_OUTPUT]
+SELECT
+  (
+    SELECT
+      1 AS a_9
+    FROM
+      (
+        SELECT
+          NULL
+        FROM
+          (
+            SELECT
+              1 AS a_6
+          ) AS projectscan_7
+      ) AS aggregatescan_8
+  ) AS a_5
+FROM
+  (
+    SELECT
+      STRUCT< referenced_columns STRUCT< >, key_columns STRUCT< key INT64 > > (STRUCT< > (), STRUCT< key INT64 >
+        (measuretable_withsubquerymeasureexprs_2.a_1)) AS a_3
+    FROM
+      (
+        SELECT
+          MeasureTable_WithSubqueryMeasureExprs.key AS a_1
+        FROM
+          MeasureTable_WithSubqueryMeasureExprs
+      ) AS measuretable_withsubquerymeasureexprs_2
+  ) AS projectscan_4;

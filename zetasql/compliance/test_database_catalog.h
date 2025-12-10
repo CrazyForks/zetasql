@@ -30,6 +30,7 @@
 #include "zetasql/public/simple_catalog.h"
 #include "zetasql/public/type.h"
 #include "zetasql/public/types/type_factory.h"
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -45,12 +46,13 @@ class TestDatabaseCatalog {
  public:
   SimpleCatalog* catalog() const { return catalog_.get(); }
 
-  absl::Status SetTestDatabase(const TestDatabaseProto& test_db_proto);
+  // Sets up the catalog, types, and tables. The provided `language_options`
+  // is used to analyze measure expressions if any of the tables contain measure
+  // columns.
+  absl::Status SetTestDatabase(const TestDatabaseProto& test_db_proto,
+                               const LanguageOptions& language_options = {});
+
   absl::Status SetLanguageOptions(const LanguageOptions& language_options);
-  // Populate the `table_as_value_with_measures` field for all tables with
-  // measure columns in `test_db`.
-  absl::Status AddTablesWithMeasures(const TestDatabase& test_db,
-                                     const LanguageOptions& language_options);
 
   // Add UDFs and UDAs referenced by measure definitions to the catalog
   absl::Status AddUdfsForMeasureDefinitions(
@@ -58,7 +60,18 @@ class TestDatabaseCatalog {
 
   absl::Status IsInitialized() const;
 
+  // Does not add measure tables.
+  ABSL_DEPRECATED("Use AddTableWithStatus instead")
   void AddTable(const std::string& table_name, const TestTable& table);
+
+  // Adds a table to the catalog.
+  //
+  // The provided `language_options` is used to analyze the expressions of the
+  // measure columns of the table, if any.
+  absl::Status AddTableWithStatus(const std::string& table_name,
+                                  const TestTable& table,
+                                  const LanguageOptions& language_options);
+
   absl::Status LoadProtoEnumTypes(const std::set<std::string>& filenames,
                                   const std::set<std::string>& proto_names,
                                   const std::set<std::string>& enum_names);

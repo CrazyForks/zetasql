@@ -228,10 +228,6 @@ struct TestTable {
   std::vector<MeasureColumnDef> measure_column_defs;
   // Row identity column indices for the table with measure columns.
   std::vector<int> row_identity_columns;
-  // The contents of the table, mapped into a Value object. Unlike
-  // `table_as_value`, this representation also contains values for measure
-  // columns, and is only populated when the table has measure columns.
-  mutable std::optional<Value> table_as_value_with_measures;
 };
 
 // This describes the tables that should be present in the created database,

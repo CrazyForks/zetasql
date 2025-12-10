@@ -191,7 +191,7 @@ absl::StatusOr<zetasql::TVFRelation::Column> BuildStructColumn(
   return zetasql::TVFRelation::Column(output_name, struct_type);
 }
 
-absl::StatusOr<std::unique_ptr<TVFSignature>>
+absl::StatusOr<std::shared_ptr<TVFSignature>>
 ComputeResultTypeForVectorSearchTVF(
     Catalog* catalog, TypeFactory* type_factory,
     const FunctionSignature& signature,
@@ -210,7 +210,7 @@ ComputeResultTypeForVectorSearchTVF(
       zetasql::TVFRelation::Column("distance", type_factory->get_double())};
 
   zetasql::TVFRelation output_schema(output_columns);
-  return std::make_unique<TVFSignature>(input_arguments, output_schema);
+  return TVFSignature::Create(input_arguments, output_schema);
 }
 
 }  // namespace

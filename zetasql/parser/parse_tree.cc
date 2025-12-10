@@ -1798,7 +1798,7 @@ std::string ASTSetOperationMetadata::GetSQLForOperation() const {
 // TODO: b/430036320 - Cleanup after all usages are migrated
 std::vector<const ASTAliasedQuery*> ASTWithClause::with() const {
   std::vector<const ASTAliasedQuery*> aliased_queries_;
-  for (const auto* e : entry_) {
+  for (const auto* e : entries_) {
     ABSL_DCHECK(e->aliased_group_rows() == nullptr);
     if (e->aliased_query() != nullptr) {
       aliased_queries_.push_back(e->aliased_query());

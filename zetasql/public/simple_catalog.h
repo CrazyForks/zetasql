@@ -572,6 +572,8 @@ class SimpleCatalog : public EnumerableCatalog {
       absl::flat_hash_set<const Model*>* output) const override;
   absl::Status GetTableValuedFunctions(
       absl::flat_hash_set<const TableValuedFunction*>* output) const override;
+  absl::Status GetProcedures(
+      absl::flat_hash_set<const Procedure*>* output) const override;
 
   // Accessors for reading a copy of the object lists in this SimpleCatalog.
   // This is intended primarily for tests.

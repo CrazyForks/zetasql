@@ -1990,13 +1990,13 @@ absl::Status Validator::ValidateTableColumnTypeEquality(
   return absl::OkStatus();
 }
 
-// TODO: b/450295734 - Call this function to validate measures in TVFScan.
 absl::Status Validator::ValidateMeasureColumns(const ResolvedScan* scan,
                                                const Table* table) {
   VALIDATOR_RET_CHECK(
       language_options_.LanguageFeatureEnabled(FEATURE_ENABLE_MEASURES))
-      << "TableScan projects a measure column, but "
-         "FEATURE_ENABLE_MEASURES is not enabled. Scan: "
+      << scan->node_kind_string()
+      << "projects a measure column, but FEATURE_ENABLE_MEASURES is not "
+         "enabled. Scan: "
       << scan->DebugString();
   // Measure tables must support NumColumns and GetColumn(i).
   VALIDATOR_RET_CHECK(table->HasColumnList());
@@ -3579,8 +3579,19 @@ absl::Status Validator::ValidateResolvedTVFScan(
 
   // Each output column should have a unique column id. Mark the column id
   // as seen and verify that we haven't already seen it.
+  bool has_measure_columns = false;
   for (const ResolvedColumn& column : resolved_tvf_scan->column_list()) {
     ZETASQL_RETURN_IF_ERROR(CheckUniqueColumnId(column));
+    if (column.type() != nullptr && column.type()->IsMeasureType()) {
+      has_measure_columns = true;
+    }
+  }
+  if (has_measure_columns) {
+    const Table* result_table_schema =
+        resolved_tvf_scan->signature()->result_table_schema();
+    VALIDATOR_RET_CHECK_NE(result_table_schema, nullptr);
+    ZETASQL_RETURN_IF_ERROR(
+        ValidateMeasureColumns(resolved_tvf_scan, result_table_schema));
   }
 
   // Ideally, column_index_list should always be the same size as column_list.
@@ -8358,7 +8369,8 @@ absl::Status Validator::ValidateResolvedStatementWithPipeOperatorsStmt(
                                  << stmt->statement()->node_kind_string();
   }
 
-  ZETASQL_RET_CHECK(!stmt->suffix_subpipeline_sql().empty());
+  VALIDATOR_RET_CHECK(stmt->suffix_subpipeline_sql() != nullptr);
+  VALIDATOR_RET_CHECK(!stmt->suffix_subpipeline_sql()->value().empty());
   return ValidateResolvedStatementInternal(stmt->statement());
 }
 

@@ -3279,6 +3279,31 @@ void SQLTestBase::MaybeAddMeasureTables(
         test_case_options.required_features();
     test_db.tables.insert(
         {"MeasureTable_Sales_Denormalized", measure_table_sales_denormalized});
+
+    // We add another TestTable where all measure columns have row identity
+    // columns but the table does not.
+    Value measure_table_no_table_row_identity_columns_as_value =
+        test_values::StructArray(
+            {"row_id", "product_id", "product_name", "revenue"},
+            {{1ll, 101ll, "apple", 100ll},
+             {2ll, 102ll, "banana", 200ll},
+             {3ll, 101ll, "apple", 150ll}},
+            InternalValue::kIgnoresOrder);
+    std::vector<MeasureColumnDef>
+        measure_table_no_table_row_identity_columns_measure_defs = {
+            {.name = "measure_all_product_names",
+             .expression = "ARRAY_AGG(product_name)",
+             .row_identity_column_indices = std::vector<int>{1}}};
+    TestTable measure_table_no_table_row_identity_columns = {
+        .table_as_value =
+            std::move(measure_table_no_table_row_identity_columns_as_value),
+        .measure_column_defs =
+            std::move(measure_table_no_table_row_identity_columns_measure_defs),
+    };
+    *measure_table_no_table_row_identity_columns.options
+         .mutable_required_features() = test_case_options.required_features();
+    test_db.tables.insert({"MeasureTable_NoTableRowIdentityColumns",
+                           measure_table_no_table_row_identity_columns});
   }
 }
 

@@ -304,8 +304,8 @@ TEST(TVFTest, TVFResolveCallsComputeResultCallBack) {
         TVFSignatureOptions tvf_signature_options;
         tvf_signature_options.additional_deprecation_warnings =
             signature.AdditionalDeprecationWarnings();
-        return std::make_unique<TVFSignature>(arguments, tvf_relation,
-                                              tvf_signature_options);
+        return TVFSignature::Create(arguments, tvf_relation,
+                                    tvf_signature_options);
       };
 
   FunctionSignature signature(ARG_TYPE_RELATION, {}, -1);

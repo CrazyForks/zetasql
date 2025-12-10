@@ -690,7 +690,7 @@ def Field(
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 315
+NEXT_NODE_TAG_ID = 316
 
 
 def GetTempTagId():
@@ -4859,6 +4859,23 @@ value.
   )
 
   gen.AddNode(
+      name='ResolvedStringWithLocation',
+      tag_id=315,
+      parent='ResolvedArgument',
+      comment="""
+      A node that holds a substring of the input SQL and also records its
+      `parse_location_range`.
+
+      If `parse_location_range` is set, `value` must match the contents of the
+      original request at the same `parse_location`.
+      (The validator cannot currently check this.)
+              """,
+      fields=[
+          Field('value', SCALAR_STRING, tag_id=2),
+      ],
+  )
+
+  gen.AddNode(
       name='ResolvedStatementWithPipeOperatorsStmt',
       tag_id=310,
       parent='ResolvedStatement',
@@ -4878,7 +4895,9 @@ value.
               """,
       fields=[
           Field('statement', 'ResolvedStatement', tag_id=2),
-          Field('suffix_subpipeline_sql', SCALAR_STRING, tag_id=3),
+          Field(
+              'suffix_subpipeline_sql', 'ResolvedStringWithLocation', tag_id=3
+          ),
       ],
   )
 

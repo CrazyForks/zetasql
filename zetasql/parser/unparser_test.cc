@@ -102,7 +102,7 @@ CREATE PROPERTY
       GRAPH
 MusicGraph NODE    TABLES
  (
- Singers AS Singer LABEL
+ Singers AS Singer OPTIONS (description = "A singer") LABEL
 MUSIC_CREATOR PROPERTIES (
   CONCAT(FirstName, " ", LastName) AS name,
      SingerInfo.nationality AS country_origin)
@@ -136,7 +136,7 @@ Albums AS COMPANY_PRODUCES_ALBUM KEY(
   CompanyId, SingerId, AlbumId) SOURCE KEY (CompanyId) REFERENCES Company
 DESTINATION
 KEY(SingerId, AlbumId) REFERENCES Album
-    LABEL CREATES_MUSIC PROPERTIES(ReleaseDate AS release_date, AlbumId AS album_id)
+    DEFAULT LABEL OPTIONS (description = "Music production") PROPERTIES(ReleaseDate AS release_date, AlbumId AS album_id),
 )
 )SQL";
 
@@ -144,6 +144,7 @@ KEY(SingerId, AlbumId) REFERENCES Album
       R"SQL(CREATE PROPERTY GRAPH MusicGraph
   NODE TABLES(
     Singers AS Singer
+      OPTIONS(description = "A singer")
       LABEL MUSIC_CREATOR PROPERTIES(
         CONCAT(FirstName, " ", LastName) AS name,
         SingerInfo.nationality AS country_origin)
@@ -185,7 +186,7 @@ KEY(SingerId, AlbumId) REFERENCES Album
       KEY(CompanyId, SingerId, AlbumId)
       SOURCE KEY(CompanyId) REFERENCES Company
       DESTINATION KEY(SingerId, AlbumId) REFERENCES Album
-      LABEL CREATES_MUSIC PROPERTIES(
+      DEFAULT LABEL OPTIONS(description = "Music production") PROPERTIES(
         ReleaseDate AS release_date,
         AlbumId AS album_id)
   )

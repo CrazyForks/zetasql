@@ -32,7 +32,8 @@ ALTERNATION GROUPS:
 StatementWithPipeOperatorsStmt
 +-statement=
 | +-ShowStmt(identifier="tables")
-+-suffix_subpipeline_sql="|> WHERE true"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=12-25, value="|> WHERE true")
 ==
 
 [default language_features=MAXIMUM,+STATEMENT_WITH_PIPE_OPERATORS]
@@ -47,7 +48,8 @@ ALTERNATION GROUP: <empty>
 StatementWithPipeOperatorsStmt
 +-statement=
 | +-ShowStmt(identifier="TABLES")
-+-suffix_subpipeline_sql="|> select abc, def\n|> where true\n|> limit 1"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=64-107, value="|> select abc, def\n|> where true\n|> limit 1")
 --
 ALTERNATION GROUP:  invalid
 --
@@ -63,7 +65,8 @@ SHOW TABLES
 StatementWithPipeOperatorsStmt
 +-statement=
 | +-ShowStmt(identifier="TABLES")
-+-suffix_subpipeline_sql="|> DESCRIBE"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=12-23, value="|> DESCRIBE")
 ==
 
 DESCRIBE abc
@@ -72,7 +75,8 @@ DESCRIBE abc
 StatementWithPipeOperatorsStmt
 +-statement=
 | +-DescribeStmt(object_type="", name_path=abc)
-+-suffix_subpipeline_sql="|> EXTEND describe+1"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=13-33, value="|> EXTEND describe+1")
 ==
 
 @{hint=1}
@@ -84,7 +88,8 @@ StatementWithPipeOperatorsStmt
 | +-hint := Literal(type=INT64, value=1)
 +-statement=
 | +-ShowStmt(identifier="TABLES")
-+-suffix_subpipeline_sql="|> WHERE true"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=22-35, value="|> WHERE true")
 ==
 
 @{hint1=1}
@@ -102,7 +107,8 @@ ExplainStmt
     | +-hint2 := Literal(type=INT64, value=2)
     +-statement=
     | +-ShowStmt(identifier="TABLES")
-    +-suffix_subpipeline_sql="|> WHERE true"
+    +-suffix_subpipeline_sql=
+      +-StringWithLocation(parse_location=42-55, value="|> WHERE true")
 ==
 
 # Analysis for RUN doesn't work yet.
@@ -120,7 +126,8 @@ CALL proc_no_args()
 StatementWithPipeOperatorsStmt
 +-statement=
 | +-CallStmt(procedure=proc_no_args, signature=() -> BOOL)
-+-suffix_subpipeline_sql="|> SELECT x"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=20-31, value="|> SELECT x")
 ==
 
 CALL invalid_prod()
@@ -157,7 +164,8 @@ StatementWithPipeOperatorsStmt
 |       |         +-aggregate_list=
 |       |           +-$agg1#3 := AggregateFunctionCall(ZetaSQL:$count_star() -> INT64)
 |       +-Literal(type=INT64, value=10)
-+-suffix_subpipeline_sql="|> WHERE true"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=58-71, value="|> WHERE true")
 ==
 
 EXECUTE IMMEDIATE "SELECT 1 x"
@@ -169,7 +177,8 @@ StatementWithPipeOperatorsStmt
 |   +-sql=
 |   | +-Literal(type=STRING, value="SELECT 1 x")
 |   +-into_identifier_list=[]
-+-suffix_subpipeline_sql="|> EXTEND x+1"
++-suffix_subpipeline_sql=
+  +-StringWithLocation(parse_location=31-44, value="|> EXTEND x+1")
 ==
 
 # Pipe operators after a GQL query.

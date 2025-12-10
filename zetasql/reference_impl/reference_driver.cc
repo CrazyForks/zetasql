@@ -29,6 +29,7 @@
 
 #include "zetasql/base/logging.h"
 #include "zetasql/common/evaluator_registration_utils.h"
+#include "zetasql/common/measure_analysis_utils.h"
 #include "zetasql/common/status_payload_utils.h"
 #include "zetasql/compliance/test_driver.h"
 #include "zetasql/proto/script_exception.pb.h"
@@ -253,10 +254,12 @@ absl::Status ReferenceDriver::LoadProtoEnumTypes(
   return catalog_.LoadProtoEnumTypes(filenames, proto_names, enum_names);
 }
 
-void ReferenceDriver::AddTable(const std::string& table_name,
-                               const TestTable& table) {
-  catalog_.AddTable(table_name, table);
+absl::Status ReferenceDriver::AddTable(const std::string& table_name,
+                                       const TestTable& table) {
+  ZETASQL_RETURN_IF_ERROR(
+      catalog_.AddTableWithStatus(table_name, table, language_options_));
   AddTableInternal(table_name, table);
+  return absl::OkStatus();
 }
 
 void ReferenceDriver::AddTableInternal(const std::string& table_name,
@@ -271,19 +274,34 @@ void ReferenceDriver::AddTableInternal(const std::string& table_name,
   table_info.table_name = table_name;
   table_info.required_features = table.options.required_features();
   table_info.is_value_table = table.options.is_value_table();
-  table_info.array = table.table_as_value_with_measures.has_value()
-                         ? table.table_as_value_with_measures.value()
-                         : table.table_as_value;
   table_info.table =
       const_cast<SimpleTable*>(dynamic_cast<const SimpleTable*>(catalog_table));
   ABSL_CHECK(table_info.table != nullptr);
+  if (!table.measure_column_defs.empty()) {
+    // If the test table contains measure columns, `table.table_as_value` does
+    // not include the values for the measure columns. We compute them here
+    // and create a new value representing the whole table including the measure
+    // columns.
+    // TODO: b/350555383 - Value tables should be supported. Remove this.
+    ABSL_CHECK(!table.options.is_value_table());
+    ABSL_CHECK(array_value.type()->IsArray());
+    auto element_type = array_value.type()->AsArray()->element_type();
+    ABSL_CHECK(element_type->IsStruct());
+    absl::StatusOr<Value> new_array_value = UpdateTableRowsWithMeasureValues(
+        array_value, table_info.table, table.measure_column_defs,
+        table.row_identity_columns, type_factory(), language_options_);
+    ZETASQL_CHECK_OK(new_array_value);
+    table_info.array = *new_array_value;
+  } else {
+    table_info.array = table.table_as_value;
+  }
 
   tables_.push_back(table_info);
 }
 
 absl::Status ReferenceDriver::CreateDatabase(
     const TestDatabaseProto& test_db_proto) {
-  ZETASQL_RETURN_IF_ERROR(catalog_.SetTestDatabase(test_db_proto));
+  ZETASQL_RETURN_IF_ERROR(catalog_.SetTestDatabase(test_db_proto, language_options_));
   ZETASQL_ASSIGN_OR_RETURN(TestDatabase test_db,
                    DeserializeTestDatabase(test_db_proto, type_factory(),
                                            descriptor_pool()));
@@ -299,9 +317,6 @@ absl::Status ReferenceDriver::CreateDatabaseWithLeakyDescriptors(
 absl::Status ReferenceDriver::CreateDatabaseInternal(
     const TestDatabase& test_db) {
   ZETASQL_RETURN_IF_ERROR(catalog_.SetLanguageOptions(language_options_));
-  ZETASQL_RETURN_IF_ERROR(
-      catalog_.AddUdfsForMeasureDefinitions(test_db, language_options_));
-  ZETASQL_RETURN_IF_ERROR(catalog_.AddTablesWithMeasures(test_db, language_options_));
 
   // Replace tables to the catalog.
   tables_.clear();

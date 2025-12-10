@@ -44,14 +44,15 @@
 #include "zetasql/public/function.h"
 #include "zetasql/public/function_signature.h"
 #include "zetasql/public/functions/like.h"
+#include "zetasql/public/lenient_formatter.h"
 #include "zetasql/public/multi_catalog.h"
 #include "zetasql/public/parse_helpers.h"
+#include "zetasql/public/parse_location.h"
 #include "zetasql/public/parse_resume_location.h"
 #include "zetasql/public/parse_tokens.h"
 #include "zetasql/public/simple_catalog.h"
 #include "zetasql/public/simple_catalog_util.h"
 #include "zetasql/public/sql_constant.h"
-#include "zetasql/public/sql_formatter.h"
 #include "zetasql/public/strings.h"
 #include "zetasql/public/type.h"
 #include "zetasql/public/types/proto_type.h"
@@ -68,6 +69,7 @@
 #include "zetasql/tools/execute_query/selectable_catalog.h"
 #include "zetasql/tools/execute_query/value_as_table_adapter.h"
 #include "zetasql/base/case.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -1085,11 +1087,8 @@ static absl::Status UnanalyzeQuery(const ResolvedNode* resolved_node,
   sql_builder_options.target_syntax_mode = config.target_syntax_mode();
   SQLBuilder builder(sql_builder_options);
   ZETASQL_RETURN_IF_ERROR(builder.Process(*resolved_node));
-
   ZETASQL_ASSIGN_OR_RETURN(std::string sql, builder.GetSql());
-  std::string formatted_sql;
-  ZETASQL_RETURN_IF_ERROR(FormatSql(sql, &formatted_sql));
-  formatted_sql.append(1, '\n');
+  ZETASQL_ASSIGN_OR_RETURN(std::string formatted_sql, LenientFormatSql(sql));
   return writer.unanalyze(formatted_sql);
 }
 
@@ -1667,9 +1666,8 @@ static absl::Status ExplainAndOrExecuteSql(const ResolvedNode* resolved_node,
 // This is implemented in execute_query rather than in the reference
 // implementation because DESCRIBE is engine-defined behavior and does not
 // have a specified correct answer that could be compliance tested.
-static absl::Status ExecuteDescribe(const ResolvedNode* resolved_node,
-                                    ExecuteQueryConfig& config,
-                                    ExecuteQueryWriter& writer) {
+static absl::StatusOr<std::unique_ptr<SimpleTable>> ExecuteDescribe(
+    const ResolvedNode* resolved_node, ExecuteQueryConfig& config) {
   ZETASQL_RET_CHECK_EQ(resolved_node->node_kind(), RESOLVED_DESCRIBE_STMT);
   const ResolvedDescribeStmt* describe =
       resolved_node->GetAs<ResolvedDescribeStmt>();
@@ -1829,9 +1827,16 @@ static absl::Status ExecuteDescribe(const ResolvedNode* resolved_node,
     return zetasql_base::InvalidArgumentErrorBuilder() << "Object not found";
   }
 
-  ZETASQL_RETURN_IF_ERROR(writer.executed(output.str()));
+  auto result_table = std::make_unique<SimpleTable>(
+      "DescribeTable",
+      std::vector<SimpleTable::NameAndType>{{"Describe", types::StringType()}});
+  std::vector<std::vector<Value>> rows;
+  // Output looks better with trailing newlines stripped.
+  rows.push_back(
+      {Value::String(absl::StripTrailingAsciiWhitespace(output.str()))});
+  result_table->SetContents(rows);
 
-  return absl::OkStatus();
+  return result_table;
 }
 
 // Recursively collects all the catalogs that are enumerable.
@@ -1869,9 +1874,8 @@ absl::Status GetEnumerableCatalogs(
 // have a specified correct answer that could be compliance tested.
 //
 // Note that [object_type] is in plural, i.e. SHOW TABLES rather than SHOW TABLE
-static absl::Status ExecuteShow(const ResolvedNode* resolved_node,
-                                ExecuteQueryConfig& config,
-                                ExecuteQueryWriter& writer) {
+static absl::StatusOr<std::unique_ptr<SimpleTable>> ExecuteShow(
+    const ResolvedNode* resolved_node, ExecuteQueryConfig& config) {
   ZETASQL_RET_CHECK_EQ(resolved_node->node_kind(), RESOLVED_SHOW_STMT);
   const ResolvedShowStmt* show_stmt = resolved_node->GetAs<ResolvedShowStmt>();
   const std::string object_type =
@@ -1911,13 +1915,26 @@ static absl::Status ExecuteShow(const ResolvedNode* resolved_node,
     }
   }
 
-  auto sorted_strings = [](const absl::flat_hash_set<std::string>& set) {
-    std::vector<std::string> v(set.begin(), set.end());
-    std::sort(v.begin(), v.end(), zetasql_base::CaseLess());
-    return absl::StrJoin(v, "\n");
+  // Make a result table, assuming one column with sorted string values.
+  auto make_table = [](std::string table_name, std::string column_name,
+                       const absl::flat_hash_set<std::string>& values) {
+    std::vector<std::string> sorted(values.begin(), values.end());
+    std::sort(sorted.begin(), sorted.end(),
+              zetasql_base::CaseLess());
+
+    std::vector<std::vector<Value>> rows;
+    rows.reserve(sorted.size());
+    for (const std::string& value : sorted) {
+      rows.push_back({Value::String(value)});
+    }
+
+    auto result_table = std::make_unique<SimpleTable>(
+        table_name, std::vector<SimpleTable::NameAndType>{
+                        {column_name, types::StringType()}});
+    result_table->SetContents(rows);
+    return result_table;
   };
 
-  int object_count = 0;
   if (object_type == "tables") {
     absl::flat_hash_set<std::string> table_names;
     for (const EnumerableCatalog* enumerable_catalog : enumerable_catalogs) {
@@ -1929,8 +1946,7 @@ static absl::Status ExecuteShow(const ResolvedNode* resolved_node,
         }
       }
     }
-    object_count += table_names.size();
-    ZETASQL_RETURN_IF_ERROR(writer.executed(sorted_strings(table_names)));
+    return make_table("ShowTables", "TableName", table_names);
   } else if (object_type == "functions") {
     absl::flat_hash_set<std::string> function_names;
     for (const EnumerableCatalog* enumerable_catalog : enumerable_catalogs) {
@@ -1945,8 +1961,7 @@ static absl::Status ExecuteShow(const ResolvedNode* resolved_node,
         }
       }
     }
-    object_count += function_names.size();
-    ZETASQL_RETURN_IF_ERROR(writer.executed(sorted_strings(function_names)));
+    return make_table("ShowFunctions", "FunctionName", function_names);
   } else if (object_type == "tvfs") {
     absl::flat_hash_set<std::string> tvf_names;
     for (const EnumerableCatalog* enumerable_catalog : enumerable_catalogs) {
@@ -1958,20 +1973,23 @@ static absl::Status ExecuteShow(const ResolvedNode* resolved_node,
         }
       }
     }
-    object_count += tvf_names.size();
-    ZETASQL_RETURN_IF_ERROR(writer.executed(sorted_strings(tvf_names)));
+    return make_table("ShowTVFs", "TVFName", tvf_names);
+  } else if (object_type == "procedures") {
+    absl::flat_hash_set<std::string> procedure_names;
+    for (const EnumerableCatalog* enumerable_catalog : enumerable_catalogs) {
+      absl::flat_hash_set<const Procedure*> procedures;
+      ZETASQL_RETURN_IF_ERROR(enumerable_catalog->GetProcedures(&procedures));
+      for (const auto& procedure : procedures) {
+        if (like_filter(procedure->Name())) {
+          procedure_names.insert(procedure->Name());
+        }
+      }
+    }
+    return make_table("ShowProcedures", "ProcedureName", procedure_names);
   } else {
     return zetasql_base::InvalidArgumentErrorBuilder()
            << "Unsupported object type: " << show_stmt->identifier();
   }
-
-  // TODO: Remove this once we have table output.
-  if (object_count == 0) {
-    ZETASQL_RETURN_IF_ERROR(
-        writer.executed(absl::StrCat("No matching ", object_type, " found")));
-  }
-
-  return absl::OkStatus();
 }
 
 static absl::StatusOr<absl::string_view> ExtractNextStatement(
@@ -2048,9 +2066,13 @@ static absl::Status ExecuteScript(absl::string_view script,
 // Process the next statement from script, updating `parse_result_location`
 // and `at_end_of_input`.  Attempt to update those locations even on failure,
 // to allow continuing with the next statement.
+//
+// `is_pipe_suffix` is true when this is a re-entrant call to handle the
+// pipe suffix for a ResolvedStatementWithPipeOperatorsStmt.
 static absl::Status ExecuteOneQuery(absl::string_view script,
                                     ExecuteQueryConfig& config,
                                     ExecuteQueryWriter& writer,
+                                    bool is_pipe_suffix,
                                     ParseResumeLocation* parse_resume_location,
                                     bool* at_end_of_input) {
   ParseResumeLocation start_location = *parse_resume_location;
@@ -2062,7 +2084,11 @@ static absl::Status ExecuteOneQuery(absl::string_view script,
   if (*at_end_of_input) {
     return absl::OkStatus();
   }
-  ZETASQL_RETURN_IF_ERROR(writer.statement_text(statement_text));
+  if (!is_pipe_suffix) {
+    // Only emit the statement_text on the outer Execute call, not for
+    // the re-entrant call for subpipeline suffix handling.
+    ZETASQL_RETURN_IF_ERROR(writer.statement_text(statement_text));
+  }
 
   std::unique_ptr<ParserOutput> parser_output;
   absl::StatusOr<const ASTNode*> ast = ParseSql(
@@ -2151,14 +2177,103 @@ static absl::Status ExecuteOneQuery(absl::string_view script,
                        " is not supported for explanation."));
     } else {
       ZETASQL_RET_CHECK(config.has_tool_mode(ToolMode::kExecute));
-      if (resolved_node->node_kind() == RESOLVED_DESCRIBE_STMT) {
-        ZETASQL_RETURN_IF_ERROR(ExecuteDescribe(resolved_node, config, writer));
-      } else if (resolved_node->node_kind() == RESOLVED_SHOW_STMT) {
-        ZETASQL_RETURN_IF_ERROR(ExecuteShow(resolved_node, config, writer));
+
+      // We handle pipe operator suffixes on auxiliary statements when they
+      // show up as ResolvedStatementWithPipeOperatorsStmt.  We run the initial
+      // statement and get a SimpleTable with its result.  Then we feed that
+      // table into a second call to ExecuteOneQuery to run the pipe suffix.
+      const ResolvedNode* initial_stmt = resolved_node;
+      const ResolvedStatementWithPipeOperatorsStmt* stmt_with_pipes = nullptr;
+      if (resolved_node->node_kind() ==
+          RESOLVED_STATEMENT_WITH_PIPE_OPERATORS_STMT) {
+        stmt_with_pipes =
+            resolved_node->GetAs<ResolvedStatementWithPipeOperatorsStmt>();
+        initial_stmt = stmt_with_pipes->statement();
+      }
+
+      // For all supported auxiliary statements, we get the output first as a
+      // SimpleTable.
+      std::unique_ptr<SimpleTable> result_table;
+      if (initial_stmt->node_kind() == RESOLVED_DESCRIBE_STMT) {
+        ZETASQL_ASSIGN_OR_RETURN(result_table, ExecuteDescribe(initial_stmt, config));
+      } else if (initial_stmt->node_kind() == RESOLVED_SHOW_STMT) {
+        ZETASQL_ASSIGN_OR_RETURN(result_table, ExecuteShow(initial_stmt, config));
       } else {
         return absl::InvalidArgumentError(
-            absl::StrCat("The statement ", resolved_node->node_kind_string(),
+            absl::StrCat("The statement ", initial_stmt->node_kind_string(),
                          " is not supported for execution."));
+      }
+      ZETASQL_RET_CHECK(result_table != nullptr);
+
+      if (stmt_with_pipes == nullptr) {
+        // We're just running this statement and showing the output.
+        // Get an iterator over the SimpleTable, and render the result table
+        // from that iterator the same way we do for query results.
+        std::vector<int> column_idxs;
+        column_idxs.reserve(result_table->NumColumns());
+        for (int i = 0; i < result_table->NumColumns(); ++i) {
+          column_idxs.push_back(i);
+        }
+        ZETASQL_ASSIGN_OR_RETURN(
+            auto table_iterator,
+            result_table->CreateEvaluatorTableIterator(column_idxs));
+        ZETASQL_RETURN_IF_ERROR(
+            writer.executed(*resolved_node, std::move(table_iterator)));
+      } else {
+        // We have a ResolvedStatementWithPipeOperatorsStmt.
+        // Execute the subpipeline suffix with a re-entrant call to
+        // ExecuteOneQuery, feeding `result_table` back in as the subpipline
+        // input table.
+        AnalyzerOptions old_options = config.analyzer_options();
+        absl::Cleanup options_cleanup = [&] {
+          config.mutable_analyzer_options() = old_options;
+        };
+        config.mutable_analyzer_options()
+            .set_default_table_for_subpipeline_stmt(result_table.get());
+        // We expect the statement to be a RESOLVED_SUBPIPELINE_STMT.
+        // We enable RESOLVED_GENERALIZED_QUERY_STMT to allow using generalized
+        // pipe operators like FORK and CREATE TABLE.
+        config.mutable_analyzer_options()
+            .mutable_language()
+            ->SetSupportedStatementKinds(
+                {RESOLVED_SUBPIPELINE_STMT, RESOLVED_GENERALIZED_QUERY_STMT});
+
+        // If the tool mode is kExecute only, then we'll just show a single
+        // final output.
+        // Otherwise, we'll have outputs from the initial parse/analysis/etc,
+        // and then more ouputs from the subpipeline parse/analyze/etc plus
+        // execute.  Show these as a separate statement so they don't overwrite
+        // the outputs from the first phase.
+        if (!(config.tool_modes().size() == 1 &&
+              config.has_tool_mode(ToolMode::kExecute))) {
+          ZETASQL_RETURN_IF_ERROR(writer.StartStatement(/*is_first=*/false));
+          ZETASQL_RETURN_IF_ERROR(writer.statement_text(
+              "# Handling pipe suffix from previous statement"));
+        }
+
+        // The parse location points at the subpipeline inside the original
+        // query string.
+        auto new_parse_resume_location =
+            ParseResumeLocation::FromStringView(script);
+        bool new_at_end_of_input = false;
+
+        const ParseLocationRange* location =
+            stmt_with_pipes->suffix_subpipeline_sql()
+                ->GetParseLocationRangeOrNULL();
+        ZETASQL_RET_CHECK(location != nullptr);
+        new_parse_resume_location.set_byte_position(
+            location->start().GetByteOffset());
+
+        ZETASQL_RETURN_IF_ERROR(ExecuteOneQuery(script, config, writer,
+                                        /*is_pipe_suffix=*/true,
+                                        &new_parse_resume_location,
+                                        &new_at_end_of_input));
+
+        // We expect the reparse of the pipe suffix to find the same
+        // end-of-statement point that the original parse did.
+        ZETASQL_RET_CHECK_EQ(new_parse_resume_location.byte_position(),
+                     parse_resume_location->byte_position());
+        ZETASQL_RET_CHECK_EQ(new_at_end_of_input, *at_end_of_input);
       }
     }
   }
@@ -2168,6 +2283,12 @@ static absl::Status ExecuteOneQuery(absl::string_view script,
 
 absl::Status ExecuteQuery(absl::string_view sql, ExecuteQueryConfig& config,
                           ExecuteQueryWriter& writer) {
+  if (config.analyzer_options().language().LanguageFeatureEnabled(
+          FEATURE_PIPES)) {
+    config.mutable_analyzer_options().mutable_language()->EnableLanguageFeature(
+        FEATURE_STATEMENT_WITH_PIPE_OPERATORS);
+  }
+
   std::string script(sql);
   if (config.sql_mode() == SqlMode::kScript) {
     ZETASQL_RETURN_IF_ERROR(ExecuteScript(script, config, writer));
@@ -2187,7 +2308,8 @@ absl::Status ExecuteQuery(absl::string_view sql, ExecuteQueryConfig& config,
     const ParseResumeLocation old_location = parse_resume_location;
 
     absl::Status status = ExecuteOneQuery(
-        script, config, writer, &parse_resume_location, &at_end_of_input);
+        script, config, writer,
+        /*is_pipe_suffix=*/false, &parse_resume_location, &at_end_of_input);
 
     if (!status.ok()) {
       status.ErasePayload(kErrorMessageModeUrl);

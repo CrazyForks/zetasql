@@ -406,7 +406,7 @@ absl::Status TableValuedFunction::Resolve(
   ZETASQL_RET_CHECK(tvf_options_.compute_result_type_callback != nullptr)
       << "TableValuedFunctionOptions compute_result_type_callback is not set, "
          "output signature couldn't be calculated";
-  ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<TVFSignature> result_type,
+  ZETASQL_ASSIGN_OR_RETURN(std::shared_ptr<TVFSignature> result_type,
                    tvf_options_.compute_result_type_callback(
                        catalog, type_factory, concrete_signature,
                        actual_arguments, *analyzer_options));

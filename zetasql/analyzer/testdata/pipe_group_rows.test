@@ -1,0 +1,48 @@
+[default language_features=MAXIMUM,+WITH_GROUP_ROWS]
+
+[language_features=MAXIMUM]
+# Group rows not supported.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                   FROM group_rows()
+                   |> SELECT key)
+--
+ERROR: GROUP ROWS is not supported. [at 3:41]
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                                        ^
+==
+
+# Group rows in PIPE WITH operator fails.
+FROM TestTable
+|> WITH group_rows() AS GROUP ROWS
+|> SELECT key
+--
+ERROR: GROUP ROWS not supported in Pipe WITH operator [at 2:9]
+|> WITH group_rows() AS GROUP ROWS
+        ^
+==
+
+# Multiple group rows entries fail.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH
+                     group_rows1() AS GROUP ROWS,
+                     group_rows2() AS GROUP ROWS
+                   FROM group_rows1()
+                   |> SELECT key)
+--
+ERROR: Cannot have more than one GROUP ROWS alias in a with clause [at 4:22]
+                     group_rows2() AS GROUP ROWS
+                     ^
+==
+
+# Group rows entry not being first fails.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH
+                     t AS (SELECT 1, 2),
+                     group_rows() AS GROUP ROWS
+                   FROM group_rows()
+                   |> SELECT key)
+--
+ERROR: GROUP ROWS must be the first entry in a WITH clause [at 4:22]
+                     group_rows() AS GROUP ROWS
+                     ^

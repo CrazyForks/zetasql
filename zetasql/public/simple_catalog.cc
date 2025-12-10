@@ -1692,6 +1692,15 @@ absl::Status SimpleCatalog::GetTableValuedFunctions(
   return absl::OkStatus();
 }
 
+absl::Status SimpleCatalog::GetProcedures(
+    absl::flat_hash_set<const Procedure*>* output) const {
+  ZETASQL_RET_CHECK_NE(output, nullptr);
+  ZETASQL_RET_CHECK(output->empty());
+  absl::MutexLock lock(&mutex_);
+  InsertValuesFromMap(procedures_, output);
+  return absl::OkStatus();
+}
+
 std::vector<std::string> SimpleCatalog::table_names() const {
   absl::MutexLock l(&mutex_);
   std::vector<std::string> table_names;

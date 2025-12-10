@@ -1,0 +1,54 @@
+[default language_features=MAXIMUM,+WITH_GROUP_ROWS]
+
+[language_features=MAXIMUM]
+# Group rows not supported.
+SELECT ARRAY(
+  WITH group_rows() AS GROUP ROWS
+  SELECT key
+  FROM group_rows()
+)
+FROM TestTable
+--
+ERROR: GROUP ROWS is not supported. [at 3:24]
+  WITH group_rows() AS GROUP ROWS
+                       ^
+==
+
+# Group rows in outer query fails.
+WITH group_rows() AS GROUP ROWS
+SELECT key
+FROM group_rows()
+--
+ERROR: GROUP ROWS are not allowed in the outer-most query [at 1:6]
+WITH group_rows() AS GROUP ROWS
+     ^
+==
+
+# Multiple group rows entries fail.
+SELECT ARRAY(
+  WITH
+    group_rows1() AS GROUP ROWS,
+    group_rows2() AS GROUP ROWS
+  SELECT key
+  FROM group_rows1()
+)
+FROM TestTable
+--
+ERROR: Cannot have more than one GROUP ROWS alias in a with clause [at 4:5]
+    group_rows2() AS GROUP ROWS
+    ^
+==
+
+# Group rows entry not being first fails.
+SELECT ARRAY(
+  WITH
+    t AS (SELECT 1, 2),
+    group_rows() AS GROUP ROWS
+  SELECT key
+  FROM group_rows()
+)
+FROM TestTable
+--
+ERROR: GROUP ROWS must be the first entry in a WITH clause [at 4:5]
+    group_rows() AS GROUP ROWS
+    ^

@@ -25,6 +25,10 @@ namespace zetasql {
 // time.
 bool IsAnalysisConstant(const ResolvedNode* node);
 
+// Returns true if `node` is an expression that is constant during planning
+// time.
+bool IsImmutableConstant(const ResolvedNode* node);
+
 }  // namespace zetasql
 
 #endif  // ZETASQL_COMMON_CONSTANT_UTILS_H_

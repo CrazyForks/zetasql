@@ -418,6 +418,10 @@ public final class FunctionArgumentType implements Serializable {
       return getConstnessLevel() == ConstnessLevelProto.Level.ANALYSIS_CONST;
     }
 
+    public boolean getMustBeImmutableConstant() {
+      return getConstnessLevel() == ConstnessLevelProto.Level.IMMUTABLE_CONST;
+    }
+
     @Nullable
     public abstract Boolean getMustBeNonNull();
 
@@ -689,6 +693,12 @@ public final class FunctionArgumentType implements Serializable {
       if (getMustBeConstant()) {
         options.add("must_be_constant: true");
       }
+      if (getMustBeAnalysisConstant()) {
+        options.add("must_be_analysis_constant: true");
+      }
+      if (getMustBeImmutableConstant()) {
+        options.add("must_be_immutable_constant: true");
+      }
       if (getMustBeConstantExpression()) {
         options.add("must_be_constant_expression: true");
       }
@@ -765,6 +775,22 @@ public final class FunctionArgumentType implements Serializable {
                   || getConstnessLevel() == ConstnessLevelProto.Level.ANALYSIS_CONST,
               "Cannot set mustBeAnalysisConstant when another constness level is already set.");
           setConstnessLevel(ConstnessLevelProto.Level.ANALYSIS_CONST);
+        } else {
+          setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
+        }
+        return this;
+      }
+
+      @CanIgnoreReturnValue
+      public Builder setMustBeImmutableConstant(boolean immutableConstant) {
+        if (immutableConstant) {
+          Preconditions.checkState(
+              getConstnessLevel() == null
+                  || getConstnessLevel() == ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED
+                  || getConstnessLevel() == ConstnessLevelProto.Level.IMMUTABLE_CONST,
+              "Cannot set mustBeImmutableConstant when another constness level "
+                  + "is already set.");
+          setConstnessLevel(ConstnessLevelProto.Level.IMMUTABLE_CONST);
         } else {
           setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
         }

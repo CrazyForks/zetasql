@@ -1213,8 +1213,13 @@ absl::Status Resolver::ResolveStatementWithPipeOperators(
                    GetSQLForASTNode(ast_stmt->pipe_operator_suffix()));
   ZETASQL_RET_CHECK(!subpipeline_sql.empty());
 
+  auto sql_with_location = MakeResolvedStringWithLocation(subpipeline_sql);
+  sql_with_location->SetParseLocationRange(
+      ast_stmt->pipe_operator_suffix()->location());
+
   *output_stmt = MakeResolvedStatementWithPipeOperatorsStmt(
-      std::move(inner_statement), subpipeline_sql);
+      std::move(inner_statement), std::move(sql_with_location));
+
   return absl::OkStatus();
 }
 

@@ -549,6 +549,9 @@ std::string FunctionArgumentTypeOptions::OptionsDebugString() const {
   if (data_->constness_level == ConstnessLevelProto::ANALYSIS_CONST) {
     options.push_back("must_be_analysis_constant: true");
   }
+  if (data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST) {
+    options.push_back("must_be_immutable_constant: true");
+  }
   if (data_->constness_level ==
       ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION) {
     options.push_back("must_be_constant_expression: true");
@@ -592,6 +595,8 @@ std::string FunctionArgumentTypeOptions::GetSQLDeclaration(
     options.push_back("/*must_be_constant*/");
   if (data_->constness_level == ConstnessLevelProto::ANALYSIS_CONST)
     options.push_back("/*must_be_analysis_constant*/");
+  if (data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST)
+    options.push_back("/*must_be_immutable_constant*/");
   if (data_->constness_level == ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION)
     options.push_back("/*must_be_constant_expression*/");
 

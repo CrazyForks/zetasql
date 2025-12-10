@@ -2702,7 +2702,7 @@ def main(argv):
       """,
       fields=[
           Field(
-              'entry',
+              'entries',
               'ASTWithClauseEntry',
               tag_id=2,
               field_loader=FieldLoaderMethod.REST_AS_REPEATED,

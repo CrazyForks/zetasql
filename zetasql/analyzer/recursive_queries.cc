@@ -158,7 +158,7 @@ class FindTableReferencesVisitor : public NonRecursiveParseTreeVisitor {
     if (node->with_clause() != nullptr) {
       return VisitResult::VisitChildren(node, [this, node]() {
         // Inner WITH entries are now out-of-scope.
-        for (const ASTWithClauseEntry* entry : node->with_clause()->entry()) {
+        for (const ASTWithClauseEntry* entry : node->with_clause()->entries()) {
           if (entry->aliased_query() != nullptr) {
             RemoveInnerAlias(entry->aliased_query());
           }
@@ -175,7 +175,7 @@ class FindTableReferencesVisitor : public NonRecursiveParseTreeVisitor {
     // clause; for non-recursive WITH, inner aliases are added only when we're
     // about to traverse the entry that defines it.
     if (node->recursive()) {
-      for (const ASTWithClauseEntry* entry : node->entry()) {
+      for (const ASTWithClauseEntry* entry : node->entries()) {
         if (entry->aliased_query() != nullptr) {
           AddInnerAlias(entry->aliased_query());
         }
@@ -334,7 +334,7 @@ absl::StatusOr<WithEntrySortResult> WithEntrySorter::RunInternal(
   using FindRefsInWithClause = FindTableReferencesVisitor<ASTAliasedQuery>;
 
   absl::flat_hash_map<const ASTAliasedQuery*, std::vector<IdString>> roots;
-  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+  for (const ASTWithClauseEntry* entry : with_clause_->entries()) {
     if (entry->aliased_query() != nullptr) {
       const ASTAliasedQuery* aliased_query = entry->aliased_query();
       roots[aliased_query] = {aliased_query->alias()->GetAsIdString()};
@@ -344,7 +344,7 @@ absl::StatusOr<WithEntrySortResult> WithEntrySorter::RunInternal(
                    FindRefsInWithClause::Run(roots));
 
   absl::flat_hash_map<const ASTAliasedQuery*, size_t> entry_index_map;
-  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+  for (const ASTWithClauseEntry* entry : with_clause_->entries()) {
     if (entry->aliased_query() != nullptr) {
       entry_index_map[entry->aliased_query()] = entry_index_map.size();
     }
@@ -366,7 +366,7 @@ absl::StatusOr<WithEntrySortResult> WithEntrySorter::RunInternal(
     references_[pair.first] = sorted_references;
   }
 
-  for (const ASTWithClauseEntry* entry : with_clause_->entry()) {
+  for (const ASTWithClauseEntry* entry : with_clause_->entries()) {
     if (entry->aliased_query() != nullptr) {
       stack_.push(Task{entry->aliased_query(), Task::kStart});
     }

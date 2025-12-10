@@ -4140,6 +4140,18 @@ void SampleCatalogImpl::LoadFunctions2() {
   catalog_->AddOwnedFunction(function);
 
   {
+    // Add function with immutable constant argument.
+    auto function = std::make_unique<Function>("fn_with_immutable_constant_arg",
+                                               "sample_functions", mode);
+    const auto any_immutable_const_arg = zetasql::FunctionArgumentType(
+        ARG_TYPE_ARBITRARY, zetasql::FunctionArgumentTypeOptions()
+                                .set_cardinality(FunctionArgumentType::REQUIRED)
+                                .set_must_be_immutable_constant());
+    function->AddSignature(
+        {types_->get_bool(), {any_immutable_const_arg}, /*context_id=*/-1});
+    catalog_->AddOwnedFunction(std::move(function));
+  }
+  {
     auto function = std::make_unique<Function>("fn_with_named_rounding_mode",
                                                "sample_functions", mode);
     function->AddSignature({types_->get_bool(),

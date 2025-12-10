@@ -78,4 +78,52 @@ TEST_F(IsConstantTest, IsAnalysisConst) {
   EXPECT_FALSE(IsAnalysisConstant(result()));
 }
 
+TEST_F(IsConstantTest, IsImmutableConst) {
+  ZETASQL_ASSERT_OK(Analyze("1"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("CAST(1 AS INT64)"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("CONCAT('a', 'b')"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("STRUCT(1, 2)"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("[1, 2, 3]"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("RAND()"));
+  EXPECT_FALSE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("CURRENT_TIMESTAMP()"));
+  EXPECT_FALSE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("10000 + 2 * 10"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(Analyze("ARRAY_CONCAT([1], [2])"));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  // We set value as an arithmetic expression so that it isn't folded during
+  // analysis.
+  ZETASQL_ASSERT_OK(Analyze(
+      "NEW `zetasql_test__.KeyValueStruct`('1' as key, 1 + 0 as value)"));
+  EXPECT_FALSE(IsAnalysisConstant(result()));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+
+  ZETASQL_ASSERT_OK(
+      Analyze("STRUCT('1' as key, ARRAY_CONCAT([1, 2], [3, 4]) as value)"));
+  EXPECT_FALSE(IsAnalysisConstant(result()));
+  EXPECT_TRUE(IsImmutableConstant(result()));
+}
+
+TEST_F(IsConstantTest, StatementInput) {
+  ZETASQL_ASSERT_OK(AnalyzeStatement("SELECT 1", options_, catalog_.catalog(),
+                             &type_factory_, &output_));
+  EXPECT_FALSE(IsAnalysisConstant(output_->resolved_statement()));
+  EXPECT_FALSE(IsImmutableConstant(output_->resolved_statement()));
+}
+
 }  // namespace zetasql

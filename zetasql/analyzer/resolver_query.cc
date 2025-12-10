@@ -846,9 +846,11 @@ Resolver::ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
              << "WITH is not supported on subqueries in this language version";
     }
 
-    // Check for duplicate WITH aliases
+    // Validate with clause entries.
     IdStringHashSetCase alias_names;
-    for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+    bool found_group_rows = false;
+    for (int i = 0; i < with_clause->entries().size(); i++) {
+      const ASTWithClauseEntry* entry = with_clause->entries(i);
       if (entry->aliased_query() != nullptr) {
         const ASTAliasedQuery* aliased_query = entry->aliased_query();
         if (!zetasql_base::InsertIfNotPresent(&alias_names,
@@ -857,6 +859,24 @@ Resolver::ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
                  << "Duplicate alias " << aliased_query->alias()->GetAsString()
                  << " for WITH subquery";
         }
+      } else {
+        ZETASQL_RET_CHECK(entry->aliased_group_rows() != nullptr);
+        const ASTAliasedGroupRows* aliased_group_rows =
+            entry->aliased_group_rows();
+        if (is_outer_query) {
+          return MakeSqlErrorAt(aliased_group_rows)
+                 << "GROUP ROWS are not allowed in the outer-most query";
+        }
+        if (found_group_rows) {
+          return MakeSqlErrorAt(aliased_group_rows)
+                 << "Cannot have more than one GROUP ROWS alias in a with "
+                    "clause";
+        }
+        if (i != 0) {
+          return MakeSqlErrorAt(aliased_group_rows)
+                 << "GROUP ROWS must be the first entry in a WITH clause";
+        }
+        found_group_rows = true;
       }
     }
 
@@ -879,7 +899,7 @@ Resolver::ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
       }
     } else {
       // Non-recursive WITH
-      for (const ASTWithClauseEntry* entry : with_clause->entry()) {
+      for (const ASTWithClauseEntry* entry : with_clause->entries()) {
         if (entry->aliased_query() != nullptr) {
           ZETASQL_ASSIGN_OR_RETURN(
               std::unique_ptr<const ResolvedWithEntry> resolved_with_entry,
@@ -901,7 +921,7 @@ absl::Status Resolver::FinishResolveWithClauseIfPresent(
   }
   // Now remove any WITH entry mappings we added, restoring what was visible
   // outside this WITH clause.
-  for (const ASTWithClauseEntry* entry : query->with_clause()->entry()) {
+  for (const ASTWithClauseEntry* entry : query->with_clause()->entries()) {
     if (entry->aliased_query() != nullptr) {
       const IdString with_alias =
           entry->aliased_query()->alias()->GetAsIdString();
@@ -2490,6 +2510,14 @@ absl::Status Resolver::ResolvePipeWith(
   }
   analyzer_output_properties_.AddFeatureLabel("PipeOperator:WITH");
 
+  // Validate no group rows aliases.
+  for (const ASTWithClauseEntry* entry : pipe_with->with_clause()->entries()) {
+    if (entry->aliased_group_rows() != nullptr) {
+      return MakeSqlErrorAt(entry->aliased_group_rows())
+             << "GROUP ROWS not supported in Pipe WITH operator";
+    }
+  }
+
   // We pass is_outer_query=true because that's only used to control the
   // error for WITH on subqueries when FEATURE_WITH_ON_SUBQUERY isn't set.
   // This check doesn't apply for pipe WITH which is controlled by its own
@@ -2502,7 +2530,7 @@ absl::Status Resolver::ResolvePipeWith(
   ZETASQL_RET_CHECK(!with_entries.empty());
 
   // Record the CTE names created.
-  for (const ASTWithClauseEntry* entry : pipe_with->with_clause()->entry()) {
+  for (const ASTWithClauseEntry* entry : pipe_with->with_clause()->entries()) {
     if (entry->aliased_query() != nullptr) {
       const IdString with_alias =
           entry->aliased_query()->alias()->GetAsIdString();

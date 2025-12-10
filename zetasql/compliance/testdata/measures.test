@@ -1441,4 +1441,28 @@ ARRAY<STRUCT<ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>, ARRAY<>>>[
     ARRAY<STRING>[unknown order:"SAVE10", NULL, NULL]
   }
 ]
+==
 
+[name=no_table_row_identity_columns_basic]
+SELECT AGG(measure_all_product_names)
+FROM MeasureTable_NoTableRowIdentityColumns;
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<STRING>[unknown order:"apple", "banana"]}]
+==
+
+[name=no_table_row_identity_columns_group_by]
+SELECT product_id, AGG(measure_all_product_names)
+FROM MeasureTable_NoTableRowIdentityColumns
+GROUP BY product_id
+ORDER BY 1;
+--
+ARRAY<STRUCT<product_id INT64, ARRAY<>>>[known order:
+  {
+    101,
+    ARRAY<STRING>["apple"]
+  },
+  {
+    102,
+    ARRAY<STRING>["banana"]
+  }
+]

@@ -418,6 +418,25 @@ public class FunctionArgumentTypeTest {
                     /* argType= */ null,
                     TypeFactory.nonUniqueNames())
                 .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
+
+    FunctionArgumentTypeOptions optionsImmutableConstant =
+        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(true).build();
+    assertThat(optionsImmutableConstant)
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                optionsImmutableConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder),
+                fileDescriptorSetsBuilder.getDescriptorPools(),
+                /* argType= */ null,
+                TypeFactory.nonUniqueNames()));
+    assertThat(optionsImmutableConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder))
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                    optionsImmutableConstant.serialize(
+                        /* argType= */ null, fileDescriptorSetsBuilder),
+                    fileDescriptorSetsBuilder.getDescriptorPools(),
+                    /* argType= */ null,
+                    TypeFactory.nonUniqueNames())
+                .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
   }
 
   @Test
@@ -448,6 +467,15 @@ public class FunctionArgumentTypeTest {
             .setMustBeConstantExpression(true)
             .build();
     assertThat(options6).isEqualTo(options5);
+
+    FunctionArgumentTypeOptions options7 =
+        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(true).build();
+    FunctionArgumentTypeOptions options8 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeImmutableConstant(true)
+            .setMustBeImmutableConstant(true)
+            .build();
+    assertThat(options8).isEqualTo(options7);
   }
 
   @Test
@@ -488,6 +516,19 @@ public class FunctionArgumentTypeTest {
     assertThat(e3)
         .hasMessageThat()
         .contains("Cannot set mustBeAnalysisConstant when another constness level is already set.");
+
+    // Test setting mustBeAnalysisConstant then mustBeImmutableConstant
+    IllegalStateException e4 =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                FunctionArgumentTypeOptions.builder()
+                    .setMustBeAnalysisConstant(true)
+                    .setMustBeImmutableConstant(true));
+    assertThat(e4)
+        .hasMessageThat()
+        .contains(
+            "Cannot set mustBeImmutableConstant when another constness level is already set.");
   }
 
   @Test
@@ -786,5 +827,27 @@ public class FunctionArgumentTypeTest {
             supportsElementGroupingOption,
             /* numOccurrences= */ 1);
     checkSerializeAndDeserialize(supportElementGroupingType);
+  }
+
+  @Test
+  public void testSetMustBeImmutableConstantFalse() {
+    FunctionArgumentTypeOptions options =
+        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(false).build();
+    assertThat(options.getMustBeImmutableConstant()).isFalse();
+
+    FunctionArgumentTypeOptions options2 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeImmutableConstant(true)
+            .setMustBeImmutableConstant(false)
+            .build();
+    assertThat(options2.getMustBeImmutableConstant()).isFalse();
+
+    FunctionArgumentTypeOptions options3 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeConstant(true)
+            .setMustBeImmutableConstant(false)
+            .build();
+    assertThat(options3.getMustBeConstant()).isFalse();
+    assertThat(options3.getMustBeImmutableConstant()).isFalse();
   }
 }

@@ -1590,10 +1590,8 @@ enum LanguageFeature {
   // inside a graph element table.
   // See (broken link):semantic-graph-ddl-options for more details.
   // REQUIRES: SQL_GRAPH feature to be enabled.
-  FEATURE_SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS = 14121 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
+  FEATURE_SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS = 14121
+      [(language_feature_options).language_version = VERSION_1_4];
 
   // Enable support for remote models (e.g. CREATE MODEL ... REMOTE ...)
   // (broken link)

@@ -668,10 +668,7 @@ TEST(ExecuteQuery, UnAnalyzeQuery) {
   config.add_tool_mode(ToolMode::kUnAnalyze);
   std::ostringstream output;
   ZETASQL_EXPECT_OK(ExecuteQuery("select 1", config, output));
-  EXPECT_EQ(output.str(), R"(SELECT
-  1 AS a_1;
-
-)");
+  EXPECT_EQ(output.str(), "SELECT 1 AS a_1\n\n");
 }
 
 TEST(ExecuteQuery, ExplainQuery) {

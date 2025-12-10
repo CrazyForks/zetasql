@@ -707,6 +707,15 @@ void StmtLayout::BreakOnMandatoryLineBreaks() {
           breakpoints.insert(i + 1);
           break;
         }
+      } else if (chunk.FirstKeyword() == "|>") {
+        // Always add line breaks before the pipe operator '|>'.
+        absl::btree_set<int> pipes = ChunkPositions(
+            *chunk.ChunkBlock()->Parent(), line,
+            [](const Chunk& chunk) { return chunk.FirstKeyword() == "|>"; });
+        if (!pipes.empty()) {
+          breakpoints.merge(pipes);
+          break;
+        }
       }
     }
 

@@ -569,6 +569,7 @@ cc_library(
         "//zetasql/base:ret_check",
         "//zetasql/base:status",
         "//zetasql/common:evaluator_registration_utils",
+        "//zetasql/common:measure_analysis_utils",
         "//zetasql/common:status_payload_utils",
         "//zetasql/compliance:test_database_catalog",
         "//zetasql/compliance:test_driver",

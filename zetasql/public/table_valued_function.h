@@ -84,7 +84,7 @@ using TVFPostResolutionArgumentConstraintsCallback = std::function<absl::Status(
 // and returns the computed output type for TVF call. New types should be
 // allocated in the provided TypeFactory.
 using TVFComputeResultTypeCallback =
-    std::function<absl::StatusOr<std::unique_ptr<TVFSignature>>(
+    std::function<absl::StatusOr<std::shared_ptr<TVFSignature>>(
         Catalog*, TypeFactory*, const FunctionSignature&,
         const std::vector<TVFInputArgumentType>&, const AnalyzerOptions&)>;
 

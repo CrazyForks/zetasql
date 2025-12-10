@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "zetasql/analyzer/rewriters/measure_collector.h"
 #include "zetasql/analyzer/rewriters/measure_reference_rewrite_util.h"
@@ -29,14 +30,118 @@
 #include "zetasql/public/options.pb.h"
 #include "zetasql/public/rewriter_interface.h"
 #include "zetasql/resolved_ast/column_factory.h"
+#include "zetasql/resolved_ast/resolved_ast.h"
+#include "zetasql/resolved_ast/resolved_ast_deep_copy_visitor.h"
 #include "zetasql/resolved_ast/resolved_node.h"
 #include "zetasql/resolved_ast/rewrite_utils.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "zetasql/base/ret_check.h"
 #include "zetasql/base/status_macros.h"
 
 namespace zetasql {
+
+// `UnusedCorrelatedColumnPruner` removes any ColumnRefs in the `parameter_list`
+// of subqueries or lambdas if they are not referenced within the subquery or
+// lambda body.
+class UnusedCorrelatedColumnPruner : public ResolvedASTDeepCopyVisitor {
+ public:
+  static absl::StatusOr<std::unique_ptr<const ResolvedNode>>
+  PruneUnusedCorrelatedColumns(std::unique_ptr<const ResolvedNode> input) {
+    UnusedCorrelatedColumnPruner pruner;
+    ZETASQL_RETURN_IF_ERROR(input->Accept(&pruner));
+    return pruner.ConsumeRootNode<ResolvedNode>();
+  }
+
+ protected:
+  absl::StatusOr<ResolvedColumn> CopyResolvedColumn(
+      const ResolvedColumn& column) override {
+    for (auto& correlated_column_references :
+         correlated_column_references_list_) {
+      correlated_column_references.insert(column);
+    }
+    return column;
+  }
+
+  absl::Status VisitResolvedSubqueryExpr(
+      const ResolvedSubqueryExpr* node) override {
+    // First, process the `in_expr` field. The `in_expr` does not see the
+    // parameter list, so we must process it first, before we push a new
+    // set of correlated column references onto the stack.
+    ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> rewritten_in_expr,
+                     ProcessNode(node->in_expr()));
+
+    // Track referenced columns.
+    correlated_column_references_list_.push_back(
+        absl::flat_hash_set<ResolvedColumn>());
+    // Visit the subquery's body.
+    ZETASQL_ASSIGN_OR_RETURN(auto rewritten_subquery, ProcessNode(node->subquery()));
+
+    // Make a copy of the subquery expr, since we need to modify the parameter
+    // list.
+    ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedSubqueryExpr> copy,
+                     ResolvedASTDeepCopyVisitor::Copy(node));
+    auto builder = ToBuilder(std::move(copy));
+    builder.set_subquery(std::move(rewritten_subquery));
+    builder.set_in_expr(std::move(rewritten_in_expr));
+
+    return PruneUnusedCorrelatedColumns(std::move(builder));
+  }
+
+  absl::Status VisitResolvedInlineLambda(
+      const ResolvedInlineLambda* node) override {
+    // Track referenced columns.
+    correlated_column_references_list_.push_back(
+        absl::flat_hash_set<ResolvedColumn>());
+    // Visit the lambda's body.
+    ZETASQL_ASSIGN_OR_RETURN(auto rewritten_body, ProcessNode(node->body()));
+
+    // Make a copy of the subquery expr, since we need to modify the parameter
+    // list.
+    ZETASQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedInlineLambda> copy,
+                     ResolvedASTDeepCopyVisitor::Copy(node));
+    auto builder = ToBuilder(std::move(copy));
+    builder.set_body(std::move(rewritten_body));
+
+    return PruneUnusedCorrelatedColumns(std::move(builder));
+  }
+
+ private:
+  UnusedCorrelatedColumnPruner() = default;
+  UnusedCorrelatedColumnPruner(const UnusedCorrelatedColumnPruner&) = delete;
+  UnusedCorrelatedColumnPruner& operator=(const UnusedCorrelatedColumnPruner&) =
+      delete;
+
+  template <typename NodeBuilderType>
+  absl::Status PruneUnusedCorrelatedColumns(NodeBuilderType&& builder) {
+    ZETASQL_RET_CHECK(!correlated_column_references_list_.empty());
+    absl::flat_hash_set<ResolvedColumn> current_correlated_column_references =
+        correlated_column_references_list_.back();
+    correlated_column_references_list_.pop_back();
+    std::vector<std::unique_ptr<const ResolvedColumnRef>> new_parameter_list;
+    for (std::unique_ptr<const ResolvedColumnRef>& parameter :
+         builder.release_parameter_list()) {
+      // Skip any parameters that are not used in the subquery. Else, preserve
+      // it.
+      if (!current_correlated_column_references.contains(parameter->column())) {
+        continue;
+      }
+      new_parameter_list.push_back(std::move(parameter));
+    }
+    ZETASQL_ASSIGN_OR_RETURN(auto rewritten_node,
+                     std::forward<NodeBuilderType>(builder)
+                         .set_parameter_list(std::move(new_parameter_list))
+                         .BuildMutable());
+    PushNodeToStack(std::move(rewritten_node));
+    return absl::OkStatus();
+  }
+
+  // Track columns referenced within the body of a correlated expression (i.e.
+  // a subquery or lambda)
+  std::vector<absl::flat_hash_set<ResolvedColumn>>
+      correlated_column_references_list_;
+};
 
 class MeasureTypeRewriter : public Rewriter {
  public:
@@ -117,6 +222,18 @@ class MeasureTypeRewriter : public Rewriter {
                                std::move(node), measure_collector, any_value_fn,
                                function_call_builder, options.language(),
                                column_factory, type_factory));
+
+    // Step 4: Remove ColumnRefs on parameter_list that are not accessed.
+    //
+    // This is needed because, when the measure definition expression does not
+    // use any columns, e.g., m := 1, the rewritten expression does not need
+    // to reference any columns in the struct closure column. As a result, the
+    // corresponding struct ColumnRef on `parameter_list` is unused, causing
+    // validator failures.
+    ZETASQL_ASSIGN_OR_RETURN(node,
+                     UnusedCorrelatedColumnPruner::PruneUnusedCorrelatedColumns(
+                         std::move(node)));
+
     return node;
   }
 

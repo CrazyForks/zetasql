@@ -141,7 +141,7 @@ class ReferenceDriver : public TestDriver {
   //   3. AddTable() x m
 
   // Incrementally add a table to bypass resetting type factory.
-  void AddTable(const std::string& table_name, const TestTable& table);
+  absl::Status AddTable(const std::string& table_name, const TestTable& table);
 
   // Incrementally loads proto and enum types.
   absl::Status LoadProtoEnumTypes(const std::set<std::string>& filenames,

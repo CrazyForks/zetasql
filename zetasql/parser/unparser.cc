@@ -5266,6 +5266,7 @@ void Unparser::visitASTGraphElementTable(const ASTGraphElementTable* node,
 
   if (node->default_label_options_list() != nullptr) {
     println();
+    Formatter::Indenter indenter(&formatter_);
     print("OPTIONS");
     visitASTOptionsList(node->default_label_options_list(), data);
   }

@@ -16,7 +16,7 @@
 
 module(
     name = "zetasql",
-    version = "2025.11.2",
+    version = "2025.12.1",
 )
 
 ZETASQL_JAVA_ARTIFACTS = [
@@ -93,9 +93,6 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = ZETASQL_JAVA_ARTIFACTS,
     generate_compat_repositories = True,
-    repositories = [
-        "https://repo1.maven.org/maven2",
-    ],
 )
 use_repo(maven, "maven")
 

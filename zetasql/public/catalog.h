@@ -682,6 +682,11 @@ class EnumerableCatalog : public Catalog {
     return absl::NotFoundError(
         "PropertyGraphs are not supported in this EnumerableCatalog");
   }
+  virtual absl::Status GetProcedures(
+      absl::flat_hash_set<const zetasql::Procedure*>* output) const {
+    return absl::NotFoundError(
+        "Procedures are not supported in this EnumerableCatalog");
+  }
 };
 
 

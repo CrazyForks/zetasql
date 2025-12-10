@@ -321,6 +321,8 @@ class FunctionSerializationTests : public ::testing::Test {
               argument2.options().must_be_constant());
     EXPECT_EQ(argument1.options().must_be_analysis_constant(),
               argument2.options().must_be_analysis_constant());
+    EXPECT_EQ(argument1.options().must_be_immutable_constant(),
+              argument2.options().must_be_immutable_constant());
     EXPECT_EQ(argument1.options().must_be_constant_expression(),
               argument2.options().must_be_constant_expression());
     EXPECT_EQ(argument1.options().has_argument_name(),

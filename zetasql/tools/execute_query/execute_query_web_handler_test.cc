@@ -209,10 +209,21 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryExecutedSimpleResult) {
                              "ALL_MINUS_DEV"),
       FakeQueryWebTemplates("{{> body}}", "",
                             "{{#statements}}"
-                            "{{result_executed_text}}"
+                            "{{#result_executed_tables}}\n"
+                            "{{#table}}{{> table}}{{/table}}\n"
+                            "{{#error}}error:{{{error}}}{{/error}}\n"
+                            "{{/result_executed_tables}}\n"
                             "{{/statements}}"),
       result));
-  EXPECT_THAT(result, Eq("Function RAND\nSignature: RAND() -&gt; DOUBLE\n"));
+  // We have one test showing the HTML for a table that comes out.
+  // If this is too volatile, it can be replaced with a placeholder that
+  // just checks some table is emitted.
+  EXPECT_THAT(
+      result,
+      Eq("<table>\n  <thead>\n    <tr>\n        <th>#&zwnj;</th>\n        "
+         "<th>Describe&zwnj;</th>\n    </tr>\n  </thead>\n  <tbody>\n      "
+         "<tr>\n          <td>1</td>\n          <td>Function RAND\nSignature: "
+         "RAND() -&gt; DOUBLE</td>\n      </tr>\n  </tbody>\n</table>\n\n"));
 }
 
 TEST(ExecuteQueryWebHandlerTest, TestQueryErrorPresent) {
@@ -231,17 +242,23 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryErrorPresent) {
 }
 
 TEST(ExecuteQueryWebHandlerTest, TestCatalogUsed) {
+  auto web_template =
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{{error}}}"
+                            "{{#result_executed_tables}}"
+                            "{{#table}}(table){{/table}}"
+                            "{{#error}}error:{{{error}}}{{/error}}"
+                            "{{/result_executed_tables}}"
+                            "{{/statements}}");
+
   std::string result;
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
                              "DESCRIBE Value", "none", "MAXIMUM",
                              "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
+      web_template, result));
   EXPECT_THAT(result, Eq("INVALID_ARGUMENT: Object not found"));
 
   EXPECT_TRUE(HandleRequest(
@@ -249,64 +266,8 @@ TEST(ExecuteQueryWebHandlerTest, TestCatalogUsed) {
                              SQLBuilder::TargetSyntaxMode::kStandard,
                              "DESCRIBE Value", "sample", "MAXIMUM",
                              "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
-  EXPECT_THAT(result,
-              Eq("Table: Value\nColumns:\n  Value   INT64\n  Value_1 INT64\n"));
-}
-
-TEST(ExecuteQueryWebHandlerTest, TestShowStatement) {
-  std::string result;
-  EXPECT_TRUE(HandleRequest(
-      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
-                             SQLBuilder::TargetSyntaxMode::kStandard,
-                             "SHOW TABLES like 'Value'", "none", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
-  EXPECT_THAT(result, Eq("No matching tables found"));
-
-  EXPECT_TRUE(HandleRequest(
-      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
-                             SQLBuilder::TargetSyntaxMode::kStandard,
-                             "SHOW TABLES LIKE '%Part%'", "tpch", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
-  EXPECT_THAT(result, Eq("Part\nPartSupp"));
-
-  EXPECT_TRUE(HandleRequest(
-      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
-                             SQLBuilder::TargetSyntaxMode::kStandard,
-                             "SHOW functions LIKE '%aTaN%'", "sample",
-                             "MAXIMUM", "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
-  EXPECT_THAT(result, Eq("atan\natan2\natanh"));
-
-  EXPECT_TRUE(HandleRequest(
-      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
-                             SQLBuilder::TargetSyntaxMode::kStandard,
-                             "show tvfs like 'Binary%'", "sample", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{error}}{{result_executed_text}}"
-                            "{{/statements}}"),
-      result));
-  EXPECT_THAT(result, Eq("BinaryAbTableArg\nBinaryScalarArg\nBinaryTableArg"));
+      web_template, result));
+  EXPECT_THAT(result, Eq("(table)"));
 }
 
 TEST(ExecuteQueryWebHandlerTest, TestEchoStatement) {
