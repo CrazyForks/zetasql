@@ -50,6 +50,11 @@ public final class Constant implements Serializable {
     return value;
   }
 
+  @Override
+  public String toString() {
+    return getFullName() + "=" + getValue();
+  }
+
   /**
    * Serialize this Constant into protobuf, with FileDescriptors emitted to the builder as needed.
    */

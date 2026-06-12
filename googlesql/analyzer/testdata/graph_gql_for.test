@@ -686,8 +686,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     FOR a_3 IN ARRAY< INT64 >[1, 2, 3] WITH OFFSET AS a_4
     RETURN
       a_3 AS a_5,
@@ -700,8 +699,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     FOR a_3 IN ARRAY< INT64 >[1, 2, 3] WITH OFFSET AS a_4
     RETURN
       a_3 AS a_5,

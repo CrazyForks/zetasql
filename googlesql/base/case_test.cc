@@ -21,8 +21,10 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql_base {
 

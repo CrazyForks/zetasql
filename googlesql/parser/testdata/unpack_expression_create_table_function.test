@@ -1,0 +1,66 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM]
+
+create table function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}}) AS (
+    SELECT **cols
+);
+--
+ALTERNATION GROUP: <empty>
+--
+CreateTableFunctionStatement [0-77] [create table...SELECT **cols )]
+  FunctionDeclaration [22-52] [myfunc(cols COLUMN_LIST_SPEC )]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-52] [(cols COLUMN_LIST_SPEC )]
+      FunctionParameter [29-50] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+  Query [62-75] [SELECT **cols]
+    Select [62-75] [SELECT **cols]
+      SelectList [69-75] [**cols]
+        SelectColumn [69-75] [**cols]
+          UnpackExpression [69-75] [**cols]
+            PathExpression [71-75] [cols]
+              Identifier(cols) [71-75] [cols]
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+AS
+  (
+  SELECT
+    ** (cols)
+  )
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateTableFunctionStatement [0-104] [create table...SELECT **cols )]
+  FunctionDeclaration [22-79] [myfunc(cols...a', 'b']))]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-79] [(cols COLUMN_LIST...a', 'b']))]
+      FunctionParameter(default_value=(ColumnListSpec)) [29-78] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+        ColumnListSpec [59-78] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [67-77] [['a', 'b']]
+            StringLiteral [68-71] ['a']
+              StringLiteralComponent('a') [68-71] ['a']
+            StringLiteral [73-76] ['b']
+              StringLiteralComponent('b') [73-76] ['b']
+  Query [89-102] [SELECT **cols]
+    Select [89-102] [SELECT **cols]
+      SelectList [96-102] [**cols]
+        SelectColumn [96-102] [**cols]
+          UnpackExpression [96-102] [**cols]
+            PathExpression [98-102] [cols]
+              Identifier(cols) [98-102] [cols]
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+AS
+  (
+  SELECT
+    ** (cols)
+  )

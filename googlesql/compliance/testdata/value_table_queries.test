@@ -304,8 +304,8 @@ WITH
 SELECT * FROM WithProtoValueTable
 --
 ARRAY<STRUCT<int32_val1 INT32, int32_val2 INT32, str_value ARRAY<>>>[unknown order:
-  {77, 0, ARRAY<STRING>[]},
-  {55, 0, ARRAY<STRING>[]}
+  {55, 0, ARRAY<STRING>[]},
+  {77, 0, ARRAY<STRING>[]}
 ]
 ==
 [name=value_table_with_proto_filter]
@@ -318,11 +318,11 @@ SELECT AS googlesql_test.TestExtraPB p.* FROM WithProtoValueTable p
 --
 ARRAY<PROTO<googlesql_test.TestExtraPB>>[unknown order:
   {
-    int32_val1: 55
+    int32_val1: 77
     int32_val2: 0
   },
   {
-    int32_val1: 77
+    int32_val1: 55
     int32_val2: 0
   }
 ]
@@ -336,8 +336,8 @@ WITH
 SELECT * FROM WithStructValueTable
 --
 ARRAY<STRUCT<foo INT64, bar STRING>>[unknown order:
-  {77, "seventy seven"},
-  {55, "fifty five"}
+  {55, "fifty five"},
+  {77, "seventy seven"}
 ]
 ==
 [name=value_table_with_struct_star_filter]

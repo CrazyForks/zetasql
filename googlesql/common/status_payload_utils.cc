@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include "googlesql/common/proto_format_utils.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -56,9 +57,9 @@ std::string PayloadToString(absl::string_view type_url,
       google::protobuf::MessageFactory* factory =
           google::protobuf::MessageFactory::generated_factory();
       auto msg = absl::WrapUnique(factory->GetPrototype(desc)->New());
-      if (msg->ParseFromCord(payload)) {
+      if (msg->ParseFromString(payload)) {
         return absl::StrCat("[", descriptor_full_name, "] { ",
-                            msg->ShortDebugString(), " }");
+                            ToStableShortDebugString(*msg), " }");
       }
     }
   }

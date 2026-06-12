@@ -33,7 +33,7 @@ RewriteRegistry& RewriteRegistry::global_instance() {
 }
 
 const Rewriter* RewriteRegistry::Get(ResolvedASTRewrite key) const {
-  absl::MutexLock l(&mu_);
+  absl::MutexLock l(mu_);
   auto it = rewriters_.find(key);
   if (it == rewriters_.end()) {
     if (GOOGLESQL_DEBUG_MODE) {
@@ -46,13 +46,13 @@ const Rewriter* RewriteRegistry::Get(ResolvedASTRewrite key) const {
 }
 
 std::vector<ResolvedASTRewrite> RewriteRegistry::registration_order() const {
-  absl::MutexLock l(&mu_);
+  absl::MutexLock l(mu_);
   return registration_order_;
 }
 
 void RewriteRegistry::Register(ResolvedASTRewrite key,
                                const Rewriter* rewriter) {
-  absl::MutexLock l(&mu_);
+  absl::MutexLock l(mu_);
   const bool did_insert = rewriters_.emplace(key, rewriter).second;
   if (GOOGLESQL_DEBUG_MODE) {
     ABSL_CHECK(did_insert) << "Key conflict for GoogleSQL Rewriter: "

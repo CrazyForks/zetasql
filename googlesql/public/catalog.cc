@@ -27,6 +27,7 @@
 #include "googlesql/public/strings.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
@@ -36,7 +37,6 @@
 #include "googlesql/base/source_location.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

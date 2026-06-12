@@ -1,6 +1,6 @@
 [default no_java]
 
-# Tables with lazy columns don't work with FEATURE_ROW_TYPE.
+# Tables with lazy columns don't work without FEATURE_ROW_TYPE.
 FROM KeyValue{{Lazy|FindOnly}}
 --
 ALTERNATION GROUP: Lazy
@@ -16,11 +16,12 @@ FROM KeyValueFindOnly
      ^
 ==
 
-# TODO Enable default testing modes.
+# TODO: Enable testing modes disabled with no_* options.
+# TODO: Enable more rewrites in some tests to test interactions.
 [default language_features=MAXIMUM,+ROW_TYPE]
 [default no_run_deserializer]
 [default no_run_sqlbuilder]
-[default enabled_ast_rewrites=DEFAULTS]
+[default enabled_ast_rewrites=NONE,+ROW_TYPE]
 FROM KeyValue{{Lazy|FindOnly}}
 |> STATIC_DESCRIBE
 |> SELECT 1
@@ -183,7 +184,7 @@ QueryStmt
       +-$agg1#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
 ==
 
-# Select zero columns from the ROW table.
+# Select a column from the ROW table.
 FROM KeyValueLazy kv
 |> LIMIT 1
 |> SELECT kv.key
@@ -398,8 +399,8 @@ QueryStmt
                 +-field_idx=1
 ==
 
-# Test deduplication of columns in the rewrite struct for columns
-# referenced multiple times.
+# Test deduplication of columns in the rewrite struct for columns referenced
+# multiple times.
 FROM KeyValueLazy kv
 |> WHERE kv.value IS NOT NULL
 |> WHERE kv.key * kv.key > 100
@@ -574,7 +575,7 @@ QueryStmt
 FROM KeyValueFindOnly
 |> SELECT key, key, bad_col
 --
-ERROR: Table KeyValueFindOnly does not have a column bad_col [at 2:21]
+ERROR: Unrecognized name: bad_col [at 2:21]
 |> SELECT key, key, bad_col
                     ^
 ==
@@ -650,25 +651,165 @@ ERROR: Column name key is ambiguous [at 2:11]
           ^
 ==
 
-# TODO This isn't ideal. We assume all columns exist
-# under all tables so this looks ambiguous even though it's in neither table.
+# Column that doesn't exist in either table.
 FROM KeyValue{{Lazy|FindOnly}} kv1, KeyValue{{Lazy|FindOnly}} kv2
 |> SELECT badcol
 --
-ERROR: Column name badcol is ambiguous [at 2:11]
+ERROR: Unrecognized name: badcol [at 2:11]
 |> SELECT badcol
           ^
 ==
 
-# TODO This isn't ideal. We assume all columns exist
-# under all tables so this looks ambiguous even though it's only
-# in EnumTable.
+# Alias-prefixed and un-prefixed references to ROW type fields which are found
+# (value) and not found (filename).
 FROM KeyValue{{Lazy|FindOnly}} kv1, EnumTable et
 |> SELECT kv1.value, value, et.filename, filename
 --
-ERROR: Column name filename is ambiguous [at 2:42]
-|> SELECT kv1.value, value, et.filename, filename
-                                         ^
+ALTERNATION GROUP: Lazy
+--
+QueryStmt
++-output_column_list=
+| +-$pipe_select.value#7 AS value [STRING]
+| +-$pipe_select.value#8 AS value [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$pipe_select.value#7, $pipe_select.value#8, EnumTable.Filename#5, EnumTable.Filename#5]
+    +-expr_list=
+    | +-value#7 :=
+    | | +-GetRowField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
+    | |   +-column=KeyValueLazy.Value
+    | +-value#8 :=
+    |   +-GetRowField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
+    |     +-column=KeyValueLazy.Value
+    +-input_scan=
+      +-JoinScan
+        +-column_list=[KeyValueLazy.$row#1, EnumTable.Filename#5]
+        +-left_scan=
+        | +-TableScan(column_list=[KeyValueLazy.$row#1], table=KeyValueLazy, alias="kv1", read_as_row_type=TRUE)
+        +-right_scan=
+          +-TableScan(column_list=[EnumTable.Filename#5], table=EnumTable, column_index_list=[3], alias="et")
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$pipe_select.value#7 AS value [STRING]
+| +-$pipe_select.value#8 AS value [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$pipe_select.value#7, $pipe_select.value#8, EnumTable.Filename#5, EnumTable.Filename#5]
+    +-expr_list=
+    | +-value#7 :=
+    | | +-GetStructField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Value STRING>, column=KeyValueLazy.$row$scanrow#9)
+    | |   +-field_idx=0
+    | +-value#8 :=
+    |   +-GetStructField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Value STRING>, column=KeyValueLazy.$row$scanrow#9)
+    |     +-field_idx=0
+    +-input_scan=
+      +-JoinScan
+        +-column_list=[KeyValueLazy.$row$scanrow#9, EnumTable.Filename#5]
+        +-left_scan=
+        | +-ProjectScan
+        |   +-column_list=[KeyValueLazy.$row$scanrow#9]
+        |   +-expr_list=
+        |   | +-$row$scanrow#9 :=
+        |   |   +-MakeStruct
+        |   |     +-type=STRUCT<Value STRING>
+        |   |     +-field_list=
+        |   |       +-ColumnRef(type=STRING, column=KeyValueLazy.Value#10)
+        |   +-input_scan=
+        |     +-TableScan(column_list=[KeyValueLazy.Value#10], table=KeyValueLazy, alias="kv1", table_column_list=[KeyValueLazy.Value])
+        +-right_scan=
+          +-TableScan(column_list=[EnumTable.Filename#5], table=EnumTable, column_index_list=[3], alias="et")
+--
+ALTERNATION GROUP: FindOnly
+--
+QueryStmt
++-output_column_list=
+| +-$pipe_select.value#7 AS value [STRING]
+| +-$pipe_select.value#8 AS value [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$pipe_select.value#7, $pipe_select.value#8, EnumTable.Filename#5, EnumTable.Filename#5]
+    +-expr_list=
+    | +-value#7 :=
+    | | +-GetRowField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<KeyValueFindOnly>, column=KeyValueFindOnly.$row#1)
+    | |   +-column=KeyValueFindOnly.Value
+    | +-value#8 :=
+    |   +-GetRowField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<KeyValueFindOnly>, column=KeyValueFindOnly.$row#1)
+    |     +-column=KeyValueFindOnly.Value
+    +-input_scan=
+      +-JoinScan
+        +-column_list=[KeyValueFindOnly.$row#1, EnumTable.Filename#5]
+        +-left_scan=
+        | +-TableScan(column_list=[KeyValueFindOnly.$row#1], table=KeyValueFindOnly, alias="kv1", read_as_row_type=TRUE)
+        +-right_scan=
+          +-TableScan(column_list=[EnumTable.Filename#5], table=EnumTable, column_index_list=[3], alias="et")
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$pipe_select.value#7 AS value [STRING]
+| +-$pipe_select.value#8 AS value [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
+| +-EnumTable.Filename#5 AS filename [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$pipe_select.value#7, $pipe_select.value#8, EnumTable.Filename#5, EnumTable.Filename#5]
+    +-expr_list=
+    | +-value#7 :=
+    | | +-GetStructField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Value STRING>, column=KeyValueFindOnly.$row$scanrow#9)
+    | |   +-field_idx=0
+    | +-value#8 :=
+    |   +-GetStructField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Value STRING>, column=KeyValueFindOnly.$row$scanrow#9)
+    |     +-field_idx=0
+    +-input_scan=
+      +-JoinScan
+        +-column_list=[KeyValueFindOnly.$row$scanrow#9, EnumTable.Filename#5]
+        +-left_scan=
+        | +-ProjectScan
+        |   +-column_list=[KeyValueFindOnly.$row$scanrow#9]
+        |   +-expr_list=
+        |   | +-$row$scanrow#9 :=
+        |   |   +-MakeStruct
+        |   |     +-type=STRUCT<Value STRING>
+        |   |     +-field_list=
+        |   |       +-ColumnRef(type=STRING, column=KeyValueFindOnly.Value#10)
+        |   +-input_scan=
+        |     +-TableScan(column_list=[KeyValueFindOnly.Value#10], table=KeyValueFindOnly, alias="kv1", table_column_list=[KeyValueFindOnly.Value])
+        +-right_scan=
+          +-TableScan(column_list=[EnumTable.Filename#5], table=EnumTable, column_index_list=[3], alias="et")
 ==
 
 FROM KeyValueFindOnly kv1
@@ -1163,158 +1304,22 @@ ERROR: Star expansion not allowed for table KeyValueFindOnly [at 2:11]
           ^
 ==
 
-# TODO SELECT * EXCEPT should give an error for non-existant column.
+# SELECT * EXCEPT gives an error for non-existent column.
 FROM KeyValue{{|Lazy|FindOnly}} kv
 |> SELECT * EXCEPT (bad)
---
-ALTERNATION GROUP: <empty>
 --
 ERROR: Column bad in SELECT * EXCEPT list does not exist [at 2:21]
 |> SELECT * EXCEPT (bad)
                     ^
---
-ALTERNATION GROUP: Lazy
---
-QueryStmt
-+-output_column_list=
-| +-$pipe_select.Key#2 AS Key [INT64]
-| +-$pipe_select.Value#3 AS Value [STRING]
-+-query=
-  +-ProjectScan
-    +-column_list=$pipe_select.[Key#2, Value#3]
-    +-expr_list=
-    | +-Key#2 :=
-    | | +-GetRowField
-    | |   +-type=INT64
-    | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
-    | |   +-column=KeyValueLazy.Key
-    | +-Value#3 :=
-    |   +-GetRowField
-    |     +-type=STRING
-    |     +-expr=
-    |     | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
-    |     +-column=KeyValueLazy.Value
-    +-input_scan=
-      +-TableScan(column_list=[KeyValueLazy.$row#1], table=KeyValueLazy, alias="kv", read_as_row_type=TRUE)
-
-
-[REWRITTEN AST]
-QueryStmt
-+-output_column_list=
-| +-$pipe_select.Key#2 AS Key [INT64]
-| +-$pipe_select.Value#3 AS Value [STRING]
-+-query=
-  +-ProjectScan
-    +-column_list=$pipe_select.[Key#2, Value#3]
-    +-expr_list=
-    | +-Key#2 :=
-    | | +-GetStructField
-    | |   +-type=INT64
-    | |   +-expr=
-    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=KeyValueLazy.$row$scanrow#4)
-    | |   +-field_idx=0
-    | +-Value#3 :=
-    |   +-GetStructField
-    |     +-type=STRING
-    |     +-expr=
-    |     | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=KeyValueLazy.$row$scanrow#4)
-    |     +-field_idx=1
-    +-input_scan=
-      +-ProjectScan
-        +-column_list=[KeyValueLazy.$row$scanrow#4]
-        +-expr_list=
-        | +-$row$scanrow#4 :=
-        |   +-MakeStruct
-        |     +-type=STRUCT<Key INT64, Value STRING>
-        |     +-field_list=
-        |       +-ColumnRef(type=INT64, column=KeyValueLazy.Key#5)
-        |       +-ColumnRef(type=STRING, column=KeyValueLazy.Value#6)
-        +-input_scan=
-          +-TableScan(column_list=KeyValueLazy.[Key#5, Value#6], table=KeyValueLazy, alias="kv", table_column_list=[KeyValueLazy.Key,KeyValueLazy.Value])
---
-ALTERNATION GROUP: FindOnly
---
-ERROR: Star expansion not allowed for table KeyValueFindOnly [at 2:11]
-|> SELECT * EXCEPT (bad)
-          ^
 ==
 
-# TODO SELECT * REPLACE should give an error for non-existant column.
+# SELECT * REPLACE gives an error for non-existent column.
 FROM KeyValue{{|Lazy|FindOnly}} kv
 |> SELECT * REPLACE (1.5 AS bad)
---
-ALTERNATION GROUP: <empty>
 --
 ERROR: Column bad in SELECT * REPLACE list does not exist [at 2:29]
 |> SELECT * REPLACE (1.5 AS bad)
                             ^
---
-ALTERNATION GROUP: Lazy
---
-QueryStmt
-+-output_column_list=
-| +-$pipe_select.Key#2 AS Key [INT64]
-| +-$pipe_select.Value#3 AS Value [STRING]
-+-query=
-  +-ProjectScan
-    +-column_list=$pipe_select.[Key#2, Value#3]
-    +-expr_list=
-    | +-Key#2 :=
-    | | +-GetRowField
-    | |   +-type=INT64
-    | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
-    | |   +-column=KeyValueLazy.Key
-    | +-Value#3 :=
-    |   +-GetRowField
-    |     +-type=STRING
-    |     +-expr=
-    |     | +-ColumnRef(type=ROW<KeyValueLazy>, column=KeyValueLazy.$row#1)
-    |     +-column=KeyValueLazy.Value
-    +-input_scan=
-      +-TableScan(column_list=[KeyValueLazy.$row#1], table=KeyValueLazy, alias="kv", read_as_row_type=TRUE)
-
-
-[REWRITTEN AST]
-QueryStmt
-+-output_column_list=
-| +-$pipe_select.Key#2 AS Key [INT64]
-| +-$pipe_select.Value#3 AS Value [STRING]
-+-query=
-  +-ProjectScan
-    +-column_list=$pipe_select.[Key#2, Value#3]
-    +-expr_list=
-    | +-Key#2 :=
-    | | +-GetStructField
-    | |   +-type=INT64
-    | |   +-expr=
-    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=KeyValueLazy.$row$scanrow#4)
-    | |   +-field_idx=0
-    | +-Value#3 :=
-    |   +-GetStructField
-    |     +-type=STRING
-    |     +-expr=
-    |     | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=KeyValueLazy.$row$scanrow#4)
-    |     +-field_idx=1
-    +-input_scan=
-      +-ProjectScan
-        +-column_list=[KeyValueLazy.$row$scanrow#4]
-        +-expr_list=
-        | +-$row$scanrow#4 :=
-        |   +-MakeStruct
-        |     +-type=STRUCT<Key INT64, Value STRING>
-        |     +-field_list=
-        |       +-ColumnRef(type=INT64, column=KeyValueLazy.Key#5)
-        |       +-ColumnRef(type=STRING, column=KeyValueLazy.Value#6)
-        +-input_scan=
-          +-TableScan(column_list=KeyValueLazy.[Key#5, Value#6], table=KeyValueLazy, alias="kv", table_column_list=[KeyValueLazy.Key,KeyValueLazy.Value])
---
-ALTERNATION GROUP: FindOnly
---
-ERROR: Star expansion not allowed for table KeyValueFindOnly [at 2:11]
-|> SELECT * REPLACE (1.5 AS bad)
-          ^
 ==
 
 FROM KeyValue{{|Lazy|FindOnly}} kv
@@ -1757,3 +1762,408 @@ QueryStmt
         |       +-ColumnRef(type=STRING, column=KeyValueLazy.Value#5)
         +-input_scan=
           +-TableScan(column_list=[KeyValueLazy.Value#5], table=KeyValueLazy, alias="kv1", table_column_list=[KeyValueLazy.Value])
+==
+
+# TVF result schema with a ROW type + other columns.
+SELECT normal_col_1, row_type_col.Key, normal_col_2
+FROM tvf_returning_row_type();
+--
+QueryStmt
++-output_column_list=
+| +-tvf_returning_row_type.normal_col_1#1 AS normal_col_1 [STRING]
+| +-$query.Key#4 AS Key [INT64]
+| +-tvf_returning_row_type.normal_col_2#3 AS normal_col_2 [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[tvf_returning_row_type.normal_col_1#1, $query.Key#4, tvf_returning_row_type.normal_col_2#3]
+    +-expr_list=
+    | +-Key#4 :=
+    |   +-GetRowField
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<tvf_returning_row_type.row_type_col>, column=tvf_returning_row_type.row_type_col#2)
+    |     +-column=KeyValueFindOnly.Key
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_row_type.[normal_col_1#1, row_type_col#2, normal_col_2#3], tvf=RowTypeTest:tvf_returning_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_type_col ROW<tvf_returning_row_type.row_type_col>, normal_col_2 INT64>, column_index_list=[0, 1, 2], function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tvf_returning_row_type.normal_col_1#1 AS normal_col_1 [STRING]
+| +-$query.Key#4 AS Key [INT64]
+| +-tvf_returning_row_type.normal_col_2#3 AS normal_col_2 [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[tvf_returning_row_type.normal_col_1#1, $query.Key#4, tvf_returning_row_type.normal_col_2#3]
+    +-expr_list=
+    | +-Key#4 :=
+    |   +-GetStructField
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Key INT64>, column=tvf_returning_row_type.$row_type_col$scanrow#5)
+    |     +-field_idx=0
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_row_type.[normal_col_1#1, $row_type_col$scanrow#5, normal_col_2#3], tvf=RowTypeTest:tvf_returning_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_type_col STRUCT<Key INT64>, normal_col_2 INT64>, column_index_list=[0, 1, 2], function_call_signature=() -> ANY TABLE)
+==
+
+# TVF result schema with a ROW type value table.
+SELECT Key
+FROM tvf_returning_row_type_value_table();
+--
+QueryStmt
++-output_column_list=
+| +-$query.Key#2 AS Key [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.Key#2]
+    +-expr_list=
+    | +-Key#2 :=
+    |   +-GetRowField
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table>, column=tvf_returning_row_type_value_table.$col0#1)
+    |     +-column=KeyValueFindOnly.Key
+    +-input_scan=
+      +-TVFScan(column_list=[tvf_returning_row_type_value_table.$col0#1], tvf=RowTypeTest:tvf_returning_row_type_value_table(() -> ANY TABLE), signature=() -> TABLE<ROW<tvf_returning_row_type_value_table>>, column_index_list=[0], function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.Key#2 AS Key [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.Key#2]
+    +-expr_list=
+    | +-Key#2 :=
+    |   +-GetStructField
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Key INT64>, column=tvf_returning_row_type_value_table.$col0$scanrow#3)
+    |     +-field_idx=0
+    +-input_scan=
+      +-TVFScan(column_list=[tvf_returning_row_type_value_table.$col0$scanrow#3], tvf=RowTypeTest:tvf_returning_row_type_value_table(() -> ANY TABLE), signature=() -> TABLE<STRUCT<Key INT64>>, column_index_list=[0], function_call_signature=() -> ANY TABLE)
+==
+
+# TVF result schema with an unreferenced ROW type, should be rewritten to an
+# empty STRUCT.
+SELECT normal_col_1
+FROM tvf_returning_row_type();
+--
+QueryStmt
++-output_column_list=
+| +-tvf_returning_row_type.normal_col_1#1 AS normal_col_1 [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[tvf_returning_row_type.normal_col_1#1]
+    +-input_scan=
+      +-TVFScan(column_list=[tvf_returning_row_type.normal_col_1#1], tvf=RowTypeTest:tvf_returning_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_type_col ROW<tvf_returning_row_type.row_type_col>, normal_col_2 INT64>, column_index_list=[0], function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tvf_returning_row_type.normal_col_1#1 AS normal_col_1 [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[tvf_returning_row_type.normal_col_1#1]
+    +-input_scan=
+      +-TVFScan(column_list=[tvf_returning_row_type.normal_col_1#1], tvf=RowTypeTest:tvf_returning_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_type_col STRUCT<>, normal_col_2 INT64>, column_index_list=[0], function_call_signature=() -> ANY TABLE)
+==
+
+# TVF result schema with an unreferenced ROW-type value table, should be
+# rewritten to an empty STRUCT.
+SELECT 1
+FROM tvf_returning_row_type_value_table();
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-TVFScan(tvf=RowTypeTest:tvf_returning_row_type_value_table(() -> ANY TABLE), signature=() -> TABLE<ROW<tvf_returning_row_type_value_table>>, function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-TVFScan(tvf=RowTypeTest:tvf_returning_row_type_value_table(() -> ANY TABLE), signature=() -> TABLE<STRUCT<>>, function_call_signature=() -> ANY TABLE)
+==
+
+# TVF result schema with multiple ROW columns and pseudo-columns.
+SELECT
+  row_col_1.Key,
+  row_col_2.Value,
+  pseudo_row_1.Key,
+  pseudo_row_2.Value
+FROM tvf_returning_multiple_row_type();
+--
+QueryStmt
++-output_column_list=
+| +-$query.Key#9 AS Key [INT64]
+| +-$query.Value#10 AS Value [STRING]
+| +-$query.Key#11 AS Key [INT64]
+| +-$query.Value#12 AS Value [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[Key#9, Value#10, Key#11, Value#12]
+    +-expr_list=
+    | +-Key#9 :=
+    | | +-GetRowField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_multiple_row_type.row_col_1>, column=tvf_returning_multiple_row_type.row_col_1#2)
+    | |   +-column=KeyValueFindOnly.Key
+    | +-Value#10 :=
+    | | +-GetRowField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_multiple_row_type.row_col_2>, column=tvf_returning_multiple_row_type.row_col_2#4)
+    | |   +-column=KeyValueFindOnly.Value
+    | +-Key#11 :=
+    | | +-GetRowField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_multiple_row_type.pseudo_row_1>, column=tvf_returning_multiple_row_type.pseudo_row_1#6)
+    | |   +-column=KeyValueFindOnly.Key
+    | +-Value#12 :=
+    |   +-GetRowField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<tvf_returning_multiple_row_type.pseudo_row_2>, column=tvf_returning_multiple_row_type.pseudo_row_2#8)
+    |     +-column=KeyValueFindOnly.Value
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_multiple_row_type.[row_col_1#2, row_col_2#4, pseudo_row_1#6, pseudo_row_2#8], tvf=RowTypeTest:tvf_returning_multiple_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_col_1 ROW<tvf_returning_multiple_row_type.row_col_1>, normal_col_2 INT64, row_col_2 ROW<tvf_returning_multiple_row_type.row_col_2>, pseudo_normal_1 STRING, pseudo_row_1 ROW<tvf_returning_multiple_row_type.pseudo_row_1>, pseudo_normal_2 INT64, pseudo_row_2 ROW<tvf_returning_multiple_row_type.pseudo_row_2>>, column_index_list=[1, 3, 5, 7], function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.Key#9 AS Key [INT64]
+| +-$query.Value#10 AS Value [STRING]
+| +-$query.Key#11 AS Key [INT64]
+| +-$query.Value#12 AS Value [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[Key#9, Value#10, Key#11, Value#12]
+    +-expr_list=
+    | +-Key#9 :=
+    | | +-GetStructField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64>, column=tvf_returning_multiple_row_type.$row_col_1$scanrow#13)
+    | |   +-field_idx=0
+    | +-Value#10 :=
+    | | +-GetStructField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Value STRING>, column=tvf_returning_multiple_row_type.$row_col_2$scanrow#14)
+    | |   +-field_idx=0
+    | +-Key#11 :=
+    | | +-GetStructField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64>, column=tvf_returning_multiple_row_type.$pseudo_row_1$scanrow#15)
+    | |   +-field_idx=0
+    | +-Value#12 :=
+    |   +-GetStructField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Value STRING>, column=tvf_returning_multiple_row_type.$pseudo_row_2$scanrow#16)
+    |     +-field_idx=0
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_multiple_row_type.[$row_col_1$scanrow#13, $row_col_2$scanrow#14, $pseudo_row_1$scanrow#15, $pseudo_row_2$scanrow#16], tvf=RowTypeTest:tvf_returning_multiple_row_type(() -> ANY TABLE), signature=() -> TABLE<normal_col_1 STRING, row_col_1 STRUCT<Key INT64>, normal_col_2 INT64, row_col_2 STRUCT<Value STRING>, pseudo_normal_1 STRING, pseudo_row_1 STRUCT<Key INT64>, pseudo_normal_2 INT64, pseudo_row_2 STRUCT<Value STRING>>, column_index_list=[1, 3, 5, 7], function_call_signature=() -> ANY TABLE)
+==
+
+# TVF result schema with ROW-type value table and pseudo-columns.
+SELECT
+  Key, Value, T.Key, T.Value,  -- From value table row.
+  pseudo_row_1.Key,
+  pseudo_row_2.Value
+FROM tvf_returning_row_type_value_table_with_pseudo() AS T;
+--
+QueryStmt
++-output_column_list=
+| +-$query.Key#6 AS Key [INT64]
+| +-$query.Value#7 AS Value [STRING]
+| +-$query.Key#8 AS Key [INT64]
+| +-$query.Value#9 AS Value [STRING]
+| +-$query.Key#10 AS Key [INT64]
+| +-$query.Value#11 AS Value [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[Key#6, Value#7, Key#8, Value#9, Key#10, Value#11]
+    +-expr_list=
+    | +-Key#6 :=
+    | | +-GetRowField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo>, column=tvf_returning_row_type_value_table_with_pseudo.$col0#1)
+    | |   +-column=KeyValueFindOnly.Key
+    | +-Value#7 :=
+    | | +-GetRowField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo>, column=tvf_returning_row_type_value_table_with_pseudo.$col0#1)
+    | |   +-column=KeyValueFindOnly.Value
+    | +-Key#8 :=
+    | | +-GetRowField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo>, column=tvf_returning_row_type_value_table_with_pseudo.$col0#1)
+    | |   +-column=KeyValueFindOnly.Key
+    | +-Value#9 :=
+    | | +-GetRowField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo>, column=tvf_returning_row_type_value_table_with_pseudo.$col0#1)
+    | |   +-column=KeyValueFindOnly.Value
+    | +-Key#10 :=
+    | | +-GetRowField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo.type_pseudo_row_1>, column=tvf_returning_row_type_value_table_with_pseudo.pseudo_row_1#3)
+    | |   +-column=KeyValueFindOnly.Key
+    | +-Value#11 :=
+    |   +-GetRowField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=ROW<tvf_returning_row_type_value_table_with_pseudo.type_pseudo_row_2>, column=tvf_returning_row_type_value_table_with_pseudo.pseudo_row_2#5)
+    |     +-column=KeyValueFindOnly.Value
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_row_type_value_table_with_pseudo.[$col0#1, pseudo_row_1#3, pseudo_row_2#5], tvf=RowTypeTest:tvf_returning_row_type_value_table_with_pseudo(() -> ANY TABLE), signature=() -> TABLE<ROW<tvf_returning_row_type_value_table_with_pseudo>, pseudo_normal_1 STRING, pseudo_row_1 ROW<tvf_returning_row_type_value_table_with_pseudo.type_pseudo_row_1>, pseudo_normal_2 INT64, pseudo_row_2 ROW<tvf_returning_row_type_value_table_with_pseudo.type_pseudo_row_2>>, column_index_list=[0, 2, 4], alias="T", function_call_signature=() -> ANY TABLE)
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.Key#6 AS Key [INT64]
+| +-$query.Value#7 AS Value [STRING]
+| +-$query.Key#8 AS Key [INT64]
+| +-$query.Value#9 AS Value [STRING]
+| +-$query.Key#10 AS Key [INT64]
+| +-$query.Value#11 AS Value [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[Key#6, Value#7, Key#8, Value#9, Key#10, Value#11]
+    +-expr_list=
+    | +-Key#6 :=
+    | | +-GetStructField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=tvf_returning_row_type_value_table_with_pseudo.$col0$scanrow#12)
+    | |   +-field_idx=0
+    | +-Value#7 :=
+    | | +-GetStructField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=tvf_returning_row_type_value_table_with_pseudo.$col0$scanrow#12)
+    | |   +-field_idx=1
+    | +-Key#8 :=
+    | | +-GetStructField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=tvf_returning_row_type_value_table_with_pseudo.$col0$scanrow#12)
+    | |   +-field_idx=0
+    | +-Value#9 :=
+    | | +-GetStructField
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64, Value STRING>, column=tvf_returning_row_type_value_table_with_pseudo.$col0$scanrow#12)
+    | |   +-field_idx=1
+    | +-Key#10 :=
+    | | +-GetStructField
+    | |   +-type=INT64
+    | |   +-expr=
+    | |   | +-ColumnRef(type=STRUCT<Key INT64>, column=tvf_returning_row_type_value_table_with_pseudo.$pseudo_row_1$scanrow#13)
+    | |   +-field_idx=0
+    | +-Value#11 :=
+    |   +-GetStructField
+    |     +-type=STRING
+    |     +-expr=
+    |     | +-ColumnRef(type=STRUCT<Value STRING>, column=tvf_returning_row_type_value_table_with_pseudo.$pseudo_row_2$scanrow#14)
+    |     +-field_idx=0
+    +-input_scan=
+      +-TVFScan(column_list=tvf_returning_row_type_value_table_with_pseudo.[$col0$scanrow#12, $pseudo_row_1$scanrow#13, $pseudo_row_2$scanrow#14], tvf=RowTypeTest:tvf_returning_row_type_value_table_with_pseudo(() -> ANY TABLE), signature=() -> TABLE<STRUCT<Key INT64, Value STRING>, pseudo_normal_1 STRING, pseudo_row_1 STRUCT<Key INT64>, pseudo_normal_2 INT64, pseudo_row_2 STRUCT<Value STRING>>, column_index_list=[0, 2, 4], alias="T", function_call_signature=() -> ANY TABLE)
+==
+
+# Expression matching between ROW field access in SELECT list and GROUP BY, with
+# a simple ResolvedGetRowField.
+[enabled_ast_rewrites=NONE]
+SELECT Key, T.Key, key, KEY, kEy
+FROM KeyValueFindOnly AS T
+GROUP BY T.Key
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.Key#2 AS Key [INT64]
+| +-$groupby.Key#2 AS Key [INT64]
+| +-$groupby.Key#2 AS key [INT64]
+| +-$groupby.Key#2 AS KEY [INT64]
+| +-$groupby.Key#2 AS kEy [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$groupby.[Key#2, Key#2, Key#2, Key#2, Key#2]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.Key#2]
+        +-input_scan=
+        | +-TableScan(column_list=[KeyValueFindOnly.$row#1], table=KeyValueFindOnly, alias="T", read_as_row_type=TRUE)
+        +-group_by_list=
+          +-Key#2 :=
+            +-GetRowField
+              +-type=INT64
+              +-expr=
+              | +-ColumnRef(type=ROW<KeyValueFindOnly>, column=KeyValueFindOnly.$row#1)
+              +-column=KeyValueFindOnly.Key
+==
+
+# Expression matching between ROW field access in SELECT list and GROUP BY, with
+# a complex expression containing multiple nested ResolvedGetRowFields.
+# Literal replacement disabled because it will replace only replace some of the
+# empty strings, resulting in the expressions not matching.
+[enabled_ast_rewrites=NONE]
+[no_enable_literal_replacement]
+SELECT CONCAT("", Key, value), CONCAT("", T.Key, VaLuE)
+FROM KeyValueFindOnly AS T
+GROUP BY CONCAT("", T.Key, T.value)
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.$groupbycol1#2 AS `$col1` [STRING]
+| +-$groupby.$groupbycol1#2 AS `$col2` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$groupby.[$groupbycol1#2, $groupbycol1#2]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.$groupbycol1#2]
+        +-input_scan=
+        | +-TableScan(column_list=[KeyValueFindOnly.$row#1], table=KeyValueFindOnly, alias="T", read_as_row_type=TRUE)
+        +-group_by_list=
+          +-$groupbycol1#2 :=
+            +-FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
+              +-Literal(type=STRING, value="")
+              +-Cast(INT64 -> STRING)
+              | +-GetRowField
+              |   +-type=INT64
+              |   +-expr=
+              |   | +-ColumnRef(type=ROW<KeyValueFindOnly>, column=KeyValueFindOnly.$row#1)
+              |   +-column=KeyValueFindOnly.Key
+              +-GetRowField
+                +-type=STRING
+                +-expr=
+                | +-ColumnRef(type=ROW<KeyValueFindOnly>, column=KeyValueFindOnly.$row#1)
+                +-column=KeyValueFindOnly.Value

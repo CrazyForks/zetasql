@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -31,11 +32,13 @@
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
 namespace googlesql {
 namespace {
 
+using ::testing::Eq;
 using absl_testing::IsOkAndHolds;
 using absl_testing::StatusIs;
 
@@ -380,6 +383,12 @@ TEST(IntervalValueTest, Deserialize) {
   }
 }
 
+MATCHER_P(IsIdenticalTo, expected,
+          absl::StrCat(negation ? "is not" : "is", " identical to ",
+                       ::testing::PrintToString(expected))) {
+  return IdenticalIntervals(arg, expected);
+}
+
 void ExpectEqual(IntervalValue v1, IntervalValue v2) {
   EXPECT_EQ(v1, v2);
   EXPECT_EQ(v2, v1);
@@ -657,34 +666,173 @@ TEST(IntervalValueTest, BinaryPlusMinus) {
 
 TEST(IntervalValueTest, Multiply) {
   for (int64_t v : {0, 1, -1, 2, -2, 10, -10, 1000, -1000}) {
-    EXPECT_EQ(Years(v), *(Years(1) * v)) << v;
-    EXPECT_EQ(Months(v), *(Months(1) * v)) << v;
-    EXPECT_EQ(Days(v), *(Days(1) * v)) << v;
-    EXPECT_EQ(Hours(v), *(Hours(1) * v)) << v;
-    EXPECT_EQ(Minutes(v), *(Minutes(1) * v)) << v;
-    EXPECT_EQ(Seconds(v), *(Seconds(1) * v)) << v;
-    EXPECT_EQ(Micros(v), *(Micros(1) * v)) << v;
-    EXPECT_EQ(Nanos(v), *(Nanos(1) * v)) << v;
-    EXPECT_EQ(YMDHMS(0, v, v, v, v, v), *(YMDHMS(0, 1, 1, 1, 1, 1) * v)) << v;
+    EXPECT_THAT(Years(1) * v, IsOkAndHolds(Eq(Years(v)))) << v;
+    EXPECT_THAT(Months(1) * v, IsOkAndHolds(Eq(Months(v)))) << v;
+    EXPECT_THAT(Days(1) * v, IsOkAndHolds(Eq(Days(v)))) << v;
+    EXPECT_THAT(Hours(1) * v, IsOkAndHolds(Eq(Hours(v)))) << v;
+    EXPECT_THAT(Minutes(1) * v, IsOkAndHolds(Eq(Minutes(v)))) << v;
+    EXPECT_THAT(Seconds(1) * v, IsOkAndHolds(Eq(Seconds(v)))) << v;
+    EXPECT_THAT(Micros(1) * v, IsOkAndHolds(Eq(Micros(v)))) << v;
+    EXPECT_THAT(Nanos(1) * v, IsOkAndHolds(Eq(Nanos(v)))) << v;
+    EXPECT_THAT(YMDHMS(0, 1, 1, 1, 1, 1) * v,
+                IsOkAndHolds(Eq(YMDHMS(0, v, v, v, v, v))))
+        << v;
 
     // -interval is the same as interval * (-1)
-    EXPECT_EQ(-Years(v), *(Years(v) * (-1))) << v;
-    EXPECT_EQ(-Months(v), *(Months(v) * (-1))) << v;
-    EXPECT_EQ(-Days(v), *(Days(v) * (-1))) << v;
-    EXPECT_EQ(-Hours(v), *(Hours(v) * (-1))) << v;
-    EXPECT_EQ(-Minutes(v), *(Minutes(v) * (-1))) << v;
-    EXPECT_EQ(-Seconds(v), *(Seconds(v) * (-1))) << v;
-    EXPECT_EQ(-Micros(v), *(Micros(v) * (-1))) << v;
-    EXPECT_EQ(-Nanos(v), *(Nanos(v) * (-1))) << v;
+    EXPECT_THAT(Years(v) * int64_t{-1}, IsOkAndHolds(Eq(-Years(v)))) << v;
+    EXPECT_THAT(Months(v) * int64_t{-1}, IsOkAndHolds(Eq(-Months(v)))) << v;
+    EXPECT_THAT(Days(v) * int64_t{-1}, IsOkAndHolds(Eq(-Days(v)))) << v;
+    EXPECT_THAT(Hours(v) * int64_t{-1}, IsOkAndHolds(Eq(-Hours(v)))) << v;
+    EXPECT_THAT(Minutes(v) * int64_t{-1}, IsOkAndHolds(Eq(-Minutes(v)))) << v;
+    EXPECT_THAT(Seconds(v) * int64_t{-1}, IsOkAndHolds(Eq(-Seconds(v)))) << v;
+    EXPECT_THAT(Micros(v) * int64_t{-1}, IsOkAndHolds(Eq(-Micros(v)))) << v;
+    EXPECT_THAT(Nanos(v) * int64_t{-1}, IsOkAndHolds(Eq(-Nanos(v)))) << v;
 
     // Multiply is just a wrapper around operator*
-    EXPECT_EQ(Years(v), *(Years(1).Multiply(v))) << v;
+    EXPECT_THAT(Years(1).Multiply(v), IsOkAndHolds(Eq(Years(v)))) << v;
   }
 
-  EXPECT_THAT(Years(2) * 10000, StatusIs(absl::StatusCode::kOutOfRange));
-  EXPECT_THAT(Days(3660000) * (-2), StatusIs(absl::StatusCode::kOutOfRange));
-  EXPECT_THAT(Days(999999) * 99999999999,
+  EXPECT_THAT(Years(2) * int64_t{10000},
               StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Days(3660000) * int64_t{-2},
+              StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Days(999999) * int64_t{99999999999},
+              StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(IntervalValueTest, MultiplyDouble) {
+  // Basic multiplication
+  EXPECT_THAT(Years(1) * 0.5, IsOkAndHolds(IsIdenticalTo(Months(6))));
+  EXPECT_THAT(Months(1) * 1.5,
+              IsOkAndHolds(IsIdenticalTo(YMDHMS(0, 1, 15, 0, 0, 0))));
+  EXPECT_THAT(Days(1) * 0.5, IsOkAndHolds(IsIdenticalTo(Hours(12))));
+  EXPECT_THAT(Hours(1) * 1.5, IsOkAndHolds(IsIdenticalTo(Minutes(90))));
+  EXPECT_THAT(Minutes(1) * 0.5, IsOkAndHolds(IsIdenticalTo(Seconds(30))));
+  EXPECT_THAT(Seconds(1) * 1.5, IsOkAndHolds(IsIdenticalTo(Micros(1500000))));
+  EXPECT_THAT(Micros(1) * 0.5, IsOkAndHolds(IsIdenticalTo(Nanos(500))));
+
+  EXPECT_THAT(Years(1) * -1.5, IsOkAndHolds(IsIdenticalTo(Months(-18))));
+  EXPECT_THAT(Months(1) * -0.5, IsOkAndHolds(IsIdenticalTo(Days(-15))));
+  EXPECT_THAT(Days(1) * -1.5,
+              IsOkAndHolds(IsIdenticalTo(YMDHMS(0, 0, -1, -12, 0, 0))));
+  EXPECT_THAT(Hours(1) * -0.5, IsOkAndHolds(IsIdenticalTo(Minutes(-30))));
+  EXPECT_THAT(Minutes(1) * -1.5, IsOkAndHolds(IsIdenticalTo(Seconds(-90))));
+  EXPECT_THAT(Seconds(1) * -0.5, IsOkAndHolds(IsIdenticalTo(Micros(-500000))));
+  EXPECT_THAT(Micros(1) * -1.5, IsOkAndHolds(IsIdenticalTo(Nanos(-1500))));
+
+  // Multiplication by 0
+  EXPECT_THAT(Years(1) * 0.0, IsOkAndHolds(IsIdenticalTo(Years(0))));
+
+  // Mixed interval
+  EXPECT_THAT(
+      Interval("1-1 1 1:1:1.000001") * 0.3,
+      IsOkAndHolds(IsIdenticalTo(Interval("0-3 27 7:30:18.300000299"))));
+  EXPECT_THAT(
+      Interval("1-1 1 1:1:1.000001") * -0.5,
+      IsOkAndHolds(IsIdenticalTo(Interval("-0-6 -15 -12:30:30.500000500"))));
+  EXPECT_THAT(
+      Interval("1-1 1 1:1:1.000001") * -1.3,
+      IsOkAndHolds(IsIdenticalTo(Interval("-1-4 -28 -8:31:19.300001305"))));
+  EXPECT_THAT(
+      Interval("1-1 1 1:1:1.000001") * 1.5,
+      IsOkAndHolds(IsIdenticalTo(Interval("1-7 16 13:31:31.500001500"))));
+
+  // Overflow
+  EXPECT_THAT(Years(1) * 1e20, StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Years(1) * -1e20, StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Months(2) * std::numeric_limits<double>::max(),
+              StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Months(-2) * std::numeric_limits<double>::max(),
+              StatusIs(absl::StatusCode::kOutOfRange));
+
+  // Overflow with min/max months, days, nanos multiplied by (+/-) max double
+  EXPECT_THAT(
+      Months(IntervalValue::kMaxMonths) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Months(IntervalValue::kMinMonths) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Days(IntervalValue::kMaxDays) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Days(IntervalValue::kMinDays) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Nanos(IntervalValue::kMaxNanos) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Nanos(IntervalValue::kMinNanos) * std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+
+  EXPECT_THAT(
+      Months(IntervalValue::kMaxMonths) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Months(IntervalValue::kMinMonths) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Days(IntervalValue::kMaxDays) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Days(IntervalValue::kMinDays) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Nanos(IntervalValue::kMaxNanos) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(
+      Nanos(IntervalValue::kMinNanos) * -std::numeric_limits<double>::max(),
+      StatusIs(absl::StatusCode::kOutOfRange));
+
+  // NaN / Inf
+  EXPECT_THAT(Years(1) * std::numeric_limits<double>::quiet_NaN(),
+              StatusIs(absl::StatusCode::kOutOfRange));
+  EXPECT_THAT(Years(1) * std::numeric_limits<double>::infinity(),
+              StatusIs(absl::StatusCode::kOutOfRange));
+
+  IntervalValue interval;
+  // Max interval value multiplied by 1
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      interval, IntervalValue::FromMonthsDaysMicros(IntervalValue::kMaxMonths,
+                                                    IntervalValue::kMaxDays,
+                                                    IntervalValue::kMaxMicros));
+  EXPECT_THAT(interval * 1.0, IsOkAndHolds(interval));
+  // Min interval value multiplied by 1
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      interval, IntervalValue::FromMonthsDaysMicros(IntervalValue::kMinMonths,
+                                                    IntervalValue::kMinDays,
+                                                    IntervalValue::kMinMicros));
+  EXPECT_THAT(interval * 1.0, IsOkAndHolds(interval));
+}
+
+TEST(IntervalValueTest, MultiplyDoubleWithRoundToMicros) {
+  // Verify round_to_micros=false parameter behavior
+  EXPECT_THAT(Micros(1).Multiply(0.5, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(500))));
+  EXPECT_THAT(Micros(-1).Multiply(0.5, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(-500))));
+  EXPECT_THAT(Micros(1).Multiply(1.5, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(1500))));
+  EXPECT_THAT(Micros(-1).Multiply(1.5, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(-1500))));
+  EXPECT_THAT(Micros(17).Multiply(1.0 / 3.0, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(5666))));
+  EXPECT_THAT(Micros(-17).Multiply(1.0 / 3.0, /*round_to_micros=*/false),
+              IsOkAndHolds(IsIdenticalTo(Nanos(-5666))));
+
+  // Verify round_to_micros=true parameter behavior
+  EXPECT_THAT(Micros(1).Multiply(0.5, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(0))));
+  EXPECT_THAT(Micros(-1).Multiply(0.5, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(0))));
+  EXPECT_THAT(Micros(1).Multiply(1.5, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(1))));
+  EXPECT_THAT(Micros(-1).Multiply(1.5, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(-1))));
+  EXPECT_THAT(Micros(17).Multiply(1.0 / 3.0, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(5))));
+  EXPECT_THAT(Micros(-17).Multiply(1.0 / 3.0, /*round_to_micros=*/true),
+              IsOkAndHolds(IsIdenticalTo(Micros(-5))));
 }
 
 TEST(IntervalValueTest, Divide) {

@@ -71,7 +71,7 @@ select with differential_privacy COUNT() from SimpleTypes
 ==
 
 # DISTINCT is not supported for COUNT()
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
+[language_features=NONE,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
 select with differential_privacy COUNT(DISTINCT string, contribution_bounds_per_group => (0, 1)) from SimpleTypes
 --
 
@@ -81,7 +81,7 @@ select with differential_privacy COUNT(DISTINCT string, contribution_bounds_p...
 ==
 
 # Calling COUNT(*) without any optional arguments works.
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS,+PIPE_AGGREGATE_WITH_DIFFERENTIAL_PRIVACY]
+[language_features=NONE,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS,+PIPE_AGGREGATE_WITH_DIFFERENTIAL_PRIVACY]
 select with differential_privacy COUNT(*) from SimpleTypes
 --
 QueryStmt
@@ -399,7 +399,7 @@ QueryStmt
 ==
 
 # DISTINCT is not supported for differential privacy aggregate functions
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
+[language_features=NONE,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
 select with differential_privacy SUM(DISTINCT int32, contribution_bounds_per_group => (0, 1)) from SimpleTypes
 --
 ERROR: Aggregate operator SUM does not support DISTINCT in arguments [at 1:34]
@@ -478,7 +478,7 @@ QueryStmt
 ==
 
 # DISTINCT is not supported for differential privacy aggregate functions
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
+[language_features=NONE,+DIFFERENTIAL_PRIVACY,+NAMED_ARGUMENTS]
 select with differential_privacy AVG(DISTINCT int32, contribution_bounds_per_group => (0, 1)) from SimpleTypes
 --
 ERROR: Aggregate operator AVG does not support DISTINCT in arguments [at 1:34]

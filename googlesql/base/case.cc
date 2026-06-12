@@ -20,6 +20,7 @@
 
 #include "googlesql/base/case.h"
 
+#include <cstddef>
 #include <string>
 
 #include "absl/strings/ascii.h"

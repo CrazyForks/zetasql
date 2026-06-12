@@ -278,15 +278,15 @@ TEST(OptionsUtils, ParseEnabledAstRewrites) {
               {REWRITE_TEST_DEFAULT_DISABLED, REWRITE_TEST_DEFAULT_ENABLED},
               {REWRITE_TEST_DEFAULT_DISABLED_AND_IN_DEVELOPMENT,
                REWRITE_TEST_DEFAULT_ENABLED_AND_IN_DEVELOPMENT});
-  CheckResult("DEFAULTS",
+  CheckResult("DEFAULTS", {REWRITE_TEST_DEFAULT_ENABLED},
+              {REWRITE_TEST_DEFAULT_DISABLED,
+               REWRITE_TEST_DEFAULT_DISABLED_AND_IN_DEVELOPMENT,
+               REWRITE_TEST_DEFAULT_ENABLED_AND_IN_DEVELOPMENT});
+  CheckResult("DEFAULTS_PLUS_DEV",
               {REWRITE_TEST_DEFAULT_ENABLED,
                REWRITE_TEST_DEFAULT_ENABLED_AND_IN_DEVELOPMENT},
               {REWRITE_TEST_DEFAULT_DISABLED,
                REWRITE_TEST_DEFAULT_DISABLED_AND_IN_DEVELOPMENT});
-  CheckResult("DEFAULTS_MINUS_DEV", {REWRITE_TEST_DEFAULT_ENABLED},
-              {REWRITE_TEST_DEFAULT_DISABLED,
-               REWRITE_TEST_DEFAULT_DISABLED_AND_IN_DEVELOPMENT,
-               REWRITE_TEST_DEFAULT_ENABLED_AND_IN_DEVELOPMENT});
 }
 
 TEST(OptionsUtils, TestRewriteFlagSupport) {
@@ -322,7 +322,7 @@ TEST(OptionsUtils, TestFlagSupport_BadFlag) {
   EXPECT_FALSE(flag->ParseFrom("GARBAGE!", &error));
   EXPECT_THAT(error, HasSubstr("Rewrite list should always start with one of "
                                "ALL, ALL_MINUS_DEV, DEFAULTS, "
-                               "DEFAULTS_MINUS_DEV, NONE"));
+                               "DEFAULTS_PLUS_DEV, NONE"));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -484,7 +484,7 @@ TEST_F(QueryParameterParsingTest, ProtoTypeParam) {
   // Serialized proto bytes are not easy to read, so add a more human-friendly
   // assertion that the query parameter proto is as expected.
   googlesql_test::KitchenSinkPB kitchen_sink_pb;
-  ASSERT_TRUE(kitchen_sink_pb.ParseFromCord(flag.map.at("ks").ToCord()));
+  ASSERT_TRUE(kitchen_sink_pb.ParseFromString(flag.map.at("ks").ToCord()));
   ASSERT_THAT(kitchen_sink_pb, testing::EqualsProto(
                                    R"pb(
                                      int64_key_1: 1 int64_key_2: 2

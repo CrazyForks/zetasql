@@ -461,6 +461,46 @@ TEST(TableNameResolver, ExtractTableNamesFromGraphPatternInExistsSubQuery) {
   EXPECT_THAT(tvf_names, UnorderedElementsAre(ElementsAre("tvf")));
 }
 
+TEST(TableNameResolver, ExtractTableNamesFromGraphPatternQueryNestedWhere) {
+  AnalyzerOptions analyzer_options;
+  analyzer_options.CreateDefaultArenasIfNotSet();
+  analyzer_options.mutable_language()->EnableLanguageFeature(FEATURE_SQL_GRAPH);
+  analyzer_options.mutable_language()->EnableLanguageFeature(
+      FEATURE_SQL_GRAPH_ADVANCED_QUERY);
+
+  // AST snippet:
+  // QueryStatement
+  //   Query
+  //     Select
+  //       ...
+  //         ExpressionSubquery(modifier=EXISTS)
+  //           Query
+  //             GqlGraphPatternQuery
+  //               PathExpression(my_graph)
+  //               GraphPattern
+  //                 GraphPathPattern
+  //                   GraphNodePattern
+  //                     GraphElementPatternFiller
+  //                       WhereClause
+  //                         ExpressionSubquery(modifier=EXISTS)
+  //                           Query
+  //                             Select
+  //                               FromClause
+  //                                 TablePathExpression(TableA)
+  std::string sql =
+      R"sql(SELECT EXISTS {
+              GRAPH my_graph (n WHERE EXISTS(SELECT * FROM TableA))
+            };
+      )sql";
+
+  std::set<std::vector<std::string>> table_names;
+  std::set<std::vector<std::string>> tvf_names;
+  GOOGLESQL_ASSERT_OK(googlesql::ExtractTableNamesFromScript(sql, analyzer_options,
+                                                   &table_names, &tvf_names));
+  EXPECT_THAT(table_names, UnorderedElementsAre(ElementsAre("TableA")));
+  EXPECT_THAT(tvf_names, IsEmpty());
+}
+
 TEST(TableNameResolver, ExtractTableNamesFromGraphLinearOpsInExistsQuery) {
   AnalyzerOptions analyzer_options;
   analyzer_options.CreateDefaultArenasIfNotSet();
@@ -486,6 +526,42 @@ TEST(TableNameResolver, ExtractTableNamesFromGraphLinearOpsInExistsQuery) {
   EXPECT_THAT(table_names, UnorderedElementsAre(ElementsAre("TableB"),
                                                 ElementsAre("TableA")));
   EXPECT_THAT(tvf_names, UnorderedElementsAre(ElementsAre("tvf")));
+}
+
+TEST(TableNameResolver, ExtractTableNamesFromGraphLinearOpsQueryWithTvfCall) {
+  AnalyzerOptions analyzer_options;
+  analyzer_options.CreateDefaultArenasIfNotSet();
+  analyzer_options.mutable_language()->EnableLanguageFeature(FEATURE_SQL_GRAPH);
+  analyzer_options.mutable_language()->EnableLanguageFeature(
+      FEATURE_SQL_GRAPH_ADVANCED_QUERY);
+
+  // AST snippet:
+  // QueryStatement
+  //   Query
+  //     Select
+  //       ...
+  //         ExpressionSubquery(modifier=EXISTS)
+  //           Query
+  //             GqlLinearOpsQuery
+  //               PathExpression(my_graph)
+  //               GqlOperatorList
+  //                 GqlNamedCall
+  //                   TVF(my_tvf)
+  //                   TVFArgument
+  //                     TableClause
+  //                       PathExpression(TableA)
+  std::string sql =
+      R"sql(SELECT EXISTS {
+              GRAPH my_graph CALL my_tvf(TABLE TableA)
+            };
+      )sql";
+
+  std::set<std::vector<std::string>> table_names;
+  std::set<std::vector<std::string>> tvf_names;
+  GOOGLESQL_ASSERT_OK(googlesql::ExtractTableNamesFromScript(sql, analyzer_options,
+                                                   &table_names, &tvf_names));
+  EXPECT_THAT(table_names, UnorderedElementsAre(ElementsAre("TableA")));
+  EXPECT_THAT(tvf_names, UnorderedElementsAre(ElementsAre("my_tvf")));
 }
 
 TEST(TableNameResolver, ExtractTableNamesFromCallGraphSubQuery) {

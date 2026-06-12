@@ -4,7 +4,7 @@
 
 module a3;
 
-import MODULE googlesql.testdata.modules.b2_imports_c2_c3 as b2;
+import module googlesql.testdata.modules.b2_imports_c2_c3 as b2;
 
 create public function a3(a string) as
 (concat(a, ".a3", b2.b2(a)));

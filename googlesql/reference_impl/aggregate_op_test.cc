@@ -43,10 +43,10 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 using ::testing::_;
 using ::testing::ElementsAre;

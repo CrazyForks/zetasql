@@ -34,9 +34,9 @@
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

@@ -16,7 +16,7 @@
 
 module(
     name = "googlesql",
-    version = "2026.01.1",
+    version = "2026.1.1",
 )
 
 GOOGLESQL_JAVA_ARTIFACTS = [
@@ -46,47 +46,37 @@ GOOGLESQL_JAVA_ARTIFACTS = [
     "junit:junit:4.13.2",
 ]
 
-bazel_dep(name = "abseil-cpp", version = "20240722.1", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20250814.1", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "io_abseil_py")
-bazel_dep(name = "bazel_features", version = "1.30.0")
+bazel_dep(name = "bazel_features", version = "1.33.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "boost.variant", version = "1.89.0")
 bazel_dep(name = "boringssl", version = "0.20250818.0")
 bazel_dep(name = "civetweb", version = "1.16.bcr.3")
-bazel_dep(name = "gazelle", version = "0.45.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "gazelle", version = "0.46.0", repo_name = "bazel_gazelle")
 bazel_dep(name = "google_bazel_common", version = "0.0.1")
 bazel_dep(name = "google_benchmark", version = "1.9.4", repo_name = "com_github_google_benchmark")
-bazel_dep(name = "googleapis", version = "0.0.0-20250826-a92cee39", repo_name = "com_google_googleapis")
+bazel_dep(name = "googleapis", version = "0.0.0-20251003-2193a2bf", repo_name = "com_google_googleapis")
 bazel_dep(name = "googleapis-cc", version = "1.0.0")
 bazel_dep(name = "googletest", version = "1.17.0", repo_name = "com_google_googletest")
-bazel_dep(name = "grpc", version = "1.69.0", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "grpc", version = "1.76.0.bcr.1", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "grpc-java", version = "1.75.0", repo_name = "io_grpc_grpc_java")
 bazel_dep(name = "nlohmann_json", version = "3.12.0", repo_name = "json")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "29.0", repo_name = "com_google_protobuf")
+bazel_dep(name = "protobuf", version = "33.4", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2025-08-12", repo_name = "com_googlesource_code_re2")
 bazel_dep(name = "riegeli", version = "0.0.0-20240927-cdfb25a", repo_name = "com_google_riegeli")
 bazel_dep(name = "rules_bison", version = "0.4")
-bazel_dep(name = "rules_cc", version = "0.2.8")
+bazel_dep(name = "rules_cc", version = "0.2.14")
 bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
-bazel_dep(name = "rules_go", version = "0.53.0", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "rules_java", version = "8.15.2")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "rules_java", version = "8.16.1")
 bazel_dep(name = "rules_jvm_external", version = "6.8")
 bazel_dep(name = "rules_m4", version = "0.3")
-bazel_dep(name = "rules_proto", version = "7.0.2")
+bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_python", version = "1.6.1")
 bazel_dep(name = "toolchains_llvm", version = "1.5.0")
-
-# The 'slot_type' in /googlesql/public/types/internal_utils.h file is a private member of
-# absl::container_internal::raw_hash_set in newer versions. Pinged to an older version of abseil-cpp
-# until the usage of 'slot_type' is removed.
-#
-# TODO: Remove the usage of old version of abseil-cpp.
-single_version_override(
-    module_name = "abseil-cpp",
-    version = "20240722.1",
-)
 
 # Java dependencies.
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")

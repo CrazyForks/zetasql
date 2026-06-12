@@ -71,6 +71,10 @@ std::vector<QueryParamsWithResult> GetFunctionTestsOr();
 
 std::vector<QueryParamsWithResult> GetFunctionTestsCast();  // all CAST tests
 
+// Returns test cases for CAST AS JSON, leveraging existing TO_JSON tests.
+std::vector<QueryParamsWithResult>
+GetFunctionTestsCastJson();  // cast as JSON only
+
 std::vector<QueryParamsWithResult>
 GetFunctionTestsCastBool();  // boolean casts only
 

@@ -46,11 +46,12 @@ QueryStatement [24-142] [SELECT * from...AS one) )]
                     GraphLabelFilter [108-118] [IS Account]
                       GraphElementLabel [111-118] [Account]
                         Identifier(Account) [111-118] [Account]
-          SelectList [131-139] [1 AS one]
-            SelectColumn [131-139] [1 AS one]
-              IntLiteral(1) [131-132] [1]
-              Alias [133-139] [AS one]
-                Identifier(one) [136-139] [one]
+          Select [122-140] [COLUMNS (1 AS one)]
+            SelectList [131-139] [1 AS one]
+              SelectColumn [131-139] [1 AS one]
+                IntLiteral(1) [131-132] [1]
+                Alias [133-139] [AS one]
+                  Identifier(one) [136-139] [one]
 --
 SELECT
   *
@@ -58,11 +59,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (@{ key = a } a
-      IS Account)
+      (@{ key = a } a IS Account)
       -[@{ key = b } b]->
-      (c
-      IS Account)
+      (c IS Account)
     COLUMNS(
       1 AS one
     )
@@ -104,11 +103,12 @@ QueryStatement [0-101] [select * from...AS one) )]
                 GraphNodePattern [71-78] [(theta)]
                   GraphElementPatternFiller [72-77] [theta]
                     Identifier(theta) [72-77] [theta]
-          SelectList [90-98] [1 AS one]
-            SelectColumn [90-98] [1 AS one]
-              IntLiteral(1) [90-91] [1]
-              Alias [92-98] [AS one]
-                Identifier(one) [95-98] [one]
+          Select [81-99] [COLUMNS (1 AS one)]
+            SelectList [90-98] [1 AS one]
+              SelectColumn [90-98] [1 AS one]
+                IntLiteral(1) [90-91] [1]
+                Alias [92-98] [AS one]
+                  Identifier(one) [95-98] [one]
 --
 SELECT
   *
@@ -160,11 +160,12 @@ QueryStatement [0-101] [select * from...AS one) )]
                 GraphNodePattern [71-78] [(theta)]
                   GraphElementPatternFiller [72-77] [theta]
                     Identifier(theta) [72-77] [theta]
-          SelectList [90-98] [1 AS one]
-            SelectColumn [90-98] [1 AS one]
-              IntLiteral(1) [90-91] [1]
-              Alias [92-98] [AS one]
-                Identifier(one) [95-98] [one]
+          Select [81-99] [COLUMNS (1 AS one)]
+            SelectList [90-98] [1 AS one]
+              SelectColumn [90-98] [1 AS one]
+                IntLiteral(1) [90-91] [1]
+                Alias [92-98] [AS one]
+                  Identifier(one) [95-98] [one]
 --
 SELECT
   *
@@ -222,11 +223,12 @@ QueryStatement [0-112] [SELECT * from...AS one) )]
                 GraphNodePattern [82-89] [(theta)]
                   GraphElementPatternFiller [83-88] [theta]
                     Identifier(theta) [83-88] [theta]
-          SelectList [101-109] [1 AS one]
-            SelectColumn [101-109] [1 AS one]
-              IntLiteral(1) [101-102] [1]
-              Alias [103-109] [AS one]
-                Identifier(one) [106-109] [one]
+          Select [92-110] [COLUMNS (1 AS one)]
+            SelectList [101-109] [1 AS one]
+              SelectColumn [101-109] [1 AS one]
+                IntLiteral(1) [101-102] [1]
+                Alias [103-109] [AS one]
+                  Identifier(one) [106-109] [one]
 --
 SELECT
   *
@@ -282,11 +284,12 @@ QueryStatement [0-105] [SELECT * from...AS one) )]
                 GraphNodePattern [75-82] [(theta)]
                   GraphElementPatternFiller [76-81] [theta]
                     Identifier(theta) [76-81] [theta]
-          SelectList [94-102] [1 AS one]
-            SelectColumn [94-102] [1 AS one]
-              IntLiteral(1) [94-95] [1]
-              Alias [96-102] [AS one]
-                Identifier(one) [99-102] [one]
+          Select [85-103] [COLUMNS (1 AS one)]
+            SelectList [94-102] [1 AS one]
+              SelectColumn [94-102] [1 AS one]
+                IntLiteral(1) [94-95] [1]
+                Alias [96-102] [AS one]
+                  Identifier(one) [99-102] [one]
 --
 SELECT
   *
@@ -360,11 +363,12 @@ QueryStatement [0-163] [SELECT * FROM...AS one) )]
                     GraphLabelFilter [130-139] [IS Person]
                       GraphElementLabel [133-139] [Person]
                         Identifier(Person) [133-139] [Person]
-          SelectList [152-160] [1 AS one]
-            SelectColumn [152-160] [1 AS one]
-              IntLiteral(1) [152-153] [1]
-              Alias [154-160] [AS one]
-                Identifier(one) [157-160] [one]
+          Select [143-161] [COLUMNS (1 AS one)]
+            SelectList [152-160] [1 AS one]
+              SelectColumn [152-160] [1 AS one]
+                IntLiteral(1) [152-153] [1]
+                Alias [154-160] [AS one]
+                  Identifier(one) [157-160] [one]
 --
 SELECT
   *
@@ -372,17 +376,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Account)
+      (a IS Account)
       -[b]->
-      (c
-      IS Account),
+      (c IS Account),
       @{ key = path_path }
-      (a
-      IS Account)
+      (a IS Account)
       <-[d]-
-      (e
-      IS Person)
+      (e IS Person)
     COLUMNS(
       1 AS one
     )
@@ -480,11 +480,12 @@ QueryStatement [0-224] [SELECT * FROM...AS one) )]
                     GraphLabelFilter [191-200] [IS Person]
                       GraphElementLabel [194-200] [Person]
                         Identifier(Person) [194-200] [Person]
-          SelectList [213-221] [1 AS one]
-            SelectColumn [213-221] [1 AS one]
-              IntLiteral(1) [213-214] [1]
-              Alias [215-221] [AS one]
-                Identifier(one) [218-221] [one]
+          Select [204-222] [COLUMNS (1 AS one)]
+            SelectList [213-221] [1 AS one]
+              SelectColumn [213-221] [1 AS one]
+                IntLiteral(1) [213-214] [1]
+                Alias [215-221] [AS one]
+                  Identifier(one) [218-221] [one]
 --
 SELECT
   *
@@ -492,17 +493,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (@{ key = a } a
-      IS Account)
+      (@{ key = a } a IS Account)
       @{ key = a_b } -[@{ key = b } b]-> @{ key = b_c }
-      (c
-      IS Account),
+      (c IS Account),
       @{ key = path_path }
-      (a
-      IS Account)
+      (a IS Account)
       @{ key = a_d } <-[d]- @{ key = d_e }
-      (e
-      IS Person)
+      (e IS Person)
     COLUMNS(
       1 AS one
     )
@@ -577,11 +574,12 @@ QueryStatement [0-121] [select * from...AS one) )]
                           Identifier(sub_e) [85-90] [sub_e]
                   GraphElementPatternFiller [95-96] [b]
                     Identifier(b) [95-96] [b]
-          SelectList [110-118] [1 AS one]
-            SelectColumn [110-118] [1 AS one]
-              IntLiteral(1) [110-111] [1]
-              Alias [112-118] [AS one]
-                Identifier(one) [115-118] [one]
+          Select [101-119] [COLUMNS (1 AS one)]
+            SelectList [110-118] [1 AS one]
+              SelectColumn [110-118] [1 AS one]
+                IntLiteral(1) [110-111] [1]
+                Alias [112-118] [AS one]
+                  Identifier(one) [115-118] [one]
 --
 SELECT
   *
@@ -658,11 +656,12 @@ QueryStatement [0-140] [select * from...AS one) )]
                           Identifier(sub_e) [104-109] [sub_e]
                   GraphElementPatternFiller [114-115] [b]
                     Identifier(b) [114-115] [b]
-          SelectList [129-137] [1 AS one]
-            SelectColumn [129-137] [1 AS one]
-              IntLiteral(1) [129-130] [1]
-              Alias [131-137] [AS one]
-                Identifier(one) [134-137] [one]
+          Select [120-138] [COLUMNS (1 AS one)]
+            SelectList [129-137] [1 AS one]
+              SelectColumn [129-137] [1 AS one]
+                IntLiteral(1) [129-130] [1]
+                Alias [131-137] [AS one]
+                  Identifier(one) [134-137] [one]
 --
 SELECT
   *
@@ -771,11 +770,12 @@ QueryStatement [0-146] [select * from...AS one) )]
                 GraphEdgePattern [116-122] [-[e]->]
                   GraphElementPatternFiller [118-119] [e]
                     Identifier(e) [118-119] [e]
-          SelectList [135-143] [1 AS one]
-            SelectColumn [135-143] [1 AS one]
-              IntLiteral(1) [135-136] [1]
-              Alias [137-143] [AS one]
-                Identifier(one) [140-143] [one]
+          Select [126-144] [COLUMNS (1 AS one)]
+            SelectList [135-143] [1 AS one]
+              SelectColumn [135-143] [1 AS one]
+                IntLiteral(1) [135-136] [1]
+                Alias [137-143] [AS one]
+                  Identifier(one) [140-143] [one]
 --
 SELECT
   *
@@ -896,11 +896,12 @@ QueryStatement [0-291] [select * from...OLUMNS (b.x) )]
                       Identifier(path_path_3) [254-265] [path_path_3]
                 GraphNodePattern [269-271] [()]
                   GraphElementPatternFiller [270-270] []
-          SelectList [285-288] [b.x]
-            SelectColumn [285-288] [b.x]
-              PathExpression [285-288] [b.x]
-                Identifier(b) [285-286] [b]
-                Identifier(x) [287-288] [x]
+          Select [276-289] [COLUMNS (b.x)]
+            SelectList [285-288] [b.x]
+              SelectColumn [285-288] [b.x]
+                PathExpression [285-288] [b.x]
+                  Identifier(b) [285-286] [b]
+                  Identifier(x) [287-288] [x]
 --
 SELECT
   *
@@ -990,11 +991,12 @@ QueryStatement [0-102] [select * from...AS One) )]
                 GraphNodePattern [71-74] [(c)]
                   GraphElementPatternFiller [72-73] [c]
                     Identifier(c) [72-73] [c]
-          SelectList [91-99] [1 AS One]
-            SelectColumn [91-99] [1 AS One]
-              IntLiteral(1) [91-92] [1]
-              Alias [93-99] [AS One]
-                Identifier(One) [96-99] [One]
+          Select [83-100] [COLUMNS(1 AS One)]
+            SelectList [91-99] [1 AS One]
+              SelectColumn [91-99] [1 AS One]
+                IntLiteral(1) [91-92] [1]
+                Alias [93-99] [AS One]
+                  Identifier(One) [96-99] [One]
 --
 SELECT
   *
@@ -1060,11 +1062,12 @@ QueryStatement [0-108] [select * from...AS One) )]
                 GraphNodePattern [83-86] [(d)]
                   GraphElementPatternFiller [84-85] [d]
                     Identifier(d) [84-85] [d]
-          SelectList [97-105] [1 AS One]
-            SelectColumn [97-105] [1 AS One]
-              IntLiteral(1) [97-98] [1]
-              Alias [99-105] [AS One]
-                Identifier(One) [102-105] [One]
+          Select [89-106] [COLUMNS(1 AS One)]
+            SelectList [97-105] [1 AS One]
+              SelectColumn [97-105] [1 AS One]
+                IntLiteral(1) [97-98] [1]
+                Alias [99-105] [AS One]
+                  Identifier(One) [102-105] [One]
 --
 SELECT
   *
@@ -1139,11 +1142,12 @@ QueryStatement [0-112] [select * from...AS One) )]
                 GraphNodePattern [87-90] [(x)]
                   GraphElementPatternFiller [88-89] [x]
                     Identifier(x) [88-89] [x]
-          SelectList [101-109] [1 AS One]
-            SelectColumn [101-109] [1 AS One]
-              IntLiteral(1) [101-102] [1]
-              Alias [103-109] [AS One]
-                Identifier(One) [106-109] [One]
+          Select [93-110] [COLUMNS(1 AS One)]
+            SelectList [101-109] [1 AS One]
+              SelectColumn [101-109] [1 AS One]
+                IntLiteral(1) [101-102] [1]
+                Alias [103-109] [AS One]
+                  Identifier(One) [106-109] [One]
 --
 SELECT
   *
@@ -1210,11 +1214,12 @@ QueryStatement [0-125] [SELECT one...AS one)   )]
                 GraphNodePattern [81-84] [(c)]
                   GraphElementPatternFiller [82-83] [c]
                     Identifier(c) [82-83] [c]
-          SelectList [112-120] [1 AS one]
-            SelectColumn [112-120] [1 AS one]
-              IntLiteral(1) [112-113] [1]
-              Alias [114-120] [AS one]
-                Identifier(one) [117-120] [one]
+          Select [104-121] [COLUMNS(1 AS one)]
+            SelectList [112-120] [1 AS one]
+              SelectColumn [112-120] [1 AS one]
+                IntLiteral(1) [112-113] [1]
+                Alias [114-120] [AS one]
+                  Identifier(one) [117-120] [one]
 --
 SELECT
   one
@@ -1664,16 +1669,12 @@ QueryStatement [0-93] [GRAPH aml...RETURN 1 AS one]
 --
 GRAPH aml
 MATCH
-  (a
-  IS Account)
+  (a IS Account)
   @{ key = val }
   (
-    (b
-    IS Account)
-    -[
-    IS Transfer]->
-    (c
-    IS Account)
+    (b IS Account)
+    -[IS Transfer]->
+    (c IS Account)
   )
 RETURN
   1 AS one
@@ -1739,16 +1740,12 @@ QueryStatement [0-98] [GRAPH aml...RETURN 1 AS one]
 --
 GRAPH aml
 MATCH
-  (a
-  IS Account)
+  (a IS Account)
   @{ key = val }
   (
-    (b
-    IS Account)
-    -[
-    IS Transfer]->
-    (c
-    IS Account)
+    (b IS Account)
+    -[IS Transfer]->
+    (c IS Account)
   ) { 1, 2 }
 RETURN
   1 AS one
@@ -1802,12 +1799,10 @@ QueryStatement [0-74] [GRAPH aml...RETURN 1 AS one]
 --
 GRAPH aml
 MATCH
-  (a
-  IS Account)
+  (a IS Account)
   @{ key = val }
   (
-    -[
-    IS Transfer]->
+    -[IS Transfer]->
   ) { 1, 2 }
 RETURN
   1 AS one
@@ -1884,16 +1879,12 @@ QueryStatement [0-116] [GRAPH aml...RETURN 1 AS one]
 --
 GRAPH aml
 MATCH
-  (a
-  IS Account)
+  (a IS Account)
   @{ key = val }
   (
-    (
-    IS Account)
-    @{ key = val } -[
-    IS Transfer]-> @{ key = val }
-    (
-    IS Account)
+    (IS Account)
+    @{ key = val } -[IS Transfer]-> @{ key = val }
+    (IS Account)
   ) { 1, 2 }
 RETURN
   1 AS one
@@ -1961,16 +1952,12 @@ QueryStatement [0-98] [GRAPH aml...RETURN 1 AS one]
 GRAPH aml
 MATCH
   (
-    (a
-    IS Account)
-    -[
-    IS Transfer]->
-    (b
-    IS Account)
+    (a IS Account)
+    -[IS Transfer]->
+    (b IS Account)
   ) { 1, 2 }
   @{ key = val }
-  (c
-  IS Account)
+  (c IS Account)
 RETURN
   1 AS one
 ==
@@ -2025,12 +2012,10 @@ QueryStatement [0-74] [GRAPH aml...RETURN 1 AS one]
 GRAPH aml
 MATCH
   (
-    -[
-    IS Transfer]->
+    -[IS Transfer]->
   ) { 1, 2 }
   @{ key = val }
-  (a
-  IS Account)
+  (a IS Account)
 RETURN
   1 AS one
 ==
@@ -2079,11 +2064,9 @@ QueryStatement [0-66] [GRAPH aml...RETURN 1 AS one]
 --
 GRAPH aml
 MATCH
-  (a
-  IS Account)
+  (a IS Account)
   @{ key = val }
-  (b
-  IS Account)
+  (b IS Account)
 RETURN
   1 AS one
 ==
@@ -2156,21 +2139,15 @@ QueryStatement [0-120] [GRAPH aml...RETURN 1 AS one]
 GRAPH aml
 MATCH
   (
-    (a
-    IS Account)
-    -[
-    IS Transfer]->
-    (b
-    IS Account)
+    (a IS Account)
+    -[IS Transfer]->
+    (b IS Account)
   )
   @{ key = val }
   (
-    (c
-    IS Account)
-    -[
-    IS Transfer]->
-    (d
-    IS Account)
+    (c IS Account)
+    -[IS Transfer]->
+    (d IS Account)
   )
 RETURN
   1 AS one
@@ -2254,21 +2231,15 @@ QueryStatement [0-130] [GRAPH aml...RETURN 1 AS one]
 GRAPH aml
 MATCH
   (
-    (a
-    IS Account)
-    -[
-    IS Transfer]->
-    (b
-    IS Account)
+    (a IS Account)
+    -[IS Transfer]->
+    (b IS Account)
   ) { 1, 2 }
   @{ key = val }
   (
-    (c
-    IS Account)
-    -[
-    IS Transfer]->
-    (d
-    IS Account)
+    (c IS Account)
+    -[IS Transfer]->
+    (d IS Account)
   ) { 1, 2 }
 RETURN
   1 AS one
@@ -2328,13 +2299,11 @@ QueryStatement [0-82] [GRAPH aml...RETURN 1 AS one]
 GRAPH aml
 MATCH
   (
-    -[
-    IS Transfer]->
+    -[IS Transfer]->
   ) { 1, 2 }
   @{ key = val }
   (
-    -[
-    IS Transfer]->
+    -[IS Transfer]->
   ) { 1, 2 }
 RETURN
   1 AS one

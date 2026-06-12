@@ -1,0 +1,15 @@
+# Constant evaluation is disabled until the reference implementation supports
+# UDAs.
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referencing_uda;
+--
+Lazy_resolution_function:uda
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:uda_templated
+  (ANY TYPE a) -> ANY TYPE
+
+CONSTANT named_constant_uda=Int64(1234000) (INT64)
+
+CONSTANT named_constant_uda_templated=Int64(12340000) (INT64)

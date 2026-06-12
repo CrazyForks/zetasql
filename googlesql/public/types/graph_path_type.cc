@@ -40,9 +40,10 @@
 #include "absl/hash/hash.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 namespace {
@@ -187,18 +188,20 @@ std::string GraphPathType::TypeName(ProductMode mode,
 absl::StatusOr<std::string> GraphPathType::TypeNameWithModifiers(
     const TypeModifiers& type_modifiers, ProductMode mode,
     bool use_external_float32) const {
+  const TypeParameters& type_params = type_modifiers.type_parameters();
+  GOOGLESQL_RET_CHECK(type_params.IsEmpty() || type_params.num_children() == 2);
+
+  GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers node_type_modifiers,
+                   type_modifiers.GetChild(0));
   GOOGLESQL_ASSIGN_OR_RETURN(std::string node_name,
-                   node_type_->TypeNameWithModifiers(type_modifiers, mode,
+                   node_type_->TypeNameWithModifiers(node_type_modifiers, mode,
                                                      use_external_float32));
+  GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers edge_type_modifiers,
+                   type_modifiers.GetChild(1));
   GOOGLESQL_ASSIGN_OR_RETURN(std::string edge_name,
-                   edge_type_->TypeNameWithModifiers(type_modifiers, mode,
+                   edge_type_->TypeNameWithModifiers(edge_type_modifiers, mode,
                                                      use_external_float32));
   return absl::StrCat("PATH<", node_name, ", ", edge_name, ">");
-}
-
-std::string GraphPathType::CapitalizedName() const {
-  ABSL_CHECK_EQ(kind(), TYPE_GRAPH_PATH);  // Crash OK
-  return "GraphPath";
 }
 
 int64_t GraphPathType::GetEstimatedOwnedMemoryBytesSize() const {
@@ -206,6 +209,18 @@ int64_t GraphPathType::GetEstimatedOwnedMemoryBytesSize() const {
   result += node_type_->GetEstimatedOwnedMemoryBytesSize();
   result += edge_type_->GetEstimatedOwnedMemoryBytesSize();
   return result;
+}
+
+absl::Status GraphPathType::ValidateResolvedTypeParameters(
+    const TypeParameters& type_parameters, ProductMode mode) const {
+  if (type_parameters.IsEmpty()) {
+    return absl::OkStatus();
+  }
+  GOOGLESQL_RET_CHECK_EQ(type_parameters.num_children(), 2);
+  GOOGLESQL_RETURN_IF_ERROR(node_type_->ValidateResolvedTypeParameters(
+      type_parameters.child(0), mode));
+  return edge_type_->ValidateResolvedTypeParameters(type_parameters.child(1),
+                                                    mode);
 }
 
 bool GraphPathType::EqualsImpl(const GraphPathType* type1,

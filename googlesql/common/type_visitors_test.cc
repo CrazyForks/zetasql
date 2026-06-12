@@ -35,6 +35,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"

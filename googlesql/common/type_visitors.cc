@@ -25,6 +25,7 @@
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/type.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"

@@ -33,9 +33,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "googlesql/base/status_macros.h"
 
 using testing::HasSubstr;
 using testing::TestWithParam;

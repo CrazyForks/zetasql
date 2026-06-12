@@ -77,7 +77,7 @@ TEST(TokenProviderTest, RawTokenizerMode) {
   absl::string_view input = "/*comment*/ 123";
 
   TokenProvider token_provider = MakeTokenProvider(input);
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
+  EXPECT_THAT(token_provider.GetNextToken(),
               IsOkAndHoldsToken(TokenWithLocation{
                   .kind = Token::COMMENT,
                   .location = MakeLocation(0, 11),
@@ -85,7 +85,7 @@ TEST(TokenProviderTest, RawTokenizerMode) {
                   .preceding_whitespaces = "",
               }));
 
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
+  EXPECT_THAT(token_provider.GetNextToken(),
               IsOkAndHoldsToken(TokenWithLocation{
                   .kind = Token::DECIMAL_INTEGER_LITERAL,
                   .location = MakeLocation(12, 15),
@@ -97,7 +97,7 @@ TEST(TokenProviderTest, RawTokenizerMode) {
 TEST(TokenProviderTest, AlwaysEndsWithEOF) {
   absl::string_view input = "\t\t";
   TokenProvider token_provider = MakeTokenProvider(input);
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
+  EXPECT_THAT(token_provider.GetNextToken(),
               IsOkAndHoldsToken(TokenWithLocation{
                   .kind = Token::EOI,
                   .location = MakeLocation(2, 2),
@@ -105,7 +105,7 @@ TEST(TokenProviderTest, AlwaysEndsWithEOF) {
                   .preceding_whitespaces = "\t\t",
               }));
   // No preceding whitespaces for the second EOF.
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
+  EXPECT_THAT(token_provider.GetNextToken(),
               IsOkAndHoldsToken(TokenWithLocation{
                   .kind = Token::EOI,
                   .location = MakeLocation(2, 2),
@@ -125,7 +125,7 @@ TEST(TokenProviderTest, CanPeekToken) {
   };
   EXPECT_THAT(token_provider.PeekNextToken(), IsOkAndHoldsToken(int_token));
   EXPECT_THAT(token_provider.PeekNextToken(), IsOkAndHoldsToken(int_token));
-  EXPECT_THAT(token_provider.ConsumeNextToken(), IsOkAndHoldsToken(int_token));
+  EXPECT_THAT(token_provider.GetNextToken(), IsOkAndHoldsToken(int_token));
 
   const TokenWithLocation identifier_token{
       .kind = Token::IDENTIFIER,
@@ -137,7 +137,7 @@ TEST(TokenProviderTest, CanPeekToken) {
               IsOkAndHoldsToken(identifier_token));
   EXPECT_THAT(token_provider.PeekNextToken(),
               IsOkAndHoldsToken(identifier_token));
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
+  EXPECT_THAT(token_provider.GetNextToken(),
               IsOkAndHoldsToken(identifier_token));
 }
 
@@ -155,8 +155,7 @@ TEST(TokenProviderTest, TracksCountOfConsumedTokensIncludingEOF) {
   EXPECT_THAT(token_provider.PeekNextToken(), IsOkAndHoldsToken(first_token));
   EXPECT_EQ(token_provider.num_consumed_tokens(), 0);
 
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
-              IsOkAndHoldsToken(first_token));
+  EXPECT_THAT(token_provider.GetNextToken(), IsOkAndHoldsToken(first_token));
   EXPECT_EQ(token_provider.num_consumed_tokens(), 1);
 
   TokenWithLocation second_token{
@@ -169,8 +168,7 @@ TEST(TokenProviderTest, TracksCountOfConsumedTokensIncludingEOF) {
   EXPECT_THAT(token_provider.PeekNextToken(), IsOkAndHoldsToken(second_token));
   EXPECT_EQ(token_provider.num_consumed_tokens(), 1);
 
-  EXPECT_THAT(token_provider.ConsumeNextToken(),
-              IsOkAndHoldsToken(second_token));
+  EXPECT_THAT(token_provider.GetNextToken(), IsOkAndHoldsToken(second_token));
   EXPECT_EQ(token_provider.num_consumed_tokens(), 2);
 }
 

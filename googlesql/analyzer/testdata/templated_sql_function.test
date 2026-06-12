@@ -1436,7 +1436,7 @@ ERROR: Invalid function udf_templated_duplicate_arg_names [at 1:8]
 select udf_templated_duplicate_arg_names("abc", "def");
        ^
 Analysis of function Templated_SQL_Function:udf_templated_duplicate_arg_names failed:
-Duplicate argument name x
+Duplicate UDF argument name x
 ==
 
 # Call a templated SQL function that calls a templated SQL TVF that calls the

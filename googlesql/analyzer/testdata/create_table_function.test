@@ -3571,8 +3571,17 @@ create table function fn(s ANY ENUM)
                            ^
 ==
 
+[language_features=MAXIMUM,{{+|-}}ANY_STRING_TEMPLATED_ARGUMENT]
 create table function fn(s ANY STRUCT)
   returns table<T>;
+--
+ALTERNATION GROUP: +
+--
+ERROR: Templated arguments other than ANY TYPE, ANY STRING, or ANY TABLE in function declarations are not supported yet [at 1:28]
+create table function fn(s ANY STRUCT)
+                           ^
+--
+ALTERNATION GROUP: -
 --
 ERROR: Templated arguments other than ANY TYPE or ANY TABLE in function declarations are not supported yet [at 1:28]
 create table function fn(s ANY STRUCT)

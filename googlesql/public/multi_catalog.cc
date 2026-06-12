@@ -27,11 +27,11 @@
 #include "googlesql/public/function.h"
 #include "googlesql/public/types/type.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

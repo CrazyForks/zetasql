@@ -20,10 +20,11 @@
 #include <memory>
 #include <optional>
 
+#include "googlesql/parser/token_stream.h"
 #include "googlesql/parser/token_with_location.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace parser {
@@ -31,7 +32,7 @@ namespace macros {
 
 // This interface defines the contract for token providers that feed into the
 // macro expander.
-class TokenProviderBase {
+class TokenProviderBase : public TokenStream {
  public:
   TokenProviderBase(absl::string_view filename, absl::string_view input,
                     int start_offset, std::optional<int> end_offset,
@@ -42,20 +43,20 @@ class TokenProviderBase {
         end_offset_(end_offset.value_or(input.length())),
         offset_in_original_input_(offset_in_original_input) {}
 
-  virtual ~TokenProviderBase() = default;
+  ~TokenProviderBase() override = default;
 
   // Peeks the next token, but does not consume it.
   virtual absl::StatusOr<TokenWithLocation> PeekNextToken() = 0;
 
   // Consumes the next token, and increments num_consumed_tokens.
-  absl::StatusOr<TokenWithLocation> ConsumeNextToken() {
+  absl::StatusOr<TokenWithLocation> GetNextToken() override {
     GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation next_token, ConsumeNextTokenImpl());
     ++num_consumed_tokens_;
     return next_token;
   }
 
   // Returns the number of tokens consumed so far.
-  int num_consumed_tokens() const { return num_consumed_tokens_; }
+  int num_consumed_tokens() const override { return num_consumed_tokens_; }
 
   // Returns the filename for this token provider.
   absl::string_view filename() const { return filename_; }

@@ -396,7 +396,7 @@ select {{array|`array`}} from foo;
 --
 ALTERNATION GROUP: array
 --
-ERROR: Syntax error: Expected "<" but got keyword FROM [at 1:14]
+ERROR: Syntax error: Expected "(" or "<" or "[" or "{" but got keyword FROM [at 1:14]
 select array from foo;
              ^
 --
@@ -649,7 +649,7 @@ select {{array|`array`}}.foo from foo;
 --
 ALTERNATION GROUP: array
 --
-ERROR: Syntax error: Expected "<" but got "." [at 1:13]
+ERROR: Syntax error: Expected "(" or "<" or "[" or "{" but got "." [at 1:13]
 select array.foo from foo;
             ^
 --

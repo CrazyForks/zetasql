@@ -46,11 +46,11 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -200,19 +200,19 @@ ApplyBuiltinRewritersToFixedPoint(
       // some rewriters disable this filtering, and so provide the unfiltered
       // catalog in that case.
       Catalog* catalog_for_rewrite;
-      if (analyzer_options.language().LanguageFeatureEnabled(
-              FEATURE_DISABLE_VALIDATE_REWRITERS_REFER_TO_BUILTINS) ||
-          rewriter->ProvideUnfilteredCatalogToBuiltinRewriter()) {
+      if (rewriter->ProvideUnfilteredCatalogToBuiltinRewriter()) {
         catalog_for_rewrite = catalog;
       } else {
         catalog_for_rewrite = filtered_catalog.get();
       }
+      GOOGLESQL_VLOG(3) << "Rewriter input: " << rewriter_input->DebugString();
       GOOGLESQL_ASSIGN_OR_RETURN(
           rewriter_input,
           rewriter->Rewrite(analyzer_options, std::move(rewriter_input),
                             *catalog_for_rewrite, type_factory,
                             output_properties));
       rewrite_applied = true;
+      GOOGLESQL_VLOG(3) << "Rewriter output: " << rewriter_input->DebugString();
 
       GOOGLESQL_RET_CHECK(rewriter_input != nullptr)
           << "Rewriter " << rewriter->Name() << " returned nullptr on input\n";
@@ -420,8 +420,9 @@ absl::Status InternalRewriteResolvedAst(const AnalyzerOptions& analyzer_options,
                                         absl::string_view sql, Catalog* catalog,
                                         TypeFactory* type_factory,
                                         AnalyzerOutput& analyzer_output) {
-  if (analyzer_options.pre_rewrite_callback() != nullptr) {
-    GOOGLESQL_RETURN_IF_ERROR(analyzer_options.pre_rewrite_callback()(analyzer_output));
+  for (const auto& cb : analyzer_options.pre_rewrite_callbacks()) {
+    GOOGLESQL_RET_CHECK(cb != nullptr);
+    GOOGLESQL_RETURN_IF_ERROR(cb(analyzer_output));
   }
 
   if (analyzer_options.enabled_rewrites().empty() ||

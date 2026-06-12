@@ -24,10 +24,9 @@
 #include "googlesql/parser/macros/token_provider_base.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/parser/tokenizer.h"
-#include "googlesql/public/parse_location.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace parser {
@@ -75,9 +74,6 @@ class TokenProvider : public TokenProviderBase {
   // Used as a buffer when we need a lookahead from the tokenizer.
   // Any tokens here are still unprocessed by the expander.
   std::queue<TokenWithLocation> input_token_buffer_;
-
-  // Location into the current input, used by the tokenizer.
-  ParseLocationRange location_;
 };
 
 }  // namespace macros

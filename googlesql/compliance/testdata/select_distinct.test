@@ -307,7 +307,6 @@ ARRAY<STRUCT<int32_val INT32,
 ==
 
 [name=null_of_supported_float_types]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT
   float_val, double_val
 from TableAllNull
@@ -386,7 +385,6 @@ ARRAY<STRUCT<BOOL BOOL>>[unknown order:{NULL}, {false}, {true}]
 ==
 
 [name=distinct_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.FLOAT
 from (select cast(1.0 as float) FLOAT union all
       select cast(NULL as float) union all
@@ -400,7 +398,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.DOUBLE
 from (select cast(1.0 as double) DOUBLE union all
       select cast(NULL as double) union all
@@ -552,7 +549,6 @@ ARRAY<STRUCT<a ARRAY<>>>[unknown order:
 # Grouping of doubles.
 # -------------------
 [name=distinct_zeros]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.DOUBLE
 from (select -0.0 DOUBLE union all
       select +0.0 union all
@@ -579,7 +575,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_positive_infinities]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.DOUBLE
 from (select IEEE_DIVIDE(1, 0) DOUBLE union all
       select POW(0.1, IEEE_DIVIDE(-1, 0)) union all
@@ -595,7 +590,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_negative_infinities]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.DOUBLE
 from (select IEEE_DIVIDE(-1, 0) DOUBLE union all
       select POW(IEEE_DIVIDE(-1, 0), 3) union all
@@ -608,7 +602,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_nan]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.NAN
 from (select TAN(IEEE_DIVIDE(1, 0)) NAN union all
       select TAN(IEEE_DIVIDE(-1, 0)) union all
@@ -626,7 +619,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_doubles]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT DOUBLE
 from (select -0.0 DOUBLE union all
       select +0.0 union all
@@ -692,7 +684,6 @@ NOTE: Reference implementation reports non-determinism.
 # Grouping of floats.
 # -------------------
 [name=distinct_zeros_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.FLOAT
 from (select cast(-0.0 as float) FLOAT union all
       select cast(+0.0 as float) union all
@@ -719,7 +710,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_positive_infinities_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.FLOAT
 from (select cast(IEEE_DIVIDE(1, 0) as float) FLOAT union all
       select cast(POW(0.1, IEEE_DIVIDE(-1, 0)) as float) union all
@@ -735,7 +725,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_negative_infinities_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.FLOAT
 from (select cast(IEEE_DIVIDE(-1, 0) as float) FLOAT union all
       select cast(POW(IEEE_DIVIDE(-1, 0), 3) as float) union all
@@ -748,7 +737,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_nan_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT val.NAN
 from (select cast(TAN(IEEE_DIVIDE(1, 0)) as float) NAN union all
       select cast(TAN(IEEE_DIVIDE(-1, 0)) as float) union all
@@ -766,7 +754,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=distinct_floats]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DISTINCT FLOAT
 from (select cast(-0.0 as float) FLOAT union all
       select cast(+0.0 as float) union all

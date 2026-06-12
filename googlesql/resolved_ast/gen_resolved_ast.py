@@ -681,8 +681,10 @@ def Field(
       'is_node_ptr': is_node_type and not vector,
       'is_node_vector': is_node_type and vector,
       'is_enum_vector': is_enum and vector,
+      'is_resolved_column': ctype == SCALAR_RESOLVED_COLUMN and not vector,
       'is_resolved_column_vector': ctype == SCALAR_RESOLVED_COLUMN and vector,
-      'include_scalar_rewriter': ctype in [SCALAR_RESOLVED_COLUMN, SCALAR_TYPE],
+      'is_type': ctype == SCALAR_TYPE and not vector,
+      'is_visitable_scalar': ctype in [SCALAR_RESOLVED_COLUMN, SCALAR_TYPE],
       'is_move_only': is_move_only,
       'is_not_ignorable': ignorable == NOT_IGNORABLE,
       'is_ignorable_default': is_ignorable_default,
@@ -700,7 +702,7 @@ def Field(
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 316
+NEXT_NODE_TAG_ID = 321
 
 
 def GetTempTagId():
@@ -832,6 +834,16 @@ class TreeGenerator():
         for field in fields + inherited_fields
     )
 
+    has_node_fields = any(
+        field['is_node_ptr'] or field['is_node_vector'] for field in fields
+    )
+
+    has_visitable_fields = any(
+        field['is_node_ptr'] or field['is_node_vector'] or
+        field['is_visitable_scalar']
+        for field in fields
+    )
+
     def JoinSections(a, b):
       separator = ''
       if a and b:
@@ -871,6 +883,8 @@ class TreeGenerator():
         'extra_defs_node_only': extra_defs_node_only,
         'emit_default_constructor': emit_default_constructor,
         'has_node_vector_constructor_arg': has_node_vector_constructor_arg,
+        'has_node_fields': has_node_fields,
+        'has_visitable_fields': has_visitable_fields,
         'use_custom_debug_string': use_custom_debug_string,
         'use_custom_columns_created': use_custom_columns_created,
         'column_list_is_created_columns': column_list_is_created_columns,
@@ -1225,7 +1239,7 @@ class TreeGenerator():
         logging.fatal(
             'Input file name must end with ".template". Saw: input=%s', in_path
         )
-      # TODO: b/388324854 - Apply with `str.removesuffix()` once GoogleSQL OSS
+      # TODO: b/388324854 - Apply with `str.removesuffix()` once GoogleSQL
       # Python version is updated.
       in_no_suffix = os.path.basename(in_path)[:-9]
       in_prefix, in_extension = in_no_suffix.rsplit('.')
@@ -2440,6 +2454,42 @@ def main(unused_argv):
 
               The 'get' fields may either be a ResolvedGet*Field or an array
               offset function around a ResolvedGet*Field.
+
+              When there are nested ARRAYs, the input to every item in the list
+              is always fully flattened, i.e., the input is flattened before
+              each term along the path.
+                      """,
+          ),
+          Field(
+              'depth',
+              'ResolvedExpr',
+              tag_id=4,
+              ignorable=IGNORABLE_DEFAULT,
+              comment="""
+              Specifies the flattening depth, which is defined as:
+              - If there's a path specified (indicated by the `get_field_list`),
+                all layers before and along the path are fully flattened until
+                we reach the final field. The specified flattening depth starts
+                from that field.
+              - If no path is specified, the flattening depth takes effect from
+                the top-level, i.e., as if the expr itself is the final field.
+
+              RESTRICTIONS:
+              * Its type is always INT64.
+              * This is always an ANALYSIS_TIME_CONSTANT as it must be known at
+                compile-time.
+              * It can never be negative.
+              * The value must be less than or equal to the number of
+                *successive* ARRAY layers from the point where the flattening
+                depth starts (i.e., at the end of the path, if any).
+                For example:
+                  - FLATTEN([1,2], depth=>4) is an error (max is 1)
+                  - FLATTEN([[1,2]], depth=>2) is OK (max is 2)
+                Note: For repeated fields on protos, depth must be exactly 1.
+              * NULL (whether as a literal, e.g. if specified explicitly), or
+                if omitted and not set at all, means "unbounded" flattening,
+                i.e., unwrap all successive ARRAY layers available at the end
+                of the path (or at the top-level if no path is specified).
                       """,
           ),
       ],
@@ -2689,8 +2739,9 @@ value.
               tag_id=4,
               ignorable=IGNORABLE_DEFAULT,
               comment="""
-              Field is only populated for subqueries of type IN or LIKE
-              ANY|SOME|ALL.
+              Field is populated for subqueries where the LHS expression is
+              compared to elements produced by the RHS subquery (e.g. IN, LIKE,
+              and ANY/ALL comparison operators).
                       """,
           ),
           Field(
@@ -2700,9 +2751,11 @@ value.
               ignorable=IGNORABLE_DEFAULT,
               is_constructor_arg=False,
               comment="""
-              Field is only populated for subqueries of type IN to specify the
-              operation collation to use to compare <in_expr> with the rows from
-              <subquery>.
+              Field is populated for subqueries where the LHS expression is
+              compared to elements produced by the RHS subquery. This specifies
+              the operation collation to use for the comparison. It is used
+              for subquery types: IN, LIKE ANY|ALL, and ANY|ALL comparison
+              operators (e.g. EQ_ANY, GE_ALL).
                       """,
           ),
           Field('subquery', 'ResolvedScan', tag_id=5),
@@ -3154,8 +3207,8 @@ value.
       be exactly one array (N=1).
 
       `array_expr_list` can have one or more expressions with ARRAY type
-      or one expression with a join RowType (with `IsJoin()` true).
-      When it's a RowType, `array_expr_list` can only have one item
+      or one expression with a TABLE type (a RowOrTableType with IsTable true).
+      When it's a RowOrTableType, `array_expr_list` can only have one item
       and `array_offset_column` is not allowed.
 
       If `input_scan` is NULL, this produces one row for each array offset.
@@ -3189,6 +3242,36 @@ value.
       `array_zip_mode` specifies the zipping behavior when there are multiple
       arrays in `array_expr_list` and they have different sizes. It must be NULL
       when there is only one given array.
+
+      When the argument is not a field path expression: if depth is omitted, it
+      is 0.
+
+      When the argument is a field path expression:
+      ---------------------------------------------
+      If nested arrays are enabled, the `depth` argument is supported. It
+      specifies how many levels to unwrap from the consecutive ARRAY layers at
+      the end of the specified path, if any, or the input array itself if no
+      path is specified.
+      `depth` is not applicable for multiway UNNEST (would be meaningless as
+      each argument may need a different depth).
+      `depth` must be an analysis constant of type INT64, non-negative, and
+      not larger than the available number of array layers.
+      If omitted, the default depth is 1 if the type at the end of the path is
+      an array, or 0 otherwise.
+
+      If the user omits the depth, and the unnest argument is a path (which
+      means it implicitly flattens its input), UNNEST(path) will only unwrap 1
+      layer at the end of the specified path. This is for backward
+      compatibility. For example, before supporting ARRAY<ARRAY<>>:
+        * UNNEST([
+                    STRUCT([1,2] AS a),
+                    STRUCT([3,4] AS a)
+                  ].a)
+          provides 4 rows: {1}, {2}, {3}, {4}
+          Note that both the outer layer as well as one of the inner layers are
+          unwrapped.
+      An explicit depth of `0` can be specified if the arrays at the end of the
+      path are supposed to stay intact and are the target elements.
 
       The getters and setters for legacy fields `array_expr` and
       `element_column` are added for backward compatibility purposes. If the
@@ -4039,7 +4122,7 @@ value.
       parent='ResolvedComputedColumnImpl',
       use_custom_debug_string=True,
       comment="""
-      This is a ResolvedColumnColumn variant that adds deferred side effect
+      This is a ResolvedComputedColumn variant that adds deferred side effect
       capture.
 
       This is used for computations that get separated into multiple scans,
@@ -4714,25 +4797,24 @@ value.
       ],
   )
 
-  # TODO: b/430036320 - Cleanup if not needed for simplified GROUP ROWS syntax.
   gen.AddNode(
       name='ResolvedGroupRowsScan',
       tag_id=176,
       parent='ResolvedScan',
       emit_default_constructor=False,
       comment="""
-      ResolvedGroupRowsScan represents a call to a special TVF GROUP_ROWS().
-      It can only show up inside WITH GROUP ROWS clause, which is resolved as
-      the field with_group_rows_subquery in ResolvedNonScalarFunctionCallBase
-      ResolvedGroupRowsScan. This scan produces rows corresponding to the input
-      of ResolvedAggregateScan that belong to the current group.
+      ResolvedGroupRowsScan represents a call to a group rows TVF.
 
-      <input_column_list> is a list of new columns created to store values
-      coming from the input of the aggregate scan. ResolvedComputedColumn can
-      only hold ResolvedColumnRef's and can reference anything from the
-      pre-aggregation scan.
+      It can be created in two ways:
+      - WITH g() AS GROUP ROWS ... FROM g()
+      - FROM GROUP ROWS
 
-      <alias> is the alias of the scan or empty if none.
+      This scan produces rows corresponding to the input of
+      ResolvedAggregateScan that belong to the current group.
+
+      <input_column_list> creates new columns that map 1:1 to columns from
+      the input of the aggregate scan. Each column contains a ResolvedColumnRef
+      referencing a non-correlated column from the pre-aggregation scan.
               """,
       fields=[
           Field(
@@ -4741,7 +4823,40 @@ value.
               tag_id=2,
               vector=True,
           ),
-          Field('alias', SCALAR_STRING, tag_id=3, ignorable=IGNORABLE),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedFunctionRef',
+      parent='ResolvedArgument',
+      tag_id=320,
+      use_custom_debug_string=True,
+      comment="""
+      Represents a reference to a function (e.g., a UDF lambda parameter).
+      This node is used when a function is passed as an argument to
+      another function, rather than being invoked directly.
+
+      We currently use this only for references to lambda-typed parameters
+      (e.g. in a SQL UDF body). It is designed to be generalized to other
+      function types (like catalog functions) in the future.
+      """,
+      fields=[
+          Field(
+              'function',
+              SCALAR_FUNCTION,
+              tag_id=2,
+              comment='The Function (proxy or cataloged) being referenced.',
+          ),
+          Field(
+              'signature',
+              SCALAR_FUNCTION_SIGNATURE,
+              tag_id=3,
+              ignorable=IGNORABLE,
+              comment="""
+              The concrete FunctionSignature reflecting the Function overload
+              being referenced.
+              """,
+          ),
       ],
   )
 
@@ -4821,6 +4936,18 @@ value.
               SCALAR_PROPERTY_GRAPH,
               ignorable=IGNORABLE_DEFAULT,
               tag_id=11,
+          ),
+          Field(
+              'function_ref',
+              'ResolvedFunctionRef',
+              tag_id=12,
+              ignorable=IGNORABLE_DEFAULT,
+              is_optional_constructor_arg=True,
+              comment="""
+              A reference to a function. This is used in UDF bodies when
+              a lambda parameter (or other function) is passed as an argument
+              to another function.
+              """,
           ),
           Field(
               'argument_alias',
@@ -4967,6 +5094,32 @@ value.
                       """,
           ),
           Field('query', 'ResolvedScan', tag_id=4),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedTerminalQueryStmt',
+      tag_id=316,
+      parent='ResolvedStatement',
+      comment="""
+      This represents a "terminal query statement", i.e. a query-like
+      statement that produces no output.
+
+      `query` allows the same Scan operators as ResolvedQueryStmt, plus
+      ResolvedFinishScan.  Other terminal operators (e.g. those with
+      DML or DDL output side-effects, or multiple outputs like FORK)
+      are not allowed.
+
+      The final Scan must be the no-output terminal operator ResolvedFinishScan.
+
+      ResolvedTerminalQueryStmt can also occurs inside ResolvedMultiStmt
+      after a rewrite of ResolvedGeneralizedQueryStmts containing
+      pipe FINISH.
+
+      See (broken link) and (broken link).
+      """,
+      fields=[
+          Field('query', 'ResolvedScan', tag_id=2),
       ],
   )
 
@@ -5192,24 +5345,30 @@ value.
       parent='ResolvedCreateStatement',
       comment="""
       This statement:
-      CREATE [OR REPLACE] [UNIQUE] [SEARCH | VECTOR] INDEX [IF NOT EXISTS]
+      CREATE [OR REPLACE] [UNIQUE] [SEARCH | VECTOR | AI] INDEX [IF NOT EXISTS]
        <index_name_path> ON <table_name_path>
       [UNNEST(path_expression) [[AS] alias] [WITH OFFSET [[AS] alias]], ...]
-      (path_expression [ASC|DESC], ...)
+      { AUTO COLUMNS | (path_expression [ASC|DESC], ...) }
       [STORING (Expression, ...)]
       [PARTITION BY partition_expression, ...]
+      [WITH CONNECTION connection_name]
       [OPTIONS (name=value, ...)];
 
       <table_name_path> is the name of table being indexed.
       <table_scan> is a TableScan on the table being indexed.
       <is_unique> specifies if the index has unique entries.
       <is_search> specifies if the index is for search. It is mutually exclusive
-                  with is_vector.
+                  with is_vector and is_ai.
       <is_vector> specifies if the index is for vector search. It is mutually
-                  exclusive with is_search.
+                  exclusive with is_search and is_ai.
+      <is_ai> specifies if the index is for AI. It is mutually exclusive with
+              is_search and is_vector.
       <index_all_columns> specifies if indexing all the columns of the table.
                           When this field is true, index_item_list must be
                           empty and is_search must be true.
+      <index_auto_columns> specifies if the index uses AUTO COLUMNS. When this
+                           field is true, index_item_list must be empty and
+                           is_ai must be true.
       <index_item_list> has the columns being indexed, specified as references
                         to 'computed_columns_list' entries or the columns of
                         'table_scan'.
@@ -5223,6 +5382,7 @@ value.
       <unnest_expressions_list> has unnest expressions derived from
                                 'table_scan' or previous unnest expressions in
                                 the list. So the list order is significant.
+      <connection> specifies the connection to use for AI index.
               """,
       fields=[
           Field('table_name_path', SCALAR_STRING, tag_id=2, vector=True),
@@ -5246,9 +5406,23 @@ value.
               ignorable=IGNORABLE_DEFAULT,
           ),
           Field(
+              'is_ai',
+              SCALAR_BOOL,
+              tag_id=14,
+              is_optional_constructor_arg=True,
+              ignorable=IGNORABLE_DEFAULT,
+          ),
+          Field(
               'index_all_columns',
               SCALAR_BOOL,
               tag_id=11,
+              is_optional_constructor_arg=True,
+              ignorable=IGNORABLE_DEFAULT,
+          ),
+          Field(
+              'index_auto_columns',
+              SCALAR_BOOL,
+              tag_id=16,
               is_optional_constructor_arg=True,
               ignorable=IGNORABLE_DEFAULT,
           ),
@@ -5265,6 +5439,12 @@ value.
               'ResolvedExpr',
               tag_id=13,
               vector=True,
+              ignorable=IGNORABLE_DEFAULT,
+          ),
+          Field(
+              'connection',
+              'ResolvedConnection',
+              tag_id=15,
               ignorable=IGNORABLE_DEFAULT,
           ),
           Field(
@@ -6645,7 +6825,8 @@ value.
 
       Each hint or option is resolved as a [<qualifier>.]<name>:=<value> pair.
         <qualifier> will be empty if no qualifier was present.
-        <name> is always non-empty.
+        <name> can be empty only when assignment_op is FROM. Otherwise
+               non-empty.
         <value> can be a ResolvedLiteral or a ResolvedParameter,
                 a cast of a ResolvedParameter (for typed hints only),
                 or a general expression (on constant inputs).
@@ -10191,6 +10372,21 @@ ResolvedArgumentRef(y)
               pivot_value_list.
               """,
           ),
+          Field(
+              'pivot_value_collation',
+              SCALAR_RESOLVED_COLLATION,
+              tag_id=8,
+              ignorable=IGNORABLE_DEFAULT,
+              is_constructor_arg=False,
+              comment="""
+              Collation to use for the comparisons between the corresponding
+              the `for_expr` and elements in `pivot_value_list`.
+
+              Note that any of the implicit grouping columns with collation on
+              them will be grouped using that collation, which is unrelated to
+              this collation.
+              """,
+          ),
       ],
   )
 
@@ -10265,6 +10461,53 @@ ResolvedArgumentRef(y)
               of ResolvedUnpivotScan. The size of this vector is
               the same as <value_column_list>.
                       """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedCreateLiveTableStmt',
+      tag_id=319,
+      parent='ResolvedCreateTableStmtBase',
+      comment="""
+      This statement:
+        CREATE [OR REPLACE] [TEMP|TEMPORARY|PUBLIC|PRIVATE] LIVE TABLE [IF NOT EXISTS] <name_path>
+        [ (column schema, ...) ]
+        [DEFAULT COLLATE <collation_name>]
+        [PARTITION BY expr, ...]
+        [CLUSTER BY expr, ...]
+        [WITH CONNECTION connection_name]
+        [OPTIONS (...)]
+        AS SELECT ...
+
+      <output_column_list> has the names and types of the columns in the
+                           created live table, and maps from <query>'s column_list
+                           to these output columns.
+      <query> is the query to run.
+      <partition_by_list> specifies the partitioning expressions for the table.
+      <cluster_by_list> specifies the clustering expressions for the table.
+              """,
+      fields=[
+          Field(
+              'output_column_list',
+              'ResolvedOutputColumn',
+              tag_id=2,
+              vector=True,
+          ),
+          Field('query', 'ResolvedScan', tag_id=3),
+          Field(
+              'partition_by_list',
+              'ResolvedExpr',
+              tag_id=5,
+              vector=True,
+              ignorable=IGNORABLE_DEFAULT,
+          ),
+          Field(
+              'cluster_by_list',
+              'ResolvedExpr',
+              tag_id=6,
+              vector=True,
+              ignorable=IGNORABLE_DEFAULT,
           ),
       ],
   )
@@ -10759,6 +11002,81 @@ ResolvedArgumentRef(y)
               If true, this quantifier is reluctant. If false, it is greedy.
               """,
           ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedAlignScan',
+      tag_id=318,
+      parent='ResolvedScan',
+      comment="""
+      A scan produced by the ALIGN Operator for a timeseries. See
+      (broken link).
+
+      The output column_list includes (a subset of) one column per
+      partitioning_expression, one column for the aligned_timestamp and one
+      column per estimator_function.
+      """,
+      fields=[
+          Field('input_scan', 'ResolvedScan', tag_id=2),
+          Field(
+              'timestamp_column',
+              'ResolvedColumnRef',
+              tag_id=3,
+              comment="""
+              The timestamp column of the input scan. This column logically orders
+              the input timeseries and determines whether an input row falls within
+              an estimator's computation window. It must be a `ResolvedColumnRef`
+              that points to a column in the `input_scan`'s column list.
+              """,
+          ),
+          Field(
+              'period',
+              'ResolvedExpr',
+              tag_id=4,
+              comment="""
+              The interval between the output aligned timestamps. This must be a
+              query-const expression of type INTERVAL. Columns from the input
+              scan are not visible here, but references to correlated columns
+              are allowed.
+              """,
+          ),
+          Field(
+              'origin',
+              'ResolvedExpr',
+              tag_id=5,
+              comment="""
+              This must be a query-const expression of type TIMESTAMP. All output
+              timestamps are an integer multiple of the period away from this
+              timestamp. Columns from the input scan are not visible here, but
+              references to correlated columns are allowed.
+              """,
+          ),
+          # TODO: b/477116035 - Add field for output_within_range.
+          Field(
+              'partition_by_list',
+              'ResolvedColumnRef',
+              tag_id=7,
+              vector=True,
+              comment="""
+              Used for partitioning the input table into logical timeseries. This
+              is a list of `ResolvedColumnRef`s pointing to columns in the
+              `input_scan`'s column list where the partitioning expressions from
+              the original query have already been computed.
+              """,
+          ),
+          Field(
+              'aligned_timestamp_column',
+              SCALAR_RESOLVED_COLUMN,
+              tag_id=8,
+              column_is_created=True,
+              comment="""
+              The new column created to store the computed aligned timestamp for
+              each row. This column must appear in the `column_list` of this
+              scan.
+              """,
+          ),
+          # TODO: b/477116035 - Add fields for estimator_function_list.
       ],
   )
 
@@ -12479,6 +12797,41 @@ ResolvedArgumentRef(y)
   )
 
   gen.AddNode(
+      name='ResolvedFinishScan',
+      tag_id=317,
+      parent='ResolvedScan',
+      comment="""
+      FINISH is a terminal pipe operator. It has no output columns and can
+      only occur at the end of a pipeline.
+
+      ResolvedFinishScan cannot occur in a ResolvedQueryStmt.
+      It can occur in ResolvedTerminalQueryStmt, ResolvedGeneralizedQueryStmt,
+      or ResolvedMultiStmt (after rewrites).
+      One of those must be enabled in SupportedStatementKinds.
+
+      FINISH logically consumes its input but produces no output.
+      `input_scan` must be consumed to the end, to produce any observable
+      side-effects (e.g. from ASSERT failures or graph DML operations,
+      for all rows in the table).
+
+      This differs from `LIMIT` or `WHERE`, which do not require computing
+      rows that are filtered out from the output.
+
+      ResolvedFinishScan is used for two syntaxes:
+      * The pipe FINISH operator
+        - Controlled by FEATURE_PIPE_FINISH
+      * The GQL FINISH operator, used in terminal DML operations.
+        - The syntax isn't supported yet, so this is currently only used
+          implicitly, after DML operations with no RETURN.
+
+      See (broken link).
+      """,
+      fields=[
+          Field('input_scan', 'ResolvedScan', tag_id=2),
+      ],
+  )
+
+  gen.AddNode(
       name='ResolvedPipeForkScan',
       tag_id=283,
       parent='ResolvedScan',
@@ -12919,6 +13272,194 @@ ResolvedArgumentRef(y)
       <option_list> is the list of options for the sequence.
               """,
       fields=[],
+  )
+
+  gen.AddNode(
+      name='ResolvedGraphDMLPropertyItem',
+      tag_id=340,
+      parent='ResolvedArgument',
+      comment="""
+      Represents one graph property item in a graph DML expression.
+
+      `property_name` is the name of the property. Must always be set.
+      If `property` is populated, this is a static property, and its name must
+      match `property_name`.
+      `property_value` must be set if this is an INSERT or SET operation, and
+      must be unset for a REMOVE operation.
+      """,
+      fields=[
+          Field('property_name', SCALAR_STRING, tag_id=2),
+          Field(
+              'property',
+              SCALAR_GRAPH_PROPERTY_DECLARATION,
+              tag_id=3,
+              ignorable=IGNORABLE_DEFAULT),
+          Field(
+              'property_value',
+              'ResolvedExpr',
+              tag_id=4,
+              ignorable=IGNORABLE_DEFAULT,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedGraphInsertElement',
+      tag_id=341,
+      parent='ResolvedExpr',
+      comment="""
+      Creates a new graph element with the provided labels and properties to be
+      inserted into the `element_table`.
+
+      `source_node` and `dest_node` are only set for edge elements.
+        - If neither `source_node` nor `dest_node` is set, this creates a node.
+        - If both are set, this creates an edge.
+        - Otherwise, it's an error.
+
+      `element_table` has the following expectations:
+        - It must have the right element type (node or edge).
+        - It must contain all the static labels in `label_list`.
+        - It must contain all the static properties in `property_list`.
+        - It must support dynamic label if `label_list` contains dynamic labels.
+        - It must support dynamic properties if `property_list` contains dynamic
+          properties.
+        - If the element being created is an edge, its source node table must
+          be the same as the `source_node`'s element table, and its destination
+          node table must be the same as the `dest_node`'s element table.
+      """,
+      fields=[
+          Field(
+              'property_list',
+              'ResolvedGraphDMLPropertyItem',
+              tag_id=2,
+              vector=True,
+              comment="""
+              A list of properties to be set on the new element. Can be empty.
+              """,
+          ),
+          Field(
+              'label_list',
+              'ResolvedGraphLabel',
+              tag_id=3,
+              vector=True,
+              comment="""
+              A list of labels to be set on the new element. Must have at least
+              one element. The maximum numbers of static labels and dynamic
+              labels are both implementation-defined.
+              """,
+          ),
+          Field(
+              'source_node',
+              'ResolvedColumnRef',
+              tag_id=4,
+              is_optional_constructor_arg=True,
+              comment="""
+              Must have graph node type.
+              When set, its runtime value must be evaluated to non-NULL.
+              """,
+          ),
+          Field(
+              'dest_node',
+              'ResolvedColumnRef',
+              tag_id=5,
+              is_optional_constructor_arg=True,
+              comment="""
+              Must have graph node type.
+              When set, its runtime value must be evaluated to non-NULL.
+              """,
+          ),
+          Field(
+              'element_table',
+              SCALAR_GRAPH_ELEMENT_TABLE,
+              tag_id=6,
+              comment="""
+              The target element table where the element is inserted.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedGraphInsertScan',
+      tag_id=342,
+      parent='ResolvedScan',
+      comment="""
+      Represents a GQL INSERT operator, i.e.,
+        INSERT (a:Person {id: 1, name: 'Alice'})
+               -[e:Knows]-> (b:Person {id: 2, name: 'Bob'})
+
+      Insert new nodes and/or edge elements into the property graph.
+
+      - For each row of the `input_scan`, compute columns in `insert_node_list`
+        first, then those in `insert_edge_list`, and add those columns to the
+        output `column_list`.
+      - One of `insert_node_list` and `insert_edge_list` can be empty, but not
+        both.
+
+      When executed, `ResolvedGraphInsertScan` applies the side effects of
+      inserting these new nodes or edges into the current property graph.
+      """,
+      fields=[
+          Field('input_scan', 'ResolvedScan', tag_id=2),
+          Field(
+              'insert_node_list',
+              'ResolvedComputedColumnBase',
+              tag_id=3,
+              vector=True,
+              comment="""
+              A list of computed columns of graph node type, each of which
+              represents a new graph node to be inserted.
+              Each expression must be a `ResolvedGraphInsertElement` that
+              creates a graph node.
+              The fields of the `ResolvedGraphInsertElement` can only reference
+              columns from `input_scan`.
+              """,
+          ),
+          Field(
+              'insert_edge_list',
+              'ResolvedComputedColumnBase',
+              tag_id=4,
+              vector=True,
+              comment="""
+              A list of computed columns of graph edge type, each of which
+              represents a new graph edge to be inserted.
+              Each expression must be a `ResolvedGraphInsertElement` that
+              creates a graph edge.
+              The fields of the `ResolvedGraphInsertElement` can reference both
+              the `input_scan` columns and the computed columns from
+              `insert_node_list`.
+              """,
+          ),
+          Field(
+              'path_element_list',
+               SCALAR_RESOLVED_COLUMN,
+              tag_id=5,
+              vector=True,
+              ignorable=IGNORABLE,
+              is_optional_constructor_arg=True,
+              comment="""
+              A list of all columns (from input and newly created) that form all
+              INSERT path patterns.
+              The INSERT path patterns have the following expectations:
+              - Each INSERT path pattern must start and end with node elements.
+              - If an edge is present, it must be unquantified.
+              - If an edge is present, it must connect to two valid nodes.
+                Dangling edges are not allowed.
+
+              For example, in the following INSERT statement:
+                MATCH (c:Car {license_plate: 'ABC'})
+                INSERT (a:Person {name: 'Alice'})
+                       -[e:Knows]-> (b:Person {name: 'Bob'}),
+                       (a) -[o:Owns]-> (c)
+              The `path_element_list` will be [a, e, b, a, o, c].
+
+              Columns in this list must come from `input_scan`,
+              `insert_node_list`, or `insert_edge_list`.
+              This is only used by SQLBuilder for the purpose of reconstructing
+              the original sql syntax and does not have semantic meaning.
+              """,
+          ),
+      ],
   )
 
   gen.Generate(

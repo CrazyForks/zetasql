@@ -15,12 +15,16 @@
 //
 
 #include "googlesql/base/status_payload.h"
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "google/protobuf/any.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/test_payload.pb.h"
 #include "google/protobuf/util/message_differencer.h"

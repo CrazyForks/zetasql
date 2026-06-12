@@ -1237,7 +1237,7 @@ SET proto_value.repeated_int64_val[OFFSET(0)] = 1000,
     proto_value.repeated_int64_val[OFFSET(0)] = 2000
 WHERE primary_key = 2
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<INT64>
 ==
 
 [name=update_repeated_proto_field_with_set_null_index]
@@ -1551,7 +1551,7 @@ SET proto_value.nested_repeated_value[OFFSET(0)]
                .nested_repeated_int64 = [20000]
 WHERE primary_key = 2
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<`googlesql_test.KitchenSinkPB.Nested`>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<`googlesql_test.KitchenSinkPB.Nested`>
 ==
 
 # TODO: Ideally the spec would allow this. See the comments for
@@ -1564,7 +1564,7 @@ SET proto_value.nested_repeated_value[OFFSET(0)]
     proto_value.nested_repeated_value[OFFSET(0)].nested_int64 = 20000
 WHERE primary_key = 2
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<`googlesql_test.KitchenSinkPB.Nested`>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<`googlesql_test.KitchenSinkPB.Nested`>
 ==
 
 [name=update_element_in_repeated_field_of_proto_type_with_set_null_index]
@@ -1927,7 +1927,7 @@ SET array_value[OFFSET(0)].int64_key_1 = 1000,
     array_value[OFFSET(0)].int64_key_1 = 2000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<`googlesql_test.KitchenSinkPB`>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<`googlesql_test.KitchenSinkPB`>
 ==
 
 # TODO: Ideally the spec would allow this. See the comments for
@@ -1939,7 +1939,7 @@ SET array_value[OFFSET(0)].int64_key_1 = 1000,
     array_value[OFFSET(0)].int64_key_2 = 2000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<`googlesql_test.KitchenSinkPB`>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<`googlesql_test.KitchenSinkPB`>
 ==
 
 [name=update_null_element_in_array_of_protos_with_set]

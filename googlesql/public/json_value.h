@@ -286,11 +286,8 @@ class JSONValueConstRef {
   //   the key is considered less. If the key and value are the same, the
   //   smaller JSON with the fewer members is considered less.
   friend bool operator==(JSONValueConstRef lhs, JSONValueConstRef rhs);
-  friend bool operator!=(JSONValueConstRef lhs, JSONValueConstRef rhs);
-  friend bool operator<(JSONValueConstRef lhs, JSONValueConstRef rhs);
-  friend bool operator>(JSONValueConstRef lhs, JSONValueConstRef rhs);
-  friend bool operator<=(JSONValueConstRef lhs, JSONValueConstRef rhs);
-  friend bool operator>=(JSONValueConstRef lhs, JSONValueConstRef rhs);
+  friend absl::partial_ordering operator<=>(JSONValueConstRef lhs,
+                                            JSONValueConstRef rhs);
 
   // Overload of the hash function for `JSONValueConstRef`.
   template <typename H>
@@ -303,11 +300,6 @@ class JSONValueConstRef {
 
  private:
   const JSONValue::Impl* impl_;
-
-  // Returns the three-way comparison result of the JSON values referenced.
-  // In c++20, this function can be replaced by the `<=>` operator.
-  friend absl::partial_ordering spaceship_operator(JSONValueConstRef lhs,
-                                                   JSONValueConstRef rhs);
 
   friend class JSONValue;
 };

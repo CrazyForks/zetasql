@@ -46,11 +46,12 @@ QueryStatement [0-129] [SELECT one...AS one) )]
                 GraphEdgePattern [101-107] [-[b]->]
                   GraphElementPatternFiller [103-104] [b]
                     Identifier(b) [103-104] [b]
-          SelectList [118-126] [1 AS one]
-            SelectColumn [118-126] [1 AS one]
-              IntLiteral(1) [118-119] [1]
-              Alias [120-126] [AS one]
-                Identifier(one) [123-126] [one]
+          Select [110-127] [COLUMNS(1 AS one)]
+            SelectList [118-126] [1 AS one]
+              SelectColumn [118-126] [1 AS one]
+                IntLiteral(1) [118-119] [1]
+                Alias [120-126] [AS one]
+                  Identifier(one) [123-126] [one]
 --
 SELECT
   one
@@ -108,11 +109,12 @@ QueryStatement [0-84] [SELECT one...AS one) )]
                 GraphEdgePattern [56-62] [-[b]->]
                   GraphElementPatternFiller [58-59] [b]
                     Identifier(b) [58-59] [b]
-          SelectList [73-81] [1 AS one]
-            SelectColumn [73-81] [1 AS one]
-              IntLiteral(1) [73-74] [1]
-              Alias [75-81] [AS one]
-                Identifier(one) [78-81] [one]
+          Select [65-82] [COLUMNS(1 AS one)]
+            SelectList [73-81] [1 AS one]
+              SelectColumn [73-81] [1 AS one]
+                IntLiteral(1) [73-74] [1]
+                Alias [75-81] [AS one]
+                  Identifier(one) [78-81] [one]
 --
 SELECT
   one
@@ -154,11 +156,12 @@ QueryStatement [0-90] [SELECT one...AS one) )]
                 GraphEdgePattern [62-68] [-[b]->]
                   GraphElementPatternFiller [64-65] [b]
                     Identifier(b) [64-65] [b]
-          SelectList [79-87] [1 AS one]
-            SelectColumn [79-87] [1 AS one]
-              IntLiteral(1) [79-80] [1]
-              Alias [81-87] [AS one]
-                Identifier(one) [84-87] [one]
+          Select [71-88] [COLUMNS(1 AS one)]
+            SelectList [79-87] [1 AS one]
+              SelectColumn [79-87] [1 AS one]
+                IntLiteral(1) [79-80] [1]
+                Alias [81-87] [AS one]
+                  Identifier(one) [84-87] [one]
 --
 SELECT
   one
@@ -215,11 +218,12 @@ QueryStatement [0-92] [SELECT one...AS one) )]
                   GraphEdgePattern [63-69] [-[b]->]
                     GraphElementPatternFiller [65-66] [b]
                       Identifier(b) [65-66] [b]
-          SelectList [81-89] [1 AS one]
-            SelectColumn [81-89] [1 AS one]
-              IntLiteral(1) [81-82] [1]
-              Alias [83-89] [AS one]
-                Identifier(one) [86-89] [one]
+          Select [73-90] [COLUMNS(1 AS one)]
+            SelectList [81-89] [1 AS one]
+              SelectColumn [81-89] [1 AS one]
+                IntLiteral(1) [81-82] [1]
+                Alias [83-89] [AS one]
+                  Identifier(one) [86-89] [one]
 --
 SELECT
   one
@@ -264,11 +268,12 @@ QueryStatement [0-92] [SELECT one...AS one) )]
                   GraphEdgePattern [63-69] [-[b]->]
                     GraphElementPatternFiller [65-66] [b]
                       Identifier(b) [65-66] [b]
-          SelectList [81-89] [1 AS one]
-            SelectColumn [81-89] [1 AS one]
-              IntLiteral(1) [81-82] [1]
-              Alias [83-89] [AS one]
-                Identifier(one) [86-89] [one]
+          Select [73-90] [COLUMNS(1 AS one)]
+            SelectList [81-89] [1 AS one]
+              SelectColumn [81-89] [1 AS one]
+                IntLiteral(1) [81-82] [1]
+                Alias [83-89] [AS one]
+                  Identifier(one) [86-89] [one]
 
 --
 SELECT
@@ -463,11 +468,12 @@ QueryStatement [0-91] [SELECT * FROM...AS One) )]
                   GraphNodePattern [65-68] [(d)]
                     GraphElementPatternFiller [66-67] [d]
                       Identifier(d) [66-67] [d]
-          SelectList [80-88] [1 AS One]
-            SelectColumn [80-88] [1 AS One]
-              IntLiteral(1) [80-81] [1]
-              Alias [82-88] [AS One]
-                Identifier(One) [85-88] [One]
+          Select [72-89] [COLUMNS(1 AS One)]
+            SelectList [80-88] [1 AS One]
+              SelectColumn [80-88] [1 AS One]
+                IntLiteral(1) [80-81] [1]
+                Alias [82-88] [AS One]
+                  Identifier(One) [85-88] [One]
 --
 SELECT
   *
@@ -591,11 +597,12 @@ QueryStatement [0-122] [SELECT one...AS one) )]
                 GraphEdgePattern [94-100] [-[b]->]
                   GraphElementPatternFiller [96-97] [b]
                     Identifier(b) [96-97] [b]
-          SelectList [111-119] [1 AS one]
-            SelectColumn [111-119] [1 AS one]
-              IntLiteral(1) [111-112] [1]
-              Alias [113-119] [AS one]
-                Identifier(one) [116-119] [one]
+          Select [103-120] [COLUMNS(1 AS one)]
+            SelectList [111-119] [1 AS one]
+              SelectColumn [111-119] [1 AS one]
+                IntLiteral(1) [111-112] [1]
+                Alias [113-119] [AS one]
+                  Identifier(one) [116-119] [one]
 --
 SELECT
   one
@@ -655,11 +662,12 @@ QueryStatement [0-127] [SELECT one...AS one) )]
                 GraphEdgePattern [99-105] [-[b]->]
                   GraphElementPatternFiller [101-102] [b]
                     Identifier(b) [101-102] [b]
-          SelectList [116-124] [1 AS one]
-            SelectColumn [116-124] [1 AS one]
-              IntLiteral(1) [116-117] [1]
-              Alias [118-124] [AS one]
-                Identifier(one) [121-124] [one]
+          Select [108-125] [COLUMNS(1 AS one)]
+            SelectList [116-124] [1 AS one]
+              SelectColumn [116-124] [1 AS one]
+                IntLiteral(1) [116-117] [1]
+                Alias [118-124] [AS one]
+                  Identifier(one) [121-124] [one]
 --
 SELECT
   one
@@ -719,11 +727,12 @@ QueryStatement [0-130] [SELECT one...AS one) )]
                 GraphEdgePattern [102-108] [-[b]->]
                   GraphElementPatternFiller [104-105] [b]
                     Identifier(b) [104-105] [b]
-          SelectList [119-127] [1 AS one]
-            SelectColumn [119-127] [1 AS one]
-              IntLiteral(1) [119-120] [1]
-              Alias [121-127] [AS one]
-                Identifier(one) [124-127] [one]
+          Select [111-128] [COLUMNS(1 AS one)]
+            SelectList [119-127] [1 AS one]
+              SelectColumn [119-127] [1 AS one]
+                IntLiteral(1) [119-120] [1]
+                Alias [121-127] [AS one]
+                  Identifier(one) [124-127] [one]
 --
 SELECT
   one
@@ -784,11 +793,12 @@ QueryStatement [0-129] [SELECT one...AS one) )]
                 GraphEdgePattern [101-107] [-[b]->]
                   GraphElementPatternFiller [103-104] [b]
                     Identifier(b) [103-104] [b]
-          SelectList [118-126] [1 AS one]
-            SelectColumn [118-126] [1 AS one]
-              IntLiteral(1) [118-119] [1]
-              Alias [120-126] [AS one]
-                Identifier(one) [123-126] [one]
+          Select [110-127] [COLUMNS(1 AS one)]
+            SelectList [118-126] [1 AS one]
+              SelectColumn [118-126] [1 AS one]
+                IntLiteral(1) [118-119] [1]
+                Alias [120-126] [AS one]
+                  Identifier(one) [123-126] [one]
 --
 SELECT
   one
@@ -852,11 +862,12 @@ QueryStatement [0-141] [SELECT one...AS one) )]
                 GraphEdgePattern [113-119] [-[b]->]
                   GraphElementPatternFiller [115-116] [b]
                     Identifier(b) [115-116] [b]
-          SelectList [130-138] [1 AS one]
-            SelectColumn [130-138] [1 AS one]
-              IntLiteral(1) [130-131] [1]
-              Alias [132-138] [AS one]
-                Identifier(one) [135-138] [one]
+          Select [122-139] [COLUMNS(1 AS one)]
+            SelectList [130-138] [1 AS one]
+              SelectColumn [130-138] [1 AS one]
+                IntLiteral(1) [130-131] [1]
+                Alias [132-138] [AS one]
+                  Identifier(one) [135-138] [one]
 --
 SELECT
   one
@@ -916,11 +927,12 @@ QueryStatement [0-127] [SELECT one...AS one) )]
                 GraphEdgePattern [99-105] [-[b]->]
                   GraphElementPatternFiller [101-102] [b]
                     Identifier(b) [101-102] [b]
-          SelectList [116-124] [1 AS one]
-            SelectColumn [116-124] [1 AS one]
-              IntLiteral(1) [116-117] [1]
-              Alias [118-124] [AS one]
-                Identifier(one) [121-124] [one]
+          Select [108-125] [COLUMNS(1 AS one)]
+            SelectList [116-124] [1 AS one]
+              SelectColumn [116-124] [1 AS one]
+                IntLiteral(1) [116-117] [1]
+                Alias [118-124] [AS one]
+                  Identifier(one) [121-124] [one]
 --
 SELECT
   one
@@ -983,12 +995,10 @@ QueryStatement [0-67] [graph aml...n2:person)}]
 --
 GRAPH aml
 MATCH
-  (n
-  IS person)
+  (n IS person)
 RETURN
   EXISTS {
-    SHORTEST 100  (n2
-    IS person)
+    SHORTEST 100  (n2 IS person)
   }
 ==
 
@@ -1036,11 +1046,12 @@ QueryStatement [0-126] [SELECT one...AS one) )]
                 GraphEdgePattern [98-104] [-[b]->]
                   GraphElementPatternFiller [100-101] [b]
                     Identifier(b) [100-101] [b]
-          SelectList [115-123] [1 AS one]
-            SelectColumn [115-123] [1 AS one]
-              IntLiteral(1) [115-116] [1]
-              Alias [117-123] [AS one]
-                Identifier(one) [120-123] [one]
+          Select [107-124] [COLUMNS(1 AS one)]
+            SelectList [115-123] [1 AS one]
+              SelectColumn [115-123] [1 AS one]
+                IntLiteral(1) [115-116] [1]
+                Alias [117-123] [AS one]
+                  Identifier(one) [120-123] [one]
 --
 SELECT
   one
@@ -1101,11 +1112,12 @@ QueryStatement [0-133] [SELECT one...AS one) )]
                 GraphEdgePattern [105-111] [-[b]->]
                   GraphElementPatternFiller [107-108] [b]
                     Identifier(b) [107-108] [b]
-          SelectList [122-130] [1 AS one]
-            SelectColumn [122-130] [1 AS one]
-              IntLiteral(1) [122-123] [1]
-              Alias [124-130] [AS one]
-                Identifier(one) [127-130] [one]
+          Select [114-131] [COLUMNS(1 AS one)]
+            SelectList [122-130] [1 AS one]
+              SelectColumn [122-130] [1 AS one]
+                IntLiteral(1) [122-123] [1]
+                Alias [124-130] [AS one]
+                  Identifier(one) [127-130] [one]
 --
 SELECT
   one
@@ -1166,11 +1178,12 @@ QueryStatement [0-131] [SELECT one...AS one) )]
                 GraphEdgePattern [103-109] [-[b]->]
                   GraphElementPatternFiller [105-106] [b]
                     Identifier(b) [105-106] [b]
-          SelectList [120-128] [1 AS one]
-            SelectColumn [120-128] [1 AS one]
-              IntLiteral(1) [120-121] [1]
-              Alias [122-128] [AS one]
-                Identifier(one) [125-128] [one]
+          Select [112-129] [COLUMNS(1 AS one)]
+            SelectList [120-128] [1 AS one]
+              SelectColumn [120-128] [1 AS one]
+                IntLiteral(1) [120-121] [1]
+                Alias [122-128] [AS one]
+                  Identifier(one) [125-128] [one]
 --
 SELECT
   one
@@ -1231,11 +1244,12 @@ QueryStatement [0-138] [SELECT one...AS one) )]
                 GraphEdgePattern [110-116] [-[b]->]
                   GraphElementPatternFiller [112-113] [b]
                     Identifier(b) [112-113] [b]
-          SelectList [127-135] [1 AS one]
-            SelectColumn [127-135] [1 AS one]
-              IntLiteral(1) [127-128] [1]
-              Alias [129-135] [AS one]
-                Identifier(one) [132-135] [one]
+          Select [119-136] [COLUMNS(1 AS one)]
+            SelectList [127-135] [1 AS one]
+              SelectColumn [127-135] [1 AS one]
+                IntLiteral(1) [127-128] [1]
+                Alias [129-135] [AS one]
+                  Identifier(one) [132-135] [one]
 --
 SELECT
   one
@@ -1296,11 +1310,12 @@ QueryStatement [0-132] [SELECT one...AS one) )]
                 GraphEdgePattern [104-110] [-[b]->]
                   GraphElementPatternFiller [106-107] [b]
                     Identifier(b) [106-107] [b]
-          SelectList [121-129] [1 AS one]
-            SelectColumn [121-129] [1 AS one]
-              IntLiteral(1) [121-122] [1]
-              Alias [123-129] [AS one]
-                Identifier(one) [126-129] [one]
+          Select [113-130] [COLUMNS(1 AS one)]
+            SelectList [121-129] [1 AS one]
+              SelectColumn [121-129] [1 AS one]
+                IntLiteral(1) [121-122] [1]
+                Alias [123-129] [AS one]
+                  Identifier(one) [126-129] [one]
 --
 SELECT
   one
@@ -1352,8 +1367,7 @@ QueryStatement [0-50] [GRAPH aml...n2:person)}]
 GRAPH aml
 RETURN
   EXISTS {
-    SHORTEST 100  (n2
-    IS person)
+    SHORTEST 100  (n2 IS person)
   }
 ==
 
@@ -1392,8 +1406,7 @@ QueryStatement [0-54] [GRAPH aml...n2:person)}]
 GRAPH aml
 RETURN
   EXISTS {
-    p = SHORTEST 100  (n2
-    IS person)
+    p = SHORTEST 100  (n2 IS person)
   }
 ==
 
@@ -1432,8 +1445,7 @@ QueryStatement [0-61] [GRAPH aml...n2:person)}]
 GRAPH aml
 RETURN
   EXISTS {
-    shortest = SHORTEST 100  (n2
-    IS person)
+    shortest = SHORTEST 100  (n2 IS person)
   }
 ==
 
@@ -1494,11 +1506,12 @@ QueryStatement [0-157] [SELECT one...AS one) )]
                 GraphEdgePattern [129-135] [-[b]->]
                   GraphElementPatternFiller [131-132] [b]
                     Identifier(b) [131-132] [b]
-          SelectList [146-154] [1 AS one]
-            SelectColumn [146-154] [1 AS one]
-              IntLiteral(1) [146-147] [1]
-              Alias [148-154] [AS one]
-                Identifier(one) [151-154] [one]
+          Select [138-155] [COLUMNS(1 AS one)]
+            SelectList [146-154] [1 AS one]
+              SelectColumn [146-154] [1 AS one]
+                IntLiteral(1) [146-147] [1]
+                Alias [148-154] [AS one]
+                  Identifier(one) [151-154] [one]
 --
 SELECT
   one
@@ -1559,11 +1572,12 @@ QueryStatement [0-97] [SELECT one...AS one) )]
                     GraphEdgePattern [63-69] [-[b]->]
                       GraphElementPatternFiller [65-66] [b]
                         Identifier(b) [65-66] [b]
-          SelectList [86-94] [1 AS one]
-            SelectColumn [86-94] [1 AS one]
-              IntLiteral(1) [86-87] [1]
-              Alias [88-94] [AS one]
-                Identifier(one) [91-94] [one]
+          Select [78-95] [COLUMNS(1 AS one)]
+            SelectList [86-94] [1 AS one]
+              SelectColumn [86-94] [1 AS one]
+                IntLiteral(1) [86-87] [1]
+                Alias [88-94] [AS one]
+                  Identifier(one) [91-94] [one]
 --
 SELECT
   one

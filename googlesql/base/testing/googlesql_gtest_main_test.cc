@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+#include <string>
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 

@@ -972,6 +972,192 @@ QueryStmt
 ==
 
 [language_features=NONE,+INTERVAL_TYPE]
+select i * 2.5, 2.5 * i from (select interval 1 day as i)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [INTERVAL]
+| +-$query.$col2#3 AS `$col2` [INTERVAL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#2, $col2#3]
+    +-expr_list=
+    | +-$col1#2 :=
+    | | +-FunctionCall(GoogleSQL:$multiply(INTERVAL, DOUBLE) -> INTERVAL)
+    | |   +-ColumnRef(type=INTERVAL, column=$subquery1.i#1)
+    | |   +-Literal(type=DOUBLE, value=2.5)
+    | +-$col2#3 :=
+    |   +-FunctionCall(GoogleSQL:$multiply(DOUBLE, INTERVAL) -> INTERVAL)
+    |     +-Literal(type=DOUBLE, value=2.5)
+    |     +-ColumnRef(type=INTERVAL, column=$subquery1.i#1)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.i#1]
+        +-expr_list=
+        | +-i#1 :=
+        |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |     +-Literal(type=INT64, value=1)
+        |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# floats should be coercible to doubles
+[language_features=NONE,+INTERVAL_TYPE]
+select i * CAST(2.5 AS FLOAT), CAST(2.5 AS FLOAT) * i from (select interval 1 day as i)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [INTERVAL]
+| +-$query.$col2#3 AS `$col2` [INTERVAL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#2, $col2#3]
+    +-expr_list=
+    | +-$col1#2 :=
+    | | +-FunctionCall(GoogleSQL:$multiply(INTERVAL, DOUBLE) -> INTERVAL)
+    | |   +-ColumnRef(type=INTERVAL, column=$subquery1.i#1)
+    | |   +-Literal(type=DOUBLE, value=2.5, has_explicit_type=TRUE)
+    | +-$col2#3 :=
+    |   +-FunctionCall(GoogleSQL:$multiply(DOUBLE, INTERVAL) -> INTERVAL)
+    |     +-Literal(type=DOUBLE, value=2.5, has_explicit_type=TRUE)
+    |     +-ColumnRef(type=INTERVAL, column=$subquery1.i#1)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.i#1]
+        +-expr_list=
+        | +-i#1 :=
+        |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |     +-Literal(type=INT64, value=1)
+        |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        +-input_scan=
+          +-SingleRowScan
+==
+
+[language_features=NONE,+INTERVAL_TYPE, +NUMERIC_TYPE]
+select {{i * NUMERIC '1.5'|NUMERIC '2.5' * i}} from (select interval 1 day as i)
+--
+ALTERNATION GROUP: i * NUMERIC '1.5'
+--
+ERROR: No matching signature for operator *
+  Argument types: INTERVAL, NUMERIC
+  Signature: INT64 * INT64
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: UINT64 * UINT64
+    Argument 1: Unable to coerce type INTERVAL to expected type UINT64
+  Signature: DOUBLE * DOUBLE
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: NUMERIC * NUMERIC
+    Argument 1: Unable to coerce type INTERVAL to expected type NUMERIC
+  Signature: INTERVAL * INT64
+    Argument 2: Unable to coerce type NUMERIC to expected type INT64
+  Signature: INT64 * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: INTERVAL * DOUBLE
+    At least one argument must have a floating point type
+  Signature: DOUBLE * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE [at 1:8]
+select i * NUMERIC '1.5' from (select interval 1 day as i)
+       ^
+--
+ALTERNATION GROUP: NUMERIC '2.5' * i
+--
+ERROR: No matching signature for operator *
+  Argument types: NUMERIC, INTERVAL
+  Signature: INT64 * INT64
+    Argument 1: Unable to coerce type NUMERIC to expected type INT64
+  Signature: UINT64 * UINT64
+    Argument 1: Unable to coerce type NUMERIC to expected type UINT64
+  Signature: DOUBLE * DOUBLE
+    Argument 2: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: NUMERIC * NUMERIC
+    Argument 2: Unable to coerce type INTERVAL to expected type NUMERIC
+  Signature: INTERVAL * INT64
+    Argument 1: Unable to coerce type NUMERIC to expected type INTERVAL
+  Signature: INT64 * INTERVAL
+    Argument 1: Unable to coerce type NUMERIC to expected type INT64
+  Signature: INTERVAL * DOUBLE
+    Argument 1: Unable to coerce type NUMERIC to expected type INTERVAL
+  Signature: DOUBLE * INTERVAL
+    At least one argument must have a floating point type [at 1:8]
+select NUMERIC '2.5' * i from (select interval 1 day as i)
+       ^
+==
+
+[language_features=NONE,+INTERVAL_TYPE, +BIGNUMERIC_TYPE]
+select {{i * BIGNUMERIC '1.5'|BIGNUMERIC '2.5' * i}} from (select interval 1 day as i)
+--
+ALTERNATION GROUP: i * BIGNUMERIC '1.5'
+--
+ERROR: No matching signature for operator *
+  Argument types: INTERVAL, BIGNUMERIC
+  Signature: INT64 * INT64
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: UINT64 * UINT64
+    Argument 1: Unable to coerce type INTERVAL to expected type UINT64
+  Signature: DOUBLE * DOUBLE
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: BIGNUMERIC * BIGNUMERIC
+    Argument 1: Unable to coerce type INTERVAL to expected type BIGNUMERIC
+  Signature: INTERVAL * INT64
+    Argument 2: Unable to coerce type BIGNUMERIC to expected type INT64
+  Signature: INT64 * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: INTERVAL * DOUBLE
+    At least one argument must have a floating point type
+  Signature: DOUBLE * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE [at 1:8]
+select i * BIGNUMERIC '1.5' from (select interval 1 day as i)
+       ^
+--
+ALTERNATION GROUP: BIGNUMERIC '2.5' * i
+--
+ERROR: No matching signature for operator *
+  Argument types: BIGNUMERIC, INTERVAL
+  Signature: INT64 * INT64
+    Argument 1: Unable to coerce type BIGNUMERIC to expected type INT64
+  Signature: UINT64 * UINT64
+    Argument 1: Unable to coerce type BIGNUMERIC to expected type UINT64
+  Signature: DOUBLE * DOUBLE
+    Argument 2: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: BIGNUMERIC * BIGNUMERIC
+    Argument 2: Unable to coerce type INTERVAL to expected type BIGNUMERIC
+  Signature: INTERVAL * INT64
+    Argument 1: Unable to coerce type BIGNUMERIC to expected type INTERVAL
+  Signature: INT64 * INTERVAL
+    Argument 1: Unable to coerce type BIGNUMERIC to expected type INT64
+  Signature: INTERVAL * DOUBLE
+    Argument 1: Unable to coerce type BIGNUMERIC to expected type INTERVAL
+  Signature: DOUBLE * INTERVAL
+    At least one argument must have a floating point type [at 1:8]
+select BIGNUMERIC '2.5' * i from (select interval 1 day as i)
+       ^
+==
+
+[language_features=NONE,+INTERVAL_TYPE]
+select i * i from (select interval 1 day as i)
+--
+ERROR: No matching signature for operator *
+  Argument types: INTERVAL, INTERVAL
+  Signature: INT64 * INT64
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: UINT64 * UINT64
+    Argument 1: Unable to coerce type INTERVAL to expected type UINT64
+  Signature: DOUBLE * DOUBLE
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: INTERVAL * INT64
+    Argument 2: Unable to coerce type INTERVAL to expected type INT64
+  Signature: INT64 * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: INTERVAL * DOUBLE
+    Argument 2: Unable to coerce type INTERVAL to expected type DOUBLE
+  Signature: DOUBLE * INTERVAL
+    Argument 1: Unable to coerce type INTERVAL to expected type DOUBLE [at 1:8]
+select i * i from (select interval 1 day as i)
+       ^
+==
+
+[language_features=NONE,+INTERVAL_TYPE]
 select 10 / INTERVAL '10' YEAR
 --
 ERROR: No matching signature for operator /
@@ -1205,6 +1391,16 @@ QueryStmt
     |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=QUARTER)
     +-input_scan=
       +-SingleRowScan
+==
+
+[language_features=NONE,+INTERVAL_TYPE]
+# Resolver prioritizes an error about the RHS when the date part is invalid.
+# Ensure that error is correct when INTERVAL is passed (context: b/512189511).
+SELECT EXTRACT(X FROM INTERVAL "1" SECOND);
+--
+ERROR: A valid date part name is required but found X [at 3:16]
+SELECT EXTRACT(X FROM INTERVAL "1" SECOND);
+               ^
 ==
 
 [language_features=NONE,+INTERVAL_TYPE]

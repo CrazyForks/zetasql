@@ -15,6 +15,7 @@
 #
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -50,7 +51,6 @@ cc_library(
     hdrs = ["sql_test_base.h"],
     deps = [
         ":compliance_label_cc_proto",
-        ":compliance_label_extractor",
         ":known_error_cc_proto",
         ":legal_runtime_errors",
         ":matchers",
@@ -61,6 +61,7 @@ cc_library(
         ":test_driver_cc_proto",
         ":test_util",
         "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base:file_util",
         "//googlesql/base:map_util",
         "//googlesql/base:path",
@@ -70,7 +71,6 @@ cc_library(
         "//googlesql/base/testing:status_matchers",
         "//googlesql/common:float_margin",
         "//googlesql/common:internal_value",
-        "//googlesql/common:measure_analysis_utils",
         "//googlesql/common:options_utils",
         "//googlesql/common:status_payload_utils",
         "//googlesql/public:analyzer",
@@ -92,7 +92,6 @@ cc_library(
         "//googlesql/resolved_ast",
         "//googlesql/resolved_ast:resolved_node_kind_cc_proto",
         "//googlesql/resolved_ast:sql_builder",
-        "//googlesql/testing:test_value",
         "//googlesql/testing:type_util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
@@ -131,6 +130,7 @@ cc_library(
         "//googlesql/base:file_util",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
+        "//googlesql/common:float_margin",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:type",
         "//googlesql/public:type_cc_proto",
@@ -173,6 +173,7 @@ cc_library(
         "//googlesql/public:builtin_function",
         "//googlesql/public:builtin_function_cc_proto",
         "//googlesql/public:builtin_function_options",
+        "//googlesql/public:function",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:type",
         "//googlesql/public:type_cc_proto",
@@ -484,6 +485,7 @@ cc_library(
         "//googlesql/common/testing:testing_proto_util",
         "//googlesql/public:analyzer_output",
         "//googlesql/public:builtin_function",
+        "//googlesql/public:builtin_function_cc_proto",
         "//googlesql/public:builtin_function_options",
         "//googlesql/public:catalog",
         "//googlesql/public:function_headers",
@@ -492,6 +494,7 @@ cc_library(
         "//googlesql/public:simple_catalog_util",
         "//googlesql/public:type",
         "//googlesql/public/types",
+        "//googlesql/testdata:test_schema_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -511,6 +514,7 @@ cc_library(
         "functions_testlib_1.cc",
         "functions_testlib_2.cc",
         "functions_testlib_cast.cc",
+        "functions_testlib_cast_json.cc",
         "functions_testlib_common.cc",
         "functions_testlib_distance.cc",
         "functions_testlib_format.cc",
@@ -660,14 +664,5 @@ cc_library(
         ":matchers",
         "//googlesql/base:status",
         "@com_google_absl//absl/memory",
-    ],
-)
-
-# To avoid linker errors, these files need to be built from source for each test-driver running
-# binary.
-filegroup(
-    name = "run_compliance_driver_files",
-    srcs = [
-        "run_compliance_driver.cc",
     ],
 )

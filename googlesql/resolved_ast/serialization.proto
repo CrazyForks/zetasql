@@ -39,6 +39,7 @@ message ResolvedColumnProto {
 
 message ValueWithTypeProto {
   optional TypeProto type = 1;
+  optional AnnotationMapProto annotation_map = 3;
   optional ValueProto value = 2;
 }
 

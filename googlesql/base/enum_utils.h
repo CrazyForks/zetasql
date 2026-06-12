@@ -29,6 +29,7 @@
 // }
 //
 
+#include <iterator>
 #include "google/protobuf/descriptor.pb.h"
 
 namespace googlesql_base {

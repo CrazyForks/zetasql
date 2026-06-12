@@ -25,11 +25,11 @@
 #include "googlesql/public/pico_time.h"
 #include "absl/base/port.h"
 #include "absl/numeric/int128.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "googlesql/base/endian.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

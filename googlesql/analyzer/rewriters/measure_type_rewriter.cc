@@ -36,9 +36,9 @@
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -167,7 +167,7 @@ class MeasureTypeRewriter : public Rewriter {
 
     // Step 0: Find unsupported query shapes, and return an error if any are
     // found.
-    GOOGLESQL_RETURN_IF_ERROR(HasUnsupportedQueryShape(input.get()));
+    GOOGLESQL_RETURN_IF_ERROR(HasUnsupportedQueryShape(input.get(), options.language()));
 
     const Function* any_value_fn = nullptr;
     GOOGLESQL_RET_CHECK_OK(catalog.FindFunction({"any_value"}, &any_value_fn,

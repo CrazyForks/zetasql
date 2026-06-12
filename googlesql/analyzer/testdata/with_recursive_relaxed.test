@@ -399,7 +399,7 @@ QueryStmt
     +-recursive=TRUE
 ==
 
-# Joins not relaxed yet
+# Joins allowed in relaxed mode
 WITH RECURSIVE
   t_other AS (SELECT * FROM UNNEST([1,2,3,4]) AS n),
   t AS (SELECT 1 AS n UNION ALL SELECT n FROM t
@@ -475,7 +475,7 @@ QueryStmt
     +-recursive=TRUE
 ==
 
-# TVF not relaxed yet
+# TVF relaxed
 WITH RECURSIVE t AS (
     SELECT 1.0 AS n
   UNION ALL
@@ -483,7 +483,73 @@ WITH RECURSIVE t AS (
   )
   SELECT n FROM t;
 --
-ERROR: A query containing a recursive reference must not be used as an argument to a table-valued function [at 4:73]
+QueryStmt
++-output_column_list=
+| +-t.n#8 AS n [DOUBLE]
++-query=
+  +-WithScan
+    +-column_list=[t.n#8]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-RecursiveScan
+    |       +-column_list=[$union_all.n#2]
+    |       +-op_type=UNION_ALL
+    |       +-non_recursive_term=
+    |       | +-SetOperationItem
+    |       |   +-scan=
+    |       |   | +-ProjectScan
+    |       |   |   +-column_list=[$union_all1.n#1]
+    |       |   |   +-expr_list=
+    |       |   |   | +-n#1 := Literal(type=DOUBLE, value=1, float_literal_id=1)
+    |       |   |   +-input_scan=
+    |       |   |     +-SingleRowScan
+    |       |   +-output_column_list=[$union_all1.n#1]
+    |       +-recursive_term=
+    |         +-SetOperationItem
+    |           +-scan=
+    |           | +-ProjectScan
+    |           |   +-column_list=[$union_all2_cast.$col1#7]
+    |           |   +-expr_list=
+    |           |   | +-$col1#7 := Literal(type=DOUBLE, value=1)
+    |           |   +-input_scan=
+    |           |     +-ProjectScan
+    |           |       +-column_list=[$union_all2.$col1#6]
+    |           |       +-expr_list=
+    |           |       | +-$col1#6 := Literal(type=INT64, value=1)
+    |           |       +-input_scan=
+    |           |         +-TVFScan
+    |           |           +-tvf=tvf_one_relation_arg_with_fixed_output((ANY TABLE) -> TABLE<column_bool BOOL, column_bytes BYTES>)
+    |           |           +-signature=(TABLE<n DOUBLE>) -> TABLE<column_bool BOOL, column_bytes BYTES>
+    |           |           +-argument_list=
+    |           |           | +-FunctionArgument
+    |           |           |   +-scan=
+    |           |           |   | +-ProjectScan
+    |           |           |   |   +-column_list=[t.n#3]
+    |           |           |   |   +-input_scan=
+    |           |           |   |     +-RecursiveRefScan(column_list=[t.n#3])
+    |           |           |   +-argument_column_list=[t.n#3]
+    |           |           +-function_call_signature=(ANY TABLE) -> TABLE<column_bool BOOL, column_bytes BYTES>
+    |           +-output_column_list=[$union_all2_cast.$col1#7]
+    +-query=
+    | +-ProjectScan
+    |   +-column_list=[t.n#8]
+    |   +-input_scan=
+    |     +-WithRefScan(column_list=[t.n#8], with_query_name="t")
+    +-recursive=TRUE
+==
+
+[language_features=MAXIMUM,+WITH_RECURSIVE,+TABLE_VALUED_FUNCTIONS]
+# TVF not relaxed
+WITH RECURSIVE t AS (
+    SELECT 1.0 AS n
+  UNION ALL
+    SELECT 1 FROM tvf_one_relation_arg_with_fixed_output((SELECT * FROM t))
+  )
+  SELECT * FROM t;
+--
+ERROR: A query containing a recursive reference must not be used as an argument to a table-valued function [at 5:73]
     SELECT 1 FROM tvf_one_relation_arg_with_fixed_output((SELECT * FROM t))
                                                                         ^
 ==

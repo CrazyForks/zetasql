@@ -16,22 +16,33 @@
 
 #include "googlesql/common/options_utils.h"
 
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
+#include "googlesql/public/analyzer_options.h"
+#include "googlesql/public/catalog.h"
 #include "googlesql/public/evaluator.h"
 #include "googlesql/public/language_options.h"
+#include "googlesql/public/parse_location.h"
+#include "googlesql/public/parse_resume_location.h"
 #include "googlesql/public/parse_tokens.h"
+#include "googlesql/public/strings.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
+#include "googlesql/base/ret_check.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql::internal {
 
@@ -107,10 +118,10 @@ absl::StatusOr<EnumOptionsEntry<ResolvedASTRewrite>> ParseEnabledAstRewrites(
                            /*include_default_disabled=*/true)},
        {"ALL_MINUS_DEV", GetRewrites(/*include_in_development=*/false,
                                      /*include_default_disabled=*/true)},
-       {"DEFAULTS", GetRewrites(/*include_in_development=*/true,
+       {"DEFAULTS", GetRewrites(/*include_in_development=*/false,
                                 /*include_default_disabled=*/false)},
-       {"DEFAULTS_MINUS_DEV", GetRewrites(/*include_in_development=*/false,
-                                          /*include_default_disabled=*/false)}},
+       {"DEFAULTS_PLUS_DEV", GetRewrites(/*include_in_development=*/true,
+                                         /*include_default_disabled=*/false)}},
       "REWRITE_", "Rewrite", options_str);
 }
 
@@ -133,10 +144,10 @@ std::string AbslUnparseFlag(EnabledAstRewrites p) {
                            /*include_default_disabled=*/true)},
        {"ALL_MINUS_DEV", GetRewrites(/*include_in_development=*/false,
                                      /*include_default_disabled=*/true)},
-       {"DEFAULTS", GetRewrites(/*include_in_development=*/true,
+       {"DEFAULTS", GetRewrites(/*include_in_development=*/false,
                                 /*include_default_disabled=*/false)},
-       {"DEFAULTS_MINUS_DEV", GetRewrites(/*include_in_development=*/false,
-                                          /*include_default_disabled=*/false)}},
+       {"DEFAULTS_PLUS_DEV", GetRewrites(/*include_in_development=*/true,
+                                         /*include_default_disabled=*/false)}},
       "REWRITE_", p.enabled_ast_rewrites);
 }
 

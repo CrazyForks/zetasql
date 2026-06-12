@@ -1,0 +1,186 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+from Foo
+|> DROP {{|x,}} **cols {{|,**cols2}} {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-24] [from Foo |> DROP  **cols]
+  Query [0-24] [from Foo |> DROP  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-24] [|> DROP  **cols]
+      ExpressionList [18-24] [**cols]
+        UnpackExpression [18-24] [**cols]
+          PathExpression [20-24] [cols]
+            Identifier(cols) [20-24] [cols]
+
+--
+FROM
+  Foo
+|> DROP ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-28] [from Foo |> DROP  **cols  ,y]
+  Query [0-28] [from Foo |> DROP  **cols  ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-28] [|> DROP  **cols  ,y]
+      ExpressionList [18-28] [**cols  ,y]
+        UnpackExpression [18-24] [**cols]
+          PathExpression [20-24] [cols]
+            Identifier(cols) [20-24] [cols]
+        Identifier(y) [27-28] [y]
+--
+FROM
+  Foo
+|> DROP ** (cols), y
+--
+ALTERNATION GROUP: ,**cols2,
+--
+QueryStatement [0-33] [from Foo |...cols ,**cols2]
+  Query [0-33] [from Foo |...cols ,**cols2]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-33] [|> DROP  **cols ,**cols2]
+      ExpressionList [18-33] [**cols ,**cols2]
+        UnpackExpression [18-24] [**cols]
+          PathExpression [20-24] [cols]
+            Identifier(cols) [20-24] [cols]
+        UnpackExpression [26-33] [**cols2]
+          PathExpression [28-33] [cols2]
+            Identifier(cols2) [28-33] [cols2]
+--
+FROM
+  Foo
+|> DROP ** (cols), ** (cols2)
+--
+ALTERNATION GROUP: ,**cols2,,y
+--
+QueryStatement [0-36] [from Foo |...**cols2 ,y]
+  Query [0-36] [from Foo |...**cols2 ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-36] [|> DROP  **cols ,**cols2 ,y]
+      ExpressionList [18-36] [**cols ,**cols2 ,y]
+        UnpackExpression [18-24] [**cols]
+          PathExpression [20-24] [cols]
+            Identifier(cols) [20-24] [cols]
+        UnpackExpression [26-33] [**cols2]
+          PathExpression [28-33] [cols2]
+            Identifier(cols2) [28-33] [cols2]
+        Identifier(y) [35-36] [y]
+--
+FROM
+  Foo
+|> DROP ** (cols), ** (cols2), y
+--
+ALTERNATION GROUP: x,,,
+--
+QueryStatement [0-26] [from Foo |> DROP x, **cols]
+  Query [0-26] [from Foo |> DROP x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-26] [|> DROP x, **cols]
+      ExpressionList [17-26] [x, **cols]
+        Identifier(x) [17-18] [x]
+        UnpackExpression [20-26] [**cols]
+          PathExpression [22-26] [cols]
+            Identifier(cols) [22-26] [cols]
+--
+FROM
+  Foo
+|> DROP x, ** (cols)
+--
+ALTERNATION GROUP: x,,,,y
+--
+QueryStatement [0-30] [from Foo |> DROP x, **cols  ,y]
+  Query [0-30] [from Foo |> DROP x, **cols  ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-30] [|> DROP x, **cols  ,y]
+      ExpressionList [17-30] [x, **cols  ,y]
+        Identifier(x) [17-18] [x]
+        UnpackExpression [20-26] [**cols]
+          PathExpression [22-26] [cols]
+            Identifier(cols) [22-26] [cols]
+        Identifier(y) [29-30] [y]
+--
+FROM
+  Foo
+|> DROP x, ** (cols), y
+--
+ALTERNATION GROUP: x,,,**cols2,
+--
+QueryStatement [0-35] [from Foo |...cols ,**cols2]
+  Query [0-35] [from Foo |...cols ,**cols2]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-35] [|> DROP x, **cols ,**cols2]
+      ExpressionList [17-35] [x, **cols ,**cols2]
+        Identifier(x) [17-18] [x]
+        UnpackExpression [20-26] [**cols]
+          PathExpression [22-26] [cols]
+            Identifier(cols) [22-26] [cols]
+        UnpackExpression [28-35] [**cols2]
+          PathExpression [30-35] [cols2]
+            Identifier(cols2) [30-35] [cols2]
+--
+FROM
+  Foo
+|> DROP x, ** (cols), ** (cols2)
+--
+ALTERNATION GROUP: x,,,**cols2,,y
+--
+QueryStatement [0-38] [from Foo |...**cols2 ,y]
+  Query [0-38] [from Foo |...**cols2 ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeDrop [9-38] [|> DROP x, **cols ,**cols2 ,y]
+      ExpressionList [17-38] [x, **cols ,**cols2 ,y]
+        Identifier(x) [17-18] [x]
+        UnpackExpression [20-26] [**cols]
+          PathExpression [22-26] [cols]
+            Identifier(cols) [22-26] [cols]
+        UnpackExpression [28-35] [**cols2]
+          PathExpression [30-35] [cols2]
+            Identifier(cols2) [30-35] [cols2]
+        Identifier(y) [37-38] [y]
+--
+FROM
+  Foo
+|> DROP x, ** (cols), ** (cols2), y
+==
+
+from Foo
+|> DROP (**cols);
+--
+ERROR: Syntax error: Unexpected "(" [at 2:9]
+|> DROP (**cols);
+        ^

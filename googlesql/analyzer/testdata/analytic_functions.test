@@ -439,16 +439,8 @@ QueryStmt
                         +-WindowFrameExpr(boundary_type=UNBOUNDED FOLLOWING)
 ==
 
-[language_features=NONE,+ANALYTIC_FUNCTIONS{{,+DISALLOW_GROUP_BY_FLOAT|}}]
+[language_features=NONE,+ANALYTIC_FUNCTIONS]
 select afn_agg(distinct double) over () from SimpleTypes
---
-ALTERNATION GROUP: ,+DISALLOW_GROUP_BY_FLOAT
---
-ERROR: Analytic aggregate functions with DISTINCT cannot be used with arguments of type DOUBLE [at 1:8]
-select afn_agg(distinct double) over () from SimpleTypes
-       ^
---
-ALTERNATION GROUP: <empty>
 --
 QueryStmt
 +-output_column_list=

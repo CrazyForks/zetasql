@@ -17,13 +17,21 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "googlesql/public/collator.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "unicode/tblcoll.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
 
@@ -51,6 +59,10 @@ class CaseSensitiveUnicodeCollator : public GoogleSqlCollator {
 
   const icu::RuleBasedCollator* GetIcuCollator() const override {
     return nullptr;
+  }
+
+  std::string DebugString() const override {
+    return absl::StrCat("CaseSensitiveUnicode:", GetCollationName(), ">");
   }
 };
 
@@ -119,6 +131,63 @@ absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> MakeSqlCollatorLite(
     absl::string_view collation_name, CollatorLegacyUnicodeMode mode) {
   return CollatorRegistration::GetInstance()->CreateFromCollationName(
       collation_name, mode);
+}
+
+CompositeGoogleSqlCollator::CompositeGoogleSqlCollator(
+    std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators)
+    : GoogleSqlCollator(/*collation_name=*/""),  // Composite collators don't
+                                                 // have a single name
+      child_collators_(std::move(child_collators)) {}
+
+absl::StatusOr<std::unique_ptr<const CompositeGoogleSqlCollator>>
+CompositeGoogleSqlCollator::Create(
+    std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators) {
+  bool all_nulls = true;
+  for (const auto& child_collator : child_collators) {
+    if (child_collator != nullptr) {
+      all_nulls = false;
+      break;
+    }
+  }
+  if (all_nulls) {
+    // If all child collators are null, then the composite collator is null.
+    return nullptr;
+  }
+
+  return absl::WrapUnique(
+      new CompositeGoogleSqlCollator(std::move(child_collators)));
+}
+
+int64_t CompositeGoogleSqlCollator::CompareUtf8(absl::string_view s1,
+                                                absl::string_view s2,
+                                                absl::Status* error) const {
+  *error = absl::InternalError(
+      "CompareUtf8 is not supported for CompositeGoogleSqlCollator");
+  return 0;
+}
+
+absl::Status CompositeGoogleSqlCollator::GetSortKeyUtf8(
+    absl::string_view input, absl::Cord* output) const {
+  return absl::InternalError(
+      "GetSortKeyUtf8 is not supported for CompositeGoogleSqlCollator");
+}
+
+std::string CompositeGoogleSqlCollator::DebugString() const {
+  std::string result = "CompositeCollator<";
+  absl::StrAppend(
+      &result,
+      absl::StrJoin(
+          child_collators_, ",",
+          [](std::string* out,
+             const std::unique_ptr<const GoogleSqlCollator>& child_collator) {
+            if (child_collator != nullptr) {
+              absl::StrAppend(out, child_collator->DebugString());
+            } else {
+              absl::StrAppend(out, "null collator");
+            }
+          }));
+  absl::StrAppend(&result, ">");
+  return result;
 }
 
 namespace internal {

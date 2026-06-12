@@ -66,9 +66,9 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/common/search/public/token_list_util.h"
+#include "googlesql/base/status_macros.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 #include "googlesql/base/time_proto_util.h"
 
 namespace googlesql {
@@ -536,10 +536,8 @@ bool SimpleType::SupportsGroupingImpl(const LanguageOptions& language_options,
                                       const Type** no_grouping_type) const {
   const bool supports_grouping =
       !this->IsGeography() && !this->IsTokenList() &&
-      !(this->IsJson() && !language_options.LanguageFeatureEnabled(
-                              FEATURE_JSON_TYPE_COMPARISON)) &&
-      !(this->IsFloatingPoint() && language_options.LanguageFeatureEnabled(
-                                       FEATURE_DISALLOW_GROUP_BY_FLOAT));
+      !(this->IsJson() &&
+        !language_options.LanguageFeatureEnabled(FEATURE_JSON_TYPE_COMPARISON));
   if (no_grouping_type != nullptr) {
     *no_grouping_type = supports_grouping ? nullptr : this;
   }

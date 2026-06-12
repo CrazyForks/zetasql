@@ -345,6 +345,26 @@ QueryStmt
       +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 ==
 
+# Extension followed by a field access that should remain a field error.
+SELECT
+  FILTER_FIELDS(KitchenSink, -(googlesql_test.int_top_level_extension).foo)
+FROM TestTable
+--
+ERROR: Cannot access field foo on a value with type INT64 [at 2:72]
+  FILTER_FIELDS(KitchenSink, -(googlesql_test.int_top_level_extension).foo)
+                                                                       ^
+==
+
+# Nested extension access should remain an extension error in FILTER_FIELDS.
+SELECT
+  FILTER_FIELDS(KitchenSink, +(googlesql_test.int_top_level_extension).(googlesql_test.int_top_level_extension))
+FROM TestTable
+--
+ERROR: Cannot access extension (googlesql_test.int_top_level_extension) on a value with type INT64 [at 2:73]
+...googlesql_test.int_top_level_extension).(googlesql_test.int_top_level_exte...
+                                            ^
+==
+
 SELECT FILTER_FIELDS(RecursivePB, +(googlesql_test.RecursivePB.repeated_recursive_pb_extension).int64_val) FROM RecursivePBTable
 --
 QueryStmt

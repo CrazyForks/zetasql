@@ -54,16 +54,19 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/base/no_destructor.h"
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/bind_front.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 class AnalyzerOptions;
@@ -1174,6 +1177,20 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
                        {{string_type, {}, FN_SESSION_USER}},
                        function_is_stable);
 
+  FunctionArgumentType secure_context_key_arg(string_type,
+                                              FunctionArgumentTypeOptions()
+                                                  .set_must_be_constant()
+                                                  .set_must_be_non_null());
+
+  FunctionOptions secure_context_options = function_is_stable;
+  secure_context_options.set_arguments_are_coercible(false);
+  secure_context_options.set_supports_safe_error_mode(false);
+  secure_context_options.AddRequiredLanguageFeature(
+      googlesql::FEATURE_SECURE_CONTEXT);
+  InsertFunction(functions, options, "secure_context", SCALAR,
+                 {{string_type, {secure_context_key_arg}, FN_SECURE_CONTEXT}},
+                 secure_context_options);
+
   FunctionOptions function_is_volatile;
   function_is_volatile.set_volatility(FunctionEnums::VOLATILE);
 
@@ -1465,6 +1482,57 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
 
 namespace {
 
+// Traverses `type` and its component types, returning the first type that
+// is not supported in JSON conversion functions. If `type` is fully supported
+// then nullptr is returned.
+// TODO: b/483763571 - Expand this function to cover types more exhaustively.
+// Desired behavior for extended types and existing unsupported types will need
+// to be considered.
+static const Type* GetUnsupportedTypeForJsonConversion(
+    const Type* /*absl_nonnull*/ type) {
+  if (type->IsMap()) {
+    return type;
+  }
+
+  for (const Type* child : type->ComponentTypes()) {
+    const Type* unsupported_type = GetUnsupportedTypeForJsonConversion(child);
+    if (unsupported_type != nullptr) {
+      return unsupported_type;
+    }
+  }
+
+  return nullptr;
+}
+
+// A post-resolution argument constraint for JSON conversion functions. Returns
+// an error if any of the argument types are not supported in JSON conversion
+// functions.
+static absl::Status CheckTypeToJsonConversionIsSupported(
+    absl::string_view fn_name,
+    const FunctionSignature& unused_matched_signature,
+    absl::Span<const InputArgumentType> arguments,
+    const LanguageOptions& language_options) {
+  for (const InputArgumentType& argument : arguments) {
+    const Type* type = argument.type();
+
+    GOOGLESQL_RET_CHECK(type != nullptr)
+        << "Unexpected input argument with null concrete type: "
+        << argument.DebugString(true);
+
+    const Type* disallowed_type = GetUnsupportedTypeForJsonConversion(type);
+    if (disallowed_type != nullptr) {
+      return MakeSqlError() << absl::Substitute(
+                 "Unsupported argument to $0: $1 does not support "
+                 "conversion to JSON",
+                 fn_name,
+                 disallowed_type->ShortTypeName(
+                     language_options.product_mode()));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status GetJsonParseFunctions(
     const GoogleSQLBuiltinFunctionOptions& options,
     NameToFunctionMap* functions, NameToTypeMap* types) {
@@ -1500,58 +1568,55 @@ absl::Status GetJsonParseFunctions(
           .set_argument_name("path_as_object", kNamedOnly)
           .set_default(values::Bool(false));
 
-  std::vector<FunctionSignatureOnHeap> signatures = {
+  std::vector<FunctionSignatureOnHeap> to_json_signatures = {
       {json_type,
        {ARG_TYPE_ANY_1, {bool_type, stringify_wide_numbers_option}},
        FN_TO_JSON},
   };
+  std::vector<const Type*> extra_to_json_types = {};
 
+  FunctionOptions to_json_function_options =
+      FunctionOptions().set_post_resolution_argument_constraint(
+          absl::bind_front(CheckTypeToJsonConversionIsSupported, "TO_JSON"));
+
+  if (path_as_object_enabled) {
+    to_json_signatures.push_back({json_type,
+                                  {ARG_TYPE_ANY_1,
+                                   {bool_type, stringify_wide_numbers_option},
+                                   {bool_type, path_as_object_option}},
+                                  FN_TO_JSON_PATH_AS_OBJECT});
+  }
+  if (unsupported_fields_enabled) {
+    to_json_signatures.push_back(
+        {json_type,
+         {ARG_TYPE_ANY_1,
+          {bool_type, stringify_wide_numbers_option},
+          {unsupported_fields_type, unsupported_fields_option}},
+         FN_TO_JSON_UNSUPPORTED_FIELDS});
+    extra_to_json_types.push_back(unsupported_fields_type);
+  }
   if (path_as_object_enabled && unsupported_fields_enabled) {
-    signatures.push_back(
+    // If both are enabled, there is an additional signature that takes both
+    // options.
+    to_json_signatures.push_back(
         {json_type,
          {ARG_TYPE_ANY_1,
           {bool_type, stringify_wide_numbers_option},
-          {unsupported_fields_type, unsupported_fields_option}},
-         FN_TO_JSON_UNSUPPORTED_FIELDS});
-    signatures.push_back({json_type,
-                          {ARG_TYPE_ANY_1,
-                           {bool_type, stringify_wide_numbers_option},
-                           {bool_type, path_as_object_option}},
-                          FN_TO_JSON_PATH_AS_OBJECT});
-    signatures.push_back({json_type,
-                          {ARG_TYPE_ANY_1,
-                           {bool_type, stringify_wide_numbers_option},
-                           {unsupported_fields_type, unsupported_fields_option},
-                           {bool_type, path_as_object_option}},
-                          FN_TO_JSON_UNSUPPORTED_FIELDS_PATH_AS_OBJECT});
-    GOOGLESQL_RETURN_IF_ERROR(InsertFunctionAndTypes(
-        functions, types, options, "to_json", Function::SCALAR, signatures,
-        /*function_options=*/{}, {unsupported_fields_type}));
-  } else if (path_as_object_enabled) {
-    signatures.push_back({json_type,
-                          {ARG_TYPE_ANY_1,
-                           {bool_type, stringify_wide_numbers_option},
-                           {bool_type, path_as_object_option}},
-                          FN_TO_JSON_PATH_AS_OBJECT});
-    InsertFunction(functions, options, "to_json", Function::SCALAR, signatures);
-  } else if (unsupported_fields_enabled) {
-    signatures.push_back(
-        {json_type,
-         {ARG_TYPE_ANY_1,
-          {bool_type, stringify_wide_numbers_option},
-          {unsupported_fields_type, unsupported_fields_option}},
-         FN_TO_JSON_UNSUPPORTED_FIELDS});
-    GOOGLESQL_RETURN_IF_ERROR(InsertFunctionAndTypes(
-        functions, types, options, "to_json", Function::SCALAR, signatures,
-        /*function_options=*/{}, {unsupported_fields_type}));
-  } else {
-    InsertFunction(functions, options, "to_json", Function::SCALAR, signatures);
+          {unsupported_fields_type, unsupported_fields_option},
+          {bool_type, path_as_object_option}},
+         FN_TO_JSON_UNSUPPORTED_FIELDS_PATH_AS_OBJECT});
+    extra_to_json_types.push_back(unsupported_fields_type);
   }
 
-  InsertFunction(
-      functions, options, "safe_to_json", Function::SCALAR,
-      {{json_type, {ARG_TYPE_ANY_1}, FN_SAFE_TO_JSON}},
-      FunctionOptions().AddRequiredLanguageFeature(FEATURE_JSON_TYPE));
+  GOOGLESQL_RETURN_IF_ERROR(InsertFunctionAndTypes(
+      functions, types, options, "to_json", Function::SCALAR,
+      to_json_signatures,
+      /*function_options=*/to_json_function_options, extra_to_json_types));
+
+  InsertFunction(functions, options, "safe_to_json", Function::SCALAR,
+                 {{json_type, {ARG_TYPE_ANY_1}, FN_SAFE_TO_JSON}},
+                 FunctionOptions()
+                     .AddRequiredLanguageFeature(FEATURE_JSON_TYPE));
   InsertFunction(
       functions, options, "parse_json", Function::SCALAR,
       {{json_type,
@@ -1939,6 +2004,8 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
                                   FunctionArgumentType::REPEATED)}},
         FN_JSON_ARRAY}},
       FunctionOptions()
+          .set_post_resolution_argument_constraint(absl::bind_front(
+              CheckTypeToJsonConversionIsSupported, "JSON_ARRAY"))
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_CONSTRUCTOR_FUNCTIONS));
 
@@ -1960,6 +2027,8 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
                          .set_default(Value::Bool(true))}},
         FN_JSON_ARRAY_INSERT}},
       FunctionOptions()
+          .set_post_resolution_argument_constraint(absl::bind_front(
+              CheckTypeToJsonConversionIsSupported, "JSON_ARRAY_INSERT"))
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_MUTATOR_FUNCTIONS));
 
@@ -1981,6 +2050,8 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
                          .set_default(Value::Bool(true))}},
         FN_JSON_ARRAY_APPEND}},
       FunctionOptions()
+          .set_post_resolution_argument_constraint(absl::bind_front(
+              CheckTypeToJsonConversionIsSupported, "JSON_ARRAY_APPEND"))
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_MUTATOR_FUNCTIONS));
 }
@@ -2137,7 +2208,11 @@ void GetJsonObjectManipulationFunctions(
       {{string_type,
         {ARG_TYPE_ANY_1, {bool_type, FunctionArgumentType::OPTIONAL}},
         FN_TO_JSON_STRING,
-        FunctionSignatureOptions().set_propagates_collation(false)}});
+        FunctionSignatureOptions().set_propagates_collation(false)}},
+      /*function_options=*/
+      FunctionOptions().set_post_resolution_argument_constraint(
+          absl::bind_front(CheckTypeToJsonConversionIsSupported,
+                           "TO_JSON_STRING")));
 
   InsertFunction(
       functions, options, "json_object", Function::SCALAR,
@@ -2151,6 +2226,8 @@ void GetJsonObjectManipulationFunctions(
         {{array_string_type}, {ARG_ARRAY_TYPE_ANY_1}},
         FN_JSON_OBJECT_ARRAYS}},
       FunctionOptions()
+          .set_post_resolution_argument_constraint(absl::bind_front(
+              CheckTypeToJsonConversionIsSupported, "JSON_OBJECT"))
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_CONSTRUCTOR_FUNCTIONS));
 
@@ -2182,6 +2259,8 @@ void GetJsonObjectManipulationFunctions(
          create_if_missing},
         FN_JSON_SET}},
       FunctionOptions()
+          .set_post_resolution_argument_constraint(absl::bind_front(
+              CheckTypeToJsonConversionIsSupported, "JSON_SET"))
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_MUTATOR_FUNCTIONS));
 
@@ -2881,30 +2960,37 @@ void GetNetFunctions(TypeFactory* type_factory,
 
   const Function::Mode SCALAR = Function::SCALAR;
 
-  InsertSimpleNamespaceFunction(
-      functions, options, "net", "format_ip", SCALAR,
-      {{string_type, {int64_type}, FN_NET_FORMAT_IP}},
-      FunctionOptions().set_allow_external_usage(false));
-  InsertSimpleNamespaceFunction(
-      functions, options, "net", "parse_ip", SCALAR,
-      {{int64_type, {string_type}, FN_NET_PARSE_IP}},
-      FunctionOptions().set_allow_external_usage(false));
+  bool allow_extended_public_net_functions =
+      options.language_options.LanguageFeatureEnabled(
+          googlesql::FEATURE_EXTENDED_PUBLIC_NET_FUNCTIONS);
+  InsertSimpleNamespaceFunction(functions, options, "net", "format_ip", SCALAR,
+                                {{string_type, {int64_type}, FN_NET_FORMAT_IP}},
+                                FunctionOptions().set_allow_external_usage(
+                                    allow_extended_public_net_functions));
+  InsertSimpleNamespaceFunction(functions, options, "net", "parse_ip", SCALAR,
+                                {{int64_type, {string_type}, FN_NET_PARSE_IP}},
+                                FunctionOptions().set_allow_external_usage(
+                                    allow_extended_public_net_functions));
   InsertSimpleNamespaceFunction(
       functions, options, "net", "format_packed_ip", SCALAR,
       {{string_type, {bytes_type}, FN_NET_FORMAT_PACKED_IP}},
-      FunctionOptions().set_allow_external_usage(false));
+      FunctionOptions().set_allow_external_usage(
+          allow_extended_public_net_functions));
   InsertSimpleNamespaceFunction(
       functions, options, "net", "parse_packed_ip", SCALAR,
       {{bytes_type, {string_type}, FN_NET_PARSE_PACKED_IP}},
-      FunctionOptions().set_allow_external_usage(false));
+      FunctionOptions().set_allow_external_usage(
+          allow_extended_public_net_functions));
   InsertSimpleNamespaceFunction(
       functions, options, "net", "ip_in_net", SCALAR,
       {{bool_type, {string_type, string_type}, FN_NET_IP_IN_NET}},
-      FunctionOptions().set_allow_external_usage(false));
+      FunctionOptions().set_allow_external_usage(
+          allow_extended_public_net_functions));
   InsertSimpleNamespaceFunction(
       functions, options, "net", "make_net", SCALAR,
       {{string_type, {string_type, int32_type}, FN_NET_MAKE_NET}},
-      FunctionOptions().set_allow_external_usage(false));
+      FunctionOptions().set_allow_external_usage(
+          allow_extended_public_net_functions));
   InsertSimpleNamespaceFunction(functions, options, "net", "host", SCALAR,
                                 {{string_type, {string_type}, FN_NET_HOST}});
   InsertSimpleNamespaceFunction(
@@ -2982,29 +3068,50 @@ void GetEncryptionFunctions(TypeFactory* type_factory,
   GOOGLESQL_CHECK_OK(type_factory->MakeStructType({output_struct_fields},
                                         &keyset_chain_struct_type));
 
+  const ArrayType* int64_array_type = types::Int64ArrayType();
+
   const FunctionArgumentTypeOptions const_arg_options =
       FunctionArgumentTypeOptions()
           .set_must_be_constant()
+          .set_must_be_non_null();
+
+  const FunctionArgumentTypeOptions first_level_keyset_options =
+      FunctionArgumentTypeOptions()
+          .set_must_be_constant_expression()
           .set_must_be_non_null();
 
   InsertNamespaceFunction(
       functions, options, "keys", "keyset_chain", SCALAR,
       {{keyset_chain_struct_type,
         {/*kms_resource_name=*/{string_type, const_arg_options},
-         /*first_level_keyset=*/{bytes_type, const_arg_options},
+         /*first_level_keyset=*/{bytes_type, first_level_keyset_options},
          /*second_level_keyset=*/bytes_type},
         FN_KEYS_KEYSET_CHAIN_STRING_BYTES_BYTES},
        {keyset_chain_struct_type,
         {/*kms_resource_name=*/{string_type, const_arg_options},
-         /*first_level_keyset=*/{bytes_type, const_arg_options}},
+         /*first_level_keyset=*/{bytes_type, first_level_keyset_options}},
         FN_KEYS_KEYSET_CHAIN_STRING_BYTES}},
       FunctionOptions(encryption_required));
 
   // KEYS.NEW_KEYSET is volatile since it generates a random key for each
   // invocation.
-  InsertSimpleNamespaceFunction(
-      functions, options, "keys", "new_keyset", SCALAR,
-      {{bytes_type, {string_type}, FN_KEYS_NEW_KEYSET}},
+  std::vector<FunctionSignatureOnHeap> new_keyset_signatures;
+  // Always support the legacy 1-parameter signature.
+  new_keyset_signatures.push_back(
+      {bytes_type, {/*key_type=*/string_type}, FN_KEYS_NEW_KEYSET});
+  // Add the 2-parameter overload explicitly gating its resolution.
+  new_keyset_signatures.push_back(FunctionSignatureOnHeap(
+      bytes_type,
+      {/*key_type=*/string_type,
+       /*metadata=*/{string_type,
+                     FunctionArgumentTypeOptions()
+                         .set_cardinality(FunctionArgumentType::REQUIRED)
+                         .set_argument_name("metadata", kNamedOnly)}},
+      FN_KEYS_NEW_KEYSET_WITH_METADATA,
+      FunctionSignatureOptions().AddRequiredLanguageFeature(
+          FEATURE_FPE_NEW_KEYSET)));
+  InsertNamespaceFunction(
+      functions, options, "keys", "new_keyset", SCALAR, new_keyset_signatures,
       FunctionOptions(encryption_required)
           .set_volatility(FunctionEnums::VOLATILE)
           .set_pre_resolution_argument_constraint(absl::bind_front(
@@ -3176,6 +3283,22 @@ void GetEncryptionFunctions(TypeFactory* type_factory,
                         {bytes_type,
                          {keyset_chain_struct_type, bytes_type, bytes_type},
                          FN_DETERMINISTIC_DECRYPT_STRUCT_BYTES}},
+                       encryption_required);
+
+  InsertSimpleFunction(functions, options, "fpe_encrypt", SCALAR,
+                       {{int64_array_type,
+                         {bytes_type,
+                          int64_array_type,
+                          {bytes_type, FunctionArgumentType::OPTIONAL}},
+                         FN_FPE_ENCRYPT}},
+                       encryption_required);
+
+  InsertSimpleFunction(functions, options, "fpe_decrypt", SCALAR,
+                       {{int64_array_type,
+                         {bytes_type,
+                          int64_array_type,
+                          {bytes_type, FunctionArgumentType::OPTIONAL}},
+                         FN_FPE_DECRYPT}},
                        encryption_required);
 }
 

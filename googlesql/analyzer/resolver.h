@@ -78,6 +78,7 @@
 #include "googlesql/base/case.h"
 #include "gtest/gtest_prod.h"
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
@@ -85,6 +86,7 @@
 #include "absl/container/node_hash_map.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
@@ -92,7 +94,6 @@
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/general_trie.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -104,6 +105,10 @@ class ExtendedCompositeCastEvaluator;
 struct ColumnReplacements;
 struct OrderByItemInfo;
 struct SelectColumnState;
+
+// Retrieves the default timestamp precision from the given AnalyzerOptions.
+absl::StatusOr<int64_t> GetDefaultTimestampPrecision(
+    const AnalyzerOptions& analyzer_options);
 
 // Options for ResolveQuery.
 // The compiler currently requires this struct to be declared outside the class.
@@ -158,6 +163,20 @@ struct ResolveQueryOptions {
 //   resolver_stmt.cc       Statements (except DML)
 class Resolver {
  public:
+  // The output of FindFieldsFromPathExpression.
+  struct FindFieldsOutput {
+    struct StructFieldInfo {
+      explicit StructFieldInfo(int field_index_in,
+                               const StructType::StructField* field_in)
+          : field_index(field_index_in), field(field_in) {}
+
+      int field_index;
+      const StructType::StructField* field;
+    };
+    std::vector<StructFieldInfo> struct_path;
+    std::vector<const google::protobuf::FieldDescriptor*> field_descriptor_path;
+  };
+
   enum class HintOrOptionType {
     Hint,
     Option,
@@ -180,7 +199,8 @@ class Resolver {
   // <*analyzer_options> should outlive the constructed Resolver. It must have
   // all arenas initialized.
   Resolver(Catalog* catalog, TypeFactory* type_factory,
-           const AnalyzerOptions* analyzer_options);
+           const AnalyzerOptions* analyzer_options,
+           AnalyzerOutputProperties& analyzer_output_properties);
   Resolver(const Resolver&) = delete;
   Resolver& operator=(const Resolver&) = delete;
   ~Resolver();
@@ -205,15 +225,6 @@ class Resolver {
       absl::string_view sql, const ASTExpression* ast_expr,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
-  // Resolve a standalone expression outside a query.
-  // `sql` contains the text at which `ast_expression` points. If the type of
-  // the resolved expression is different `target_type`, coerces the resolved
-  // expression to `target_type` and fails if it cannot.
-  absl::Status ResolveStandaloneExprAndAssignToType(
-      absl::string_view sql, const ASTExpression* ast_expr,
-      AnnotatedType target_type,
-      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
-
   // Resolve a parsed ASTExpression to a ResolvedExpr in the context of a
   // function call. Unlike ResolveExpr, this method accepts maps from the
   // argument names to their types for arguments in <function_arguments>.
@@ -225,6 +236,16 @@ class Resolver {
       absl::string_view sql, const ASTExpression* ast_expr,
       const IdStringHashMapCase<std::unique_ptr<ResolvedArgumentRef>>&
           function_arguments,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* output);
+
+  // Overload of ResolveExprWithFunctionArguments that accepts a pre-constructed
+  // FunctionArgumentInfo directly, preserving full concrete signatures (such as
+  // lambda parameter signatures) which would otherwise be lost in the
+  // function_arguments map.
+  absl::Status ResolveExprWithFunctionArguments(
+      absl::string_view sql, const ASTExpression* ast_expr,
+      std::unique_ptr<FunctionArgumentInfo> arg_info,
       ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* output);
 
@@ -310,20 +331,10 @@ class Resolver {
   // <mode>. Two more overloads of this function take simple error message
   // template or no error message argument (in which case a generic template is
   // used).
-  ABSL_DEPRECATED(
-      "Use CoerceExprToType function with <annotated_target_type> argument.")
-  // TODO: Refactor and remove the deprecated function in a quick
-  // follow up.
   absl::Status CoerceExprToType(
-      const ASTNode* ast_location, const Type* target_type, CoercionMode mode,
+      const ASTNode* ast_location, const Type* target_type,
+      TypeModifiers type_modifiers, CoercionMode mode,
       CoercionErrorMessageFunction make_error,
-      std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
-
-  // Same as the previous method but <annotated_target_type> is used to contain
-  // both target type and its annotation information.
-  absl::Status CoerceExprToType(
-      const ASTNode* ast_location, AnnotatedType annotated_target_type,
-      CoercionMode mode, CoercionErrorMessageFunction make_error,
       std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
 
   // Similar to the above function, but provides an error message template
@@ -332,33 +343,17 @@ class Resolver {
   // this is more concise than specifying a full function. The name of
   // <target_type> will replace '$0' and the name of the argument type will
   // replace $1.
-  ABSL_DEPRECATED(
-      "Use CoerceExprToType function with <annotated_target_type> argument.")
   absl::Status CoerceExprToType(
-      const ASTNode* ast_location, const Type* target_type, CoercionMode mode,
+      const ASTNode* ast_location, const Type* target_type,
+      TypeModifiers type_modifiers, CoercionMode mode,
       absl::string_view error_template,
-      std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
-
-  // Same as the previous method but <annotated_target_type> is used to contain
-  // both target type and its annotation information.
-  absl::Status CoerceExprToType(
-      const ASTNode* ast_location, AnnotatedType annotated_target_type,
-      CoercionMode mode, absl::string_view error_template,
       std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
 
   // Similar to CoerceExprToType above but using a generic error message when
   // <resolved_expr> cannot be coerced to <target_type>.
-  ABSL_DEPRECATED(
-      "Use CoerceExprToType function with <annotated_target_type> argument.")
   absl::Status CoerceExprToType(
-      const ASTNode* ast_location, const Type* target_type, CoercionMode mode,
-      std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
-
-  // Same as the previous method but <annotated_target_type> is used to contain
-  // both target type and its annotation information.
-  absl::Status CoerceExprToType(
-      const ASTNode* ast_location, AnnotatedType annotated_target_type,
-      CoercionMode mode,
+      const ASTNode* ast_location, const Type* target_type,
+      TypeModifiers type_modifiers, CoercionMode mode,
       std::unique_ptr<const ResolvedExpr>* resolved_expr) const;
 
   // Similar to the above function, but coerces to BOOL type.
@@ -448,11 +443,19 @@ class Resolver {
   // Return the substring of `sql_` for `node`'s parse location range.
   absl::StatusOr<absl::string_view> GetSQLForASTNode(const ASTNode* node);
 
+  // Releases the set of functions (e.g. proxies for lambda functions) generated
+  // by the resolver.
+  std::vector<std::unique_ptr<Function>> release_generated_functions() {
+    return std::move(generated_functions_);
+  }
+
   // Clear state so this can be used to resolve a second statement whose text
   // is contained in <sql>.
   void Reset(absl::string_view sql);
 
  private:
+  static constexpr char kCollationPropagatedToSqlFunctionFeatureLabel[] =
+      "collation_propagated_to_sql_function";
   // Case-insensitive map of a column name to its position in a list of columns.
   typedef std::map<IdString, int, IdStringCaseLess> ColumnIndexMap;
   typedef absl::flat_hash_map<ResolvedColumn, const Column*>
@@ -667,14 +670,18 @@ class Resolver {
   };
 
   // The current state of the innermost MATCH_RECOGNIZE clause.
-  // Not a stack because we do not allow nested MATCH_RECOGNIZE clauses.
-  std::optional<MatchRecognizeState> match_recognize_state_;
+  std::stack<MatchRecognizeState> match_recognize_state_;
 
   // This is true if we found any of the operators that only work in
   // ResolvedGeneralizedQueryStmt (not in ResolvedQueryStmt).
   bool needs_generalized_query_stmt_ = false;
 
-  AnalyzerOutputProperties analyzer_output_properties_;
+  // This is true if we found pipe FINISH, which requires
+  // ResolvedTerminalQueryStmt or ResolvedGeneralizedQueryStmt.
+  // `needs_generalized_query_stmt_` is stronger and takes precedence over this.
+  bool needs_terminal_query_stmt_ = false;
+
+  AnalyzerOutputProperties& analyzer_output_properties_;
 
   // Store list of named subqueries currently visible.
   // This is updated as we traverse the query to implement scoping of
@@ -736,6 +743,16 @@ class Resolver {
       ContainerEquals<std::vector<IdString>, IdStringCaseEqualFunc>>
       named_subquery_map_;
 
+  // Keeps track of from clause name list from parent query.
+  std::shared_ptr<const NameList> parent_from_clause_name_list_ = nullptr;
+
+  // Keeps track of all active aliased group rows.
+  // Key: Group rows alias.
+  // Value: Stack of namelists associated with the alias. Top of the stack is
+  //        the namelist of the most local group rows alias.
+  IdStringHashMapCase<std::stack<std::shared_ptr<const NameList>>>
+      aliased_group_rows_map_;
+
   // Stores additional information about each ResolvedRecursiveRefScan node
   // needed by the resolver, but not persisted in the tree.
   struct RecursiveRefScanInfo {
@@ -775,8 +792,23 @@ class Resolver {
   // Returns an internal error if `alias` has no active definition.
   absl::Status RemoveInnermostNamedSubqueryWithAlias(IdString alias);
 
+  // Add aliased group rows definition. For each alias, we store a stack of
+  // group rows tracking previous definitions.
+  absl::Status AddAliasedGroupRows(const IdString& alias,
+                                   std::shared_ptr<const NameList> name_list);
+
+  // Removes aliased group rows definition.
+  //
+  // Returns an internal error if `alias` has no active definition.
+  absl::Status RemoveInnermostAliasedGroupRows(const IdString& alias);
+
   bool IsPathExpressionStartingFromNamedSubquery(
       const ASTPathExpression& path_expr) const;
+
+  // Generates proxy functions (FunctionTypedParameter) for all lambda
+  // parameters of the UDF and adds them to generated_functions_.
+  absl::Status GenerateLambdaProxyFunctions(
+      const FunctionArgumentInfo* arg_info);
 
   // Set of unique WITH aliases seen so far.  If there are duplicate WITH
   // aliases in the query (visible in different scopes), we'll give them
@@ -804,6 +836,12 @@ class Resolver {
   // TODO: Maybe allow argument names in scope for the sake of
   //   the TYPEOF() operator. 'RETURNS TYPEOF(arg)' maybe a valid thing to do.
   const FunctionArgumentInfo* function_argument_info_ = nullptr;
+
+  // List of functions synthesized during resolution that are not in the
+  // catalog (e.g., proxies for function-typed UDF parameters). These are owned
+  // by the Resolver and must be moved to AnalyzerOutput to provide stable
+  // pointers during inlining and execution.
+  std::vector<std::unique_ptr<Function>> generated_functions_;
 
   // Contains undeclared parameters whose type has been inferred from context.
   // It is a map associating each query parameter reference to the inferred
@@ -845,17 +883,6 @@ class Resolver {
   // resolved nodes.
   std::unique_ptr<AnnotationPropagator> annotation_propagator_;
 
-  // Holds active NameLists that are available for GROUP_ROWS() function
-  // invoked from inside WITH GROUP ROWS(...). Contains an entry for each nested
-  // usage of WITH GROUP ROWS syntax. Boolean component is used to track usage
-  // of GROUP_ROWS() TVF inside WITH GROUP ROWS(...). It is enforced that
-  // GROUP_ROWS() function should be used at least once.
-  struct GroupRowsTvfInput {
-    std::shared_ptr<const NameList> name_list;
-    bool group_rows_tvf_used = false;
-  };
-  std::stack<GroupRowsTvfInput> name_lists_for_group_rows_;
-
   // Resolve the Type and TypeModifiers from the <type_name> without resetting
   // the state.
   absl::Status ResolveTypeNameInternal(absl::string_view type_name,
@@ -886,7 +913,16 @@ class Resolver {
   // Makes a new resolved literal and records its location.
   std::unique_ptr<const ResolvedLiteral> MakeResolvedLiteral(
       const ASTNode* ast_location, const Value& value,
-      bool set_has_explicit_type = false) const;
+      bool set_has_explicit_type, bool preserve_in_literal_remover) const;
+
+  // Use the explicit overload instead.
+  ABSL_DEPRECATED("Inline me!")
+  inline std::unique_ptr<const ResolvedLiteral> MakeResolvedLiteral(
+      const ASTNode* ast_location, const Value& value,
+      bool set_has_explicit_type = false) const {
+    return MakeResolvedLiteral(ast_location, value, set_has_explicit_type,
+                               /*preserve_in_literal_remover=*/false);
+  }
 
   // Same as the previous method but <annotated_type> is used to contain
   // both target type and its annotation information.
@@ -1018,7 +1054,7 @@ class Resolver {
   absl::Status ResolveGeneratedColumnInfo(
       const ASTGeneratedColumnInfo* ast_generated_column,
       const NameList& column_name_list, const Type* opt_type,
-      bool skip_type_match_check,
+      TypeModifiers type_modifiers, bool skip_type_match_check,
       std::unique_ptr<ResolvedGeneratedColumnInfo>* output);
 
   // Creates the ResolvedIdentityColumnInfo from an ASTIdentityColumnInfo.
@@ -1031,7 +1067,7 @@ class Resolver {
   absl::Status ResolveIdentityColumnInfo(
       const ASTIdentityColumnInfo* ast_identity_column,
       const NameList& column_name_list, const Type* type,
-      bool skip_type_match_check,
+      TypeModifiers type_modifiers, bool skip_type_match_check,
       std::unique_ptr<ResolvedIdentityColumnInfo>* output);
 
   // Returns a Value from an ASTExpression representing an identity column
@@ -1046,7 +1082,8 @@ class Resolver {
   // - `attribute_name`: The name of the sequence attribute.
   absl::StatusOr<Value> ResolveIdentityColumnAttribute(
       const ASTExpression* attribute_expr, const Type* type,
-      bool skip_type_match_check, absl::string_view attribute_name);
+      TypeModifiers type_modifiers, bool skip_type_match_check,
+      absl::string_view attribute_name);
 
   // Creates a ResolvedExpr from an ASTExpression representing a column
   // default value. The output ResolvedExpr is expected to be a member of
@@ -1060,7 +1097,7 @@ class Resolver {
   // - <default_value>: The resolved default value.
   absl::Status ResolveColumnDefaultExpression(
       const ASTExpression* ast_column_default, const Type* opt_type,
-      bool skip_type_match_check,
+      TypeModifiers type_modifiers, bool skip_type_match_check,
       std::unique_ptr<ResolvedColumnDefaultValue>* default_value);
 
   // Resolve the column definition list from a CREATE TABLE, LOAD DATA or CREATE
@@ -1300,6 +1337,32 @@ class Resolver {
       QueryResolutionInfo* query_info,
       std::vector<std::unique_ptr<const ResolvedExpr>>* partition_by_list_out);
 
+  // Resolves the PARTITION BY clause of an ALIGN operator. For each
+  // expression in the PARTITION BY clause, it resolves the expression, checks
+  // if its type supports partitioning, determines its alias, and creates a
+  // ResolvedComputedColumn which is added to the `computed_columns` output
+  // parameter.
+  absl::Status ResolveAlignOperatorPartitionBy(
+      const ASTPartitionByWithOptAlias* partition_by,
+      ExprResolutionInfo* expr_resolution_info,
+      std::vector<std::unique_ptr<const ResolvedComputedColumn>>&
+          computed_columns);
+
+  // Resolves the implicit timestamp column for ALIGN operator when TIMESTAMP
+  // clause is absent. If timestamp clause is absent, ALIGN operator expects
+  // a column named 'timestamp' in the input table of TIMESTAMP type.
+  // This function looks for a 'timestamp' column in `input_name_list`. If
+  // found, the column is validated and a reference to the column is returned.
+  // If 'timestamp' is a field of a value table, a new computed column is
+  // created for field access and added to `computed_columns`. A column
+  // reference pointing to this new column is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedColumnRef>>
+  ResolveAlignOperatorImplicitTimestampClause(
+      const ASTAlignOperator* ast_align_operator,
+      const NameList* input_name_list,
+      std::vector<std::unique_ptr<const ResolvedComputedColumn>>&
+          computed_columns);
+
   // Resolves the index path expression inside a CREATE INDEX statement.
   // `ast_statement` is the top level CREATE INDEX statement.
   // `ordering_expression` is the index ordering expression containing the path
@@ -1341,7 +1404,7 @@ class Resolver {
   // fixed.
   // TODO: Support alias on the index key expression.
   absl::Status ValidateIndexKeyExpressionForCreateSearchOrVectorIndex(
-      absl::string_view index_type,
+      absl::string_view create_index_name,
       const ASTOrderingExpression& ordering_expression,
       const ResolvedExpr& resolved_expr);
 
@@ -1369,6 +1432,11 @@ class Resolver {
       const ASTCreateTableStatement* ast_statement,
       std::unique_ptr<const ResolvedScan>* pipe_input_scan,
       const NameList* pipe_input_name_list,
+      std::unique_ptr<ResolvedStatement>* output);
+
+  // Resolve a CREATE LIVE TABLE statement.
+  absl::Status ResolveCreateLiveTableStatement(
+      const ASTCreateLiveTableStatement* ast_statement,
       std::unique_ptr<ResolvedStatement>* output);
 
   // Resolve a CREATE MODEL statement.
@@ -1504,6 +1572,13 @@ class Resolver {
       FunctionArgumentInfo& arg_info);
 
   absl::Status ResolveScalarFunctionParameter(
+      const ASTFunctionParameter& function_param,
+      ResolveFunctionDeclarationType function_type,
+      ResolvedArgumentDef::ArgumentKind arg_kind,
+      FunctionArgumentTypeOptions argument_type_options,
+      FunctionArgumentInfo& arg_info);
+
+  absl::Status ResolveFunctionTypedParameter(
       const ASTFunctionParameter& function_param,
       ResolvedArgumentDef::ArgumentKind arg_kind,
       FunctionArgumentTypeOptions argument_type_options,
@@ -1790,6 +1865,12 @@ class Resolver {
       IdStringSetCase* new_columns, IdStringSetCase* columns_to_drop,
       std::unique_ptr<const ResolvedAlterAction>* alter_action);
 
+  // Resolves `ADD COLUMN` actions for `ALTER INDEX` statements.
+  absl::Status ResolveAddColumnToIndex(
+      absl::string_view alter_statement_kind, const ASTAddColumnAction* action,
+      IdStringSetCase* new_columns,
+      std::unique_ptr<const ResolvedAlterAction>* alter_action);
+
   // <table> can be NULL. If the table does not exist in the catalog, we try
   // to resolve the ALTER statement anyway.
   absl::Status ResolveDropColumnAction(
@@ -1933,6 +2014,7 @@ class Resolver {
                             IdString query_alias,
                             std::unique_ptr<const ResolvedScan>* output,
                             std::shared_ptr<const NameList>* output_name_list,
+                            ExprResolutionInfo* parent_expr_resolution_info,
                             ResolveQueryOptions options = {});
 
   absl::Status ResolveFromQuery(
@@ -1987,7 +2069,7 @@ class Resolver {
   // them. Otherwise, just returns an empty vector.
   absl::StatusOr<std::vector<std::unique_ptr<const ResolvedWithEntry>>>
   ResolveWithClauseIfPresent(const ASTWithClause* with_clause,
-                             bool is_outer_query);
+                             bool is_outer_query, bool& has_group_rows_out);
 
   // Called immediately after resolving the main body of a query. If the query
   // contained a WITH clause, removes the WITH entries from named_subquery_map_
@@ -2543,20 +2625,6 @@ class Resolver {
       const ProtoType* root_type,
       std::vector<const google::protobuf::FieldDescriptor*>* field_descriptors);
 
-  // The output of FindFieldsFromPathExpression.
-  struct FindFieldsOutput {
-    struct StructFieldInfo {
-      explicit StructFieldInfo(int field_index_in,
-                               const StructType::StructField* field_in)
-          : field_index(field_index_in), field(field_in) {}
-
-      int field_index;
-      const StructType::StructField* field;
-    };
-    std::vector<StructFieldInfo> struct_path;
-    std::vector<const google::protobuf::FieldDescriptor*> field_descriptor_path;
-  };
-
   void AppendFindFieldsOutput(const FindFieldsOutput& to_append,
                               FindFieldsOutput* output) {
     output->struct_path.insert(output->struct_path.end(),
@@ -2582,7 +2650,8 @@ class Resolver {
   absl::StatusOr<FindFieldsOutput> FindFieldsFromPathExpression(
       absl::string_view function_name,
       const ASTGeneralizedPathExpression* generalized_path,
-      const Type* root_type, bool can_traverse_array_fields);
+      const Type* root_type, bool can_traverse_array_fields,
+      bool lhs_maybe_extension);
 
   // Fills in a vector of FindFieldsOutput::StructFieldInfo which contains
   // StructFields and their indexes corresponding to the fields in the path
@@ -3207,9 +3276,7 @@ class Resolver {
         const std::shared_ptr<const NameList>& lhs_name_list,
         std::unique_ptr<const ResolvedScan>* lhs_scan);
 
-    inline bool IsPipeSyntax() const {
-      return input_kind_ != InputKind::kStandard;
-    }
+    bool IsPipeSyntax() const { return input_kind_ != InputKind::kStandard; }
 
     // The input set operation.
     InputSetOperation set_operation_;
@@ -3389,7 +3456,7 @@ class Resolver {
   // expression will be coerced to <body_result_type> if necessary.
   // This function is passed as a callback to FunctionSignatureMatcher.
   // Annotations are not yet considered at this stage.
-  absl::Status ResolveLambda(
+  absl::Status ResolveLambdaBeforeAnnotations(
       const ASTLambda* ast_lambda, absl::Span<const IdString> arg_names,
       absl::Span<const Type* const> arg_types, const Type* body_result_type,
       bool allow_argument_coercion, const NameScope* name_scope,
@@ -3413,7 +3480,8 @@ class Resolver {
   absl::Status ResolveLambdaWithAnnotations(
       const ASTLambda* ast_lambda, absl::Span<const IdString> arg_names,
       absl::Span<const AnnotatedType> arg_types, const Type* body_result_type,
-      bool allow_argument_coercion, const NameScope* name_scope,
+      TypeModifiers type_modifiers_for_coercion, bool allow_argument_coercion,
+      const NameScope* name_scope,
       std::unique_ptr<const ResolvedInlineLambda>* resolved_expr_out);
 
   // Resolves the given LIMIT or OFFSET clause <ast_expr> and stores the
@@ -3564,6 +3632,11 @@ class Resolver {
       const NameScope* scope, std::unique_ptr<const ResolvedScan>* current_scan,
       std::shared_ptr<const NameList>* current_name_list);
 
+  absl::Status ResolvePipeFinish(
+      const ASTPipeFinish* pipe_finish, const NameScope* scope,
+      std::unique_ptr<const ResolvedScan>* current_scan,
+      std::shared_ptr<const NameList>* current_name_list, bool allow_terminal);
+
   absl::Status ResolvePipeDrop(
       const ASTPipeDrop* pipe_drop, const NameScope* scope,
       std::unique_ptr<const ResolvedScan>* current_scan,
@@ -3594,6 +3667,11 @@ class Resolver {
       std::unique_ptr<const ResolvedScan>* current_scan,
       std::shared_ptr<const NameList>* current_name_list);
 
+  absl::Status ResolvePipeAlignOperator(
+      const ASTPipeAlignOperator* pipe_align_operator, const NameScope* scope,
+      std::unique_ptr<const ResolvedScan>* current_scan,
+      std::shared_ptr<const NameList>* current_name_list);
+
   absl::Status ResolvePipeSetOperation(
       const ASTPipeSetOperation* set_operation, const NameScope* outer_scope,
       std::unique_ptr<const ResolvedScan>* current_scan,
@@ -3605,7 +3683,7 @@ class Resolver {
   // expression doesn't have a constant value available at analysis time.
   // TODO: b/277365877 - Upgrade this to support all expressions qualified as
   // ANALYSIS_CONST, per (broken link).
-  absl::StatusOr<Value> GetConstantValue(const ASTExpression* ast_expr,
+  absl::StatusOr<Value> GetConstantValue(const ASTNode* ast_expr,
                                          const ResolvedExpr* resolved_expr,
                                          absl::string_view clause_name);
 
@@ -3654,9 +3732,18 @@ class Resolver {
       std::shared_ptr<const NameList>* current_name_list, bool allow_terminal);
 
   // Check if this terminal operator is allowed and give errors if not.
+  //
+  // `allow_terminal` tracks whether terminal operators are allowed right now,
+  // where this operator occurs in the current query.
+  //
+  // `operator_requires_generalized_query` is set per pipe operator, indicating
+  // if that operator requires ResolvedGeneralizedQueryStmt (the default),
+  // or just ResolvedTerminalQueryStmt.  Then this method checks the required
+  // Statement kind is enabled.
   absl::Status CheckTerminalPipeOperatorAllowed(
       const ASTNode* location, LanguageFeature required_language_feature,
-      const char* operator_name, bool allow_terminal);
+      const char* operator_name, bool allow_terminal,
+      bool operator_requires_generalized_query = true);
 
   absl::Status ResolvePipeRecursiveUnion(
       const ASTPipeRecursiveUnion* pipe_recursive_union,
@@ -3713,14 +3800,14 @@ class Resolver {
 
   // Return true if the first identifier on the path is a name that exists in
   // <scope>.
-  static bool IsPathExpressionStartingFromScope(const ASTPathExpression& expr,
-                                                const NameScope& scope);
+  static absl::StatusOr<bool> IsPathExpressionStartingFromScope(
+      const ASTPathExpression& expr, const NameScope& scope);
 
   // Return true if <table_ref> should be resolved as an array scan.
   // This happens if it has UNNEST, or it is a path with at least two
   // identifiers where the first comes from <scope>.
-  bool ShouldResolveAsArrayScan(const ASTTablePathExpression* table_ref,
-                                const NameScope* scope);
+  absl::StatusOr<bool> ShouldResolveAsArrayScan(
+      const ASTTablePathExpression* table_ref, const NameScope* scope);
 
   // Return an expression that tests <expr1> and <expr2> for equality.
   absl::Status MakeEqualityComparison(
@@ -4004,6 +4091,27 @@ class Resolver {
   absl::StatusOr<InputArgumentType> GetTVFArgType(
       const ResolvedTVFArg& resolved_tvf_arg);
 
+  // Resolves a GROUP_ROWS() TVF call.
+  //
+  // Takes `from_clause_name_list` (the namelist of grouped columns from the
+  // outer query's aggregation context) and resolves `ast_tvf` into a
+  // `ResolvedGroupRowsScan`, returned in `output`.
+  //
+  // `output_name_list` is populated with new `ResolvedColumn`s corresponding
+  // to the columns in `from_clause_name_list`, making them available for
+  // scanning. This `output_name_list` can be used to resolve expressions
+  // against the GROUP_ROWS() scan.
+
+  // If `ast_tvf` is aliased (e.g. `FROM GROUP_ROWS() AS t`), its alias is
+  // applied to `output_name_list`, replacing any range variables from
+  // `from_clause_name_list`. Otherwise, range variables from
+  // `from_clause_name_list` are propagated to `output_name_list`.
+  absl::Status ResolveGroupRows(
+      const ASTNode* ast_location, const ASTAlias* alias,
+      std::shared_ptr<const NameList> from_clause_name_list,
+      std::unique_ptr<const ResolvedScan>* output,
+      std::shared_ptr<const NameList>* output_name_list);
+
   // Returns true if the relation argument of <tvf_signature_arg> at <arg_idx>
   // has a required schema where the number, order, and/or types of columns do
   // not exactly match those in the provided input relation. If so, the
@@ -4097,6 +4205,14 @@ class Resolver {
       const std::shared_ptr<const NameList>& name_list_input,
       const NameScope* scope, std::unique_ptr<const ResolvedScan>* output,
       std::shared_ptr<const NameList>* output_name_list);
+
+  // If `arg` is an array of arrays, wraps `arg` in a ResolvedFlatten get to the
+  // first non-array layer of elements. Currently this simply produces an error.
+  // A future change will place the actual logic.
+  absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
+  WrapUnnestArgInFlattenIfNestedArray(const ASTUnnestExpression* ast_unnest,
+                                      std::unique_ptr<const ResolvedExpr> expr,
+                                      FlattenState& flatten_state);
 
   // Resolves the ORDER BY expressions and creates columns for them.
   // Populates OrderByItemInfo in
@@ -4212,7 +4328,7 @@ class Resolver {
   // against <name_scope>, without support for aggregate or analytic functions.
   // If the expression contains aggregate or analytic functions then this method
   // returns an error message, possibly including <clause_name>.
-  inline absl::Status ResolveScalarExpr(
+  absl::Status ResolveScalarExpr(
       const ASTExpression* ast_expr, const NameScope* name_scope,
       const char* clause_name,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out,
@@ -4510,6 +4626,20 @@ class Resolver {
       FlattenState* flatten_state,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
+  // Applies `depth` to finalize the current flattening operation.
+  // `depth_expr` is persisted on the ResolvedFlatten node, except when all
+  // the following conditions are met:
+  //   1. `ast_depth_expr` is null (indicating that depth was omitted in the
+  //       original input ), and
+  //   2. The determined value of `depth_expr` is NULL.
+  //  When both conditions are met, we set `depth` to `nullptr` on the
+  // ResolvedFlatten node, to avoid changing existing ResolvedASTs.
+  // e.g. UNNEST(t.nested_arr_col) defaults to depth 1, not NULL.
+  absl::StatusOr<std::unique_ptr<const ResolvedExpr>> FinalizeFlatten(
+      const ASTNode* ast_location, std::unique_ptr<const ResolvedExpr> arg,
+      std::unique_ptr<const ResolvedExpr> depth_expr,
+      const ASTNode* ast_depth_expr, FlattenState& flatten_state);
+
   // Resolves a PROTO_DEFAULT_IF_NULL function call to a ResolvedGetProtoField
   // returned in <resolved_expr_out>. <resolved_arguments> must contain a single
   // ResolvedGetProtoField expression representing a non-message proto field
@@ -4578,10 +4708,43 @@ class Resolver {
       const ASTInExpression* in_expr, ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
+  // Helper for resolving group rows subqueries.
+  // Returns true if the subquery was handled (i.e. caller should return
+  // OkStatus). If it returns true, `resolved_expr` is moved and
+  // `resolved_expr_out` is populated.
+  bool CheckAndResolveGroupRowsSubquery(
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<ResolvedSubqueryExpr>& resolved_expr,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
   absl::Status ResolveInSubquery(
       const ASTInExpression* in_subquery_expr,
       ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
+  // Shared implementation for IN and quantified comparison subqueries.
+  // Performs LHS resolution, subquery resolution, column validation,
+  // type capability checks, and coercion.
+  absl::Status ResolveSubqueryComparisonInternal(
+      const ASTNode* ast_location, const ASTExpression* lhs_ast,
+      const ASTQuery* subquery_ast, const ASTHint* hint,
+      ResolvedSubqueryExpr::SubqueryType subquery_type, bool requires_ordering,
+      absl::string_view comparison_description,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
+  // Checks if the types of the LHS expression and the subquery output column
+  // match. If they do not, it finds a common supertype and adds necessary
+  // coercions. This may involve replacing `*resolved_lhs` with a cast and/or
+  // wrapping `*resolved_scan` in a ProjectScan that performs the coercion on
+  // the subquery's single output column. Returns an error if no common
+  // supertype exists.
+  absl::Status AddCoercionForSubqueryComparison(
+      const ASTNode* lhs_location, const ASTNode* subquery_location,
+      absl::string_view comparison_description,
+      const std::shared_ptr<const NameList>& name_list,
+      std::unique_ptr<const ResolvedExpr>* resolved_lhs,
+      std::unique_ptr<const ResolvedScan>* resolved_scan);
 
   absl::Status ResolveLikeExpr(
       const ASTLikeExpression* like_expr,
@@ -4623,6 +4786,11 @@ class Resolver {
       ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
+  absl::Status ResolveQuantifiedComparisonSubquery(
+      const ASTQuantifiedComparisonExpression* cmp_expr,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
   absl::Status ResolveBetweenExpr(
       const ASTBetweenExpression* between_expr,
       ExprResolutionInfo* expr_resolution_info,
@@ -4634,6 +4802,11 @@ class Resolver {
 
   absl::Status ResolveOrExpr(
       const ASTOrExpr* or_expr, ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
+  absl::Status ResolveConcatExpr(
+      const ASTConcatExpr* concat_expr,
+      ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
   absl::Status ResolveExprSubquery(
@@ -4769,6 +4942,8 @@ class Resolver {
   // <type_annotation_map> is nullptr. <return_null_on_error> indicates
   // whether the cast should return a NULL value of the <target_type> in case of
   // failures.
+  ABSL_DEPRECATED(
+      "Use the overload which takes an explicit `type_modifiers` argument.")
   absl::Status ResolveCastWithResolvedArgument(
       const ASTNode* ast_location, const Type* to_type,
       bool return_null_on_error,
@@ -4779,7 +4954,7 @@ class Resolver {
   // annotation information. If <format> is specified, it is used as the format
   // string for the cast.
   absl::Status ResolveCastWithResolvedArgument(
-      const ASTNode* ast_location, AnnotatedType to_annotated_type,
+      const ASTNode* ast_location, const Type* to_type,
       std::unique_ptr<const ResolvedExpr> format,
       std::unique_ptr<const ResolvedExpr> time_zone,
       TypeModifiers type_modifiers, bool return_null_on_error,
@@ -4940,7 +5115,6 @@ class Resolver {
   // A container that has state about the 'lhs' part of a braced constructor
   // field.
   struct BracedConstructorField {
-    ASTBracedConstructorLhs::Operation operation;
     const ASTNode* location;
     FindFieldsOutput field_info;
   };
@@ -4989,6 +5163,11 @@ class Resolver {
       const Type* inferred_type, ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
+  absl::Status ResolveTypedBracedConstructor(
+      const ASTTypedBracedConstructor* ast_typed_braced_constructor,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
   absl::Status ResolveBracedConstructorForStruct(
       const ASTBracedConstructor* ast_braced_constructor, bool is_bare_struct,
       const ASTNode* expression_location_node,
@@ -5000,6 +5179,10 @@ class Resolver {
       const ASTBracedConstructor* ast_braced_constructor,
       const Type* inferred_type, ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
+  absl::Status ValidateBracedConstructorFields(
+      const ASTBracedConstructor& ast_braced_constructor,
+      const ProtoType* proto_type);
 
   // Resolves an ASTBracedConstructor that should be interpreted as an UPDATE
   // constructor. This includes the top-level ASTBracedConstructor under an
@@ -5560,7 +5743,7 @@ class Resolver {
   // If there's an error looking up the function, this attempts to resolve the
   // base expression using the same `expr_resolution_info`.  Non-error results
   // from this secondary resolve are always thrown away.
-  absl::Status LookupFunctionFromCatalogWithChainedCallErrors(
+  absl::Status LookupFunctionWithChainedCallErrors(
       const ASTFunctionCall* ast_function_call,
       absl::Span<const std::string> function_name_path,
       FunctionNotFoundHandleMode handle_mode,
@@ -5615,7 +5798,7 @@ class Resolver {
 
   // Helper function used by ResolvedFunctionCallImpl that resolves the
   // arguments of a multi-level aggregate function call.
-  absl::Status ResolvedMultiLevelAggregateArguments(
+  absl::Status ResolveMultiLevelAggregateArguments(
       const ASTFunctionCall* ast_function_call, const Function* function,
       absl::Span<const ASTExpression* const> arguments,
       const std::map<int, SpecialArgumentType>& argument_option_map,
@@ -6061,24 +6244,18 @@ class Resolver {
   // TABLE, if the feature is enabled.  Otherwise, return empty string.
   std::string MaybeSuggestUsingInputTable();
 
-  // Finds the matching TVF signature corresponding to a TVF call. Resolution
-  // of the TVF call currently only succeeds if there is a single matching
-  // signature. If there are multiple matching signatures, the rules to find the
-  // closest matching signature are not yet implemented, so the resolution will
-  // fail with an internal error. Until this support is added, the catalog must
-  // be constructed such that it's impossible for multiple signatures to match.
+  // Finds the matching TVF signature corresponding to a TVF call. Returns the
+  // first matching signature in the order they are defined in the TVF.
+  //
   // `pipe_input_arg` if present is the pipe input argument in pipe CALL.
   //
-  // The following arguments are function outputs and are populated if exactly
-  // one TVF signature matches the input arguments - `result_signature`,
-  // `arg_locations`, `resolved_tvf_args`, `named_arguments` and
-  // `signature_match_result`.
+  // The following arguments are function outputs and are populated if a
+  // matching TVF signature is found - `result_signature`, `arg_locations`,
+  // `resolved_tvf_args`, `named_arguments` and `signature_match_result`.
   // The `arg_locations` and `resolved_tvf_args` reflect and match 1:1 to the
   // concrete function call arguments in the `result_signature`.
   //
   // Returned integer is the index of the matching signature.
-  // TODO: b/409730404 - Add support to score and select a signature when
-  // multiple signatures match.
   absl::StatusOr<int> FindMatchingTVFSignature(
       const ASTTVF* /*absl_nonnull*/ ast_tvf,
       const TableValuedFunction* /*absl_nonnull*/ tvf_catalog_entry,
@@ -6293,9 +6470,9 @@ class Resolver {
       std::shared_ptr<const NameList>* output_name_list);
 
   absl::Status ResolveUnpivotOutputValueColumns(
-      const ASTPathExpressionList* ast_unpivot_expr_list,
+      const ASTExpressionList* ast_unpivot_expr_list,
       std::vector<ResolvedColumn>* unpivot_value_columns,
-      const std::vector<const Type*>& value_column_types,
+      const std::vector<AnnotatedType>& value_column_types,
       const NameScope* scope);
 
   absl::Status ResolveUnpivotInClause(
@@ -6303,7 +6480,7 @@ class Resolver {
       std::vector<std::unique_ptr<const ResolvedUnpivotArg>>* resolved_in_items,
       const std::vector<ResolvedColumn>* input_scan_columns,
       absl::flat_hash_set<ResolvedColumn>* in_clause_input_columns,
-      std::vector<const Type*>* value_column_types, const Type** label_type,
+      std::vector<AnnotatedType>* value_column_types, const Type** label_type,
       std::vector<std::unique_ptr<const ResolvedLiteral>>* resolved_label_list,
       const ASTUnpivotClause* ast_unpivot_clause, const NameScope* scope);
 
@@ -6400,6 +6577,34 @@ class Resolver {
           out_measure_groups,
       std::vector<std::unique_ptr<const ResolvedComputedColumn>>&
           out_resolved_measures);
+
+  // Resolves an ALIGN clause.
+  //  See (broken link).
+  //  - <input_scan> represents the input to the ALIGN clause. On success,
+  //      ownership is transferred to 'output'.
+  //  - <input_name_list> represents a NameList for the columns in the input
+  //      scan. This defines a list of valid columns when resolving the ALIGN
+  //      clause expressions.
+  //  - <ast_align_operator> represents the parse tree of the entire ALIGN
+  //      clause.
+  //  - On output, '*output' contains a scan representing the result of the
+  //      ALIGN clause and '*output_name_list' contains a NameList which can be
+  //      used by external clauses to refer to columns in the ALIGN output.
+  absl::Status ResolveAlignOperator(
+      std::unique_ptr<const ResolvedScan> input_scan,
+      std::shared_ptr<const NameList> input_name_list,
+      const NameScope* external_scope,
+      const ASTAlignOperator* ast_align_operator,
+      std::unique_ptr<const ResolvedScan>* output,
+      std::shared_ptr<const NameList>* output_name_list);
+
+  // Resolves ORIGIN clause of the ALIGN operator.
+  // Returns the resolved origin expression, which must be a query constant
+  // of type TIMESTAMP.
+  absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
+  ResolveAlignOperatorOrigin(
+      const ASTAlignOriginExpression* /*absl_nonnull*/ ast_origin_expr,
+      const NameScope* /*absl_nonnull*/ external_scope);
 
   // Resolves an expression that is used as a bound on a quantifier.
   absl::StatusOr<std::unique_ptr<const ResolvedExpr>> ResolveQuantifierBound(
@@ -6534,32 +6739,10 @@ class Resolver {
       const ASTAlterSequenceStatement* ast_statement,
       std::unique_ptr<ResolvedStatement>* output);
 
-  // Builds the string representation of a field path using `struct_path_prefix`
-  // and `proto_field_path_suffix` and attempts to add it to `field_path_trie`.
-  // If non-empty, the field path is expanded starting with the fields in
-  // `struct_path_prefix`. Returns an error if this path string overlaps with a
-  // path that is already present in `field_path_trie`. For example,
-  // message.nested and message.nested.field are overlapping field paths, but
-  // message.nested.field1 and message.nested.field2 are not overlapping. Two
-  // paths that modify the same OneOf field are considered overlapping only when
-  // the language feature FEATURE_REPLACE_FIELDS_ALLOW_MULTI_ONEOF is not
-  // enabled. `oneof_path_to_full_path` maps from paths of OneOf fields that
-  // have already been modified to the corresponding path expression that
-  // accessed the OneOf path. If `proto_field_path_suffix` modifies a OneOf
-  // field that has not already been modified, it will be added to
-  // `oneof_path_to_full_path`.
-  static absl::Status AddToFieldPathTrie(
-      const LanguageOptions& language_options, const ASTNode* path_location,
-      absl::Span<const FindFieldsOutput::StructFieldInfo> struct_path_prefix,
-      const std::vector<const google::protobuf::FieldDescriptor*>&
-          proto_field_path_suffix,
-      absl::flat_hash_map<std::string, std::string>* oneof_path_to_full_path,
-      googlesql_base::GeneralTrie<const ASTNode*, nullptr>* field_path_trie);
-
   friend class AnalyticFunctionResolver;
   friend class FunctionResolver;
   friend class FunctionResolverTest;
-  friend class GraphStmtResolver;
+  friend class GraphDdlResolver;
   friend class GraphTableQueryResolver;
   friend class ResolverTest;
   FRIEND_TEST(ResolverTest, TestGetFunctionNameAndArguments);
@@ -6632,6 +6815,33 @@ class FunctionArgumentInfo {
   bool contains_templated_arguments_ = false;
 
   absl::Status AddArgCommon(ArgumentDetails details);
+};
+
+// A Function subclass that represents a function-typed parameter of a SQL UDF.
+// These objects are created on-the-fly by the Resolver to serve as transient
+// placeholders while resolving calls to the parameter within the UDF body.
+// They are not intended to be stored in a permanent Catalog.
+class FunctionTypedParameter : public Function {
+ public:
+  // The group name used for FunctionTypedParameter objects.
+  static constexpr char kFunctionTypedParameterGroup[] =
+      "FUNCTION_TYPED_PARAMETER";
+
+  FunctionTypedParameter(absl::string_view name,
+                         std::vector<FunctionSignature> signatures)
+      : Function(name, kFunctionTypedParameterGroup, Function::SCALAR,
+                 std::move(signatures)) {}
+
+  FunctionTypedParameter(std::vector<std::string> name_path,
+                         std::vector<FunctionSignature> signatures,
+                         FunctionOptions options)
+      : Function(std::move(name_path), kFunctionTypedParameterGroup,
+                 Function::SCALAR, std::move(signatures), std::move(options)) {}
+
+  bool IsFunctionTypedParameter() const override { return true; }
+
+  FunctionTypedParameter(const FunctionTypedParameter&) = delete;
+  FunctionTypedParameter& operator=(const FunctionTypedParameter&) = delete;
 };
 
 }  // namespace googlesql

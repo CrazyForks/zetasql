@@ -17,6 +17,7 @@
 #include "googlesql/parser/parser_internal.h"
 
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -25,9 +26,7 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/arena.h"
 #include "googlesql/common/errors.h"
-#include "googlesql/common/status_payload_utils.h"
 #include "googlesql/common/timer_util.h"
 #include "googlesql/common/utf_util.h"
 #include "googlesql/common/warning_sink.h"
@@ -36,6 +35,8 @@
 #include "googlesql/parser/keywords.h"
 #include "googlesql/parser/lookahead_transformer.h"
 #include "googlesql/parser/macros/macro_catalog.h"
+#include "googlesql/parser/macros/macro_expander.h"
+#include "googlesql/parser/macros/token_provider.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parser_mode.h"
 #include "googlesql/parser/parser_runtime_info.h"
@@ -43,6 +44,8 @@
 #include "googlesql/parser/textmapper_lexer_adapter.h"
 #include "googlesql/parser/tm_parser.h"
 #include "googlesql/parser/tm_token.h"
+#include "googlesql/parser/token_stream.h"
+#include "googlesql/parser/token_with_location.h"
 #include "googlesql/public/id_string.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
@@ -52,18 +55,20 @@
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
+#include "googlesql/base/arena.h"
 #include "googlesql/base/status_builder.h"  
 #include "re2/re2.h"
+#include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 
 
@@ -76,53 +81,6 @@ ABSL_FLAG(
 
 namespace googlesql {
 namespace parser {
-
-namespace internal {
-
-absl::Status MakeSyntaxError(const ParseLocationRange& location,
-                             absl::string_view msg) {
-  absl::Status status = absl::InvalidArgumentError(msg);
-  googlesql::internal::AttachPayload(
-      &status, location.start().ToInternalErrorLocation());
-  return status;
-}
-
-absl::Status MakeSyntaxError(const std::optional<ParseLocationRange>& location,
-                             absl::string_view msg) {
-  GOOGLESQL_RET_CHECK(location.has_value())
-      << "MakeSyntaxError called with nullopt location";
-  return MakeSyntaxError(*location, msg);
-}
-
-absl::Status ValidateNoWhitespace(absl::string_view left,
-                                  const ParseLocationRange& left_loc,
-                                  absl::string_view right,
-                                  const ParseLocationRange& right_loc) {
-  if (!left_loc.IsAdjacentlyFollowedBy(right_loc)) {
-    return MakeSyntaxError(
-        left_loc, absl::StrCat("Syntax error: Unexpected whitespace between \"",
-                               left, "\" and \"", right, "\""));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ErrorIfUnparenthesizedNotExpression(ASTNode* rhs_expr) {
-  const ASTUnaryExpression* expr = rhs_expr->GetAsOrNull<ASTUnaryExpression>();
-  if (expr != nullptr && !expr->parenthesized() &&
-      expr->op() == ASTUnaryExpression::NOT) {
-    // TODO: nbales - Make this error message actionable by suggesting parens.
-    return MakeSqlErrorAtStart(rhs_expr->location())
-           << "Syntax error: Unexpected keyword NOT";
-  }
-  return absl::OkStatus();
-}
-
-}  // namespace internal
-
-// Bison parser return values.
-//
-// Source:
-// https://www.gnu.org/software/bison/manual/html_node/Parser-Function.html#Parser-Function
 
 static std::string GetParserModeName(ParserMode mode) {
   switch (mode) {
@@ -137,8 +95,6 @@ static std::string GetParserModeName(ParserMode mode) {
       return "statement";
     case ParserMode::kScript:
       return "script";
-    case ParserMode::kMacroBody:
-      return "macro";
     case ParserMode::kTokenizer:
     case ParserMode::kTokenizerPreserveComments:
       ABSL_LOG(FATAL) << "CleanUpBisonError called in tokenizer mode";
@@ -217,34 +173,62 @@ static std::string ShortenBytesLiteralForError(absl::string_view literal) {
                           num_end_quotes));
 }
 
-// Generates an error message for a Bison syntax error in `parser_status`. The
-// other arguments should match those passed into `ParseInternal()`. It is
-// required that 'parser_status' is the actual error produced by the parser for
-// the given inputs.
+// Generates an error message based on the followsets reported by the parser.
+// The arguments should match those passed into `ParseInternal()`.
 static absl::Status GenerateImprovedBisonSyntaxError(
-    const LanguageOptions& language_options, const absl::Status& parse_status,
-    ParserMode mode, const Lexer& lexer, absl::string_view input,
+    absl::Span<const std::set<Token>> expected_followsets,
+    const LanguageOptions& language_options, ParserMode mode,
+    const LookaheadTransformer& lexer, absl::string_view input,
     int start_offset) {
-  // Bison error messages are always of the form "syntax error, unexpected X,
-  // expecting Y", where Y may be of the form "A" or "A or B" or "A or B or C".
-  // It will use $end to indicate "end of input". We don't want to have the text
-  // X because we can generate a better description ourselves. However, we do
-  // want to have the expectations from 'bison_error_message', because they may
-  // be useful.
-  static LazyRE2 re_expectations = {
-      "syntax error, unexpected .*, expecting (.*)"};
-  // If there's no match, then 'expectations_string' will be empty.
-  std::string expectations_string;
-  RE2::FullMatch(parse_status.message(), *re_expectations,
-                 &expectations_string);
+  std::set<Token> expected_tokens;
+  if (!expected_followsets.empty()) {
+    // We only look at the first followset for now. Technically correct error
+    // messages must consider all the followsets, but for now we stay consistent
+    // with the existing wrong error messages. Considering all the followsets
+    // pushes most of the error messages over the kMaxExpectedTokens limit, so
+    // the technically correct error messages are subjectively worse. We need
+    // a better strategy for dealing with large followsets to be able to produce
+    // technically correct error messages that are also helpful.
+    // TODO: b/490131898 - Implement a better strategy for dealing with large
+    //       followsets.
+    for (Token token : expected_followsets.front()) {
+      expected_tokens.insert(token);
+    }
+  }
+  // Remove utility tokens that are not relevant to the user.
+  expected_tokens.erase(Token::FORCE_LA1_TOKEN);
+
+  // If there are more than kMaxExpectedTokens then we don't think a super long
+  // list of tokens is very helpful, so just don't show any of them.
+  static constexpr int kMaxExpectedTokens = 4;
+  if (expected_tokens.size() > kMaxExpectedTokens) {
+    expected_tokens.clear();
+  }
 
   const auto& user_facing_kw_images =
       GetUserFacingImagesForSpecialKeywordsMap();
 
-  // Transform the individual expectations, because Bison gives some weird
-  // output for some of them.
-  std::vector<std::string> expectations =
-      absl::StrSplit(expectations_string, " or ", absl::SkipEmpty());
+  // Convert the set of expected tokens to a set of strings. Legacy logic in
+  // this function works on strigs, but muchy of it could be migrated to work
+  // with tokens directly.
+  std::vector<std::string> expectations;
+  for (Token token : expected_tokens) {
+    if (token == Token::EOI) {
+      expectations.emplace_back("end of input");
+    } else if (token >= Token::SENTINEL_GUIDANCE_TOKENS_START &&
+               token <= Token::SENTINEL_GUIDANCE_TOKENS_END) {
+      // Ignore guidance tokens for now. We could potentially do something
+      // smarter here like inserting a list of potential tokens from a
+      // generated token set or giving a custom error message. For now, we
+      // mostly just want to avoid seeing these in user facing error messages.
+      continue;
+    } else {
+      absl::string_view token_str = tokenName[static_cast<size_t>(token)];
+      expectations.emplace_back(
+          googlesql_base::FindWithDefault(user_facing_kw_images, token_str, token_str));
+    }
+  }
+
   for (std::string& expectation : expectations) {
     // Wrap the single-character operators, "+=" and "-=" in quotes.
     if ((expectation.size() == 1 && !isalpha(expectation[0])) ||
@@ -331,12 +315,7 @@ static absl::Status GenerateImprovedBisonSyntaxError(
     expectations_set.erase("\"-=\"");
   }
 
-  GOOGLESQL_RET_CHECK(googlesql::internal::HasPayloadWithType<InternalErrorLocation>(
-      parse_status));
-  InternalErrorLocation internal_error_location =
-      googlesql::internal::GetPayload<InternalErrorLocation>(parse_status);
-  ParseLocationPoint error_location =
-      ParseLocationPoint::FromInternalErrorLocation(internal_error_location);
+  ParseLocationPoint error_location = lexer.LastTokenLocation().start();
 
   // Normalize the special forms of the keywords so that they don't require
   // special handling in error message generation.
@@ -353,11 +332,13 @@ static absl::Status GenerateImprovedBisonSyntaxError(
             {Token::KW_REPLACE_AFTER_INSERT, Token::KW_REPLACE},
             {Token::KW_UPDATE_AFTER_INSERT, Token::KW_UPDATE},
             {Token::KW_NOT_SPECIAL, Token::KW_NOT},
+            {Token::KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS,
+             Token::KW_TIMESTAMP},
         };
     return kNormalized->contains(token) ? kNormalized->at(token) : token;
   };
-  Token token = normalize_token(lexer.Last());
-  absl::string_view token_text = lexer.Text();
+  Token token = normalize_token(lexer.LastToken());
+  absl::string_view token_text = lexer.LastTokenText();
   std::string actual_token_description;
 
   if (token == Token::EOI) {
@@ -396,9 +377,13 @@ static absl::Status GenerateImprovedBisonSyntaxError(
     // exactly where it can be used.
     return MakeSqlErrorAtPoint(error_location)
            << "Syntax error: OVER keyword must follow a function call";
-  } else if (token == Token::KW_EXCEPT_IN_UNEXPECTED_CONTEXT) {
+  } else if (token == Token::ERROR_EXCEPT_IN_UNEXPECTED_CONTEXT) {
     return MakeSqlErrorAtPoint(error_location)
            << R"(EXCEPT must be followed by ALL, DISTINCT, or "(")";
+  } else if (token == Token::ERROR_SCRIPT_LABEL_IS_RESERVED_KEYWORD) {
+    return MakeSqlErrorAtPoint(error_location)
+           << "Reserved keyword '" << token_text
+           << "' may not be used as a label name without backticks";
   } else if (const KeywordInfo* keyword_info = GetKeywordInfoForToken(token)) {
     actual_token_description =
         absl::StrCat("keyword ", keyword_info->keyword());
@@ -458,7 +443,8 @@ static absl::Status GenerateImprovedBisonSyntaxError(
 }
 
 // Dispatch to the appropriate parser input method based on the mode.
-static absl::Status ParseByMode(ParserMode mode, Lexer& lexer, Parser& parser) {
+static absl::Status ParseByMode(ParserMode mode, TextMapperLexerAdapter& lexer,
+                                Parser& parser) {
   switch (mode) {
     case ParserMode::kStatement:
       return parser.ParseSqlStatement(lexer);
@@ -476,7 +462,6 @@ static absl::Status ParseByMode(ParserMode mode, Lexer& lexer, Parser& parser) {
       return parser.ParseStandaloneType(lexer);
     case ParserMode::kTokenizerPreserveComments:
     case ParserMode::kTokenizer:
-    case ParserMode::kMacroBody:
       GOOGLESQL_RET_CHECK_FAIL() << "Unexpected mode: " << static_cast<int>(mode);
   }
 }
@@ -544,16 +529,43 @@ absl::Status ParseInternal(
       auto parser_timer =
           MakeScopedTimerStarted(&runtime_info.parser_timed_value());
 
-      Lexer lexer(mode, filename, input, start_byte_offset, language_options,
-                  macro_expansion_mode, macro_catalog, arena);
+      auto token_provider = std::make_unique<macros::TokenProvider>(
+          filename, input, start_byte_offset, /*end_offset=*/std::nullopt,
+          /*offset_in_original_input=*/0);
+      TokenStream* token_stream = token_provider.get();
+
+      auto stack_frame_factory =
+          std::make_unique<StackFrame::StackFrameFactory>();
+      std::unique_ptr<macros::MacroExpander> macro_expander;
+      if (macro_expansion_mode != MacroExpansionMode::kNone) {
+        if (macro_catalog == nullptr) {
+          macro_catalog = &macros::MacroCatalog::EmptyMacroCatalog();
+        }
+        bool is_strict = macro_expansion_mode == MacroExpansionMode::kStrict;
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            macro_expander,
+            macros::MacroExpander::Create(
+                token_stream, *macro_catalog, arena, *stack_frame_factory,
+                /*macro_expander_options=*/{.is_strict = is_strict},
+                /*parent_location=*/nullptr));
+        token_stream = macro_expander.get();
+      }
+
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          std::unique_ptr<LookaheadTransformer> transformer,
+          LookaheadTransformer::Create(mode, language_options, token_stream));
+      auto lexer = std::make_unique<TextMapperLexerAdapter>(transformer.get());
 
       ASTNode* output_node = nullptr;
       ASTNodeFactory node_factory(arena, id_string_pool);
-      Parser parser(lexer.tokenizer(), language_options, node_factory,
-                    warning_sink, macro_expansion_mode, &output_node,
+      Parser parser(*transformer, language_options, node_factory, warning_sink,
+                    macro_expansion_mode, &output_node,
                     ast_statement_properties, statement_end_byte_offset);
+      // Register the parser with the lookahead transformer to enable token
+      // transformations to consider parser state.
+      transformer->SetParser(&parser);
 
-      absl::Status parse_status = ParseByMode(mode, lexer, parser);
+      absl::Status parse_status = ParseByMode(mode, *lexer, parser);
       // We want to continue if there was a parsing error or a successful parse.
       // Anything else, such as kInternal or kResourceExhausted, should be
       // returned.
@@ -562,14 +574,14 @@ absl::Status ParseInternal(
       }
 
       // The tokenizer's error overrides the parser's error.
-      GOOGLESQL_RETURN_IF_ERROR(lexer.tokenizer().GetOverrideError());
+      GOOGLESQL_RETURN_IF_ERROR(transformer->GetOverrideError());
 
-      runtime_info.add_lexical_tokens(lexer.tokenizer().num_lexical_tokens());
+      runtime_info.add_lexical_tokens(transformer->num_consumed_tokens());
       // When a multi-statement input ends with a semicolon, ParseNext.* will
       // return `statement_end_byte_offset` at the semi-colon. What we want is
       // the end of the input so that we don't try to parse any trailing
       // whitespace as another statement.
-      if (statement_end_byte_offset != nullptr && lexer.tokenizer().IsAtEoi()) {
+      if (statement_end_byte_offset != nullptr && transformer->IsAtEoi()) {
         *statement_end_byte_offset = static_cast<int>(input.size());
       }
 
@@ -580,15 +592,15 @@ absl::Status ParseInternal(
                          *other_allocated_ast_nodes);
       }
 
-    // Bison returns error messages that start with "syntax error, ". The parser
-    // logic itself will return an empty error message if it wants to generate
-    // a simple "Unexpected X" error.
-      if (absl::StartsWith(parse_status.message(), "syntax error, ")) {
-        // This was a Bison-generated syntax error. Generate a message that is
-        // to our own liking.
-        return GenerateImprovedBisonSyntaxError(language_options, parse_status,
-                                                mode, lexer, input,
-                                                start_byte_offset);
+      // googlesql::Parser uses an error message starting with a special prefix
+      // to signal a state-transition failure.
+      if (absl::IsInvalidArgument(parse_status) &&
+          parse_status.message().starts_with("syntax error, ")) {
+        // This was a Textmapper-generated syntax error. Generate a message that
+        // is to our own liking.
+        return GenerateImprovedBisonSyntaxError(
+            parser.expected_tokens(), language_options, mode, *transformer,
+            input, start_byte_offset);
       }
       return parse_status;
   }());

@@ -30,11 +30,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/string_numbers.h"  // iwyu: keep
+#include "googlesql/base/status_macros.h"
 #include "unicode/utf8.h"
 #include "unicode/utypes.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -147,14 +147,14 @@ bool JSONParser::ParseHexDigits(const int size, std::string* str) {
     return false;
   }
   ABSL_CHECK_GT(size, 2);
-  ABSL_CHECK_EQ(p_.data()[0], '\\');
-  ABSL_CHECK(p_.data()[1] == 'u' || p_.data()[1] == 'x');
+  ABSL_CHECK_EQ(p_[0], '\\');
+  ABSL_CHECK(p_[1] == 'u' || p_[1] == 'x');
   char32_t code = 0;
   for (int i = 2; i < size; ++i) {
-    if (!absl::ascii_isxdigit(p_.data()[i])) {
+    if (!absl::ascii_isxdigit(p_[i])) {
       return ReportFailure("Invalid escape sequence.");
     }
-    code = (code << 4) + googlesql_base::hex_digit_to_int(p_.data()[i]);
+    code = (code << 4) + googlesql_base::hex_digit_to_int(p_[i]);
   }
   char buf[U8_MAX_LENGTH];
   UBool is_error = false;
@@ -179,16 +179,16 @@ bool JSONParser::IsOctalDigit(char c) { return (c >= '0' && c <= '7'); }
 void JSONParser::ParseOctalDigits(const int max_size, std::string* str) {
   // Length >= 2 because it must have a \ and at least one octal digit.
   ABSL_DCHECK_GE(p_.length(), 2);
-  ABSL_CHECK_EQ(p_.data()[0], '\\');
+  ABSL_CHECK_EQ(p_[0], '\\');
   char32_t sum = 0;
   // Start at one because we skip the \.
   int num_octal_digits = 1;
   for (; num_octal_digits < std::min<int>(p_.length(), max_size);
        ++num_octal_digits) {
-    if (!IsOctalDigit(p_.data()[num_octal_digits])) {
+    if (!IsOctalDigit(p_[num_octal_digits])) {
       break;
     }
-    sum = (sum << 3) + p_.data()[num_octal_digits] - '0';
+    sum = (sum << 3) + p_[num_octal_digits] - '0';
   }
   char buf[U8_MAX_LENGTH];
   UBool is_error = false;
@@ -239,26 +239,26 @@ bool JSONParser::ParseStringHelper(std::string* str) {
   };
 
   for (; !p_.empty(); AdvanceOneCodepoint()) {
-    if (*p_.data() == '\\') {
+    if (p_[0] == '\\') {
       flush(flush_start, p_.data(), str);
       flush_start = nullptr;
       // we know p->length() > 0
       if (p_.length() == 1) {
         return ReportFailure("Unexpected end of string");
       }
-      if (p_.data()[1] == 'u') {
+      if (p_[1] == 'u') {
         if (!ParseHexDigits(kUnicodeEscapedLength, str)) {
           return ReportFailure("Could not parse hex digits");
         }
-      } else if (p_.data()[1] == 'x') {
+      } else if (p_[1] == 'x') {
         if (!ParseHexDigits(kLatin1HexEscapedLength, str)) {
           return ReportFailure("Could not parse hex digits");
         }
-      } else if (IsOctalDigit(p_.data()[1])) {
+      } else if (IsOctalDigit(p_[1])) {
         ParseOctalDigits(kLatin1OctEscapedLength, str);
       } else {
         // This code parses escaped whitespace.
-        switch (p_.data()[1]) {
+        switch (p_[1]) {
           case 'b':
             str->push_back('\b');
             break;
@@ -278,11 +278,11 @@ bool JSONParser::ParseStringHelper(std::string* str) {
             str->push_back('\v');
             break;
           default:
-            str->push_back(p_.data()[1]);
+            str->push_back(p_[1]);
         }
         p_.remove_prefix(1);
       }
-    } else if (*p_.data() == *open) {
+    } else if (p_[0] == *open) {
       found_close_quote = true;
       break;
     } else {
@@ -374,7 +374,7 @@ bool JSONParser::ParseNumberTextHelper(absl::string_view* str) {
 }
 
 bool JSONParser::ParseObject() {
-  ABSL_CHECK_EQ('{', *p_.data());
+  ABSL_CHECK_EQ('{', p_[0]);
   AdvanceOneByte();
 
   if (!BeginObject()) {
@@ -411,7 +411,7 @@ bool JSONParser::ParseObject() {
 
     // Consume the colon
     SkipWhitespace();
-    if (p_.empty() || *p_.data() != ':') {
+    if (p_.empty() || p_[0] != ':') {
       return ReportFailure("Expected : between key:value pair");
     }
     AdvanceOneByte();
@@ -462,7 +462,7 @@ bool JSONParser::ParseObject() {
 }
 
 bool JSONParser::ParseArray() {
-  ABSL_CHECK_EQ('[', *p_.data());
+  ABSL_CHECK_EQ('[', p_[0]);
   AdvanceOneByte();
   if (!BeginArray()) {
     return ReportFailure("BeginArray returned false");
@@ -588,7 +588,7 @@ JSONParser::TokenType JSONParser::GetNextTokenType() {
     return UNKNOWN;  // Unexpected end of string.
   }
 
-  switch (*p_.data()) {
+  switch (p_[0]) {
     case '\"':
     case '\'':
       return BEGIN_STRING;

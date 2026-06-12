@@ -18,27 +18,28 @@
 #define GOOGLESQL_COMMON_OPTIONS_UTILS_H_
 
 #include <algorithm>
-#include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "googlesql/public/analyzer_options.h"
+#include "googlesql/public/catalog.h"
 #include "googlesql/public/evaluator.h"
 #include "googlesql/public/options.pb.h"
-#include "googlesql/public/strings.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::internal {
 
@@ -58,11 +59,13 @@ struct EnumOptionsEntry {
 //
 // See ParseEnumOptionsSet for information on this format.
 //
-// The default list of allowed bases is
-//   NONE:    Empty set
-//   ALL:     Every valid enum
-//   DEFAULT: Every enum marked with [rewrite_options).default_enabled = true]
-//            this matches AnalyzerOptions::DefaultRewrites()
+// The list of allowed bases is:
+//   NONE: Empty set
+//   ALL: Every rewrite
+//   ALL_MINUS_DEV: Every rewrite not marked in_development=true
+//   DEFAULT: Every rewrite marked default_enabled=true and not marked
+//            in_development=true, matching AnalyzerOptions::DefaultRewrites()
+//   DEFAULT_PLUS_DEV: Every rewrite marked default_enabled=true
 absl::StatusOr<EnumOptionsEntry<ResolvedASTRewrite>> ParseEnabledAstRewrites(
     absl::string_view options_str);
 
@@ -235,15 +238,23 @@ absl::StatusOr<EnumOptionsEntry<EnumT>> ParseEnumOptionsSet(
     if (absl::ConsumePrefix(&entry, "-")) {
       enable = false;
     } else if (!absl::ConsumePrefix(&entry, "+")) {
-      GOOGLESQL_RET_CHECK_FAIL() << error_context_name
-                       << " entries should be prefixed with '+' or '-'";
+      GOOGLESQL_RET_CHECK_FAIL()
+          << "Invalid " << error_context_name << " entry: " << entry << ". "
+          << "Entries should be prefixed with '+' or '-' to indicate adding or "
+          << "subtracting from the base";
     }
-    GOOGLESQL_RET_CHECK(!absl::ConsumePrefix(&entry, strip_prefix))
-        << "For consistency, do not include the " << strip_prefix << " prefix.";
+    if (absl::StartsWith(entry, strip_prefix)) {
+      GOOGLESQL_RET_CHECK_FAIL() << "Invalid " << error_context_name
+                       << " entry: " << entry
+                       << ". For consistency, do not include the "
+                       << strip_prefix << " prefix";
+    }
 
     const google::protobuf::EnumValueDescriptor* enum_value_descriptor =
         enum_descriptor->FindValueByName(absl::StrCat(strip_prefix, entry));
-    GOOGLESQL_RET_CHECK(enum_value_descriptor != nullptr) << entry;
+    GOOGLESQL_RET_CHECK(enum_value_descriptor != nullptr)
+        << "Invalid " << error_context_name << " entry: " << entry << ". "
+        << "Enum value not found";
     EnumT enum_value = static_cast<EnumT>(enum_value_descriptor->number());
     GOOGLESQL_RET_CHECK(seen_overrides.insert(enum_value).second)
         << "Duplicate entry for " << error_context_name << ": "

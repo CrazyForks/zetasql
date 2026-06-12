@@ -1,0 +1,36 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_circular_constant;
+--
+PRIVATE CONSTANT c1=Uninitialized value (unknown type)
+ERROR during resolution: Constant c1 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^
+Constant c3 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:5:24]
+CREATE PUBLIC CONSTANT c3 = c2;
+                       ^
+Constant c2 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:4:25]
+CREATE PRIVATE CONSTANT c2 = c1 + 1;
+                        ^
+Recursive dependencies detected when resolving constant named_constant_circular_constant.c1, which include objects (named_constant_circular_constant.c1, named_constant_circular_constant.c3, named_constant_circular_constant.c2, named_constant_circular_constant.c1) [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^
+
+PRIVATE CONSTANT c2=Uninitialized value (unknown type)
+ERROR during resolution: Constant c2 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:4:25]
+CREATE PRIVATE CONSTANT c2 = c1 + 1;
+                        ^
+Recursive dependencies detected when resolving constant named_constant_circular_constant.c1, which include objects (named_constant_circular_constant.c1, named_constant_circular_constant.c3, named_constant_circular_constant.c2, named_constant_circular_constant.c1) [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^
+
+CONSTANT c3=Uninitialized value (unknown type)
+ERROR during resolution: Constant c3 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:5:24]
+CREATE PUBLIC CONSTANT c3 = c2;
+                       ^
+Constant c2 is invalid [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:4:25]
+CREATE PRIVATE CONSTANT c2 = c1 + 1;
+                        ^
+Recursive dependencies detected when resolving constant named_constant_circular_constant.c1, which include objects (named_constant_circular_constant.c1, named_constant_circular_constant.c3, named_constant_circular_constant.c2, named_constant_circular_constant.c1) [at .../googlesql/testdata/modules/named_constant_circular_constant.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^

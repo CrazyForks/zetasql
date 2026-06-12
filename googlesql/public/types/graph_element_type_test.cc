@@ -136,17 +136,27 @@ TEST(GraphElementTypeTest, ExternalProductModeSupportedTypeTest) {
   EXPECT_FALSE(graph_element_type->IsSupportedType(options));
 }
 
-TEST(GraphElementTypeTest, HasFieldTest) {
+TEST(GraphElementTypeTest, LookupFieldTest) {
+  // HasField and FindField should behave the same.
   TypeFactory factory;
   const GraphElementType* graph_element_type;
   GOOGLESQL_ASSERT_OK(factory.MakeGraphElementType(
       {"graph_name"}, GraphElementType::ElementKind::kNode,
       {{"a", factory.get_int32()}}, &graph_element_type));
   int field_idx = -1;
+  Type::FindFieldResult result;
+
   EXPECT_TRUE(graph_element_type->HasField("a", &field_idx));
   EXPECT_EQ(field_idx, 0);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(result, graph_element_type->FindField("a"));
+  EXPECT_EQ(Type::HAS_FIELD, result.has_field);
+  EXPECT_EQ(result.field_id, 0);
+
   EXPECT_FALSE(graph_element_type->HasField("b", &field_idx));
   EXPECT_EQ(field_idx, -1);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(result, graph_element_type->FindField("b"));
+  EXPECT_EQ(Type::HAS_NO_FIELD, result.has_field);
+  EXPECT_EQ(result.field_id, -1);
 }
 
 TEST(GraphElementTypeTest, BasicTest) {
@@ -751,6 +761,44 @@ TEST(TypeTest, TypeDeserializerDynamicGraphElement) {
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(const Type* deserialized_type,
                        type_deserializer.Deserialize(type_proto));
   EXPECT_TRUE(deserialized_type->Equals(graph_element_type));
+}
+
+TEST(GraphElementTypeTest, ValidateResolvedTypeParameters) {
+  TypeFactory factory;
+  const Type* string_type = factory.get_string();
+  const Type* int64_type = factory.get_int64();
+
+  const GraphElementType* graph_element_type;
+  GOOGLESQL_ASSERT_OK(factory.MakeGraphElementType(
+      {"graph_name"}, GraphElementType::ElementKind::kNode,
+      {{"char_field", string_type}, {"int_field", int64_type}},
+      &graph_element_type));
+
+  EXPECT_THAT(graph_element_type->property_types(),
+              testing::ElementsAre(IsPropertyType("char_field", string_type),
+                                   IsPropertyType("int_field", int64_type)));
+
+  // 1. Empty TypeParameters is OK.
+  GOOGLESQL_EXPECT_OK(graph_element_type->ValidateResolvedTypeParameters(
+      TypeParameters(), PRODUCT_INTERNAL));
+
+  // 2. Valid TypeParameters has matching children count (2).
+  StringTypeParametersProto param_proto;
+  param_proto.set_max_length(10);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeParameters string_type_param,
+                       TypeParameters::MakeStringTypeParameters(param_proto));
+  TypeParameters valid_type_params =
+      TypeParameters::MakeTypeParametersWithChildList(
+          {string_type_param, TypeParameters()});
+  GOOGLESQL_EXPECT_OK(graph_element_type->ValidateResolvedTypeParameters(
+      valid_type_params, PRODUCT_INTERNAL));
+
+  // 3. Invalid TypeParameters: incorrect number of children (1 instead of 2).
+  TypeParameters invalid_child_count_params =
+      TypeParameters::MakeTypeParametersWithChildList({string_type_param});
+  EXPECT_THAT(graph_element_type->ValidateResolvedTypeParameters(
+                  invalid_child_count_params, PRODUCT_INTERNAL),
+              StatusIs(absl::StatusCode::kInternal));
 }
 
 }  // namespace

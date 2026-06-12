@@ -91,6 +91,7 @@ cc_library(
     testonly = 1,
     hdrs = ["proto_matchers_oss.h"],
     deps = [
+        "//googlesql/base:check",
         "//googlesql/base:logging",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",

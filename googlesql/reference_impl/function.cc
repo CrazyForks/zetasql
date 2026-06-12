@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <any>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -91,6 +92,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/civil_time.h"
 #include "google/protobuf/descriptor.h"
@@ -146,13 +148,13 @@
 #include "proto/confidence-interval.pb.h"
 #include "proto/data.pb.h"
 #include "algorithms/quantiles.h"
+#include "googlesql/base/status_macros.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/optional_ref.h"
 #include "googlesql/base/exactfloat.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_RETIRED_FLAG(bool, googlesql_lock_regexp_func, false, "retired");
 
@@ -537,6 +539,8 @@ FunctionMap::FunctionMap() {
     RegisterFunction(FunctionKind::kAnd, "$and", "And");
     RegisterFunction(FunctionKind::kAndAgg, kPrivate, "AndAgg");
     RegisterFunction(FunctionKind::kAnyValue, "any_value", "AnyValue");
+    RegisterFunction(FunctionKind::kScalarSubqueryValue, kPrivate,
+                     "ScalarSubqueryValue");
     RegisterFunction(FunctionKind::kFirst, "first", "First");
     RegisterFunction(FunctionKind::kLast, "last", "Last");
     RegisterFunction(FunctionKind::kArrayAgg, "array_agg", "ArrayAgg");
@@ -1228,6 +1232,9 @@ FunctionMap::FunctionMap() {
                      "zstd_decompress_to_string", "ZstdDecompressToString");
     RegisterFunction(FunctionKind::kTumble, "tumble", "Tumble");
     RegisterFunction(FunctionKind::kHop, "hop", "Hop");
+    RegisterFunction(FunctionKind::kBatchVectorSearchTVFWithProtoOptions,
+                     "vector_search", "VectorSearch");
+    RegisterFunction(FunctionKind::kAiIf, "ai.if", "AI.IF");
   }();
 }  // NOLINT(readability/fn_size)
 
@@ -1331,7 +1338,8 @@ static absl::StatusOr<Value> Extract(absl::Span<const Value> x,
   bool is_null;
   if (!regexp.Extract(/*str=*/ValueTraits<type>::FromValue(x[0]),
                       ValueTraits<type>::RegExpUnit(), position,
-                      occurrence_index, &out, &is_null, &status)) {
+                      occurrence_index, /*use_legacy_position_behavior=*/false,
+                      &out, &is_null, &status)) {
     return status;
   }
   if (is_null) {
@@ -1375,7 +1383,7 @@ static absl::StatusOr<Value> Instr(absl::Span<const Value> x,
   }
   int64_t out;
   options.out = &out;
-  if (!regexp.Instr(options, &status)) {
+  if (!regexp.Instr(options, /*use_legacy_position_behavior=*/false, &status)) {
     return status;
   }
   return Value::Int64(out);
@@ -1790,11 +1798,10 @@ absl::StatusOr<JSONValueConstRef> GetJSONValueConstRef(
 absl::Status ValidateIntervalArgumentPositive(
     absl::string_view arg_name, const googlesql::IntervalValue& arg_value) {
   if (arg_value == googlesql::IntervalValue()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat(arg_name, " cannot be zero."));
+    return absl::OutOfRangeError(absl::StrCat(arg_name, " cannot be zero."));
   }
   if (arg_value < googlesql::IntervalValue()) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         absl::StrCat(arg_name, " cannot be negative."));
   }
   return absl::OkStatus();
@@ -1825,14 +1832,13 @@ absl::Status MakeMaxArrayValueByteSizeExceededError(
 functions::TimestampScale GetTimestampScale(const LanguageOptions& options,
                                             bool support_picos) {
   if (options.LanguageFeatureEnabled(FEATURE_TIMESTAMP_PICOS)) {
+    // TODO Remove once all callsites support Picoseconds.
     if (support_picos) {
       return functions::TimestampScale::kPicoseconds;
     }
     // If the language option is enabled but the callsite does not support
-    // Picoseconds, we will return Microseconds timestamp scale. This
-    // effectively turns off any Picosecond-related logic.
-    // TODO Remove once all callsites support Picoseconds.
-    return functions::TimestampScale::kMicroseconds;
+    // Picoseconds, we will fall back to considering other precisions based on
+    // the LanguageOptions.
   }
 
   if (options.LanguageFeatureEnabled(FEATURE_TIMESTAMP_NANOS)) {
@@ -1847,7 +1853,7 @@ ABSL_CONST_INIT absl::Mutex BuiltinFunctionRegistry::mu_(absl::kConstInit);
 BuiltinFunctionRegistry::GetScalarFunction(
     FunctionKind kind, const Type* output_type,
     absl::Span<const std::unique_ptr<AlgebraArg>> arguments) {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   auto it = GetFunctionMap().find(kind);
   if (it == GetFunctionMap().end()) {
     return googlesql_base::UnimplementedErrorBuilder(googlesql_base::SourceLocation::current())
@@ -1866,7 +1872,7 @@ BuiltinFunctionRegistry::GetScalarFunction(
     std::initializer_list<FunctionKind> kinds,
     const std::function<BuiltinScalarFunction*(FunctionKind, const Type*)>&
         constructor) {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   for (FunctionKind kind : kinds) {
     GetFunctionMap()[kind] = [kind,
                               constructor](const googlesql::Type* output_type) {
@@ -1885,7 +1891,7 @@ BuiltinFunctionRegistry::GetFunctionMap() {
 
 /* static */ absl::StatusOr<BuiltinTableValuedFunction*>
 BuiltinFunctionRegistry::GetTableValuedFunction(FunctionKind kind) {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   auto it = GetTableValuedFunctionMap().find(kind);
   if (it == GetTableValuedFunctionMap().end()) {
     return googlesql_base::UnimplementedErrorBuilder(googlesql_base::SourceLocation::current())
@@ -1903,7 +1909,7 @@ BuiltinFunctionRegistry::GetTableValuedFunction(FunctionKind kind) {
     std::initializer_list<FunctionKind> kinds,
     const std::function<BuiltinTableValuedFunction*(FunctionKind)>&
         constructor) {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   for (FunctionKind kind : kinds) {
     GetTableValuedFunctionMap()[kind] = [kind, constructor]() {
       return constructor(kind);
@@ -2310,12 +2316,14 @@ BuiltinTableValuedFunction::CreateCall(
     FunctionKind kind, std::vector<TvfAlgebraArgument> arguments,
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
-    std::shared_ptr<FunctionSignature> function_call_signature) {
+    std::shared_ptr<FunctionSignature> function_call_signature,
+    std::vector<int> output_column_indices) {
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<BuiltinTableValuedFunction> function,
                    Create(kind));
   return TableValuedFunctionCallExpr::Create(
       std::move(function), std::move(arguments), std::move(output_columns),
-      std::move(variables), std::move(function_call_signature));
+      std::move(variables), std::move(function_call_signature),
+      std::move(output_column_indices));
 }
 
 absl::StatusOr<std::unique_ptr<BuiltinTableValuedFunction>>
@@ -2329,6 +2337,8 @@ BuiltinTableValuedFunction::Create(FunctionKind kind) {
       return std::make_unique<TumbleTVF>(kind);
     case FunctionKind::kHop:
       return std::make_unique<HopTVF>(kind);
+    case FunctionKind::kBatchVectorSearchTVFWithProtoOptions:
+      return std::make_unique<BatchVectorSearchTVFWithProtoOptions>(kind);
     default:
       GOOGLESQL_ASSIGN_OR_RETURN(BuiltinTableValuedFunction * function,
                        BuiltinFunctionRegistry::GetTableValuedFunction(kind));
@@ -2419,8 +2429,11 @@ BuiltinScalarFunction::CreateValidatedRaw(
       return new BitCastFunction(kind, output_type);
     case FunctionKind::kLike:
     case FunctionKind::kLikeWithCollation: {
-      GOOGLESQL_RETURN_IF_ERROR(
-          ValidateInputTypesSupportEqualityComparison(kind, input_types));
+      GOOGLESQL_RETURN_IF_ERROR(ValidateInputTypesSupportEqualityComparison(
+          kind,
+          // Skip the collation argument at the beginning of the argument list
+          // from the equality check.
+          absl::MakeConstSpan(input_types.data() + 1, input_types.size() - 1)));
       GOOGLESQL_ASSIGN_OR_RETURN(auto fct,
                        CreateLikeFunction(kind, output_type, arguments));
       return fct.release();
@@ -2433,8 +2446,11 @@ BuiltinScalarFunction::CreateValidatedRaw(
     case FunctionKind::kNotLikeAll:
     case FunctionKind::kLikeAllWithCollation:
     case FunctionKind::kNotLikeAllWithCollation: {
-      GOOGLESQL_RETURN_IF_ERROR(
-          ValidateInputTypesSupportEqualityComparison(kind, input_types));
+      GOOGLESQL_RETURN_IF_ERROR(ValidateInputTypesSupportEqualityComparison(
+          kind,
+          // Skip the collation argument at the beginning of the argument list
+          // from the equality check.
+          absl::MakeConstSpan(input_types.data() + 1, input_types.size() - 1)));
       GOOGLESQL_ASSIGN_OR_RETURN(auto fct,
                        CreateLikeAnyAllFunction(kind, output_type, arguments));
       return fct.release();
@@ -2447,8 +2463,11 @@ BuiltinScalarFunction::CreateValidatedRaw(
     case FunctionKind::kLikeAllArrayWithCollation:
     case FunctionKind::kNotLikeAllArray:
     case FunctionKind::kNotLikeAllArrayWithCollation: {
-      GOOGLESQL_RETURN_IF_ERROR(
-          ValidateInputTypesSupportEqualityComparison(kind, input_types));
+      GOOGLESQL_RETURN_IF_ERROR(ValidateInputTypesSupportEqualityComparison(
+          kind,
+          // Skip the collation argument at the beginning of the argument list
+          // from the equality check.
+          absl::MakeConstSpan(input_types.data() + 1, input_types.size() - 1)));
       GOOGLESQL_ASSIGN_OR_RETURN(auto fct, CreateLikeAnyAllArrayFunction(
                                      kind, output_type, arguments));
       return fct.release();
@@ -2803,6 +2822,8 @@ BuiltinScalarFunction::CreateValidatedRaw(
                        GetLambdaArgumentForArrayZip(arguments));
       return new ArrayZipFunction(kind, output_type, inline_lambda_expr);
     }
+    case FunctionKind::kAiIf:
+      return new AiIfFunction(kind, output_type);
     default:
       return BuiltinFunctionRegistry::GetScalarFunction(kind, output_type,
                                                         arguments);
@@ -3557,8 +3578,22 @@ bool ArithmeticFunction::Eval(absl::Span<const TupleData* const> params,
       return InvokeBinary<uint64_t>(&functions::Multiply<uint64_t>, args,
                                     result, status);
     case FCT(FunctionKind::kMultiply, TYPE_DOUBLE):
-      return InvokeBinary<double>(&functions::Multiply<double>, args, result,
-                                  status);
+      if (args[1].type()->IsDouble()) {
+        return InvokeBinary<double>(&functions::Multiply<double>, args, result,
+                                    status);
+      } else if (args[1].type()->IsInterval()) {
+        bool round_to_micros =
+            GetTimestampScale(context->GetLanguageOptions()) ==
+            functions::TimestampScale::kMicroseconds;
+        auto status_interval = args[1].interval_value().Multiply(
+            args[0].double_value(), round_to_micros);
+        if (status_interval.ok()) {
+          *result = Value::Interval(*status_interval);
+        } else {
+          *status = status_interval.status();
+        }
+      }
+      return status->ok();
     case FCT(FunctionKind::kMultiply, TYPE_NUMERIC):
       return InvokeBinary<NumericValue>(&functions::Multiply<NumericValue>,
                                         args, result, status);
@@ -3567,11 +3602,24 @@ bool ArithmeticFunction::Eval(absl::Span<const TupleData* const> params,
           &functions::Multiply<BigNumericValue>, args, result, status);
 
     case FCT(FunctionKind::kMultiply, TYPE_INTERVAL): {
-      auto status_interval = args[0].interval_value() * args[1].int64_value();
-      if (status_interval.ok()) {
-        *result = Value::Interval(*status_interval);
-      } else {
-        *status = status_interval.status();
+      if (args[1].type()->IsInt64()) {
+        auto status_interval = args[0].interval_value() * args[1].int64_value();
+        if (status_interval.ok()) {
+          *result = Value::Interval(*status_interval);
+        } else {
+          *status = status_interval.status();
+        }
+      } else if (args[1].type()->IsDouble()) {
+        bool round_to_micros =
+            GetTimestampScale(context->GetLanguageOptions()) ==
+            functions::TimestampScale::kMicroseconds;
+        auto status_interval = args[0].interval_value().Multiply(
+            args[1].double_value(), round_to_micros);
+        if (status_interval.ok()) {
+          *result = Value::Interval(*status_interval);
+        } else {
+          *status = status_interval.status();
+        }
       }
       return status->ok();
     }
@@ -3742,7 +3790,7 @@ static bool IsDistinctFromInt64UInt64(Value int64_value, Value uint64_value) {
          static_cast<uint64_t>(int64_value.int64_value());
 }
 
-static bool IsDistinctFrom(const Value& x, const Value& y) {
+bool IsDistinctFrom(const Value& x, const Value& y) {
   // Special case to handle INT64/UINT64 signatures of $is_distinct_from and
   // $is_not_distinct_from().
   //
@@ -3813,7 +3861,10 @@ bool ComparisonFunction::Eval(absl::Span<const TupleData* const> params,
         *status = ::googlesql_base::UnimplementedErrorBuilder()
                   << "Unsupported comparison function: " << debug_name()
                   << " with inputs " << TypeKind_Name(x.type_kind()) << " and "
-                  << TypeKind_Name(y.type_kind());
+                  << TypeKind_Name(y.type_kind())
+                  << " vals: " << x.DebugString() << " and " << y.DebugString()
+                  << " of types: " << x.type()->DebugString() << " and "
+                  << y.type()->DebugString() << CurrentStackTrace();
         return false;
       }
     } else if (kind() == FunctionKind::kIsDistinct) {
@@ -4273,6 +4324,100 @@ absl::StatusOr<Value> ArrayIsDistinctFunction::Eval(
   return Value::Bool(true);
 }
 
+using ValueRelationCallback = std::function<bool(const Value&, const Value&)>;
+
+// Note, the `relation` function needs to return false if only one of the
+// arguments is NULL or it will not behave correctly.
+static absl::StatusOr<bool> AreValuesEqual(
+    const Value& element, const Value& target,
+    const GoogleSqlCollator* collator,
+    const ValueRelationCallback& relation_callback) {
+  if (collator == nullptr || element.is_null() || target.is_null()) {
+    return relation_callback(element, target);
+  }
+
+  if (element.type()->IsString()) {
+    absl::Cord element_key, target_key;
+    GOOGLESQL_RETURN_IF_ERROR(
+        collator->GetSortKeyUtf8(element.string_value(), &element_key));
+    GOOGLESQL_RETURN_IF_ERROR(
+        collator->GetSortKeyUtf8(target.string_value(), &target_key));
+    return relation_callback(Value::Bytes(std::string(element_key)),
+                             Value::Bytes(std::string(target_key)));
+  } else if (element.type()->IsArray()) {
+    if (element.num_elements() != target.num_elements()) {
+      return false;
+    }
+    GOOGLESQL_RET_CHECK(collator->IsComposite());
+    GOOGLESQL_RET_CHECK_EQ(collator->AsComposite()->child_collators().size(), 1);
+    const GoogleSqlCollator* element_collator =
+        collator->AsComposite()->child_collators()[0].get();
+    for (int i = 0; i < element.num_elements(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(bool equal,
+                       AreValuesEqual(element.element(i), target.element(i),
+                                      element_collator, relation_callback));
+      if (!equal) {
+        return false;
+      }
+    }
+    return true;
+  } else if (element.type()->IsStruct()) {
+    GOOGLESQL_RET_CHECK_EQ(element.num_fields(), target.num_fields());
+    GOOGLESQL_RET_CHECK(collator->IsComposite());
+    GOOGLESQL_RET_CHECK_EQ(collator->AsComposite()->child_collators().size(),
+                 element.num_fields());
+    for (int i = 0; i < element.num_fields(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          bool equal,
+          AreValuesEqual(element.field(i), target.field(i),
+                         collator->AsComposite()->child_collators()[i].get(),
+                         relation_callback));
+      if (!equal) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    // TODO: support other containers.
+    // Sadly it's too much plumbing to compute the collation_key_type from the
+    // algebrizer, in order to call ReplaceStringsWithCollationKeys() here.
+    GOOGLESQL_RET_CHECK_FAIL() << "Unsupported type for collation: "
+                     << element.type()->DebugString();
+  }
+}
+
+static absl::StatusOr<bool> IsEqualToTarget(const Value& element,
+                                            const Value& target,
+                                            const GoogleSqlCollator* collator) {
+  return AreValuesEqual(element, target, collator,
+                        [](const Value& x, const Value& y) {
+                          Value equals = x.SqlEquals(y);
+                          return !equals.is_null() && equals.bool_value();
+                        });
+}
+
+static absl::StatusOr<bool> IsNotDistinctFromTarget(
+    const Value& element, const Value& target,
+    const GoogleSqlCollator* collator) {
+  return AreValuesEqual(
+      element, target, collator,
+      [](const Value& x, const Value& y) { return !IsDistinctFrom(x, y); });
+}
+
+// static
+absl::StatusOr<std::unique_ptr<ScalarFunctionCallExpr>>
+ArrayDistinctFunction::CreateCall(
+    const LanguageOptions& language_options, const Type* output_type,
+    std::vector<std::unique_ptr<AlgebraArg>> arguments,
+    ResolvedFunctionCallBase::ErrorMode error_mode,
+    CollatorList collator_list) {
+  GOOGLESQL_RET_CHECK_LE(collator_list.size(), 1);
+  std::unique_ptr<BuiltinScalarFunction> function = absl::WrapUnique(
+      new ArrayDistinctFunction(output_type, std::move(collator_list)));
+  return ScalarFunctionCallExpr::Create(std::move(function),
+                                        std::move(arguments), error_mode);
+}
+
 absl::StatusOr<Value> ArrayDistinctFunction::Eval(
     absl::Span<const TupleData* const> params, absl::Span<const Value> args,
     EvaluationContext* context) const {
@@ -4294,15 +4439,34 @@ absl::StatusOr<Value> ArrayDistinctFunction::Eval(
              context->GetLanguageOptions().product_mode())
       << " because the array's element type does not support grouping";
 
-  absl::flat_hash_set<Value> values;
+  // If there are collated values, then the output may in fact be
+  // non-deterministic as the actual elements output depends on the order of
+  // the elements in the input array.
+  if (!collator_list_.empty()) {
+    MaybeSetNonDeterministicArrayOutput(array, context);
+  }
+
   std::vector<Value> distinct_values;
   for (int i = 0; i < array.num_elements(); ++i) {
-    if (values.insert(array.element(i)).second) {
+    bool found = false;
+    for (const Value& seen_value : distinct_values) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          bool equal,
+          IsNotDistinctFromTarget(
+              array.element(i), seen_value,
+              collator_list_.empty() ? nullptr : collator_list_[0].get()));
+      if (equal) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
       distinct_values.push_back(array.element(i));
     }
   }
 
-  return Value::Array(output_type()->AsArray(), distinct_values);
+  return InternalValue::Array(output_type()->AsArray(), distinct_values,
+                              InternalValue::GetOrderKind(array));
 }
 
 absl::StatusOr<std::unique_ptr<ScalarFunctionCallExpr>>
@@ -4319,29 +4483,6 @@ ArrayIncludesFunction::CreateCall(
                                         std::move(arguments), error_mode);
 }
 
-static absl::StatusOr<bool> IsEqualToTarget(const Value& element,
-                                            const Value& target,
-                                            const CollatorList& collator_list) {
-  // Use collation_list that is defined in the resolved function call.
-  if (!collator_list.empty()) {
-    GOOGLESQL_RET_CHECK(element.type()->kind() == TYPE_STRING);
-    absl::Status status = absl::OkStatus();
-    if (element.is_null() || target.is_null()) {
-      return element.is_null() && target.is_null();
-    }
-    int64_t res = collator_list[0]->CompareUtf8(element.string_value(),
-                                                target.string_value(), &status);
-    GOOGLESQL_RETURN_IF_ERROR(status);
-    return res == 0;
-  } else {
-    Value equals = element.SqlEquals(target);
-    GOOGLESQL_RET_CHECK(equals.is_valid())
-        << "Failed to compare element: " << element.DebugString()
-        << " and target: " << target.DebugString();
-    return !equals.is_null() && equals.bool_value();
-  }
-}
-
 absl::StatusOr<Value> ArrayIncludesFunction::Eval(
     absl::Span<const TupleData* const> params, absl::Span<const Value> args,
     EvaluationContext* context) const {
@@ -4351,10 +4492,14 @@ absl::StatusOr<Value> ArrayIncludesFunction::Eval(
   }
 
   // Find the target.
+  GOOGLESQL_RET_CHECK_LE(collator_list_.size(), 1);
   const Value& target = args[1];
   for (const Value& element : args[0].elements()) {
-    GOOGLESQL_ASSIGN_OR_RETURN(bool found,
-                     IsEqualToTarget(element, target, collator_list_));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        bool found,
+        IsEqualToTarget(
+            element, target,
+            collator_list_.empty() ? nullptr : collator_list_[0].get()));
 
     if (found) {
       return Value::Bool(true);
@@ -4385,11 +4530,15 @@ absl::StatusOr<Value> ArrayIncludesArrayFunction::Eval(
   }
 
   bool require_all = kind() == FunctionKind::kArrayIncludesAll;
+  GOOGLESQL_RET_CHECK_LE(collator_list_.size(), 1);
   for (const Value& element_2 : args[1].elements()) {
     bool found = false;
     for (const Value& element_1 : args[0].elements()) {
-      GOOGLESQL_ASSIGN_OR_RETURN(bool equals,
-                       IsEqualToTarget(element_1, element_2, collator_list_));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          bool equals,
+          IsEqualToTarget(
+              element_1, element_2,
+              collator_list_.empty() ? nullptr : collator_list_[0].get()));
       if (equals) {
         found = true;
         break;
@@ -5411,9 +5560,12 @@ absl::StatusOr<Value> ArrayFindFunctions::Eval(
       GOOGLESQL_ASSIGN_OR_RETURN(found, SatisfiesCondition(input_array.element(i),
                                                  lambda_, lambda_context));
     } else {
+      GOOGLESQL_RET_CHECK_LE(collator_list_.size(), 1);
       GOOGLESQL_ASSIGN_OR_RETURN(
-          found, IsEqualToTarget(input_array.element(i), /*target=*/args[1],
-                                 collator_list_));
+          found,
+          IsEqualToTarget(
+              input_array.element(i), /*target=*/args[1],
+              collator_list_.empty() ? nullptr : collator_list_[0].get()));
     }
     if (found) {
       found_offsets.push_back(Value::Int64(i));
@@ -5529,7 +5681,7 @@ absl::StatusOr<Value> CastFunction::Eval(
   if (args.size() >= 3) {
     // Returns NULL if format is null.
     if (args[2].is_null()) {
-      return absl::StatusOr<Value>(Value::Null(output_type()));
+      return Value::Null(output_type());
     }
 
     format = args[2].string_value();
@@ -5539,31 +5691,40 @@ absl::StatusOr<Value> CastFunction::Eval(
   if (args.size() >= 4) {
     // Returns NULL if time_zone is null.
     if (args[3].is_null()) {
-      return absl::StatusOr<Value>(Value::Null(output_type()));
+      return Value::Null(output_type());
     }
 
     time_zone = args[3].string_value();
   }
 
+  bool out_found_non_deterministic = false;
   absl::StatusOr<Value> status_or = internal::CastValueWithoutTypeValidation(
       v, context->GetDefaultTimeZone(),
       absl::FromUnixMicros(context->GetCurrentTimestamp()),
       context->GetLanguageOptions(), output_type(), format, time_zone,
-      extended_cast_evaluator_.get(), /*canonicalize_zero=*/true);
+      extended_cast_evaluator_.get(), /*canonicalize_zero=*/true,
+      &out_found_non_deterministic);
   if (!status_or.ok() && return_null_on_error) {
     // TODO: check that failure is not due to absence of
     // extended_type_function. In this case we still probably wants to fail the
     // whole query.
-    return absl::StatusOr<Value>(Value::Null(output_type()));
+    return Value::Null(output_type());
   }
-  if (has_potential_nondeterminism_) {
+
+  if (has_potential_nondeterminism_ || out_found_non_deterministic) {
     context->SetNonDeterministicOutput();
   }
   if (!type_params_.IsEmpty() && status_or.ok()) {
     Value casted_value = status_or.value();
-    GOOGLESQL_RETURN_IF_ERROR(ApplyConstraints(
+    const absl::Status constraint_status = ApplyConstraints(
         type_params_, context->GetLanguageOptions().product_mode(),
-        casted_value));
+        casted_value);
+    if (!constraint_status.ok()) {
+      if (return_null_on_error) {
+        return Value::Null(output_type());
+      }
+      return constraint_status;
+    }
     return casted_value;
   }
   // Provide more helpful error message in the case of cast from string to enum.
@@ -5689,7 +5850,7 @@ class BuiltinAggregateAccumulator : public AggregateAccumulator {
  public:
   static absl::StatusOr<std::unique_ptr<BuiltinAggregateAccumulator>> Create(
       const BuiltinAggregateFunction* function, const Type* input_type,
-      absl::Span<const Value> args, CollatorList collator_list,
+      absl::Span<const Value> args, std::vector<CollatorPtrInfo> collator_list,
       EvaluationContext* context) {
     auto accumulator = absl::WrapUnique(new BuiltinAggregateAccumulator(
         function, input_type, args, std::move(collator_list), context));
@@ -5722,7 +5883,7 @@ class BuiltinAggregateAccumulator : public AggregateAccumulator {
   BuiltinAggregateAccumulator(const BuiltinAggregateFunction* function,
                               const Type* input_type,
                               absl::Span<const Value> args,
-                              CollatorList collator_list,
+                              std::vector<CollatorPtrInfo> collator_list,
                               EvaluationContext* context)
       : function_(function),
         input_type_(input_type),
@@ -5738,7 +5899,7 @@ class BuiltinAggregateAccumulator : public AggregateAccumulator {
   const Type* input_type_;
   const std::vector<Value> args_;
   // The collators used for aggregate functions with collations.
-  CollatorList collator_list_;
+  std::vector<CollatorPtrInfo> collator_list_;
   EvaluationContext* context_;
 
   // The number of bytes currently requested from 'accountant()'.
@@ -5930,7 +6091,8 @@ class UserDefinedAggregateFunction : public AggregateFunctionBody {
 
   absl::StatusOr<std::unique_ptr<AggregateAccumulator>> CreateAccumulator(
       absl::Span<const Value> args, absl::Span<const TupleData* const> params,
-      CollatorList collator_list, EvaluationContext* context) const override {
+      std::vector<CollatorPtrInfo> collator_list,
+      EvaluationContext* context) const override {
     auto status_or_evaluator = evaluator_factory_(function_signature_);
     GOOGLESQL_RETURN_IF_ERROR(status_or_evaluator.status());
     std::unique_ptr<AggregateFunctionEvaluator> evaluator =
@@ -6246,6 +6408,7 @@ absl::Status BuiltinAggregateAccumulator::Reset() {
     case FunctionKind::kAnyValue:
     case FunctionKind::kFirst:
     case FunctionKind::kLast:
+    case FunctionKind::kScalarSubqueryValue:
       any_value_ = Value::Invalid();
       break;
       break;
@@ -6612,6 +6775,17 @@ bool BuiltinAggregateAccumulator::Accumulate(const Value& value,
       }
       break;
     }
+    case FunctionKind::kScalarSubqueryValue: {
+      if (!any_value_.is_valid()) {
+        any_value_ = value;  // Take the first value, possibly NULL.
+        additional_bytes_to_request = value.physical_byte_size();
+      } else {
+        *status = ::googlesql_base::OutOfRangeErrorBuilder()
+                  << "Scalar subquery produced more than one element.";
+        return false;
+      }
+      break;
+    }
     case FunctionKind::kFirst:
       if (!any_value_.is_valid()) {
         any_value_ = value;  // Take the first value, possibly NULL.
@@ -6915,8 +7089,8 @@ bool BuiltinAggregateAccumulator::Accumulate(const Value& value,
       } else if (collator_list_.empty()) {
         out_string_ = std::max(out_string_, value.string_value());
       } else {
-        int64_t result = collator_list_[0]->CompareUtf8(value.string_value(),
-                                                        out_string_, status);
+        int64_t result = collator_list_[0].collator->CompareUtf8(
+            value.string_value(), out_string_, status);
         if (!status->ok()) {
           return false;
         }
@@ -7036,8 +7210,8 @@ bool BuiltinAggregateAccumulator::Accumulate(const Value& value,
       } else if (collator_list_.empty()) {
         out_string_ = std::min(out_string_, value.string_value());
       } else {
-        int64_t result = collator_list_[0]->CompareUtf8(value.string_value(),
-                                                        out_string_, status);
+        int64_t result = collator_list_[0].collator->CompareUtf8(
+            value.string_value(), out_string_, status);
         if (!status->ok()) {
           return false;
         }
@@ -8044,6 +8218,7 @@ absl::StatusOr<Value> BuiltinAggregateAccumulator::GetFinalResultInternal(
     case FunctionKind::kAnyValue:
     case FunctionKind::kFirst:
     case FunctionKind::kLast:
+    case FunctionKind::kScalarSubqueryValue:
       return any_value_.is_valid() ? any_value_ : Value::Null(output_type);
     case FunctionKind::kCount:
       return Value::Int64(count_);
@@ -8630,7 +8805,8 @@ absl::StatusOr<Value> BuiltinAggregateAccumulator::GetFinalResultInternal(
 absl::StatusOr<std::unique_ptr<AggregateAccumulator>>
 BuiltinAggregateFunction::CreateAccumulator(
     absl::Span<const Value> args, absl::Span<const TupleData* const> params,
-    CollatorList collator_list, EvaluationContext* context) const {
+    std::vector<CollatorPtrInfo> collator_list,
+    EvaluationContext* context) const {
   return BuiltinAggregateAccumulator::Create(this, input_type(), args,
                                              std::move(collator_list), context);
 }
@@ -8907,10 +9083,10 @@ absl::StatusOr<Value> BinaryStatAccumulator::GetFinalResult(
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<AggregateAccumulator>>
-BinaryStatFunction::CreateAccumulator(absl::Span<const Value> args,
-                                      absl::Span<const TupleData* const> params,
-                                      CollatorList collator_list,
-                                      EvaluationContext* context) const {
+BinaryStatFunction::CreateAccumulator(
+    absl::Span<const Value> args, absl::Span<const TupleData* const> params,
+    std::vector<CollatorPtrInfo> collator_list,
+    EvaluationContext* context) const {
   // <collator_list> should be empty for bivariate stats functions.
   GOOGLESQL_RET_CHECK(collator_list.empty());
   return BinaryStatAccumulator::Create(this, input_type(), args, context);
@@ -8959,6 +9135,25 @@ GetQuantifiedLikeOperationType(FunctionKind kind) {
 
 }  // namespace
 
+static absl::StatusOr<std::string> GetCollationString(
+    const Value& collation_arg) {
+  ResolvedCollationProto resolved_collation_proto;
+  bool is_valid =
+      resolved_collation_proto.ParsePartialFromString(collation_arg.ToCord());
+  GOOGLESQL_RET_CHECK(is_valid)
+      << "Failed to parse collation_value to ResolvedCollation proto: "
+      << collation_arg.ToCord();
+
+  ResolvedCollation resolved_collation;
+  GOOGLESQL_ASSIGN_OR_RETURN(resolved_collation,
+                   ResolvedCollation::Deserialize(resolved_collation_proto));
+
+  GOOGLESQL_RET_CHECK_EQ(resolved_collation.num_children(), 0);
+  GOOGLESQL_RET_CHECK(!resolved_collation.CollationName().empty());
+
+  return std::string(resolved_collation.CollationName());
+}
+
 absl::StatusOr<Value> LikeFunction::Eval(
     absl::Span<const TupleData* const> params, absl::Span<const Value> args,
     EvaluationContext* context) const {
@@ -8967,12 +9162,15 @@ absl::StatusOr<Value> LikeFunction::Eval(
   if (has_collation_) {
     GOOGLESQL_RET_CHECK_GE(args.size(), 3)
         << "LIKE with collation has 3 or more arguments";
+
+    GOOGLESQL_ASSIGN_OR_RETURN(std::string collation_str, GetCollationString(args[0]));
+
     QuantifiedLikeEvaluationParams quantified_like_eval_params(
         /*search_value=*/args[1],
         /*pattern_elements=*/args.subspan(2),
         /*operation_type=*/operation_type,
         /*is_not=*/false,
-        /*collation_str=*/args[0].string_value());
+        /*collation_str=*/std::move(collation_str));
     return EvaluateQuantifiedLike(quantified_like_eval_params);
   }
 
@@ -8994,12 +9192,15 @@ absl::StatusOr<Value> LikeAnyAllFunction::Eval(
   if (has_collation_) {
     GOOGLESQL_RET_CHECK_GE(args.size(), 3)
         << "[NOT] LIKE ANY|ALL with collation 3 or more arguments";
+
+    GOOGLESQL_ASSIGN_OR_RETURN(std::string collation_str, GetCollationString(args[0]));
+
     QuantifiedLikeEvaluationParams quantified_like_eval_params(
         /*search_value=*/args[1],
         /*pattern_elements=*/args.subspan(2),
         /*operation_type=*/operation_type,
         /*is_not=*/is_not_,
-        /*collation_str=*/args[0].string_value());
+        /*collation_str=*/std::move(collation_str));
     return EvaluateQuantifiedLike(quantified_like_eval_params);
   }
 
@@ -9019,11 +9220,13 @@ absl::StatusOr<Value> LikeAnyAllArrayFunction::Eval(
     EvaluationContext* context) const {
   const Value* search_value;
   const Value* pattern_elements;
-  Value collation_str = Value::String("");
+  std::string collation_str;
   if (has_collation_) {
     GOOGLESQL_RET_CHECK_EQ(args.size(), 3)
         << "[NOT] LIKE ANY with UNNEST and collation has exactly 3 arguments";
-    collation_str = args[0];
+
+    GOOGLESQL_ASSIGN_OR_RETURN(collation_str, GetCollationString(args[0]));
+
     search_value = &args[1];
     pattern_elements = &args[2];
   } else {
@@ -9057,7 +9260,7 @@ absl::StatusOr<Value> LikeAnyAllArrayFunction::Eval(
   if (has_collation_) {
     QuantifiedLikeEvaluationParams quantified_like_eval_params(
         *search_value, pattern_elements->elements(), operation_type, is_not_,
-        collation_str.string_value());
+        collation_str);
     return EvaluateQuantifiedLike(quantified_like_eval_params);
   }
   QuantifiedLikeEvaluationParams quantified_like_eval_params(
@@ -13510,18 +13713,18 @@ TumbleTVF::CreateEvaluator(
   }
 
   if (timestamp_column_index == -1 && found_count > 0) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Timestamp column '", timestamp_column_name,
-                     "' is not of TIMESTAMP type."));
+    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
+                                              timestamp_column_name,
+                                              "' is not of TIMESTAMP type."));
   }
 
   if (timestamp_column_index == -1 && found_count == 0) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Timestamp column '", timestamp_column_name,
-                     "' not found in input table."));
+    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
+                                              timestamp_column_name,
+                                              "' not found in input table."));
   }
   if (found_count > 1) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         absl::StrCat("Timestamp_column '", timestamp_column_name,
                      "' is ambiguous in the input table."));
   }
@@ -13529,14 +13732,14 @@ TumbleTVF::CreateEvaluator(
   GOOGLESQL_RET_CHECK(args[2].value);
   GOOGLESQL_RET_CHECK(args[2].value->type()->IsInterval());
   if (args[2].value->is_null()) {
-    return absl::InvalidArgumentError("Window size cannot be null.");
+    return absl::OutOfRangeError("Window size cannot be null.");
   }
   googlesql::IntervalValue window_size = args[2].value->interval_value();
   GOOGLESQL_RETURN_IF_ERROR(ValidateIntervalArgumentPositive("Window size", window_size));
 
   GOOGLESQL_RET_CHECK(args[3].value.has_value());
   if (args[3].value->is_null()) {
-    return absl::InvalidArgumentError("Origin cannot be null.");
+    return absl::OutOfRangeError("Origin cannot be null.");
   }
   GOOGLESQL_RET_CHECK(args[3].value->type()->IsTimestamp());
   googlesql::PicoTime origin = args[3].value->ToUnixPicos().ToPicoTime();
@@ -13693,7 +13896,7 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> HopTVF::CreateEvaluator(
   GOOGLESQL_RET_CHECK(args[2].value);
   GOOGLESQL_RET_CHECK(args[2].value->type()->IsInterval());
   if (args[2].value->is_null()) {
-    return absl::InvalidArgumentError("Window size cannot be null.");
+    return absl::OutOfRangeError("Window size cannot be null.");
   }
   googlesql::IntervalValue window_size = args[2].value->interval_value();
   GOOGLESQL_RETURN_IF_ERROR(ValidateIntervalArgumentPositive("Window size", window_size));
@@ -13719,18 +13922,18 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> HopTVF::CreateEvaluator(
   }
 
   if (timestamp_column_index == -1 && found_count > 0) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Timestamp column '", timestamp_column_name,
-                     "' is not of TIMESTAMP type."));
+    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
+                                              timestamp_column_name,
+                                              "' is not of TIMESTAMP type."));
   }
 
   if (timestamp_column_index == -1 && found_count == 0) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Timestamp column '", timestamp_column_name,
-                     "' not found in input table."));
+    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
+                                              timestamp_column_name,
+                                              "' not found in input table."));
   }
   if (found_count > 1) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         absl::StrCat("Timestamp_column '", timestamp_column_name,
                      "' is ambiguous in the input table."));
   }
@@ -13738,19 +13941,19 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> HopTVF::CreateEvaluator(
   GOOGLESQL_RET_CHECK(args[3].value);
   GOOGLESQL_RET_CHECK(args[3].value->type()->IsInterval());
   if (args[3].value->is_null()) {
-    return absl::InvalidArgumentError("Step size cannot be null.");
+    return absl::OutOfRangeError("Step size cannot be null.");
   }
   googlesql::IntervalValue step_size = args[3].value->interval_value();
   GOOGLESQL_RETURN_IF_ERROR(ValidateIntervalArgumentPositive("Step size", step_size));
 
   if (window_size < step_size) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         "Window size must be greater than or equal to step size.");
   }
 
   GOOGLESQL_RET_CHECK(args[4].value.has_value());
   if (args[4].value->is_null()) {
-    return absl::InvalidArgumentError("Origin cannot be null.");
+    return absl::OutOfRangeError("Origin cannot be null.");
   }
   GOOGLESQL_RET_CHECK(args[4].value->type()->IsTimestamp());
   googlesql::PicoTime origin = args[4].value->ToUnixPicos().ToPicoTime();
@@ -13776,6 +13979,449 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> HopTVF::CreateEvaluator(
       std::move(input_iterator), std::move(output_columns),
       std::move(included_columns), timestamp_column_index,
       std::move(window_size), std::move(step_size), origin);
+}
+
+namespace {
+
+class BatchVectorSearchResultIterator : public EvaluatorTableIterator {
+ public:
+  explicit BatchVectorSearchResultIterator(
+      std::unique_ptr<EvaluatorTableIterator> base_iterator,
+      std::unique_ptr<EvaluatorTableIterator> query_iterator,
+      std::vector<TVFSchemaColumn> output_columns, std::string column_to_search,
+      std::string query_column_to_search, bool query_column_to_search_provided,
+      int64_t top_k, std::string distance_type, Value max_distance,
+      std::unique_ptr<TypeFactory> type_factory)
+      : base_iterator_(std::move(base_iterator)),
+        query_iterator_(std::move(query_iterator)),
+        column_to_search_(std::move(column_to_search)),
+        query_column_to_search_(std::move(query_column_to_search)),
+        query_column_to_search_provided_(query_column_to_search_provided),
+        top_k_(top_k),
+        distance_type_(std::move(distance_type)),
+        max_distance_(max_distance),
+        output_columns_(std::move(output_columns)),
+        type_factory_(std::move(type_factory)) {}
+
+  int NumColumns() const override {
+    return static_cast<int>(output_columns_.size());
+  }
+
+  std::string GetColumnName(int i) const override {
+    return output_columns_[i].name;
+  }
+
+  const Type* GetColumnType(int i) const override {
+    return output_columns_[i].type;
+  }
+
+  const Value& GetValue(int i) const override {
+    return current_output_values_[i];
+  }
+
+  bool NextRow() override;
+
+  absl::Status Status() const override { return status_; }
+  absl::Status Cancel() override {
+    absl::Status s = base_iterator_->Cancel();
+    if (!s.ok()) return s;
+    return query_iterator_->Cancel();
+  }
+  void SetDeadline(absl::Time deadline) override {
+    base_iterator_->SetDeadline(deadline);
+    query_iterator_->SetDeadline(deadline);
+  }
+
+ private:
+  struct ResultEntry {
+    Value query_row;
+    Value base_row;
+    Value distance;
+
+    bool operator<(const ResultEntry& other) const {
+      // We want min-heap for top-k (keeping smallest distances).
+      if (distance.LessThan(other.distance)) {
+        return true;
+      }
+      // If distances are equal, we compare rows lexicographically by
+      // (query_row, base_row). This can happen in the case of NULL distance.
+      if (distance.Equals(other.distance)) {
+        return query_row.Equals(other.query_row)
+                   ? base_row.LessThan(other.base_row)
+                   : query_row.LessThan(other.query_row);
+      }
+      return false;
+    }
+  };
+
+  absl::Status InitializeBaseData();
+  bool ProcessNextQueryRow();
+  absl::StatusOr<Value> ComputeDistance(const Value& v1, const Value& v2);
+
+  // Input args.
+  std::unique_ptr<EvaluatorTableIterator> base_iterator_;
+  std::unique_ptr<EvaluatorTableIterator> query_iterator_;
+  std::string column_to_search_;
+  std::string query_column_to_search_;
+  bool query_column_to_search_provided_;
+  int64_t top_k_;
+  std::string distance_type_;
+  Value max_distance_;
+
+  bool base_loaded_ = false;
+  // Base table data loaded in memory.
+  // Each element is a Struct Value representing the row.
+  std::vector<Value> base_rows_;
+  // Pre-computed index of embedding column in base/query iterators.
+  int base_embedding_col_idx_ = -1;
+  int query_embedding_col_idx_ = -1;
+
+  // Buffer for results of current query row.
+  std::vector<ResultEntry> results_buffer_;
+  int buffer_index_ = 0;
+
+  std::vector<TVFSchemaColumn> output_columns_;
+  // Current output row values.
+  std::array<Value, 3> current_output_values_;
+  absl::Status status_;
+  // Type factory to maintain lifetime of structs in the output.
+  std::unique_ptr<TypeFactory> type_factory_;
+};
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>
+BatchVectorSearchTVFWithProtoOptions::CreateEvaluator(
+    std::vector<TableValuedFunction::TvfEvaluatorArg> args,
+    std::shared_ptr<FunctionSignature> function_call_signature,
+    EvaluationContext* context) {
+  GOOGLESQL_RET_CHECK(args.size() == 8);
+
+  std::unique_ptr<EvaluatorTableIterator> base_table_iter =
+      std::move(args[0].relation);
+  GOOGLESQL_RET_CHECK(base_table_iter != nullptr);
+
+  GOOGLESQL_RET_CHECK(args[1].value.has_value() && args[1].value->type()->IsString());
+  std::string base_column_name = args[1].value->string_value();
+
+  std::unique_ptr<EvaluatorTableIterator> query_table_iter =
+      std::move(args[2].relation);
+  GOOGLESQL_RET_CHECK(query_table_iter != nullptr);
+
+  std::string query_column_name;
+  bool query_column_to_search_provided = true;
+  if (!args[3].value.has_value() || args[3].value->is_null()) {
+    query_column_to_search_provided = false;
+    // By default, set the query column name to the first column in the query
+    // table. We will validate later that
+    // 1) Either the column exists in the query table and its type matches the
+    // base column type.
+    // 2) Or if not, that the query table has only one column and its type
+    // matches the base column type.
+    query_column_name = base_column_name;
+  } else {
+    GOOGLESQL_RET_CHECK(args[3].value.has_value() && args[3].value->type()->IsString());
+    query_column_name = args[3].value->string_value();
+  }
+  // 5th argument is an engine supplied option. It must be already provided
+  // during function registration.
+  int top_k_idx = 5;
+  GOOGLESQL_RET_CHECK(args[top_k_idx].value.has_value() &&
+            args[top_k_idx].value->type()->IsInt64());
+  int top_k = static_cast<int>(args[top_k_idx].value->int64_value());
+  // TODO: Cleanup error code here and at a few other places.
+  if (top_k <= 0) {
+    return absl::OutOfRangeError(
+        "Argument 'top_k' to table-valued function VECTOR_SEARCH must be at "
+        "least 1");
+  }
+
+  int distance_type_idx = 6;
+  std::string distance_type =
+      !args[distance_type_idx].value.has_value() ||
+              args[distance_type_idx].value->is_null()
+          ? "EUCLIDEAN"
+          : absl::AsciiStrToUpper(
+                args[distance_type_idx].value->string_value());
+  if (distance_type != "COSINE" && distance_type != "EUCLIDEAN" &&
+      distance_type != "DOT_PRODUCT") {
+    return absl::OutOfRangeError(
+        "`distance_type` argument of VECTOR_SEARCH TVF must be set to one of "
+        "'COSINE', 'DOT_PRODUCT', or 'EUCLIDEAN'");
+  }
+
+  double max_distance = std::numeric_limits<double>::infinity();
+  int max_distance_idx = 7;
+  if (args[max_distance_idx].value.has_value() &&
+      !args[max_distance_idx].value->is_null()) {
+    GOOGLESQL_RET_CHECK(args[max_distance_idx].value->type()->IsDouble());
+    max_distance = args[max_distance_idx].value->double_value();
+  }
+
+  std::vector<TVFSchemaColumn> output_columns;
+  std::vector<StructType::StructField> query_fields;
+  query_fields.reserve(query_table_iter->NumColumns());
+  for (int i = 0; i < query_table_iter->NumColumns(); ++i) {
+    query_fields.push_back({query_table_iter->GetColumnName(i),
+                            query_table_iter->GetColumnType(i)});
+  }
+  const StructType* query_struct_type;
+  auto type_factory = std::make_unique<googlesql::TypeFactory>();
+  GOOGLESQL_RET_CHECK_OK(type_factory->MakeStructType(query_fields, &query_struct_type));
+  output_columns.push_back({"query", query_struct_type});
+
+  std::vector<StructType::StructField> base_fields;
+  base_fields.reserve(base_table_iter->NumColumns());
+  for (int i = 0; i < base_table_iter->NumColumns(); ++i) {
+    base_fields.push_back(
+        {base_table_iter->GetColumnName(i), base_table_iter->GetColumnType(i)});
+  }
+  const StructType* base_struct_type;
+  GOOGLESQL_RET_CHECK_OK(type_factory->MakeStructType(base_fields, &base_struct_type));
+  output_columns.push_back({"base", base_struct_type});
+  output_columns.push_back({"distance", types::DoubleType()});
+
+  return std::make_unique<BatchVectorSearchResultIterator>(
+      std::move(base_table_iter), std::move(query_table_iter),
+      std::move(output_columns), std::move(base_column_name),
+      std::move(query_column_name), query_column_to_search_provided, top_k,
+      std::move(distance_type), Value::Double(max_distance),
+      std::move(type_factory));
+}
+
+bool BatchVectorSearchResultIterator::NextRow() {
+  if (!status_.ok()) return false;
+  if (!base_loaded_) {
+    status_ = InitializeBaseData();
+    if (!status_.ok()) return false;
+    base_loaded_ = true;
+  }
+
+  while (buffer_index_ >= results_buffer_.size()) {
+    // We consumed all results from the buffer. See if there are more records
+    // to be processed from the query table.
+    if (!ProcessNextQueryRow()) {
+      // Status is already set in ProcessNextQueryRow() if there is an error.
+      return false;
+    }
+  }
+
+  const ResultEntry& entry = results_buffer_[buffer_index_++];
+  current_output_values_[0] = entry.query_row;
+  current_output_values_[1] = entry.base_row;
+  current_output_values_[2] = entry.distance;
+  return true;
+}
+
+absl::Status BatchVectorSearchResultIterator::InitializeBaseData() {
+  int found_count = 0;
+  for (int i = 0; i < base_iterator_->NumColumns(); ++i) {
+    if (googlesql_base::CaseEqual(base_iterator_->GetColumnName(i),
+                               column_to_search_)) {
+      base_embedding_col_idx_ = i;
+      found_count++;
+    }
+  }
+  if (base_embedding_col_idx_ == -1) {
+    return absl::OutOfRangeError(absl::Substitute(
+        "Unrecognized name $0 in base table argument", column_to_search_));
+  }
+  if (found_count > 1) {
+    return absl::OutOfRangeError(absl::Substitute(
+        "Column $0 is ambiguous in the base table", column_to_search_));
+  }
+  const Type* base_embedding_type =
+      base_iterator_->GetColumnType(base_embedding_col_idx_);
+  if (!base_embedding_type->IsString() &&
+      !(base_embedding_type->IsArray() &&
+        (base_embedding_type->AsArray()->element_type()->IsFloat() ||
+         base_embedding_type->AsArray()->element_type()->IsDouble()))) {
+    return absl::OutOfRangeError(
+        "The column specified by the `column_to_search` argument of "
+        "VECTOR_SEARCH TVF must be of type ARRAY<DOUBLE> or ARRAY<FLOAT> or "
+        "STRING");
+  }
+  while (base_iterator_->NextRow()) {
+    std::vector<Value> fields;
+    fields.reserve(base_iterator_->NumColumns());
+    for (int i = 0; i < base_iterator_->NumColumns(); ++i) {
+      fields.push_back(base_iterator_->GetValue(i));
+    }
+    const StructType* struct_type =
+        output_columns_[1].type->AsStruct();  // base
+    base_rows_.push_back(Value::Struct(struct_type, fields));
+  }
+  if (!base_iterator_->Status().ok()) {
+    return base_iterator_->Status();
+  }
+  // Reset found_count. We will use the same variable to check for ambiguity in
+  // the query table.
+  found_count = 0;
+  // By default, query_column_to_search, if not provided, is set to
+  // column_to_search. We check if it exists in the query table. If not, we
+  // check further based on whether it's provided or not.
+  for (int i = 0; i < query_iterator_->NumColumns(); ++i) {
+    if (googlesql_base::CaseEqual(query_iterator_->GetColumnName(i),
+                               query_column_to_search_)) {
+      query_embedding_col_idx_ = i;
+      found_count++;
+    }
+  }
+  if (found_count > 1) {
+    return absl::OutOfRangeError(absl::Substitute(
+        "Column $0 is ambiguous in the query table", query_column_to_search_));
+  }
+  if (query_embedding_col_idx_ == -1) {
+    // If the column is not found, we check if it was provided or not. It is an
+    // error if it was provided and it doesn't exist in the query table.
+    if (query_column_to_search_provided_) {
+      return absl::OutOfRangeError(
+          absl::Substitute("Unrecognized name $0 in query table argument",
+                           query_column_to_search_));
+    } else {
+      // If not provided, we assume that the query table has only one column.
+      // Throw an error otherwise.
+      if (query_iterator_->NumColumns() == 1) {
+        query_embedding_col_idx_ = 0;
+      } else {
+        return absl::OutOfRangeError(
+            "Cannot infer query column. `query_column_to_search` was not "
+            "provided, and the query table has multiple columns but none match "
+            "the name of `column_to_search`");
+      }
+    }
+  }
+  const Type* query_embedding_type =
+      query_iterator_->GetColumnType(query_embedding_col_idx_);
+  if (!query_embedding_type->IsString() &&
+      !(query_embedding_type->IsArray() &&
+        (query_embedding_type->AsArray()->element_type()->IsFloat() ||
+         query_embedding_type->AsArray()->element_type()->IsDouble()))) {
+    return absl::OutOfRangeError(
+        "The column specified by the `query_column_to_search` argument of "
+        "VECTOR_SEARCH TVF must be of type ARRAY<DOUBLE> or ARRAY<FLOAT> or "
+        "STRING");
+  }
+
+  if (!base_embedding_type->Equals(query_embedding_type)) {
+    return absl::OutOfRangeError(
+        "The column types of argument `column_to_search` in the base table "
+        "and argument `query_column_to_search` in the query table must be the "
+        "same");
+  }
+
+  if (base_embedding_type->IsString() || query_embedding_type->IsString()) {
+    return absl::OutOfRangeError(
+        "STRING column_type for arguments `column_to_search` or "
+        "`query_column_to_search` is not supported");
+  }
+  return absl::OkStatus();
+}
+
+bool BatchVectorSearchResultIterator::ProcessNextQueryRow() {
+  if (!query_iterator_->NextRow()) {
+    if (!query_iterator_->Status().ok()) {
+      status_ = query_iterator_->Status();
+    }
+    return false;
+  }
+
+  std::vector<Value> query_fields;
+  query_fields.reserve(query_iterator_->NumColumns());
+  for (int i = 0; i < query_iterator_->NumColumns(); ++i) {
+    query_fields.push_back(query_iterator_->GetValue(i));
+  }
+  const StructType* query_struct_type =
+      output_columns_[0].type->AsStruct();  // query
+  Value query_row = Value::Struct(query_struct_type, query_fields);
+  Value query_embedding = query_iterator_->GetValue(query_embedding_col_idx_);
+
+  std::vector<ResultEntry> all_matches;
+  for (const Value& base_row : base_rows_) {
+    Value base_embedding = base_row.field(base_embedding_col_idx_);
+    if (base_embedding.is_null() || query_embedding.is_null()) {
+      all_matches.push_back({query_row, base_row, Value::NullDouble()});
+      continue;
+    }
+    if (BuiltinScalarFunction::HasNulls(query_embedding.elements()) ||
+        BuiltinScalarFunction::HasNulls(base_embedding.elements())) {
+      status_ = absl::OutOfRangeError("Unexpected NULL element in input array");
+      return false;
+    }
+    // Compute distance
+    absl::StatusOr<Value> dist =
+        ComputeDistance(base_embedding, query_embedding);
+    if (!dist.ok()) {
+      status_ = dist.status();
+      return false;
+    }
+
+    if (dist.value().is_null()) {
+      all_matches.push_back({query_row, base_row, Value::NullDouble()});
+      // We explicitly skip NaN values because in the Value::LessThan()
+      // comparison, NaN is less than any value. This makes it pass the
+      // max_distance check and get included in the results, which is not the
+      // behaviour as per how SQL LESS THAN works.
+    } else if (std::isnan(dist.value().double_value())) {
+      continue;
+    } else {
+      if (dist.value().LessThan(max_distance_) ||
+          dist.value().Equals(max_distance_)) {
+        all_matches.push_back({query_row, base_row, dist.value()});
+      }
+    }
+  }
+
+  // Sort matches. For Top-K, we want smallest distance first.
+  size_t count = std::min(static_cast<size_t>(top_k_), all_matches.size());
+  std::partial_sort(all_matches.begin(), all_matches.begin() + count,
+                    all_matches.end());
+
+  results_buffer_.reserve(results_buffer_.size() + count);
+  // Take top K
+  for (size_t i = 0; i < count; ++i) {
+    results_buffer_.push_back(std::move(all_matches[i]));
+  }
+  return true;
+}
+
+absl::StatusOr<Value> BatchVectorSearchResultIterator::ComputeDistance(
+    const Value& v1, const Value& v2) {
+  if (distance_type_ == "COSINE") {
+    return functions::CosineDistanceDense(v1, v2);
+  } else if (distance_type_ == "EUCLIDEAN") {
+    return functions::EuclideanDistanceDense(v1, v2);
+  } else if (distance_type_ == "DOT_PRODUCT") {
+    GOOGLESQL_ASSIGN_OR_RETURN(Value dot_product, functions::DotProduct(v1, v2));
+    return Value::Double(-dot_product.ToDouble());
+  }
+  return absl::OutOfRangeError(
+      "`distance_type` argument of VECTOR_SEARCH TVF must be set to one of "
+      "'COSINE', 'DOT_PRODUCT', or 'EUCLIDEAN'");
+}
+
+absl::StatusOr<Value> AiIfFunction::Eval(
+    absl::Span<const TupleData* const> params, absl::Span<const Value> args,
+    EvaluationContext* context) const {
+  GOOGLESQL_RET_CHECK_GT(args.size(), 0);  // Need to at least have `prompt` be 1 arg.
+  if (HasNulls(args)) {
+    return Value::NullBool();
+  }
+  // args[0] is always the `prompt` argument.
+  if (args[0].type()->IsString()) {
+    if (args[0].Equals(Value::String(""))) {
+      return Value::NullBool();  // `prompt` can't be an empty string.
+    }
+  }
+
+  // Nondeterminism only happens if the inputs are correct. Here, this is just
+  // noted for testing purposes, without an LLM being used.
+  context->SetNonDeterministicOutput();
+
+  // Randomly generate true or false to simulate a LLM's response to simplify
+  // having to connect to a real LLM.
+  return Value::Bool(
+      absl::Bernoulli(*context->GetRandomNumberGenerator(), 0.5));
 }
 
 }  // namespace googlesql

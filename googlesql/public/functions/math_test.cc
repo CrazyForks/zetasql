@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 #include "googlesql/base/logging.h"
 #include "googlesql/common/float_margin.h"
@@ -41,7 +42,9 @@ namespace functions {
 
 template <typename T>
 inline T GetDummyValue() {
-  return 0xDEADBEEF;
+  static_assert(std::is_arithmetic<T>::value,
+                "Only arithmetic types are supported");
+  return static_cast<T>(0xDEADBEEF);
 }
 
 template <>

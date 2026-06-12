@@ -31,6 +31,7 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/tools/execute_query/output_query_result.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/status_macros.h"
@@ -41,6 +42,13 @@ namespace googlesql {
 // results into memory to format pretty output.
 absl::Status PrintResults(std::unique_ptr<EvaluatorTableIterator> iter,
                           std::ostream& out, bool use_box_glyphs) {
+  // For ResolvedTerminalQueryStmt and `|> FINISH`, we get a nullptr iterator.
+  // We show a log message rather than a table in that slot.
+  if (iter == nullptr) {
+    out << "No result table\n";
+    return absl::OkStatus();
+  }
+
   TypeFactory type_factory;
 
   std::vector<StructField> struct_fields;

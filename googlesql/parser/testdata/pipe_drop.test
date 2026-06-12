@@ -12,18 +12,18 @@ QueryStatement [0-58] [select x |...drop a,b,c,]
           PathExpression [7-8] [x]
             Identifier(x) [7-8] [x]
     PipeDrop [9-18] [|> drop a]
-      IdentifierList [17-18] [a]
+      ExpressionList [17-18] [a]
         Identifier(a) [17-18] [a]
     PipeDrop [19-29] [|> drop a,]
-      IdentifierList [27-28] [a]
+      ExpressionList [27-28] [a]
         Identifier(a) [27-28] [a]
     PipeDrop [30-43] [|> drop a,b,c]
-      IdentifierList [38-43] [a,b,c]
+      ExpressionList [38-43] [a,b,c]
         Identifier(a) [38-39] [a]
         Identifier(b) [40-41] [b]
         Identifier(c) [42-43] [c]
     PipeDrop [44-58] [|> drop a,b,c,]
-      IdentifierList [52-57] [a,b,c]
+      ExpressionList [52-57] [a,b,c]
         Identifier(a) [52-53] [a]
         Identifier(b) [54-55] [b]
         Identifier(c) [56-57] [c]
@@ -50,6 +50,33 @@ select x
 ERROR: Syntax error: Unexpected "," [at 2:9]
 |> drop ,
         ^
+==
+
+select x
+|> drop (a)
+
+--
+ERROR: Syntax error: Unexpected "(" [at 2:9]
+|> drop (a)
+        ^
+==
+
+select x
+|> drop (a, b)
+
+--
+ERROR: Syntax error: Unexpected "(" [at 2:9]
+|> drop (a, b)
+        ^
+==
+
+select x
+|> drop a, (b)
+
+--
+ERROR: Syntax error: Expected end of input but got "(" [at 2:12]
+|> drop a, (b)
+           ^
 ==
 
 select x

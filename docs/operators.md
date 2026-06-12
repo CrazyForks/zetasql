@@ -271,6 +271,15 @@ statement.
       <td>Value is [not] in the set of values specified</td>
       <td>Binary</td>
     </tr>
+
+    <tr>
+      <td>&nbsp;</td>
+      <td><code>IS [NOT] DISTINCT FROM</code></td>
+      <td>All</td>
+      <td>Value is [not] <code>DISTINCT FROM</code></td>
+      <td>Binary</td>
+    </tr>
+
     <tr>
       <td>&nbsp;</td>
       <td><code>IS [NOT] NULL</code></td>
@@ -449,7 +458,7 @@ ambiguity. For example:
   <td><a href="#graph_logical_operators">Graph logical operators</a>
 </td>
   <td>
-    Tests for the truth of a condition in a graph and produces either
+    Tests for the truth of a condition in a graph label and produces either
     <code>TRUE</code> or <code>FALSE</code>.
   </td>
 </tr>
@@ -664,6 +673,10 @@ Input values:
   an error if the index is out of range. To produce `NULL` instead of an error,
   use the `SAFE_OFFSET(index)` or `SAFE_ORDINAL(index)` position keyword.
 
+Tip: To access the first or last element in an array, use the
+[`ARRAY_FIRST`][array-first-function] or [`ARRAY_LAST`][array-last-function]
+function.
+
 **Return type**
 
 `T` where `array_expression` is `ARRAY<T>`.
@@ -703,6 +716,10 @@ SELECT ["coffee", "tea", "milk"][6] AS item_offset
 -- Error. Array index 6 is out of bounds.
 SELECT ["coffee", "tea", "milk"][OFFSET(6)] AS item_offset
 ```
+
+[array-first-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_first
+
+[array-last-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_last
 
 ### Struct subscript operator 
 <a id="struct_subscript_operator"></a>
@@ -1366,7 +1383,7 @@ has type `T` unless otherwise indicated in the description below:
   </tbody>
 </table>
 
-NOTE: Divide by zero operations return an error. To return a different result,
+Note: Divide by zero operations return an error. To return a different result,
 consider the `IEEE_DIVIDE` or `SAFE_DIVIDE` functions.
 
 Result types for Addition and Multiplication:
@@ -1945,7 +1962,7 @@ GoogleSQL supports the following logical operators in
 GoogleSQL supports the following graph-specific predicates in
 graph expressions. A predicate can produce `TRUE`, `FALSE`, or `NULL`.
 
-+   [`PROPERTY_EXISTS` predicate][property-exists-predicate]
++ [`PROPERTY_EXISTS` predicate][property-exists-predicate]
 +   [`IS SOURCE` predicate][is-source-predicate]
 +   [`IS DESTINATION` predicate][is-destination-predicate]
 +   [`IS LABELED` predicate][is-labeled-predicate]
@@ -2207,7 +2224,8 @@ Produces an error if `element` is `NULL`.
 
 **Example**
 
-The following query checks to see if `a` and `b` aren't the same person.
+The following query returns the source and destination IDs for transfers
+between different accounts:
 
 ```googlesql
 GRAPH FinGraph
@@ -2331,7 +2349,7 @@ This operator supports specifying <a href="https://github.com/google/googlesql/b
       <td><code>LIKE</code></td>
       <td><code>X [NOT] LIKE Y</code></td>
       <td>
-        See the <a href="#like_operator">`LIKE` operator</a>
+        See the <a href="#like_operator"><code>LIKE</code> operator</a>
 
         for details.
       </td>
@@ -2340,11 +2358,22 @@ This operator supports specifying <a href="https://github.com/google/googlesql/b
       <td><code>IN</code></td>
       <td>Multiple</td>
       <td>
-        See the <a href="#in_operator">`IN` operator</a>
+        See the <a href="#in_operator"><code>IN</code> operator</a>
 
         for details.
       </td>
     </tr>
+
+    <tr>
+      <td><code>IS DISTINCT FROM</code></td>
+      <td><code>x IS [NOT] DISTINCT FROM y</code></td>
+      <td>
+        See the <a href="#is_distinct"><code>IS DISTINCT FROM</code> operator</a>
+
+        for details.
+      </td>
+    </tr>
+
   </tbody>
 </table>
 
@@ -2505,18 +2534,27 @@ This operator supports [collation][collation], but these limitations apply:
 When using the `IN` operator, the following semantics apply in this order:
 
 + Returns `FALSE` if `value_set` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
 + Returns `TRUE` if `value_set` contains a value equal to `search_value`.
-+ Returns `NULL` if `value_set` contains a `NULL`.
++ Returns `NULL` if the equality comparison between `search_value` and
+  any value in `value_set` produces `NULL`.
 + Returns `FALSE`.
 
 When using the `NOT IN` operator, the following semantics apply in this order:
 
 + Returns `TRUE` if `value_set` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
 + Returns `FALSE` if `value_set` contains a value equal to `search_value`.
-+ Returns `NULL` if `value_set` contains a `NULL`.
++ Returns `NULL` if the equality comparison between `search_value` and
+  any value in `value_set` produces `NULL`.
 + Returns `TRUE`.
+
+For example:
+
++ `1 IN UNNEST([NULL, 1])` returns `TRUE`
++ `1 IN UNNEST([2, 3])` returns `FALSE`
++ `1 [NOT] IN UNNEST([NULL])` returns `NULL`
++ `(NULL, 1) [NOT] IN UNNEST([(NULL, 1)])` returns `NULL`
++ `(NULL, 2) IN UNNEST([(NULL, 1)])` returns `FALSE`
++ `(NULL, 2) NOT IN UNNEST([(NULL, 1)])` returns `TRUE`
 
 The semantics of:
 
@@ -2889,17 +2927,17 @@ SELECT 1 IS NOT DISTINCT FROM NULL
 <a id="like_operator"></a>
 
 ```googlesql
-expression_1 [NOT] LIKE expression_2
+expression [NOT] LIKE pattern
 ```
 
 **Description**
 
-`LIKE` returns `TRUE` if the string in the first operand `expression_1`
-matches a pattern specified by the second operand `expression_2`,
+`LIKE` returns `TRUE` if the string in the first operand `expression`
+matches a pattern specified by the second operand `pattern`,
 otherwise returns `FALSE`.
 
-`NOT LIKE` returns `TRUE` if the string in the first operand `expression_1`
-doesn't match a pattern specified by the second operand `expression_2`,
+`NOT LIKE` returns `TRUE` if the string in the first operand `expression`
+doesn't match a pattern specified by the second operand `pattern`,
 otherwise returns `FALSE`.
 
 Expressions can contain these characters:
@@ -2912,7 +2950,7 @@ Expressions can contain these characters:
 
 This operator supports [collation][collation], but caveats apply:
 
-+   Each `%` character in `expression_2` represents an
++   Each `%` character in `pattern` represents an
     _arbitrary string specifier_. An arbitrary string specifier can represent
     any sequence of `0` or more characters.
 +   A character in the expression represents itself and is considered a
@@ -2924,7 +2962,7 @@ This operator supports [collation][collation], but caveats apply:
 +   These additional rules apply to the underscore (`_`) character:
 
     +   If the collator isn't `und:ci`, an error is produced when an underscore
-        isn't escaped in `expression_2`.
+        isn't escaped in `pattern`.
 
     +   If the collator isn't `und:ci`, the underscore isn't allowed when the
         operands have collation specified.

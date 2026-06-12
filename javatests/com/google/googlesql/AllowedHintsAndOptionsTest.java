@@ -20,7 +20,7 @@ package com.google.googlesql;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.extensions.proto.ProtoTruth.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
@@ -39,26 +39,10 @@ public class AllowedHintsAndOptionsTest {
     AllowedHintsAndOptions allowed = new AllowedHintsAndOptions("qual");
     allowed.addOption("option1", TypeFactory.createSimpleType(TypeKind.TYPE_BYTES));
     allowed.addOption("Option2", null);
-    try {
-      allowed.addOption(null, null);
-      fail();
-    } catch (NullPointerException expected) {
-    }
-    try {
-      allowed.addOption("", null);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      allowed.addOption("OPTION1", null);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      allowed.addOption("option2", null);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> allowed.addOption(null, null));
+    assertThrows(IllegalArgumentException.class, () -> allowed.addOption("", null));
+    assertThrows(IllegalArgumentException.class, () -> allowed.addOption("OPTION1", null));
+    assertThrows(IllegalArgumentException.class, () -> allowed.addOption("option2", null));
 
     assertThat(allowed.getOptionType("OPTION1")).isNotNull();
     assertThat(allowed.getOptionNameList()).hasSize(2);
@@ -72,36 +56,14 @@ public class AllowedHintsAndOptionsTest {
     allowed.addHint("", "hint2", null, true);
     allowed.addHint("", "hint3", null, true);
     assertThat(allowed.getHintList()).hasSize(5);
-    try {
-      allowed.addHint(null, "hint", null, true);
-      fail();
-    } catch (NullPointerException expected) {
-    }
-    try {
-      allowed.addHint("qual", null, null, true);
-      fail();
-    } catch (NullPointerException expected) {
-    }
-    try {
-      allowed.addHint("qual", "", null, true);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      allowed.addHint("", "hint", null, false);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      allowed.addHint("TEST_qual", "Hint1", null, true);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
-    try {
-      allowed.addHint("TEST_qual", "Hint3", null, true);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> allowed.addHint(null, "hint", null, true));
+    assertThrows(NullPointerException.class, () -> allowed.addHint("qual", null, null, true));
+    assertThrows(IllegalArgumentException.class, () -> allowed.addHint("qual", "", null, true));
+    assertThrows(IllegalArgumentException.class, () -> allowed.addHint("", "hint", null, false));
+    assertThrows(
+        IllegalArgumentException.class, () -> allowed.addHint("TEST_qual", "Hint1", null, true));
+    assertThrows(
+        IllegalArgumentException.class, () -> allowed.addHint("TEST_qual", "Hint3", null, true));
   }
 
   @Test

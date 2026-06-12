@@ -24,17 +24,27 @@
 #include <net/if.h>
 #include <netdb.h>
 
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"

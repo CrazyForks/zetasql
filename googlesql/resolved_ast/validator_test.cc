@@ -29,12 +29,16 @@
 #include "googlesql/public/function.pb.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/id_string.h"
+#include "googlesql/public/interval_value.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/public/parse_resume_location.h"
 #include "googlesql/public/property_graph.h"
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/simple_property_graph.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/templated_sql_function.h"
+#include "googlesql/public/templated_sql_tvf.h"
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
@@ -47,13 +51,14 @@
 #include "googlesql/resolved_ast/test_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/no_destructor.h"
-#include "googlesql/base/status_macros.h"
+#include "absl/time/time.h"
 
 namespace googlesql {
 namespace testing {
@@ -256,8 +261,8 @@ absl::StatusOr<std::unique_ptr<const ResolvedQueryStmt>>
 MakeAggregationThresholdQuery(
     std::vector<std::unique_ptr<ResolvedOption>> options,
     IdStringPool& string_pool) {
-  static googlesql_base::NoDestructor<Function> dp_function("count", "test_group",
-                                                 Function::AGGREGATE);
+  static absl::NoDestructor<Function> dp_function("count", "test_group",
+                                                  Function::AGGREGATE);
   FunctionSignature sig(/*result_type=*/FunctionArgumentType(
                             types::Int64Type(), /*num_occurrences=*/1),
                         /*arguments=*/{},
@@ -3131,6 +3136,50 @@ TEST(ValidateTest, ResolvedBarrierScanReferencesWrongColumn) {
                                  "visible in scan node")));
 }
 
+// Creates a builder for a ResolvedAlignScan.
+// Assigns column ID 100 for the aligned_timestamp_column.
+static ResolvedAlignScanBuilder CreateAlignScanBuilder(
+    IdStringPool& pool, ResolvedColumn input_col, Value input_val,
+    ResolvedColumn timestamp_col, Value timestamp_val) {
+  return ResolvedAlignScanBuilder()
+      .set_input_scan(
+          ResolvedProjectScanBuilder()
+              .set_input_scan(ResolvedSingleRowScanBuilder())
+              .add_column_list(input_col)
+              .add_expr_list(MakeResolvedComputedColumn(
+                  input_col, MakeResolvedLiteral(std::move(input_val))))
+              .add_column_list(timestamp_col)
+              .add_expr_list(MakeResolvedComputedColumn(
+                  timestamp_col,
+                  MakeResolvedLiteral(std::move(timestamp_val)))))
+      .set_timestamp_column(ResolvedColumnRefBuilder()
+                                .set_column(timestamp_col)
+                                .set_type(timestamp_col.type())
+                                .set_is_correlated(false))
+      .set_period(MakeResolvedLiteral(Value::Interval(IntervalValue())))
+      .set_origin(MakeResolvedLiteral(Value::Timestamp(absl::UnixEpoch())))
+      .set_aligned_timestamp_column(ResolvedColumn(
+          100, pool.Make("$align"), pool.Make("$aligned_timestamp"),
+          types::TimestampType()))
+      .set_column_list({ResolvedColumn(100, pool.Make("$align"),
+                                       pool.Make("$aligned_timestamp"),
+                                       types::TimestampType())});
+}
+
+static absl::StatusOr<std::unique_ptr<const ResolvedQueryStmt>>
+MakeAlignScanQuery(IdStringPool& pool,
+                   std::unique_ptr<const ResolvedAlignScan> align_scan) {
+  ResolvedColumn aligned_timestamp_col = align_scan->aligned_timestamp_column();
+  return ResolvedQueryStmtBuilder()
+      .add_output_column_list(ResolvedOutputColumnBuilder()
+                                  .set_column(aligned_timestamp_col)
+                                  .set_name(""))
+      .set_query(ResolvedProjectScanBuilder()
+                     .set_input_scan(std::move(align_scan))
+                     .add_column_list(aligned_timestamp_col))
+      .Build();
+}
+
 // Creates a builder for a ResolvedMatchRecognizeScan with no measures.
 // Assigns column IDs 100, 101 and 102 for the match state columns.
 static ResolvedMatchRecognizeScanBuilder CreateMatchRecognizeScanBuilder(
@@ -3203,6 +3252,270 @@ MakeMatchRecognizeQuery(IdStringPool& pool, absl::string_view name_in_pattern,
                       .set_name(name_in_define)
                       .set_predicate(MakeResolvedLiteral(Value::Bool(true)))))
       .Build();
+}
+
+TEST(ValidateTest, AlignScanValid) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, CreateAlignScanBuilder(
+                                            pool, col0, Value::Int64(1), col1,
+                                            Value::Timestamp(absl::UnixEpoch()))
+                                            .Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  GOOGLESQL_ASSERT_OK(validator.ValidateResolvedStatement(query.get()));
+}
+
+TEST(ValidateTest, AlignScanInvalidTimestampColumnType) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"), types::Int64Type());
+
+  auto align_scan_builder = CreateAlignScanBuilder(pool, col0, Value::Int64(1),
+                                                   col1, Value::Int64(1));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(
+      validator.ValidateResolvedStatement(query.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("scan->timestamp_column()->type()->IsTimestamp()")));
+}
+
+TEST(ValidateTest, AlignScanInvalidPeriodType) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_period(MakeResolvedLiteral(Value::Int64(1)));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("scan->period()->type()->IsInterval()")));
+}
+
+TEST(ValidateTest, AlignScanInvalidOriginType) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_origin(MakeResolvedLiteral(Value::Int64(1)));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("scan->origin()->type()->IsTimestamp()")));
+}
+
+TEST(ValidateTest, AlignScanValidPartitionByColumnType) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+
+  align_scan_builder.add_partition_by_list(ResolvedColumnRefBuilder()
+                                               .set_column(col0)
+                                               .set_type(col0.type())
+                                               .set_is_correlated(false));
+  align_scan_builder.set_column_list(
+      {col0, align_scan_builder.aligned_timestamp_column()});
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  GOOGLESQL_ASSERT_OK(validator.ValidateResolvedStatement(query.get()));
+}
+
+TEST(ValidateTest, AlignScanInvalidPartitionByColumnType) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::DoubleType());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder =
+      CreateAlignScanBuilder(pool, col0, Value::Double(1.0), col1,
+                             Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.add_partition_by_list(ResolvedColumnRefBuilder()
+                                               .set_column(col0)
+                                               .set_type(col0.type())
+                                               .set_is_correlated(false));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("does not support partitioning")));
+}
+
+TEST(ValidateTest, AlignScanNullTimestampColumn) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  const_cast<ResolvedAlignScan*>(query->query()
+                                     ->GetAs<ResolvedProjectScan>()
+                                     ->input_scan()
+                                     ->GetAs<ResolvedAlignScan>())
+      ->release_timestamp_column();
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("scan->timestamp_column() != nullptr")));
+}
+
+TEST(ValidateTest, AlignScanNullPeriod) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  const_cast<ResolvedAlignScan*>(query->query()
+                                     ->GetAs<ResolvedProjectScan>()
+                                     ->input_scan()
+                                     ->GetAs<ResolvedAlignScan>())
+      ->release_period();
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("scan->period() != nullptr")));
+}
+
+TEST(ValidateTest, AlignScanInvalidDuplicatePartitionByColumn) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.add_partition_by_list(ResolvedColumnRefBuilder()
+                                               .set_column(col0)
+                                               .set_type(col0.type())
+                                               .set_is_correlated(false));
+  align_scan_builder.add_partition_by_list(ResolvedColumnRefBuilder()
+                                               .set_column(col0)
+                                               .set_type(col0.type())
+                                               .set_is_correlated(false));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Duplicate partitioning column")));
+}
+
+TEST(ValidateTest, AlignScanInvalidDuplicateAlignedTimestampColumnId) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_aligned_timestamp_column(
+      ResolvedColumn(1, pool.Make("$align"), pool.Make("$aligned_timestamp"),
+                     types::TimestampType()));
+  align_scan_builder.set_column_list(
+      {col0, col1,
+       ResolvedColumn(1, pool.Make("$align"), pool.Make("$aligned_timestamp"),
+                      types::TimestampType())});
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Duplicate column id 1 in column")));
 }
 
 TEST(ValidateTest, MatchRecognizeRequiresTheFlag) {
@@ -4097,6 +4410,567 @@ TEST(ValidatorTest, UnsetArgumentScanContainsColumnsReturnsError) {
                HasSubstr("UnsetArgumentScan should not have any columns")));
 }
 
+TEST(ValidatorTest, TemplatedFunctionFailure) {
+  IdStringPool pool;
+  TypeFactory type_factory;
+
+  // Failing body: Reference an unknown column.
+  // We use a column that is not available in the current context.
+  ResolvedColumn unknown_column(999, pool.Make("unknown"), pool.Make("col"),
+                                types::Int64Type());
+  auto failing_body =
+      MakeResolvedColumnRef(types::Int64Type(), unknown_column, false);
+
+  auto templated_info = std::make_unique<TemplatedSQLFunctionCall>(
+      std::move(failing_body),
+      /*aggregate_expr_list=*/
+      std::vector<std::unique_ptr<const ResolvedComputedColumn>>{});
+
+  // Use a signature with num_occurrences = 1 to ensure IsConcrete() is true.
+  FunctionSignature sig(
+      /*result_type=*/FunctionArgumentType(types::Int64Type(), 1),
+      /*arguments=*/
+      FunctionArgumentTypeList{FunctionArgumentType(types::Int64Type(), 1)},
+      /*context_id=*/static_cast<int64_t>(1));
+
+  Function templated_fn("templated_fn", Function::kGoogleSQLFunctionGroupName,
+                        Function::SCALAR, {sig});
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto function_call,
+                       ResolvedFunctionCallBuilder()
+                           .set_type(types::Int64Type())
+                           .set_function(&templated_fn)
+                           .set_signature(sig)
+                           .add_argument_list(MakeResolvedLiteral(
+                               types::Int64Type(), Value::Int64(1)))
+                           .set_function_call_info(std::move(templated_info))
+                           .Build());
+
+  Validator validator;
+  absl::Status status =
+      validator.ValidateStandaloneResolvedExpr(function_call.get());
+
+  EXPECT_EQ(status.code(), absl::StatusCode::kInternal);
+  EXPECT_EQ(
+      status.message(),
+      R"(Resolved AST validation failed: Incorrect reference to column unknown.col#999
+
+Templated call stack:
+  GoogleSQL:templated_fn((INT64) -> INT64)
+
+ColumnRef(type=INT64, column=unknown.col#999) (validation failed here)
+)");
+}
+
+TEST(ValidatorTest, NestedTemplatedFunctionFailure) {
+  IdStringPool pool;
+  TypeFactory type_factory;
+
+  // Inner function failing body.
+  ResolvedColumn unknown_column(999, pool.Make("unknown"), pool.Make("col"),
+                                types::Int64Type());
+  auto failing_body =
+      MakeResolvedColumnRef(types::Int64Type(), unknown_column, false);
+
+  auto inner_templated_info = std::make_unique<TemplatedSQLFunctionCall>(
+      std::move(failing_body),
+      /*aggregate_expr_list=*/
+      std::vector<std::unique_ptr<const ResolvedComputedColumn>>{});
+
+  FunctionSignature inner_sig(
+      /*result_type=*/FunctionArgumentType(types::Int64Type(), 1),
+      /*arguments=*/
+      FunctionArgumentTypeList{FunctionArgumentType(types::Int64Type(), 1)},
+      /*context_id=*/static_cast<int64_t>(1));
+
+  Function inner_fn("inner_fn", Function::kGoogleSQLFunctionGroupName,
+                    Function::SCALAR, {inner_sig});
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto inner_call,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::Int64Type())
+          .set_function(&inner_fn)
+          .set_signature(inner_sig)
+          .add_argument_list(
+              MakeResolvedLiteral(types::Int64Type(), Value::Int64(1)))
+          .set_function_call_info(std::move(inner_templated_info))
+          .Build());
+
+  // Outer function calls inner function.
+  auto outer_templated_info = std::make_unique<TemplatedSQLFunctionCall>(
+      std::move(inner_call),
+      /*aggregate_expr_list=*/
+      std::vector<std::unique_ptr<const ResolvedComputedColumn>>{});
+
+  FunctionSignature outer_sig(
+      /*result_type=*/FunctionArgumentType(types::Int64Type(), 1),
+      /*arguments=*/
+      FunctionArgumentTypeList{FunctionArgumentType(types::Int64Type(), 1)},
+      /*context_id=*/static_cast<int64_t>(2));
+
+  Function outer_fn("outer_fn", Function::kGoogleSQLFunctionGroupName,
+                    Function::SCALAR, {outer_sig});
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto outer_call_node,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::Int64Type())
+          .set_function(&outer_fn)
+          .set_signature(outer_sig)
+          .add_argument_list(
+              MakeResolvedLiteral(types::Int64Type(), Value::Int64(1)))
+          .set_function_call_info(std::move(outer_templated_info))
+          .Build());
+
+  Validator validator;
+  absl::Status status =
+      validator.ValidateStandaloneResolvedExpr(outer_call_node.get());
+
+  EXPECT_THAT(
+      status,
+      StatusIs(
+          absl::StatusCode::kInternal,
+          R"(Resolved AST validation failed: Incorrect reference to column unknown.col#999
+
+Templated call stack:
+  GoogleSQL:outer_fn((INT64) -> INT64)
+  GoogleSQL:inner_fn((INT64) -> INT64)
+
+ColumnRef(type=INT64, column=unknown.col#999) (validation failed here)
+)"));
+}
+
+TEST(ValidatorTest, TemplatedTVFFailure) {
+  IdStringPool pool;
+  TypeFactory type_factory;
+
+  // Failing TVF body.
+  ResolvedColumn unknown_column(999, pool.Make("unknown"), pool.Make("col"),
+                                types::Int64Type());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto failing_query,
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(
+              MakeResolvedOutputColumn("col", unknown_column))
+          .set_query(ResolvedProjectScanBuilder()
+                         .add_column_list(unknown_column)
+                         .set_input_scan(MakeResolvedSingleRowScan()))
+          .Build());
+
+  TVFRelation result_relation({TVFRelation::Column("col", types::Int64Type())});
+
+  auto templated_tvf_signature = std::make_shared<TemplatedSQLTVFSignature>(
+      /*input_arguments=*/std::vector<TVFInputArgumentType>{},
+      /*output_schema=*/result_relation, TVFSignatureOptions(),
+      std::move(failing_query), /*arg_name_list=*/std::vector<std::string>{});
+
+  std::vector<std::string> path = {"templated_tvf"};
+  auto sig = std::make_shared<FunctionSignature>(
+      FunctionArgumentType(ARG_TYPE_RELATION,
+                           FunctionArgumentTypeOptions(result_relation, false),
+                           1),
+      /*arguments=*/
+      FunctionArgumentTypeList{},
+      /*context_id=*/static_cast<int64_t>(0));
+  TemplatedSQLTVF templated_tvf(path, *sig,
+                                /*arg_name_list=*/std::vector<std::string>{},
+                                ParseResumeLocation::FromString("SELECT 1"));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto tvf_scan,
+                       ResolvedTVFScanBuilder()
+                           .set_tvf(&templated_tvf)
+                           .set_signature(templated_tvf_signature)
+                           .add_column_list(unknown_column)
+                           .set_alias("tvf_alias")
+                           .set_function_call_signature(sig)
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto statement,
+                       ResolvedQueryStmtBuilder()
+                           .add_output_column_list(
+                               MakeResolvedOutputColumn("col", unknown_column))
+                           .set_query(std::move(tvf_scan))
+                           .Build());
+
+  Validator validator;
+  absl::Status status = validator.ValidateResolvedStatement(statement.get());
+
+  EXPECT_THAT(
+      status,
+      StatusIs(
+          absl::StatusCode::kInternal,
+          R"(Resolved AST validation failed: Column list contains column unknown.col#999 not visible in scan node
+ProjectScan
++-column_list=[unknown.col#999]
++-input_scan=
+  +-SingleRowScan
+
+
+Templated call stack:
+  templated_tvf(() -> TABLE<col INT64>)
+
+QueryStmt
++-output_column_list=
+| +-unknown.col#999 AS col [INT64]
++-query=
+  +-ProjectScan (validation failed here)
+    +-column_list=[unknown.col#999]
+    +-input_scan=
+      +-SingleRowScan
+)"));
+}
+
+TEST(ValidatorTest, PassthroughTVFValidOutputColumns) {
+  Validator validator;
+
+  IdStringPool pool;
+  ResolvedColumn col_a(1, pool.Make("t"), pool.Make("a"), types::Int64Type());
+  ResolvedColumn col_b(2, pool.Make("t"), pool.Make("b"), types::Int64Type());
+
+  ResolvedColumn col_a_out(3, pool.Make("t"), pool.Make("a"),
+                           types::Int64Type());
+  ResolvedColumn col_b_out(4, pool.Make("t"), pool.Make("b"),
+                           types::Int64Type());
+  ResolvedColumn col_c_out(5, pool.Make("t"), pool.Make("c"),
+                           types::Int64Type());
+
+  const SimpleTable input_table(
+      "input_table", {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+
+  TVFRelation input_relation(
+      {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+  TVFRelation output_relation({{"a", types::Int64Type()},
+                               {"b", types::Int64Type()},
+                               {"c", types::Int64Type()}});
+
+  FunctionArgumentType concrete_relation_arg_type(
+      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{concrete_relation_arg_type},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf(
+      {"pt_tvf"}, {*concrete_signature}, output_relation,
+      TableValuedFunctionOptions().set_is_passthrough(true));
+
+  auto signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{TVFInputArgumentType(input_relation)},
+      output_relation);
+
+  std::vector<int> column_index_list = {0, 1, 2};
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(MakeResolvedOutputColumn("a", col_a_out))
+          .add_output_column_list(MakeResolvedOutputColumn("b", col_b_out))
+          .add_output_column_list(MakeResolvedOutputColumn("c", col_c_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(col_a_out)
+                         .add_column_list(col_b_out)
+                         .add_column_list(col_c_out)
+                         .set_tvf(&tvf)
+                         .set_signature(signature)
+                         .set_alias("")
+                         .set_column_index_list(column_index_list)
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(col_a)
+                                               .add_column_list(col_b)
+                                               .add_column_index_list(0)
+                                               .add_column_index_list(1))
+                                 .add_argument_column_list(col_a)
+                                 .add_argument_column_list(col_b))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  GOOGLESQL_EXPECT_OK(validator.ValidateResolvedStatement(query_stmt.get()));
+}
+
+TEST(ValidatorTest, PassthroughTVFColumnNameMismatchReturnsError) {
+  Validator validator;
+
+  IdStringPool pool;
+  ResolvedColumn col_a(1, pool.Make("t"), pool.Make("a"), types::Int64Type());
+  ResolvedColumn col_b(2, pool.Make("t"), pool.Make("b"), types::Int64Type());
+
+  ResolvedColumn col_a_out(3, pool.Make("t"), pool.Make("a"),
+                           types::Int64Type());
+  ResolvedColumn col_d_out(4, pool.Make("t"), pool.Make("d"),
+                           types::Int64Type());
+  ResolvedColumn col_c_out(5, pool.Make("t"), pool.Make("c"),
+                           types::Int64Type());
+
+  const SimpleTable input_table(
+      "input_table", {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+
+  TVFRelation input_relation(
+      {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+  // Output has 'd' instead of 'b'
+  TVFRelation output_relation({{"a", types::Int64Type()},
+                               {"d", types::Int64Type()},
+                               {"c", types::Int64Type()}});
+
+  FunctionArgumentType concrete_relation_arg_type(
+      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{concrete_relation_arg_type},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf(
+      {"pt_tvf"}, {*concrete_signature}, output_relation,
+      TableValuedFunctionOptions().set_is_passthrough(true));
+
+  auto signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{TVFInputArgumentType(input_relation)},
+      output_relation);
+
+  std::vector<int> column_index_list = {0, 1, 2};
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(MakeResolvedOutputColumn("a", col_a_out))
+          .add_output_column_list(MakeResolvedOutputColumn("d", col_d_out))
+          .add_output_column_list(MakeResolvedOutputColumn("c", col_c_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(col_a_out)
+                         .add_column_list(col_d_out)
+                         .add_column_list(col_c_out)
+                         .set_tvf(&tvf)
+                         .set_signature(signature)
+                         .set_alias("")
+                         .set_column_index_list(column_index_list)
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(col_a)
+                                               .add_column_list(col_b)
+                                               .add_column_index_list(0)
+                                               .add_column_index_list(1))
+                                 .add_argument_column_list(col_a)
+                                 .add_argument_column_list(col_b))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  EXPECT_THAT(
+      validator.ValidateResolvedStatement(query_stmt.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "Passthrough TVF output column 1 name does not match: d vs b")));
+}
+
+TEST(ValidatorTest, PassthroughTVFColumnTypeMismatchReturnsError) {
+  Validator validator;
+
+  IdStringPool pool;
+  ResolvedColumn col_a(1, pool.Make("t"), pool.Make("a"), types::Int64Type());
+  ResolvedColumn col_b(2, pool.Make("t"), pool.Make("b"), types::Int64Type());
+
+  ResolvedColumn col_a_out(3, pool.Make("t"), pool.Make("a"),
+                           types::Int64Type());
+  ResolvedColumn col_b_out(4, pool.Make("t"), pool.Make("b"),
+                           types::StringType());
+
+  const SimpleTable input_table(
+      "input_table", {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+
+  TVFRelation input_relation(
+      {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+  TVFRelation output_relation(
+      {{"a", types::Int64Type()}, {"b", types::StringType()}});
+
+  FunctionArgumentType concrete_relation_arg_type(
+      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{concrete_relation_arg_type},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf(
+      {"pt_tvf"}, {*concrete_signature}, output_relation,
+      TableValuedFunctionOptions().set_is_passthrough(true));
+
+  auto signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{TVFInputArgumentType(input_relation)},
+      output_relation);
+
+  std::vector<int> column_index_list = {0, 1};
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(MakeResolvedOutputColumn("a", col_a_out))
+          .add_output_column_list(MakeResolvedOutputColumn("b", col_b_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(col_a_out)
+                         .add_column_list(col_b_out)
+                         .set_tvf(&tvf)
+                         .set_signature(signature)
+                         .set_alias("")
+                         .set_column_index_list(column_index_list)
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(col_a)
+                                               .add_column_list(col_b)
+                                               .add_column_index_list(0)
+                                               .add_column_index_list(1))
+                                 .add_argument_column_list(col_a)
+                                 .add_argument_column_list(col_b))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  EXPECT_THAT(validator.ValidateResolvedStatement(query_stmt.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Passthrough TVF output column 1 type does "
+                                 "not match: STRING vs INT64")));
+}
+
+TEST(ValidatorTest, PassthroughTVFProducedFewerColumnsReturnsError) {
+  Validator validator;
+
+  IdStringPool pool;
+  ResolvedColumn col_a(1, pool.Make("t"), pool.Make("a"), types::Int64Type());
+  ResolvedColumn col_b(2, pool.Make("t"), pool.Make("b"), types::Int64Type());
+
+  ResolvedColumn col_a_out(3, pool.Make("t"), pool.Make("a"),
+                           types::Int64Type());
+
+  const SimpleTable input_table(
+      "input_table", {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+
+  TVFRelation input_relation(
+      {{"a", types::Int64Type()}, {"b", types::Int64Type()}});
+  TVFRelation output_relation({{"a", types::Int64Type()}});
+
+  FunctionArgumentType concrete_relation_arg_type(
+      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{concrete_relation_arg_type},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf(
+      {"pt_tvf"}, {*concrete_signature}, output_relation,
+      TableValuedFunctionOptions().set_is_passthrough(true));
+
+  auto signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{TVFInputArgumentType(input_relation)},
+      output_relation);
+
+  std::vector<int> column_index_list = {0};
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(MakeResolvedOutputColumn("a", col_a_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(col_a_out)
+                         .set_tvf(&tvf)
+                         .set_signature(signature)
+                         .set_alias("")
+                         .set_column_index_list(column_index_list)
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(col_a)
+                                               .add_column_list(col_b)
+                                               .add_column_index_list(0)
+                                               .add_column_index_list(1))
+                                 .add_argument_column_list(col_a)
+                                 .add_argument_column_list(col_b))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  EXPECT_THAT(
+      validator.ValidateResolvedStatement(query_stmt.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "Passthrough TVF result schema has fewer columns than input")));
+}
+
+TEST(ValidatorTest, TVFArgumentInputSchemaMismatch) {
+  Validator validator;
+  IdStringPool pool;
+  TVFRelation output_relation({{"out_col", types::StringType()}});
+  FunctionArgumentType output_arg = FunctionArgumentType::RelationWithSchema(
+      output_relation, /*extra_relation_input_columns_allowed=*/false);
+
+  // Signature requires input schema `a INT64`
+  TVFRelation tvf_relation_int64({{"a", types::Int64Type()}});
+  FunctionArgumentType relation_arg_int64 =
+      FunctionArgumentType::RelationWithSchema(
+          tvf_relation_int64, /*extra_relation_input_columns_allowed=*/false);
+  relation_arg_int64.set_num_occurrences(1);
+  FunctionSignature signature_int64(
+      output_arg, FunctionArgumentTypeList{relation_arg_int64},
+      /*context_ptr=*/nullptr);
+
+  // Signature requires input schema `a STRING`
+  TVFRelation tvf_relation_string({{"a", types::StringType()}});
+  FunctionArgumentType relation_arg_string =
+      FunctionArgumentType::RelationWithSchema(
+          tvf_relation_string, /*extra_relation_input_columns_allowed=*/false);
+  relation_arg_string.set_num_occurrences(1);
+  FunctionSignature signature_string(
+      output_arg, FunctionArgumentTypeList{relation_arg_string},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf(
+      {"overloaded_tvf"}, {signature_int64, signature_string}, output_relation);
+
+  auto tvf_signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{
+          TVFInputArgumentType(tvf_relation_int64)},
+      output_relation);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{relation_arg_string},
+      /*context_ptr=*/nullptr);
+
+  ResolvedColumn input_col_a(1, pool.Make("t"), pool.Make("a"),
+                             types::Int64Type());
+  const SimpleTable input_table("input_table", {{"a", types::Int64Type()}});
+  ResolvedColumn resolved_col_out(2, pool.Make("t"), pool.Make("a"),
+                                  types::StringType());
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(
+              MakeResolvedOutputColumn("a", resolved_col_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(resolved_col_out)
+                         .set_tvf(&tvf)
+                         .set_signature(tvf_signature)
+                         .set_alias("")
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(input_col_a))
+                                 .add_argument_column_list(input_col_a))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  EXPECT_THAT(
+      validator.ValidateResolvedStatement(query_stmt.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("col_idx: 0 input_type: INT64 required_type: STRING")));
+}
+
 }  // namespace
 }  // namespace testing
 
@@ -4203,6 +5077,828 @@ TEST(ValidatorTest, CaseInsensitiveDynamicGraphGetElementProperty) {
   GOOGLESQL_EXPECT_OK(validator.ValidateResolvedExpr(
       /*visible_columns=*/{element_col}, /*visible_parameters=*/{},
       get_element_prop_expr.get()));
+}
+
+class ValidatorGraphTest : public ::testing::Test {
+ protected:
+  ValidatorGraphTest()
+      : table_("tbl", {{"id", factory_.get_int64()},
+                       {"name", factory_.get_string()}}) {
+    name_property_dcl_ = std::make_unique<SimpleGraphPropertyDeclaration>(
+        "name", std::vector<std::string>{"graph_name"}, factory_.get_string());
+
+    person_label_ = std::make_unique<SimpleGraphElementLabel>(
+        "Person", std::vector<std::string>{"graph_name"},
+        absl::flat_hash_set<const GraphPropertyDeclaration*>{
+            name_property_dcl_.get()});
+
+    knows_label_ = std::make_unique<SimpleGraphElementLabel>(
+        "Knows", std::vector<std::string>{"graph_name"},
+        absl::flat_hash_set<const GraphPropertyDeclaration*>{});
+
+    std::vector<std::unique_ptr<const GraphPropertyDefinition>>
+        node_property_defs;
+    node_property_defs.push_back(
+        std::make_unique<SimpleGraphPropertyDefinition>(
+            name_property_dcl_.get(), "name"));
+
+    node_table_ = std::make_unique<SimpleGraphNodeTable>(
+        "dummy_nodes", std::vector<std::string>{"graph_name"}, &table_,
+        std::vector<int>{0},
+        absl::flat_hash_set<const GraphElementLabel*>{person_label_.get()},
+        std::move(node_property_defs));
+
+    edge_table_ = std::make_unique<SimpleGraphEdgeTable>(
+        "dummy_edges", std::vector<std::string>{"graph_name"}, &table_,
+        std::vector<int>{0},
+        absl::flat_hash_set<const GraphElementLabel*>{knows_label_.get()},
+        std::vector<std::unique_ptr<const GraphPropertyDefinition>>{},
+        std::make_unique<SimpleGraphNodeTableReference>(
+            node_table_.get(), std::vector<int>{0}, std::vector<int>{0}),
+        std::make_unique<SimpleGraphNodeTableReference>(
+            node_table_.get(), std::vector<int>{0}, std::vector<int>{0}));
+  }
+
+  void SetUp() override {
+    GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType(
+        {"graph_name"}, GraphElementType::ElementKind::kNode, {},
+        &graph_node_type_));
+    GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType(
+        {"graph_name"}, GraphElementType::ElementKind::kEdge, {},
+        &graph_edge_type_));
+  }
+
+  TypeFactory factory_;
+  IdStringPool pool_;
+  Validator validator_;
+  SimpleTable table_;
+  std::unique_ptr<SimpleGraphNodeTable> node_table_;
+  std::unique_ptr<SimpleGraphEdgeTable> edge_table_;
+  const GraphElementType* graph_node_type_;
+  const GraphElementType* graph_edge_type_;
+  std::unique_ptr<SimpleGraphPropertyDeclaration> name_property_dcl_;
+  std::unique_ptr<SimpleGraphElementLabel> person_label_;
+  std::unique_ptr<SimpleGraphElementLabel> knows_label_;
+};
+
+TEST_F(ValidatorGraphTest, ValidGraphInsertScan) {
+  std::string graph_name = "graph_name";
+  auto name_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "name", std::vector<std::string>{graph_name}, factory_.get_string());
+  absl::flat_hash_set<const GraphPropertyDeclaration*> property_declarations{
+      name_property_dcl.get()};
+
+  // Node to insert
+  auto person_label = std::make_unique<SimpleGraphElementLabel>(
+      "Person", std::vector<std::string>{graph_name}, property_declarations);
+  const GraphElementType* graph_node_type;
+  GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType(
+      {graph_name}, GraphElementType::ElementKind::kNode,
+      {{"name", factory_.get_string()}}, &graph_node_type));
+  ResolvedColumn node_col(/*column_id=*/1, pool_.Make("inserted"),
+                          pool_.Make("node"), graph_node_type);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto insert_node_element,
+      ResolvedGraphInsertElementBuilder()
+          .set_type(graph_node_type)
+          .set_element_table(node_table_.get())
+          .add_label_list(ResolvedGraphLabelBuilder()
+                              .set_label(person_label.get())
+                              .Build()
+                              .value())
+          .add_property_list(
+              ResolvedGraphDMLPropertyItemBuilder()
+                  .set_property_name("name")
+                  .set_property(name_property_dcl.get())
+                  .set_property_value(ResolvedLiteralBuilder()
+                                          .set_value(Value::String("Alice"))
+                                          .set_type(factory_.get_string())
+                                          .Build()
+                                          .value())
+                  .Build()
+                  .value())
+          .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(std::move(insert_node_element))
+                           .Build());
+
+  // Edge to insert
+  auto knows_label = std::make_unique<SimpleGraphElementLabel>(
+      "Knows", std::vector<std::string>{graph_name},
+      absl::flat_hash_set<const GraphPropertyDeclaration*>{});
+  const GraphElementType* graph_edge_type;
+  GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType({graph_name},
+                                          GraphElementType::ElementKind::kEdge,
+                                          {}, &graph_edge_type));
+  ResolvedColumn edge_col(/*column_id=*/2, pool_.Make("inserted"),
+                          pool_.Make("edge"), graph_edge_type);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_edge_type)
+                           .set_element_table(edge_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(knows_label.get())
+                                               .Build()
+                                               .value())
+                           .set_source_node(ResolvedColumnRefBuilder()
+                                                .set_column(node_col)
+                                                .set_type(node_col.type())
+                                                .set_is_correlated(false)
+                                                .Build()
+                                                .value())
+                           .set_dest_node(ResolvedColumnRefBuilder()
+                                              .set_column(node_col)
+                                              .set_type(node_col.type())
+                                              .set_is_correlated(false)
+                                              .Build()
+                                              .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(std::move(insert_edge_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(MakeResolvedSingleRowScan())
+                           .add_insert_node_list(std::move(insert_node))
+                           .add_insert_edge_list(std::move(insert_edge))
+                           .add_path_element_list(node_col)
+                           .add_path_element_list(edge_col)
+                           .add_path_element_list(node_col)
+                           .add_column_list(node_col)
+                           .add_column_list(edge_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("node", node_col));
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto generalized_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  GOOGLESQL_EXPECT_OK(validator_.ValidateResolvedStatement(generalized_stmt.get()));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertScanNodeReferencingEdge) {
+  ResolvedColumn edge_col(/*column_id=*/1, pool_.Make("inserted"),
+                          pool_.Make("edge"), factory_.get_int64());
+
+  // Node trying to reference edge (which is defined later)
+  ResolvedColumn node_col(/*column_id=*/2, pool_.Make("inserted"),
+                          pool_.Make("node"), factory_.get_int64());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(ResolvedColumnRefBuilder()
+                                         .set_column(edge_col)
+                                         .set_type(edge_col.type())
+                                         .set_is_correlated(false))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(ResolvedLiteralBuilder()
+                                         .set_value(Value::Int64(1))
+                                         .set_type(factory_.get_int64()))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(MakeResolvedSingleRowScan())
+                           .add_insert_node_list(std::move(insert_node))
+                           .add_insert_edge_list(std::move(insert_edge))
+                           .add_column_list(node_col)
+                           .add_column_list(edge_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("node", node_col));
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto generalized_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateResolvedStatement(generalized_stmt.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("Incorrect reference to column inserted.edge#1")));
+}
+
+TEST_F(ValidatorGraphTest, ValidFinishScanWithoutSideEffects) {
+  ResolvedColumn id_col(1, pool_.Make("tbl"), pool_.Make("id"),
+                        factory_.get_int64());
+
+  // Input scan with no side effects.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan, ResolvedTableScanBuilder()
+                                            .set_table(&table_)
+                                            .add_column_list(id_col)
+                                            .Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto finish_scan,
+                       ResolvedFinishScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .Build());
+
+  auto query_stmt = MakeResolvedGeneralizedQueryStmt(
+      /*output_schema=*/nullptr, std::move(finish_scan));
+
+  GOOGLESQL_EXPECT_OK(validator_.ValidateResolvedStatement(query_stmt.get()));
+}
+
+TEST_F(ValidatorGraphTest, ValidFinishScanWithSideEffects) {
+  ResolvedColumn node_col(/*column_id=*/1, pool_.Make("inserted"),
+                          pool_.Make("node"), graph_node_type_);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(std::move(insert_node_element))
+                           .Build());
+
+  // Input scan with side effects.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(MakeResolvedSingleRowScan())
+                           .add_insert_node_list(std::move(insert_node))
+                           .add_column_list(node_col)
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto finish_scan,
+                       ResolvedFinishScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .Build());
+
+  auto query_stmt = MakeResolvedGeneralizedQueryStmt(
+      /*output_schema=*/nullptr, std::move(finish_scan));
+
+  GOOGLESQL_EXPECT_OK(validator_.ValidateResolvedStatement(query_stmt.get()));
+}
+
+TEST_F(ValidatorGraphTest, InvalidFinishScanNonEmptyColumns) {
+  ResolvedColumn id_col(1, pool_.Make("tbl"), pool_.Make("id"),
+                        factory_.get_int64());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan, ResolvedTableScanBuilder()
+                                            .set_table(&table_)
+                                            .add_column_list(id_col)
+                                            .Build());
+
+  // Invalid: column_list of ResolvedFinishScan is not empty.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto finish_scan,
+                       ResolvedFinishScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .add_column_list(id_col)
+                           .Build());
+
+  auto query_stmt = MakeResolvedGeneralizedQueryStmt(
+      /*output_schema=*/nullptr, std::move(finish_scan));
+
+  EXPECT_THAT(
+      validator_.ValidateResolvedStatement(query_stmt.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("ResolvedFinishScan must not emit columns")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphDMLPropertyItemTypeMismatch) {
+  std::string graph_name = "graph_name";
+  auto name_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "name", std::vector<std::string>{graph_name}, factory_.get_string());
+
+  // Invalid: property_value is Int64 but catalog property expects String.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto property_item,
+      ResolvedGraphDMLPropertyItemBuilder()
+          .set_property_name("name")
+          .set_property(name_property_dcl.get())
+          .set_property_value(ResolvedLiteralBuilder()
+                                  .set_value(Value::Int64(123))
+                                  .set_type(factory_.get_int64())
+                                  .Build()
+                                  .value())
+          .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .add_property_list(std::move(property_item))
+                           .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateStandaloneResolvedExpr(insert_node_element.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("Property type mismatch for name")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphDMLPropertyItemNameMismatch) {
+  std::string graph_name = "graph_name";
+  auto name_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "name", std::vector<std::string>{graph_name}, factory_.get_string());
+
+  // Invalid: property_name is "age" but catalog property expects "name".
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto property_item,
+      ResolvedGraphDMLPropertyItemBuilder()
+          .set_property_name("age")
+          .set_property(name_property_dcl.get())
+          .set_property_value(ResolvedLiteralBuilder()
+                                  .set_value(Value::String("Alice"))
+                                  .set_type(factory_.get_string())
+                                  .Build()
+                                  .value())
+          .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .add_property_list(std::move(property_item))
+                           .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateStandaloneResolvedExpr(insert_node_element.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("Property name mismatch")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidEdgeEndpointPropertyNotFound) {
+  std::string graph_name = "graph_name";
+
+  // Endpoint has property "age" which is NOT in the expected node table
+  // (dummy_nodes).
+  const GraphElementType* graph_node_type_with_age;
+  GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType(
+      {graph_name}, GraphElementType::ElementKind::kNode,
+      {{"age", factory_.get_int64()}}, &graph_node_type_with_age));
+
+  // Create a synthetic table that has this node type column.
+  SimpleTable table_with_age_node("synthetic_tbl",
+                                  {{"node_col", graph_node_type_with_age}});
+  ResolvedColumn node_col_with_age(100, pool_.Make("synthetic_tbl"),
+                                   pool_.Make("node_col"),
+                                   graph_node_type_with_age);
+
+  // Input scan that produces this column.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan, ResolvedTableScanBuilder()
+                                            .set_table(&table_with_age_node)
+                                            .add_column_list(node_col_with_age)
+                                            .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto insert_edge_element,
+      ResolvedGraphInsertElementBuilder()
+          .set_type(graph_edge_type_)  // Edge type
+          .set_element_table(edge_table_.get())
+          .add_label_list(ResolvedGraphLabelBuilder()
+                              .set_label(knows_label_.get())
+                              .Build()
+                              .value())
+          .set_source_node(ResolvedColumnRefBuilder()
+                               .set_column(node_col_with_age)
+                               .set_type(node_col_with_age.type())
+                               .set_is_correlated(false)
+                               .Build()
+                               .value())
+          .set_dest_node(ResolvedColumnRefBuilder()
+                             .set_column(node_col_with_age)
+                             .set_type(node_col_with_age.type())
+                             .set_is_correlated(false)
+                             .Build()
+                             .value())
+          .Build());
+
+  ResolvedColumn edge_col(102, pool_.Make("inserted"), pool_.Make("edge"),
+                          graph_edge_type_);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(std::move(insert_edge_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .add_insert_edge_list(std::move(insert_edge))
+                           .add_column_list(edge_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto generalized_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(validator_.ValidateResolvedStatement(generalized_stmt.get()),
+              ::absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("Property age from source_node not found "
+                                     "in expected source table dummy_nodes")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidEdgeEndpointPropertyTypeMismatch) {
+  std::string graph_name = "graph_name";
+
+  // Endpoint has property "name" as Int64, but expected node table
+  // (dummy_nodes) has it as String.
+  const GraphElementType* graph_node_type_with_int_name;
+  GOOGLESQL_ASSERT_OK(factory_.MakeGraphElementType(
+      {graph_name}, GraphElementType::ElementKind::kNode,
+      {{"name", factory_.get_int64()}}, &graph_node_type_with_int_name));
+
+  // Create a synthetic table that has this node type column.
+  SimpleTable table_with_int_name(
+      "synthetic_tbl", {{"node_col", graph_node_type_with_int_name}});
+  ResolvedColumn node_col_wrong_type(101, pool_.Make("synthetic_tbl"),
+                                     pool_.Make("node_col"),
+                                     graph_node_type_with_int_name);
+
+  // Input scan that produces this column.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan,
+                       ResolvedTableScanBuilder()
+                           .set_table(&table_with_int_name)
+                           .add_column_list(node_col_wrong_type)
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto insert_edge_element,
+      ResolvedGraphInsertElementBuilder()
+          .set_type(graph_edge_type_)  // Edge type
+          .set_element_table(edge_table_.get())
+          .add_label_list(ResolvedGraphLabelBuilder()
+                              .set_label(knows_label_.get())
+                              .Build()
+                              .value())
+          .set_source_node(ResolvedColumnRefBuilder()
+                               .set_column(node_col_wrong_type)
+                               .set_type(node_col_wrong_type.type())
+                               .set_is_correlated(false)
+                               .Build()
+                               .value())
+          .set_dest_node(ResolvedColumnRefBuilder()
+                             .set_column(node_col_wrong_type)
+                             .set_type(node_col_wrong_type.type())
+                             .set_is_correlated(false)
+                             .Build()
+                             .value())
+          .Build());
+
+  ResolvedColumn edge_col(102, pool_.Make("inserted"), pool_.Make("edge"),
+                          graph_edge_type_);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(std::move(insert_edge_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .add_insert_edge_list(std::move(insert_edge))
+                           .add_column_list(edge_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto generalized_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(validator_.ValidateResolvedStatement(generalized_stmt.get()),
+              ::absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("Property type mismatch for name in "
+                                     "expected source table dummy_nodes")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertElementEmptyLabels) {
+  // Invalid: empty label list
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateStandaloneResolvedExpr(insert_node_element.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("INSERT element must have at least one label")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertElementNodeWithSrcNode) {
+  ResolvedColumn id_col(1, pool_.Make("tbl"), pool_.Make("id"),
+                        factory_.get_int64());
+
+  // Invalid: setting `src_node` field for node element.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .set_source_node(ResolvedColumnRefBuilder()
+                                                .set_column(id_col)
+                                                .set_type(id_col.type())
+                                                .set_is_correlated(false)
+                                                .Build()
+                                                .value())
+                           .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateStandaloneResolvedExpr(insert_node_element.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr(
+              "source_node and dest_node must only be set for edge elements")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertScanInvalidPathElement) {
+  ResolvedColumn node_col(2, pool_.Make("inserted"), pool_.Make("node"),
+                          graph_node_type_);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(std::move(insert_node_element))
+                           .Build());
+
+  // Invalid column not in scope
+  ResolvedColumn invalid_col(99, pool_.Make("invalid"), pool_.Make("col"),
+                             factory_.get_int64());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(MakeResolvedSingleRowScan())
+                           .add_insert_node_list(std::move(insert_node))
+                           .add_path_element_list(invalid_col)  // Invalid
+                           .add_column_list(node_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("node", node_col));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto query_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateResolvedStatement(query_stmt.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("Incorrect reference to column invalid.col#99")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertScanPathElementNotGraphElement) {
+  ResolvedColumn id_col(1, pool_.Make("tbl"), pool_.Make("id"),
+                        factory_.get_int64());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto input_scan, ResolvedTableScanBuilder()
+                                            .set_table(&table_)
+                                            .add_column_list(id_col)
+                                            .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(std::move(input_scan))
+                           .add_path_element_list(id_col)  // Invalid type
+                           .add_column_list(id_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("id", id_col));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto query_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(
+      validator_.ValidateResolvedStatement(query_stmt.get()),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          testing::HasSubstr("Path element must be a graph node or edge")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertScanConsecutiveEdges) {
+  ResolvedColumn node_col(2, pool_.Make("inserted"), pool_.Make("node"),
+                          graph_node_type_);
+  ResolvedColumn edge_col(3, pool_.Make("inserted"), pool_.Make("edge"),
+                          graph_edge_type_);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(std::move(insert_node_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_edge_type_)
+                           .set_element_table(edge_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(knows_label_.get())
+                                               .Build()
+                                               .value())
+                           .set_source_node(ResolvedColumnRefBuilder()
+                                                .set_column(node_col)
+                                                .set_type(node_col.type())
+                                                .set_is_correlated(false)
+                                                .Build()
+                                                .value())
+                           .set_dest_node(ResolvedColumnRefBuilder()
+                                              .set_column(node_col)
+                                              .set_type(node_col.type())
+                                              .set_is_correlated(false)
+                                              .Build()
+                                              .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(std::move(insert_edge_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto insert_scan,
+      ResolvedGraphInsertScanBuilder()
+          .set_input_scan(MakeResolvedSingleRowScan())
+          .add_insert_node_list(std::move(insert_node))
+          .add_insert_edge_list(std::move(insert_edge))
+          .add_path_element_list(node_col)
+          .add_path_element_list(edge_col)
+          .add_path_element_list(edge_col)  // Consecutive edges
+          .add_path_element_list(node_col)
+          .add_column_list(node_col)
+          .add_column_list(edge_col)
+          .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("node", node_col));
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto query_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(validator_.ValidateResolvedStatement(query_stmt.get()),
+              ::absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("found consecutive edges")));
+}
+
+TEST_F(ValidatorGraphTest, InvalidGraphInsertScanStartsOrEndsWithEdge) {
+  ResolvedColumn node_col(2, pool_.Make("inserted"), pool_.Make("node"),
+                          graph_node_type_);
+  ResolvedColumn edge_col(3, pool_.Make("inserted"), pool_.Make("edge"),
+                          graph_edge_type_);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_node_type_)
+                           .set_element_table(node_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(person_label_.get())
+                                               .Build()
+                                               .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_node,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(node_col)
+                           .set_expr(std::move(insert_node_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge_element,
+                       ResolvedGraphInsertElementBuilder()
+                           .set_type(graph_edge_type_)
+                           .set_element_table(edge_table_.get())
+                           .add_label_list(ResolvedGraphLabelBuilder()
+                                               .set_label(knows_label_.get())
+                                               .Build()
+                                               .value())
+                           .set_source_node(ResolvedColumnRefBuilder()
+                                                .set_column(node_col)
+                                                .set_type(node_col.type())
+                                                .set_is_correlated(false)
+                                                .Build()
+                                                .value())
+                           .set_dest_node(ResolvedColumnRefBuilder()
+                                              .set_column(node_col)
+                                              .set_type(node_col.type())
+                                              .set_is_correlated(false)
+                                              .Build()
+                                              .value())
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_edge,
+                       ResolvedComputedColumnBuilder()
+                           .set_column(edge_col)
+                           .set_expr(std::move(insert_edge_element))
+                           .Build());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto insert_scan,
+                       ResolvedGraphInsertScanBuilder()
+                           .set_input_scan(MakeResolvedSingleRowScan())
+                           .add_insert_node_list(std::move(insert_node))
+                           .add_insert_edge_list(std::move(insert_edge))
+                           .add_path_element_list(edge_col)  // Starts with edge
+                           .add_path_element_list(node_col)
+                           .add_path_element_list(edge_col)  // Ends with edge
+                           .add_column_list(node_col)
+                           .add_column_list(edge_col)
+                           .Build());
+
+  std::vector<std::unique_ptr<const ResolvedOutputColumn>> output_columns;
+  output_columns.push_back(MakeResolvedOutputColumn("node", node_col));
+  output_columns.push_back(MakeResolvedOutputColumn("edge", edge_col));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto query_stmt,
+      ResolvedGeneralizedQueryStmtBuilder()
+          .set_output_schema(MakeResolvedOutputSchema(std::move(output_columns),
+                                                      /*is_value_table=*/false))
+          .set_query(std::move(insert_scan))
+          .Build());
+
+  EXPECT_THAT(validator_.ValidateResolvedStatement(query_stmt.get()),
+              ::absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr(
+                      "Path element list must start and end with nodes")));
 }
 
 }  // namespace googlesql

@@ -336,6 +336,7 @@ public class FunctionArgumentTypeTest {
                 .serialize(fileDescriptorSetsBuilder));
   }
 
+  // TODO: Parameterize tests for different constness levels.
   @Test
   public void testSerializationAndDeserializationOfFunctionArgumentTypeOptions() {
     FunctionArgumentTypeOptions options =
@@ -401,7 +402,7 @@ public class FunctionArgumentTypeTest {
                 .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
 
     FunctionArgumentTypeOptions optionsAnalysisConstant =
-        FunctionArgumentTypeOptions.builder().setMustBeAnalysisConstant(true).build();
+        FunctionArgumentTypeOptions.builder().setMustBeAnalysisConstant().build();
     assertThat(optionsAnalysisConstant)
         .isEqualTo(
             FunctionArgumentTypeOptions.deserialize(
@@ -420,7 +421,7 @@ public class FunctionArgumentTypeTest {
                 .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
 
     FunctionArgumentTypeOptions optionsImmutableConstant =
-        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(true).build();
+        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant().build();
     assertThat(optionsImmutableConstant)
         .isEqualTo(
             FunctionArgumentTypeOptions.deserialize(
@@ -437,16 +438,52 @@ public class FunctionArgumentTypeTest {
                     /* argType= */ null,
                     TypeFactory.nonUniqueNames())
                 .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
+
+    FunctionArgumentTypeOptions optionsStableConstant =
+        FunctionArgumentTypeOptions.builder().setMustBeStableConstant().build();
+    assertThat(optionsStableConstant)
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                optionsStableConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder),
+                fileDescriptorSetsBuilder.getDescriptorPools(),
+                /* argType= */ null,
+                TypeFactory.nonUniqueNames()));
+    assertThat(optionsStableConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder))
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                    optionsStableConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder),
+                    fileDescriptorSetsBuilder.getDescriptorPools(),
+                    /* argType= */ null,
+                    TypeFactory.nonUniqueNames())
+                .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
+
+    FunctionArgumentTypeOptions optionsQueryConstant =
+        FunctionArgumentTypeOptions.builder().setMustBeQueryConstant().build();
+    assertThat(optionsQueryConstant)
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                optionsQueryConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder),
+                fileDescriptorSetsBuilder.getDescriptorPools(),
+                /* argType= */ null,
+                TypeFactory.nonUniqueNames()));
+    assertThat(optionsQueryConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder))
+        .isEqualTo(
+            FunctionArgumentTypeOptions.deserialize(
+                    optionsQueryConstant.serialize(/* argType= */ null, fileDescriptorSetsBuilder),
+                    fileDescriptorSetsBuilder.getDescriptorPools(),
+                    /* argType= */ null,
+                    TypeFactory.nonUniqueNames())
+                .serialize(/* argType= */ null, fileDescriptorSetsBuilder));
   }
 
   @Test
   public void testSettingSameConstnessLevelTwiceIsAllowed() {
     FunctionArgumentTypeOptions options1 =
-        FunctionArgumentTypeOptions.builder().setMustBeAnalysisConstant(true).build();
+        FunctionArgumentTypeOptions.builder().setMustBeAnalysisConstant().build();
     FunctionArgumentTypeOptions options2 =
         FunctionArgumentTypeOptions.builder()
-            .setMustBeAnalysisConstant(true)
-            .setMustBeAnalysisConstant(true)
+            .setMustBeAnalysisConstant()
+            .setMustBeAnalysisConstant()
             .build();
     assertThat(options2).isEqualTo(options1);
 
@@ -469,66 +506,88 @@ public class FunctionArgumentTypeTest {
     assertThat(options6).isEqualTo(options5);
 
     FunctionArgumentTypeOptions options7 =
-        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(true).build();
+        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant().build();
     FunctionArgumentTypeOptions options8 =
         FunctionArgumentTypeOptions.builder()
-            .setMustBeImmutableConstant(true)
-            .setMustBeImmutableConstant(true)
+            .setMustBeImmutableConstant()
+            .setMustBeImmutableConstant()
             .build();
     assertThat(options8).isEqualTo(options7);
+
+    FunctionArgumentTypeOptions options9 =
+        FunctionArgumentTypeOptions.builder().setMustBeStableConstant().build();
+    FunctionArgumentTypeOptions options10 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeStableConstant()
+            .setMustBeStableConstant()
+            .build();
+    assertThat(options10).isEqualTo(options9);
+
+    FunctionArgumentTypeOptions options11 =
+        FunctionArgumentTypeOptions.builder().setMustBeQueryConstant().build();
+    FunctionArgumentTypeOptions options12 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeQueryConstant()
+            .setMustBeQueryConstant()
+            .build();
+    assertThat(options12).isEqualTo(options11);
   }
 
   @Test
-  public void testSettingMultipleConstnessLevelsThrowsException() {
+  public void testSettingMultipleConstnessLevelsOverrides() {
     // Test setting mustBeConstant then mustBeConstantExpression
-    IllegalStateException e1 =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                FunctionArgumentTypeOptions.builder()
-                    .setMustBeConstant(true)
-                    .setMustBeConstantExpression(true));
-    assertThat(e1)
-        .hasMessageThat()
-        .contains(
-            "Cannot set mustBeConstantExpression when another constness level is already set.");
+    FunctionArgumentTypeOptions options1 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeConstant(true)
+            .setMustBeConstantExpression(true)
+            .build();
+    assertThat(options1.getMustBeConstant()).isFalse();
+    assertThat(options1.getMustBeConstantExpression()).isTrue();
 
     // Test setting mustBeConstantExpression then mustBeConstant
-    IllegalStateException e2 =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                FunctionArgumentTypeOptions.builder()
-                    .setMustBeConstantExpression(true)
-                    .setMustBeConstant(true));
-    assertThat(e2)
-        .hasMessageThat()
-        .contains("Cannot set mustBeConstant when another constness level is already set.");
+    FunctionArgumentTypeOptions options2 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeConstantExpression(true)
+            .setMustBeConstant(true)
+            .build();
+    assertThat(options2.getMustBeConstantExpression()).isFalse();
+    assertThat(options2.getMustBeConstant()).isTrue();
 
     // Test setting mustBeConstant then mustBeAnalysisConstant
-    IllegalStateException e3 =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                FunctionArgumentTypeOptions.builder()
-                    .setMustBeConstant(true)
-                    .setMustBeAnalysisConstant(true));
-    assertThat(e3)
-        .hasMessageThat()
-        .contains("Cannot set mustBeAnalysisConstant when another constness level is already set.");
+    FunctionArgumentTypeOptions options3 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeConstant(true)
+            .setMustBeAnalysisConstant()
+            .build();
+    assertThat(options3.getMustBeConstant()).isFalse();
+    assertThat(options3.getMustBeAnalysisConstant()).isTrue();
 
     // Test setting mustBeAnalysisConstant then mustBeImmutableConstant
-    IllegalStateException e4 =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                FunctionArgumentTypeOptions.builder()
-                    .setMustBeAnalysisConstant(true)
-                    .setMustBeImmutableConstant(true));
-    assertThat(e4)
-        .hasMessageThat()
-        .contains(
-            "Cannot set mustBeImmutableConstant when another constness level is already set.");
+    FunctionArgumentTypeOptions options4 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeAnalysisConstant()
+            .setMustBeImmutableConstant()
+            .build();
+    assertThat(options4.getMustBeAnalysisConstant()).isFalse();
+    assertThat(options4.getMustBeImmutableConstant()).isTrue();
+
+    // Test setting mustBeImmutableConstant then mustBeStableConstant
+    FunctionArgumentTypeOptions options5 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeImmutableConstant()
+            .setMustBeStableConstant()
+            .build();
+    assertThat(options5.getMustBeImmutableConstant()).isFalse();
+    assertThat(options5.getMustBeStableConstant()).isTrue();
+
+    // Test setting mustBeStableConstant then mustBeQueryConstant
+    FunctionArgumentTypeOptions options6 =
+        FunctionArgumentTypeOptions.builder()
+            .setMustBeStableConstant()
+            .setMustBeQueryConstant()
+            .build();
+    assertThat(options6.getMustBeStableConstant()).isFalse();
+    assertThat(options6.getMustBeQueryConstant()).isTrue();
   }
 
   @Test
@@ -610,7 +669,7 @@ public class FunctionArgumentTypeTest {
             "The number of fields of FunctionArgumentTypeProto has changed, "
                 + "please also update the serialization code accordingly.")
         .that(FunctionArgumentTypeProto.getDescriptor().getFields())
-        .hasSize(5);
+        .hasSize(6);
     assertWithMessage(
             "The number of fields in FunctionArgumentType class has changed, "
                 + "please also update the proto and serialization code accordingly.")
@@ -827,27 +886,5 @@ public class FunctionArgumentTypeTest {
             supportsElementGroupingOption,
             /* numOccurrences= */ 1);
     checkSerializeAndDeserialize(supportElementGroupingType);
-  }
-
-  @Test
-  public void testSetMustBeImmutableConstantFalse() {
-    FunctionArgumentTypeOptions options =
-        FunctionArgumentTypeOptions.builder().setMustBeImmutableConstant(false).build();
-    assertThat(options.getMustBeImmutableConstant()).isFalse();
-
-    FunctionArgumentTypeOptions options2 =
-        FunctionArgumentTypeOptions.builder()
-            .setMustBeImmutableConstant(true)
-            .setMustBeImmutableConstant(false)
-            .build();
-    assertThat(options2.getMustBeImmutableConstant()).isFalse();
-
-    FunctionArgumentTypeOptions options3 =
-        FunctionArgumentTypeOptions.builder()
-            .setMustBeConstant(true)
-            .setMustBeImmutableConstant(false)
-            .build();
-    assertThat(options3.getMustBeConstant()).isFalse();
-    assertThat(options3.getMustBeImmutableConstant()).isFalse();
   }
 }

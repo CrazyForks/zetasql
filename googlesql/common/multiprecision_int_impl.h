@@ -43,7 +43,7 @@ namespace multiprecision_int_impl {
 template <int num_bits>  // num_bits must be 32, 64, or 128
 struct IntTraits;
 
-// The version of <type_traits> used in googlesql oss does not support
+// The version of <type_traits> used in googlesql does not support
 // std::make_unsigned<__int128> or the std::make_signed counterpart,
 // so we have to define both Int and Uint explicitly.
 template <>

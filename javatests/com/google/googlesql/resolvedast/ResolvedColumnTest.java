@@ -19,7 +19,10 @@ package com.google.googlesql.resolvedast;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.google.googlesql.AnnotationMap;
+import com.google.googlesql.AnnotationMap.AnnotationKind;
 import com.google.googlesql.GoogleSQLType.TypeKind;
+import com.google.googlesql.SimpleValue;
 import com.google.googlesql.Type;
 import com.google.googlesql.TypeFactory;
 
@@ -40,8 +43,8 @@ public class ResolvedColumnTest {
     final String columnBName = "column_b";
     final Type columnAType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
     final Type columnBType = TypeFactory.createSimpleType(TypeKind.TYPE_INT64);
-    ResolvedColumn colA = new ResolvedColumn(columnId, tableAName, columnAName, columnAType);
-    ResolvedColumn colB = new ResolvedColumn(columnId, tableBName, columnBName, columnBType);
+    ResolvedColumn colA = new ResolvedColumn(columnId, tableAName, columnAName, columnAType, null);
+    ResolvedColumn colB = new ResolvedColumn(columnId, tableBName, columnBName, columnBType, null);
 
     assertThat(colA).isEqualTo(colB);
   }
@@ -52,8 +55,8 @@ public class ResolvedColumnTest {
     final String tableName = "table";
     final String columnName = "column_a";
     final Type columnType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
-    ResolvedColumn colA = new ResolvedColumn(columnId, tableName, columnName, columnType);
-    ResolvedColumn colB = new ResolvedColumn(columnId + 1, tableName, columnName, columnType);
+    ResolvedColumn colA = new ResolvedColumn(columnId, tableName, columnName, columnType, null);
+    ResolvedColumn colB = new ResolvedColumn(columnId + 1, tableName, columnName, columnType, null);
 
     assertThat(colA).isNotEqualTo(colB);
   }
@@ -68,8 +71,8 @@ public class ResolvedColumnTest {
     final String columnBName = "column_b";
     final Type columnAType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
     final Type columnBType = TypeFactory.createSimpleType(TypeKind.TYPE_INT64);
-    ResolvedColumn colA = new ResolvedColumn(columnId, tableAName, columnAName, columnAType);
-    ResolvedColumn colB = new ResolvedColumn(columnId, tableBName, columnBName, columnBType);
+    ResolvedColumn colA = new ResolvedColumn(columnId, tableAName, columnAName, columnAType, null);
+    ResolvedColumn colB = new ResolvedColumn(columnId, tableBName, columnBName, columnBType, null);
 
     assertThat(colA.hashCode()).isEqualTo(colB.hashCode());
   }
@@ -80,9 +83,27 @@ public class ResolvedColumnTest {
     final String tableName = "table";
     final String columnName = "column_a";
     final Type columnType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
-    ResolvedColumn colA = new ResolvedColumn(columnId, tableName, columnName, columnType);
-    ResolvedColumn colB = new ResolvedColumn(columnId + 1, tableName, columnName, columnType);
+    ResolvedColumn colA = new ResolvedColumn(columnId, tableName, columnName, columnType, null);
+    ResolvedColumn colB = new ResolvedColumn(columnId + 1, tableName, columnName, columnType, null);
 
     assertThat(colA.hashCode()).isNotEqualTo(colB.hashCode());
+  }
+
+  @Test
+  public void annotationMap_success() {
+    final long columnId = 42L;
+    final String tableName = "table";
+    final String columnName = "column_a";
+    final Type columnType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
+
+    AnnotationMap annotationMap = AnnotationMap.create(columnType);
+    annotationMap.setAnnotation(
+        AnnotationKind.COLLATION.getValue(), SimpleValue.createString("und:ci"));
+
+    ResolvedColumn col =
+        new ResolvedColumn(columnId, tableName, columnName, columnType, annotationMap);
+
+    assertThat(col.getAnnotationMap()).isEqualTo(annotationMap);
+    assertThat(col.debugString()).isEqualTo("table.column_a#42{Collation:\"und:ci\"}");
   }
 }

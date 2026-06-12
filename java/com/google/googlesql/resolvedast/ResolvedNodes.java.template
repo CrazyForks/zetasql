@@ -54,6 +54,7 @@ import com.google.googlesql.GoogleSQLType.ProtoTypeProto;
 import com.google.googlesql.GoogleSQLType.TypeProto;
 import com.google.googlesql.GoogleSQLTypeModifiers.TypeModifiersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.TypeParametersProto;
+import com.google.googlesql.GoogleSQLCollation.CollationProto;
 import com.google.googlesql.GraphElementLabel;
 import com.google.googlesql.GraphElementLabelRefProto;
 import com.google.googlesql.GraphElementTable;
@@ -95,26 +96,10 @@ import com.google.googlesql.{{node.proto_type}};
 # endfor
 import java.util.List;
 import javax.annotation.Nullable;
+import com.google.googlesql.AnnotationMap;
 {{ blank_line }}
 
-/**
- * This is a dummy implementation of AnnotationMap.
- * TODO: implement AnnotationMap in
- *   package com.google.googlesql
- */
-final class AnnotationMap {
-  public AnnotationMap() {
-  }
 
-  public AnnotationMapProto serialize(
-      FileDescriptorSetsBuilder fileDescriptorSetsBuilder) {
-    return AnnotationMapProto.getDefaultInstance();
-  }
-
-  public String debugString() {
-    return "";
-  }
-}
 
 /**
  * This is a dummy implementation of ResolvedCollation.
@@ -122,19 +107,57 @@ final class AnnotationMap {
  *   package com.google.googlesql
  */
 final class ResolvedCollation {
+  private final String collationName;
+  private final ImmutableList<ResolvedCollation> childList;
+
   public ResolvedCollation() {
+    this("", ImmutableList.of());
+  }
+
+  public boolean isEmpty() {
+    return collationName.isEmpty() && childList.isEmpty();
+  }
+
+  public ResolvedCollation(String collationName, ImmutableList<ResolvedCollation> childList) {
+    this.collationName = Preconditions.checkNotNull(collationName);
+    this.childList = Preconditions.checkNotNull(childList);
   }
 
   public ResolvedCollationProto serialize() {
-    return ResolvedCollationProto.getDefaultInstance();
+    ResolvedCollationProto.Builder builder = ResolvedCollationProto.newBuilder();
+    if (!collationName.isEmpty()) {
+      builder.setCollationName(collationName);
+    }
+    for (ResolvedCollation child : childList) {
+      builder.addChildList(child.serialize());
+    }
+    return builder.build();
   }
 
   public static ResolvedCollation deserialize(ResolvedCollationProto proto) {
-    return new ResolvedCollation();
+    String name = proto.hasCollationName() ? proto.getCollationName() : "";
+    ImmutableList.Builder<ResolvedCollation> childListBuilder = ImmutableList.builder();
+    for (ResolvedCollationProto childProto : proto.getChildListList()) {
+      childListBuilder.add(deserialize(childProto));
+    }
+    return new ResolvedCollation(name, childListBuilder.build());
   }
 
   public String debugString() {
-    return "";
+    if (childList.isEmpty()) {
+      return collationName.isEmpty() ? "_" : collationName;
+    } else {
+      StringBuilder sb = new StringBuilder();
+      sb.append(collationName).append("[");
+      for (int i = 0; i < childList.size(); i++) {
+        if (i > 0) {
+          sb.append(",");
+        }
+        sb.append(childList.get(i).debugString());
+      }
+      sb.append("]");
+      return sb.toString();
+    }
   }
 }
 
@@ -146,37 +169,86 @@ final class ResolvedCollation {
  */
 final class TypeModifiers{
   private TypeParameters type_parameters;
+  private CollationProto collation;
 
   public TypeModifiers() {
     type_parameters = new TypeParameters();
+    collation = CollationProto.getDefaultInstance();
   }
 
-  public TypeModifiers(TypeParameters type_parameters) {
-    this.type_parameters = type_parameters;
+  public TypeModifiers(TypeParameters type_parameters, CollationProto collation) {
+    this.type_parameters = Preconditions.checkNotNull(type_parameters);
+    this.collation = Preconditions.checkNotNull(collation);
+  }
+
+  private static boolean isCollationEmpty(CollationProto proto) {
+    if (proto.hasCollationName() && !proto.getCollationName().isEmpty()) {
+      return false;
+    }
+    for (CollationProto child : proto.getChildListList()) {
+      if (!isCollationEmpty(child)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static String collationDebugString(CollationProto proto) {
+    if (proto.getChildListCount() == 0) {
+      String name = proto.getCollationName();
+      return name.isEmpty() ? "_" : name;
+    } else {
+      StringBuilder sb = new StringBuilder();
+      sb.append(proto.getCollationName()).append("[");
+      for (int i = 0; i < proto.getChildListCount(); i++) {
+        if (i > 0) {
+          sb.append(",");
+        }
+        sb.append(collationDebugString(proto.getChildList(i)));
+      }
+      sb.append("]");
+      return sb.toString();
+    }
   }
 
   public boolean isEmpty() {
-    return type_parameters.isEmpty();
+    return type_parameters.isEmpty() && isCollationEmpty(collation);
   }
 
   public TypeModifiersProto serialize() {
     TypeModifiersProto.Builder builder = TypeModifiersProto.newBuilder();
     builder.setTypeParameters(this.type_parameters.serialize());
+    builder.setCollation(this.collation);
     return builder.build();
   }
 
   public static TypeModifiers deserialize(TypeModifiersProto proto) {
+    TypeParameters typeParameters = new TypeParameters();
+    CollationProto collation = CollationProto.getDefaultInstance();
     if (proto.hasTypeParameters()) {
-      return new TypeModifiers(TypeParameters.deserialize(proto.getTypeParameters()));
+      typeParameters = TypeParameters.deserialize(proto.getTypeParameters());
     }
-    return new TypeModifiers();
+    if (proto.hasCollation()) {
+      collation = proto.getCollation();
+    }
+    return new TypeModifiers(typeParameters, collation);
   }
 
   public String debugString() {
     if (isEmpty()) {
       return "null";
     }
-    return "type_parameters:" + this.type_parameters.debugString();
+    StringBuilder sb = new StringBuilder();
+    if (!type_parameters.isEmpty()) {
+      sb.append("type_parameters:").append(this.type_parameters.debugString());
+    }
+    if (!isCollationEmpty(this.collation)) {
+      if (sb.length() > 0) {
+        sb.append(", ");
+      }
+      sb.append("collation:").append(collationDebugString(this.collation));
+    }
+    return sb.toString();
   }
 }
 
@@ -328,13 +400,17 @@ public final class ResolvedNodes {
     builder.setTableName(col.getTableName());
     builder.setName(col.getName());
     builder.setType(serialize(col.getType(), fileDescriptorSetsBuilder));
+    if (col.getAnnotationMap() != null) {
+      builder.setAnnotationMap(serialize(col.getAnnotationMap(), fileDescriptorSetsBuilder));
+    }
     return builder.build();
   }
 
   static AnnotationMapProto serialize(
       AnnotationMap annotationMap,
+      @SuppressWarnings("unused")
       FileDescriptorSetsBuilder fileDescriptorSetsBuilder) {
-    return annotationMap.serialize(fileDescriptorSetsBuilder);
+    return annotationMap.serialize();
   }
 
   static ResolvedCollationProto serialize(

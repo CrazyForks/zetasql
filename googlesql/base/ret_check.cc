@@ -16,6 +16,7 @@
 
 #include "googlesql/base/ret_check.h"
 
+#include <memory>
 #include <string>
 
 #include "absl/status/status.h"

@@ -45,13 +45,13 @@
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -291,40 +291,14 @@ absl::Status Resolver::ResolveAlterActions(
       case AST_ALTER_CONSTRAINT_SET_OPTIONS_ACTION:
         return MakeSqlErrorAt(action)
                << "ALTER CONSTRAINT SET OPTIONS is not supported";
-      case AST_ADD_COLUMN_IDENTIFIER_ACTION: {
-        if (ast_statement->node_kind() != AST_ALTER_INDEX_STATEMENT) {
-          return MakeSqlErrorAt(action)
-                 << "ALTER " << alter_statement_kind
-                 << " does not support AddColumnIdentifier";
-        }
-        if (!is_if_exists) {
-          GOOGLESQL_RETURN_IF_ERROR(table_status);
-        }
-        const auto* add_column_identifier_action =
-            action->GetAsOrDie<ASTAddColumnIdentifierAction>();
-        const IdString column_name =
-            add_column_identifier_action->column_name()->GetAsIdString();
-        if (!new_columns.insert(column_name).second) {
-          return MakeSqlErrorAt(add_column_identifier_action)
-                 << "Duplicate column name " << column_name << " in ALTER "
-                 << alter_statement_kind << " ADD COLUMN";
-        }
-        std::vector<std::unique_ptr<const ResolvedOption>> resolved_options;
-        GOOGLESQL_RETURN_IF_ERROR(ResolveOptionsList(
-            add_column_identifier_action->options_list(),
-            /*allow_alter_array_operators=*/false, &resolved_options));
-        alter_actions->push_back(MakeResolvedAddColumnIdentifierAction(
-            add_column_identifier_action->column_name()->GetAsStringView(),
-            std::move(resolved_options),
-            add_column_identifier_action->is_if_not_exists()));
-      } break;
       case AST_ADD_COLUMN_ACTION:
       case AST_DROP_COLUMN_ACTION:
       case AST_RENAME_COLUMN_ACTION:
       case AST_ALTER_COLUMN_TYPE_ACTION: {
         if (!(ast_statement->node_kind() == AST_ALTER_TABLE_STATEMENT ||
               (ast_statement->node_kind() == AST_ALTER_INDEX_STATEMENT &&
-               action->node_kind() == AST_DROP_COLUMN_ACTION))) {
+               (action->node_kind() == AST_ADD_COLUMN_ACTION ||
+                action->node_kind() == AST_DROP_COLUMN_ACTION)))) {
           // Views, models, etc don't support ADD/DROP/RENAME/SET DATA TYPE
           // columns.
           return MakeSqlErrorAt(action)
@@ -337,6 +311,13 @@ absl::Status Resolver::ResolveAlterActions(
         std::unique_ptr<const ResolvedAlterAction> resolved_action;
         switch (action->node_kind()) {
           case AST_ADD_COLUMN_ACTION: {
+            if (ast_statement->node_kind() == AST_ALTER_INDEX_STATEMENT) {
+              GOOGLESQL_RETURN_IF_ERROR(ResolveAddColumnToIndex(
+                  alter_statement_kind,
+                  action->GetAsOrNull<ASTAddColumnAction>(), &new_columns,
+                  &resolved_action));
+              break;
+            }
             const auto* add_column_action =
                 action->GetAsOrDie<ASTAddColumnAction>();
             if (add_column_action->column_definition()
@@ -819,6 +800,66 @@ absl::Status Resolver::ResolveAlterTableStatement(
   return absl::OkStatus();
 }
 
+absl::Status Resolver::ResolveAddColumnToIndex(
+    absl::string_view alter_statement_kind, const ASTAddColumnAction* action,
+    IdStringSetCase* new_columns,
+    std::unique_ptr<const ResolvedAlterAction>* alter_action) {
+  GOOGLESQL_RET_CHECK(*alter_action == nullptr);
+
+  const ASTColumnDefinition* column_definition = action->column_definition();
+  const IdString column_name = column_definition->name()->GetAsIdString();
+  const ASTColumnSchema* schema = column_definition->schema();
+
+  if (!new_columns->insert(column_name).second) {
+    return MakeSqlErrorAt(action)
+           << "Duplicate column name " << column_name << " in ALTER "
+           << alter_statement_kind << " ADD COLUMN";
+  }
+  if (action->column_position() != nullptr) {
+    return MakeSqlErrorAt(action->column_position())
+           << "ALTER INDEX ADD COLUMN does not support column position";
+  }
+  if (action->fill_expression() != nullptr) {
+    return MakeSqlErrorAt(action->fill_expression())
+           << "ALTER INDEX ADD COLUMN does not support FILL USING";
+  }
+  if (schema->node_kind() != AST_INFERRED_TYPE_COLUMN_SCHEMA) {
+    return MakeSqlErrorAt(schema)
+           << "ALTER INDEX ADD COLUMN does not support explicit type";
+  }
+  if (schema->attributes() != nullptr) {
+    return MakeSqlErrorAt(schema->attributes())
+           << "ALTER INDEX ADD COLUMN does not support column attributes";
+  }
+  if (schema->collate() != nullptr) {
+    return MakeSqlErrorAt(schema->collate())
+           << "ALTER INDEX ADD COLUMN does not support COLLATE";
+  }
+  if (schema->default_expression() != nullptr) {
+    return MakeSqlErrorAt(schema->default_expression())
+           << "ALTER INDEX ADD COLUMN does not support DEFAULT";
+  }
+  if (schema->generated_column_info() != nullptr) {
+    return MakeSqlErrorAt(schema->generated_column_info())
+           << "ALTER INDEX ADD COLUMN does not support generated columns";
+  }
+  if (schema->type_parameters() != nullptr) {
+    return MakeSqlErrorAt(schema->type_parameters())
+           << "ALTER INDEX ADD COLUMN does not support type parameters";
+  }
+
+  std::vector<std::unique_ptr<const ResolvedOption>> resolved_options;
+  GOOGLESQL_RETURN_IF_ERROR(ResolveOptionsList(schema->options_list(),
+                                     /*allow_alter_array_operators=*/false,
+                                     &resolved_options));
+
+  *alter_action = MakeResolvedAddColumnIdentifierAction(
+      column_name.ToStringView(), std::move(resolved_options),
+      action->is_if_not_exists());
+
+  return absl::OkStatus();
+}
+
 absl::Status Resolver::ResolveAddColumnAction(
     IdString table_name_id_string, const Table* table,
     const ASTAddColumnAction* action, NameList* column_name_list,
@@ -1285,11 +1326,18 @@ absl::Status Resolver::ResolveAlterColumnSetGeneratedAction(
   // Parser should have already verified that there is no expression.
   GOOGLESQL_RET_CHECK(ast_generated_column_info->expression() == nullptr);
 
+  TypeModifiers type_modifiers;
+  if (column != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers, TypeModifiers::MakeTypeModifiers(
+                                         column->GetTypeAnnotationMap()));
+  }
+
   std::unique_ptr<ResolvedGeneratedColumnInfo> generated_column_info;
   NameList column_name_list;
   GOOGLESQL_RETURN_IF_ERROR(ResolveGeneratedColumnInfo(
       ast_generated_column_info, column_name_list, column_type,
-      skip_type_match_check, &generated_column_info));
+      std::move(type_modifiers), skip_type_match_check,
+      &generated_column_info));
 
   alter_action = MakeResolvedAlterColumnSetGeneratedAction(
       action.is_if_exists(), column_name.ToString(),
@@ -1507,9 +1555,15 @@ absl::Status Resolver::ResolveAlterColumnSetDefaultAction(
   googlesql_base::VarSetter<std::optional<const NameScope*>> var_setter(
       &default_expr_access_error_name_scope_, access_error_name_scope.get());
 
+  TypeModifiers type_modifiers;
+  if (column != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers, TypeModifiers::MakeTypeModifiers(
+                                         column->GetTypeAnnotationMap()));
+  }
+
   GOOGLESQL_RETURN_IF_ERROR(ResolveColumnDefaultExpression(
-      action->default_expression(), column_type, skip_type_match_check,
-      &resolved_default_value));
+      action->default_expression(), column_type, std::move(type_modifiers),
+      skip_type_match_check, &resolved_default_value));
 
   *alter_action = MakeResolvedAlterColumnSetDefaultAction(
       action->is_if_exists(), column_name.ToString(),
@@ -1532,6 +1586,9 @@ absl::Status Resolver::ResolveAlterIndexStatement(
       ResolvedAlterIndexStmt::INDEX_DEFAULT;
   std::string alter_statement_kind;
   switch (ast_statement->index_type()) {
+    case ASTAlterIndexStatement::IndexType::INDEX_AI:
+      return MakeSqlErrorAt(ast_statement)
+             << "ALTER AI INDEX is not supported.";
     case ASTAlterIndexStatement::IndexType::INDEX_SEARCH:
       index_type = ResolvedAlterIndexStmt::INDEX_SEARCH;
       alter_statement_kind = "SEARCH INDEX";
@@ -1541,7 +1598,9 @@ absl::Status Resolver::ResolveAlterIndexStatement(
       alter_statement_kind = "VECTOR INDEX";
       break;
     default:
-      GOOGLESQL_RET_CHECK_FAIL() << "Invalid index type: " << ast_statement->index_type();
+      GOOGLESQL_RET_CHECK_FAIL() << "Invalid index type: "
+                       << ASTAlterIndexStatementEnums::IndexType_Name(
+                              static_cast<int>(ast_statement->index_type()));
   }
 
   const ASTPathExpression* table_path = ast_statement->table_name();
@@ -1571,7 +1630,7 @@ absl::Status Resolver::ResolveAlterIndexStatement(
       case AST_REBUILD_ACTION:
         has_rebuild_action = true;
         break;
-      case AST_ADD_COLUMN_IDENTIFIER_ACTION:
+      case AST_ADD_COLUMN_ACTION:
       case AST_DROP_COLUMN_ACTION:
       case AST_ALTER_COLUMN_OPTIONS_ACTION:
       case AST_SET_OPTIONS_ACTION:

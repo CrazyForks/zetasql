@@ -55,6 +55,7 @@ class Resolver;
 class SelectColumnStateList;
 struct ExprResolutionInfo;
 class LateralReferenceState;
+class ASTQueryExpression;
 
 using ResolvedComputedColumnList = std::vector<const ResolvedComputedColumn*>;
 
@@ -103,6 +104,11 @@ struct ExprFindings {
 
   // True if this expression contains a volatile function.
   bool has_volatile = false;
+
+  // True if this expression contains a scalar subquery (or an IN or LIKE
+  // subquery that is rewritten as a scalar subquery) that uses GROUP ROWS.
+  // Such subqueries are considered to be aggregations.
+  bool has_group_rows = false;
 };
 
 struct GroupingSetInfo {
@@ -569,11 +575,11 @@ struct SelectColumnState {
   // If true, this expression is used as a GROUP BY key.
   bool is_group_by_column = false;
 
-  // If true, this expression uses a function with GROUP ROWS or GROUP BY
-  // modifiers and that function is not in an expression subquery. This
-  // expression is resolved in `ResolveDeferredFirstPassSelectListExprs` after
-  // the GROUP BY clause is resolved.
-  bool contains_outer_group_rows_or_group_by_modifiers = false;
+  // If true, this expression uses a function with GROUP BY modifiers and that
+  // function is not in an expression subquery. This expression is resolved in
+  // `ResolveDeferredFirstPassSelectListExprs` after the GROUP BY clause is
+  // resolved.
+  bool contains_group_by_modifiers = false;
 
   // The output column of this select list item.  It is projected by a scan
   // that computes the related expression.  After the SELECT list has
@@ -1475,10 +1481,9 @@ class UntypedLiteralMap {
 // first pass resolution deferred until after the GROUP BY clause is resolved.
 // See `ResolveDeferredFirstPassSelectListExprs` for details.
 struct DeferredResolutionSelectColumnInfo {
-  // If true, the `ASTSelectColumn` contains a function with a GROUP ROWS
-  // expression or GROUP BY modifiers, and the function does not lie within a
-  // subquery.
-  bool has_outer_group_rows_or_group_by_modifiers = false;
+  // If true, the `ASTSelectColumn` contains a function with GROUP BY modifiers,
+  // and the function does not lie within a subquery.
+  bool has_group_by_modifiers = false;
   // If true, the `ASTSelectColumn` contains an analytic function (i.e. a
   // function with an OVER clause), and the function does not lie within a
   // subquery.
@@ -1487,6 +1492,17 @@ struct DeferredResolutionSelectColumnInfo {
 
 absl::StatusOr<DeferredResolutionSelectColumnInfo>
 GetDeferredResolutionSelectColumnInfo(const ASTSelectColumn* select_column);
+
+// Returns true if the given query expression contains a FROM GROUP ROWS
+// expression. This only searches the current query level and does not look into
+// subqueries.
+absl::StatusOr<bool> HasGroupRowsInQuery(const ASTQueryExpression* query_expr);
+
+// Extracts collation annotations from the `group_by_list` of `aggregate_scan`
+// and populates the scan's collation list.
+// This is a no-op if FEATURE_COLLATION_SUPPORT is not enabled.
+absl::Status SetCollationList(const LanguageOptions& language_options,
+                              ResolvedAggregateScanBase& aggregate_scan);
 
 }  // namespace googlesql
 

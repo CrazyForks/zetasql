@@ -34,22 +34,32 @@
 
 namespace googlesql {
 
-ValueAsTableAdapter::ValueAsTableAdapter(const Value& value) : value_(value) {
-  const StructType* struct_type =
-      value_.type()->AsArray()->element_type()->AsStruct();
+ValueAsTableAdapter::ValueAsTableAdapter(const Value& value,
+                                         bool is_value_table)
+    : value_(value) {
+  const Type* element_type = value_.type()->AsArray()->element_type();
   std::vector<SimpleTable::NameAndType> column_info;
-  for (int i = 0; i < struct_type->num_fields(); ++i) {
-    const StructField& field = struct_type->field(i);
-    column_info.push_back(
-        {field.name.empty() ? absl::StrCat("$col_", i + 1) : field.name,
-         field.type});
+  if (is_value_table) {
+    column_info.push_back({"value", element_type});
+  } else {
+    const StructType* struct_type = element_type->AsStruct();
+    for (int i = 0; i < struct_type->num_fields(); ++i) {
+      const StructField& field = struct_type->field(i);
+      column_info.push_back(
+          {field.name.empty() ? absl::StrCat("$col_", i + 1) : field.name,
+           field.type});
+    }
   }
 
   table_ = std::make_unique<SimpleTable>("value_table", column_info);
   std::vector<std::vector<Value>> rows;
   rows.reserve(value_.num_elements());
   for (int i = 0; i < value_.num_elements(); ++i) {
-    rows.push_back(value_.element(i).fields());
+    if (is_value_table) {
+      rows.push_back({value_.element(i)});
+    } else {
+      rows.push_back(value_.element(i).fields());
+    }
   }
   table_->SetContents(rows);
 }
@@ -67,12 +77,11 @@ ValueAsTableAdapter::CreateEvaluatorTableIterator() const {
 }
 
 absl::StatusOr<std::unique_ptr<ValueAsTableAdapter>>
-ValueAsTableAdapter::Create(const Value& value) {
-  if (!value.has_content() || !value.type()->IsArray() ||
-      !value.type()->AsArray()->element_type()->IsStruct()) {
-    return absl::InvalidArgumentError("The value must be an array of structs.");
+ValueAsTableAdapter::Create(const Value& value, bool is_value_table) {
+  if (!value.has_content() || !value.type()->IsArray()) {
+    return absl::InvalidArgumentError("The value must be an array.");
   }
-  return absl::WrapUnique(new ValueAsTableAdapter(value));
+  return absl::WrapUnique(new ValueAsTableAdapter(value, is_value_table));
 }
 
 }  // namespace googlesql

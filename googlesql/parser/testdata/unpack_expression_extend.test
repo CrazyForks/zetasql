@@ -1,0 +1,142 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+from Foo
+|> select y
+|> EXTEND {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-38] [from Foo |...EXTEND  **cols]
+  Query [0-38] [from Foo |...EXTEND  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-20] [|> select y]
+      Select [12-20] [select y]
+        SelectList [19-20] [y]
+          SelectColumn [19-20] [y]
+            PathExpression [19-20] [y]
+              Identifier(y) [19-20] [y]
+    PipeExtend [21-38] [|> EXTEND  **cols]
+      Select [24-38] [EXTEND  **cols]
+        SelectList [32-38] [**cols]
+          SelectColumn [32-38] [**cols]
+            UnpackExpression [32-38] [**cols]
+              PathExpression [34-38] [cols]
+                Identifier(cols) [34-38] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     y
+|> EXTEND
+     ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-41] [from Foo |...**cols ,y]
+  Query [0-41] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-20] [|> select y]
+      Select [12-20] [select y]
+        SelectList [19-20] [y]
+          SelectColumn [19-20] [y]
+            PathExpression [19-20] [y]
+              Identifier(y) [19-20] [y]
+    PipeExtend [21-41] [|> EXTEND  **cols ,y]
+      Select [24-41] [EXTEND  **cols ,y]
+        SelectList [32-41] [**cols ,y]
+          SelectColumn [32-38] [**cols]
+            UnpackExpression [32-38] [**cols]
+              PathExpression [34-38] [cols]
+                Identifier(cols) [34-38] [cols]
+          SelectColumn [40-41] [y]
+            PathExpression [40-41] [y]
+              Identifier(y) [40-41] [y]
+--
+FROM
+  Foo
+|> SELECT
+     y
+|> EXTEND
+     ** (cols),
+     y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-40] [from Foo |...x, **cols]
+  Query [0-40] [from Foo |...x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-20] [|> select y]
+      Select [12-20] [select y]
+        SelectList [19-20] [y]
+          SelectColumn [19-20] [y]
+            PathExpression [19-20] [y]
+              Identifier(y) [19-20] [y]
+    PipeExtend [21-40] [|> EXTEND x, **cols]
+      Select [24-40] [EXTEND x, **cols]
+        SelectList [31-40] [x, **cols]
+          SelectColumn [31-32] [x]
+            PathExpression [31-32] [x]
+              Identifier(x) [31-32] [x]
+          SelectColumn [34-40] [**cols]
+            UnpackExpression [34-40] [**cols]
+              PathExpression [36-40] [cols]
+                Identifier(cols) [36-40] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     y
+|> EXTEND
+     x,
+     ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-43] [from Foo |...**cols ,y]
+  Query [0-43] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-20] [|> select y]
+      Select [12-20] [select y]
+        SelectList [19-20] [y]
+          SelectColumn [19-20] [y]
+            PathExpression [19-20] [y]
+              Identifier(y) [19-20] [y]
+    PipeExtend [21-43] [|> EXTEND x, **cols ,y]
+      Select [24-43] [EXTEND x, **cols ,y]
+        SelectList [31-43] [x, **cols ,y]
+          SelectColumn [31-32] [x]
+            PathExpression [31-32] [x]
+              Identifier(x) [31-32] [x]
+          SelectColumn [34-40] [**cols]
+            UnpackExpression [34-40] [**cols]
+              PathExpression [36-40] [cols]
+                Identifier(cols) [36-40] [cols]
+          SelectColumn [42-43] [y]
+            PathExpression [42-43] [y]
+              Identifier(y) [42-43] [y]
+--
+FROM
+  Foo
+|> SELECT
+     y
+|> EXTEND
+     x,
+     ** (cols),
+     y

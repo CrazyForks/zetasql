@@ -41,6 +41,8 @@
 #include "googlesql/public/functions/datetime.pb.h"
 #include "googlesql/public/functions/range.h"
 #include "googlesql/public/functions/string.h"
+#include "googlesql/public/functions/to_json.h"
+#include "googlesql/public/functions/unsupported_fields.pb.h"
 #include "googlesql/public/input_argument_type.h"
 #include "googlesql/public/interval_value.h"
 #include "googlesql/public/json_value.h"
@@ -64,6 +66,7 @@
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/match.h"
@@ -75,7 +78,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -121,6 +123,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(BOOL,       UINT32,     EXPLICIT);
   ADD_TO_MAP(BOOL,       UINT64,     EXPLICIT);
   ADD_TO_MAP(BOOL,       STRING,     EXPLICIT);
+  ADD_TO_MAP(BOOL,       JSON,       EXPLICIT);
 
   ADD_TO_MAP(INT32,      BOOL,       EXPLICIT);
   ADD_TO_MAP(INT32,      INT32,      IMPLICIT);
@@ -133,6 +136,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(INT32,      ENUM,       EXPLICIT_OR_LITERAL_OR_PARAMETER);
   ADD_TO_MAP(INT32,      NUMERIC,    IMPLICIT);
   ADD_TO_MAP(INT32,      BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(INT32,      JSON,       EXPLICIT);
 
   ADD_TO_MAP(INT64,      BOOL,       EXPLICIT);
   ADD_TO_MAP(INT64,      INT32,      EXPLICIT_OR_LITERAL);
@@ -145,6 +149,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(INT64,      ENUM,       EXPLICIT_OR_LITERAL_OR_PARAMETER);
   ADD_TO_MAP(INT64,      NUMERIC,    IMPLICIT);
   ADD_TO_MAP(INT64,      BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(INT64,      JSON,       EXPLICIT);
 
   ADD_TO_MAP(UINT32,     BOOL,       EXPLICIT);
   ADD_TO_MAP(UINT32,     INT32,      EXPLICIT_OR_LITERAL);
@@ -157,6 +162,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(UINT32,     ENUM,       EXPLICIT_OR_LITERAL);
   ADD_TO_MAP(UINT32,     NUMERIC,    IMPLICIT);
   ADD_TO_MAP(UINT32,     BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(UINT32,     JSON,       EXPLICIT);
 
   ADD_TO_MAP(UINT64,     BOOL,       EXPLICIT);
   ADD_TO_MAP(UINT64,     INT32,      EXPLICIT_OR_LITERAL);
@@ -169,6 +175,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(UINT64,     ENUM,       EXPLICIT_OR_LITERAL);
   ADD_TO_MAP(UINT64,     NUMERIC,    IMPLICIT);
   ADD_TO_MAP(UINT64,     BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(UINT64,     JSON,       EXPLICIT);
 
   ADD_TO_MAP(NUMERIC,    INT32,      EXPLICIT);
   ADD_TO_MAP(NUMERIC,    INT64,      EXPLICIT);
@@ -179,6 +186,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(NUMERIC,    STRING,     EXPLICIT);
   ADD_TO_MAP(NUMERIC,    NUMERIC,    IMPLICIT);
   ADD_TO_MAP(NUMERIC,    BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(NUMERIC,    JSON,       EXPLICIT);
 
   ADD_TO_MAP(BIGNUMERIC, INT32,      EXPLICIT);
   ADD_TO_MAP(BIGNUMERIC, INT64,      EXPLICIT);
@@ -189,6 +197,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(BIGNUMERIC, STRING,     EXPLICIT);
   ADD_TO_MAP(BIGNUMERIC, NUMERIC,    EXPLICIT);
   ADD_TO_MAP(BIGNUMERIC, BIGNUMERIC, IMPLICIT);
+  ADD_TO_MAP(BIGNUMERIC, JSON,       EXPLICIT);
 
   ADD_TO_MAP(FLOAT,      INT32,      EXPLICIT);
   ADD_TO_MAP(FLOAT,      INT64,      EXPLICIT);
@@ -199,6 +208,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(FLOAT,      STRING,     EXPLICIT);
   ADD_TO_MAP(FLOAT,      NUMERIC,    EXPLICIT);
   ADD_TO_MAP(FLOAT,      BIGNUMERIC, EXPLICIT);
+  ADD_TO_MAP(FLOAT,      JSON,       EXPLICIT);
 
   ADD_TO_MAP(DOUBLE,     INT32,      EXPLICIT);
   ADD_TO_MAP(DOUBLE,     INT64,      EXPLICIT);
@@ -209,6 +219,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(DOUBLE,     STRING,     EXPLICIT);
   ADD_TO_MAP(DOUBLE,     NUMERIC,    EXPLICIT_OR_LITERAL);
   ADD_TO_MAP(DOUBLE,     BIGNUMERIC, EXPLICIT_OR_LITERAL);
+  ADD_TO_MAP(DOUBLE,     JSON,       EXPLICIT);
 
   ADD_TO_MAP(STRING,     INT32,      EXPLICIT);
   ADD_TO_MAP(STRING,     INT64,      EXPLICIT);
@@ -229,38 +240,46 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(STRING,     NUMERIC,    EXPLICIT);
   ADD_TO_MAP(STRING,     BIGNUMERIC, EXPLICIT);
   ADD_TO_MAP(STRING,     RANGE,      EXPLICIT);
+  ADD_TO_MAP(STRING,     JSON,       EXPLICIT);
 
   ADD_TO_MAP(BYTES,      BYTES,      IMPLICIT);
   ADD_TO_MAP(BYTES,      STRING,     EXPLICIT);
   ADD_TO_MAP(BYTES,      PROTO,      EXPLICIT_OR_LITERAL_OR_PARAMETER);
   ADD_TO_MAP(BYTES,      TOKENLIST,  EXPLICIT);
+  ADD_TO_MAP(BYTES,      JSON,       EXPLICIT);
 
   ADD_TO_MAP(DATE,       DATE,       IMPLICIT);
   ADD_TO_MAP(DATE,       DATETIME,   IMPLICIT);
   ADD_TO_MAP(DATE,       TIMESTAMP,  EXPLICIT);
   ADD_TO_MAP(DATE,       STRING,     EXPLICIT);
+  ADD_TO_MAP(DATE,       JSON,       EXPLICIT);
 
   ADD_TO_MAP(TIMESTAMP,  DATE,       EXPLICIT);
   ADD_TO_MAP(TIMESTAMP,  DATETIME,   EXPLICIT);
   ADD_TO_MAP(TIMESTAMP,  TIME,       EXPLICIT);
   ADD_TO_MAP(TIMESTAMP,  TIMESTAMP,  IMPLICIT);
   ADD_TO_MAP(TIMESTAMP,  STRING,     EXPLICIT);
+  ADD_TO_MAP(TIMESTAMP,  JSON,       EXPLICIT);
 
   // TODO: Add relevant tests for TIME and DATETIME.
 
   ADD_TO_MAP(TIME,       TIME,       IMPLICIT);
   ADD_TO_MAP(TIME,       STRING,     EXPLICIT);
+  ADD_TO_MAP(TIME,       JSON,       EXPLICIT);
 
   ADD_TO_MAP(DATETIME,   DATE,       EXPLICIT);
   ADD_TO_MAP(DATETIME,   DATETIME,   IMPLICIT);
   ADD_TO_MAP(DATETIME,   STRING,     EXPLICIT);
   ADD_TO_MAP(DATETIME,   TIME,       EXPLICIT);
   ADD_TO_MAP(DATETIME,   TIMESTAMP,  EXPLICIT);
+  ADD_TO_MAP(DATETIME,   JSON,       EXPLICIT);
 
   ADD_TO_MAP(INTERVAL,   INTERVAL,   IMPLICIT);
   ADD_TO_MAP(INTERVAL,   STRING,     EXPLICIT);
+  ADD_TO_MAP(INTERVAL,   JSON,       EXPLICIT);
 
   ADD_TO_MAP(GEOGRAPHY,  GEOGRAPHY,  IMPLICIT);
+  // TODO: Add GEOGRAPHY to JSON cast once TO_JSON supports it.
 
   ADD_TO_MAP(JSON,       JSON,       IMPLICIT);
 
@@ -268,16 +287,18 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(TOKENLIST,  BYTES,      EXPLICIT);
 
   ADD_TO_MAP(ENUM,       STRING,     EXPLICIT);
-
   ADD_TO_MAP(ENUM,       INT32,      EXPLICIT);
   ADD_TO_MAP(ENUM,       INT64,      EXPLICIT);
   ADD_TO_MAP(ENUM,       UINT32,     EXPLICIT);
   ADD_TO_MAP(ENUM,       UINT64,     EXPLICIT);
+  ADD_TO_MAP(ENUM,       JSON,       EXPLICIT);
 
   ADD_TO_MAP(PROTO,      STRING,     EXPLICIT);
   ADD_TO_MAP(PROTO,      BYTES,      EXPLICIT);
+  ADD_TO_MAP(PROTO,      JSON,       EXPLICIT);
 
   ADD_TO_MAP(RANGE,      STRING,     EXPLICIT);
+  ADD_TO_MAP(RANGE,      JSON,       EXPLICIT);
 
   // The non-simple types show up in this table as IMPLICIT, but coercions of
   // any kind should only be allowed if the types are Equivalent.
@@ -285,14 +306,26 @@ const CastHashMap* InitializeGoogleSQLCasts() {
   ADD_TO_MAP(ENUM,       ENUM,       IMPLICIT);
   ADD_TO_MAP(PROTO,      PROTO,      IMPLICIT);
   ADD_TO_MAP(ARRAY,      ARRAY,      IMPLICIT);
+  ADD_TO_MAP(ARRAY,      JSON,       EXPLICIT);
+
   ADD_TO_MAP(STRUCT,     STRUCT,     IMPLICIT);
+  ADD_TO_MAP(STRUCT,     JSON,       EXPLICIT);
+
   ADD_TO_MAP(RANGE,      RANGE,      IMPLICIT);
+  ADD_TO_MAP(RANGE,      JSON,       EXPLICIT);
+
   ADD_TO_MAP(GRAPH_ELEMENT, GRAPH_ELEMENT, IMPLICIT);
+  ADD_TO_MAP(GRAPH_ELEMENT, JSON,    EXPLICIT);
+
   ADD_TO_MAP(GRAPH_PATH, GRAPH_PATH, IMPLICIT);
+  ADD_TO_MAP(GRAPH_PATH, JSON,       EXPLICIT);
   ADD_TO_MAP(MAP,        MAP,        IMPLICIT);
+
   ADD_TO_MAP(UUID,       UUID,       IMPLICIT);
   ADD_TO_MAP(UUID,       STRING,     EXPLICIT);
   ADD_TO_MAP(UUID,       BYTES,      EXPLICIT);
+  ADD_TO_MAP(UUID,       JSON,       EXPLICIT);
+
   ADD_TO_MAP(STRING,     UUID,       EXPLICIT_OR_LITERAL_OR_PARAMETER);
   ADD_TO_MAP(BYTES,      UUID,       EXPLICIT);
   // clang-format on
@@ -428,8 +461,28 @@ absl::StatusOr<Value> DoMapEntryCast(const Value& from_value,
                                          message));
 
   absl::Cord bytes;
-  ABSL_CHECK(message->SerializeToCord(&bytes));
+  ABSL_CHECK(message->SerializeToString(&bytes));
   return Value::Proto(to_proto_type, bytes);
+}
+
+// Casts a Value <v> to a JSON value.
+absl::StatusOr<Value> CastToJSON(const Value& v,
+                                 const LanguageOptions& language_options,
+                                 bool canonicalize_zero,
+                                 bool* out_found_non_deterministic) {
+  if (v.is_null()) {
+    return Value::NullJson();
+  }
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      JSONValue json_value,
+      googlesql::functions::ToJson(
+          v, /*stringify_wide_numbers=*/false, language_options,
+          canonicalize_zero,
+          /*unsupported_fields=*/
+          googlesql::functions::UnsupportedFieldsEnum::FAIL,
+          /*path_as_object=*/false,
+          /*reject_nan_infinity_floats=*/true, out_found_non_deterministic));
+  return Value::Json(std::move(json_value));
 }
 
 static std::string ValueOrUnbounded(std::optional<std::string> value) {
@@ -437,6 +490,131 @@ static std::string ValueOrUnbounded(std::optional<std::string> value) {
 }
 
 }  // namespace
+
+bool IsTypeCastableToJson(const Type* from_type,
+                          const LanguageOptions& language_options) {
+  if (from_type->IsJson()) {
+    return true;
+  }
+  switch (from_type->kind()) {
+    case TYPE_BOOL:
+    case TYPE_INT32:
+    case TYPE_INT64:
+    case TYPE_UINT32:
+    case TYPE_UINT64:
+    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
+    case TYPE_NUMERIC:
+    case TYPE_BIGNUMERIC:
+    case TYPE_STRING:
+    case TYPE_BYTES:
+    case TYPE_DATE:
+    case TYPE_TIME:
+    case TYPE_DATETIME:
+    case TYPE_TIMESTAMP:
+    case TYPE_UUID:
+    case TYPE_ARRAY:
+    case TYPE_STRUCT:
+    case TYPE_ENUM:
+    case TYPE_INTERVAL:
+    case TYPE_RANGE:
+    case TYPE_GRAPH_ELEMENT:
+    case TYPE_GRAPH_PATH:
+    case TYPE_PROTO:
+      return language_options.LanguageFeatureEnabled(
+          LanguageFeature::FEATURE_CAST_TO_JSON_TYPE);
+    default:
+      return false;
+  }
+}
+
+namespace {
+
+enum class JsonCastProperty { kEqualityPreserving, kOrderPreserving };
+
+bool CheckJsonCastProperty(const Type* arg_type, JsonCastProperty property) {
+  switch (arg_type->kind()) {
+    // Types valid for both Equality and Ordering.
+    case TYPE_JSON:
+    case TYPE_BOOL:
+    case TYPE_INT32:
+    case TYPE_UINT32:
+    case TYPE_INT64:
+    case TYPE_UINT64:
+    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
+    case TYPE_NUMERIC:
+    case TYPE_BIGNUMERIC:
+    case TYPE_STRING:
+    case TYPE_DATE:
+    case TYPE_TIMESTAMP:
+    case TYPE_DATETIME:
+    case TYPE_TIME:
+    case TYPE_UUID:
+      return true;
+
+    // Types valid only for Equality preserving.
+    case TYPE_BYTES:
+    case TYPE_ENUM:
+      return property == JsonCastProperty::kEqualityPreserving;
+
+    // Recursive types.
+    case TYPE_ARRAY:
+      return CheckJsonCastProperty(arg_type->AsArray()->element_type(),
+                                   property);
+
+    case TYPE_RANGE:
+      if (property == JsonCastProperty::kOrderPreserving) {
+        return false;
+      }
+      return CheckJsonCastProperty(arg_type->AsRange()->element_type(),
+                                   property);
+
+    default:
+      return false;
+  }
+}
+
+}  // namespace
+
+bool IsJsonCastEqualityPreserving(const Type* arg_type) {
+  return CheckJsonCastProperty(arg_type, JsonCastProperty::kEqualityPreserving);
+}
+
+bool IsJsonCastOrderPreserving(const Type* arg_type) {
+  return CheckJsonCastProperty(arg_type, JsonCastProperty::kOrderPreserving);
+}
+
+// Returns a hash map with TypeKindPair as key, and CastFunctionProperty as
+// value.  This identifies whether the (from, to) cast pairs in the key are
+// allowed explicitly, implicitly, etc., and what the cost is for the cast.
+// If a (from, to) pair is not in the map, then that cast is not allowed.
+const CastHashMap& GetGoogleSQLCasts() {
+  static const CastHashMap* cast_hash_map = InitializeGoogleSQLCasts();
+  return *cast_hash_map;
+}
+
+const CastFunctionProperty* GetCastProperty(
+    TypeKind from_type_kind, TypeKind to_type_kind,
+    const LanguageOptions* language_options) {
+  // TODO: check language options here for future JSON casts.
+  return googlesql_base::FindOrNull(GetGoogleSQLCasts(),
+                         TypeKindPair(from_type_kind, to_type_kind));
+}
+
+CastHashMap GetCastPropertyMap(const LanguageOptions* language_options) {
+  if (language_options == nullptr) {
+    return GetGoogleSQLCasts();
+  }
+  CastHashMap map;
+  for (const auto& [type_kind_pair, property] : GetGoogleSQLCasts()) {
+    if (GetCastProperty(type_kind_pair.first, type_kind_pair.second,
+                        language_options) != nullptr) {
+      map.insert({type_kind_pair, property});
+    }
+  }
+  return map;
+}
 
 bool SupportsImplicitCoercion(CastFunctionType type) {
   return type == CastFunctionType::IMPLICIT;
@@ -510,7 +688,8 @@ class CastContext {
 
   absl::StatusOr<Value> CastValue(
       const Value& from_value, const Type* to_type,
-      const std::optional<std::string>& format = std::nullopt) const;
+      const std::optional<std::string>& format = std::nullopt,
+      bool* out_found_non_deterministic = nullptr) const;
 
  protected:
   const absl::TimeZone& default_timezone() const { return default_timezone_; }
@@ -542,42 +721,6 @@ class CastContext {
   std::optional<int32_t> current_date_;
 };
 
-static absl::Status ValidateFormatStringToDate(absl::string_view format) {
-  return functions::ValidateFormatStringForParsing(
-      format, googlesql::TypeKind::TYPE_DATE);
-}
-
-static absl::Status ValidateFormatStringToDatetime(absl::string_view format) {
-  return functions::ValidateFormatStringForParsing(
-      format, googlesql::TypeKind::TYPE_DATETIME);
-}
-
-static absl::Status ValidateFormatStringToTime(absl::string_view format) {
-  return functions::ValidateFormatStringForParsing(
-      format, googlesql::TypeKind::TYPE_TIME);
-}
-
-static absl::Status ValidateFormatStringToTimestamp(absl::string_view format) {
-  return functions::ValidateFormatStringForParsing(
-      format, googlesql::TypeKind::TYPE_TIMESTAMP);
-}
-
-static absl::Status ValidateFormatStringFromDate(absl::string_view format) {
-  return functions::ValidateFormatStringForFormatting(format, TYPE_DATE);
-}
-
-static absl::Status ValidateFormatStringFromTime(absl::string_view format) {
-  return functions::ValidateFormatStringForFormatting(format, TYPE_TIME);
-}
-
-static absl::Status ValidateFormatStringFromDateTime(absl::string_view format) {
-  return functions::ValidateFormatStringForFormatting(format, TYPE_DATETIME);
-}
-
-static absl::Status ValidateFormatStringFromTimestamp(
-    absl::string_view format) {
-  return functions::ValidateFormatStringForFormatting(format, TYPE_TIMESTAMP);
-}
 
 absl::StatusOr<Value> NumericToStringWithFormat(const Value& v,
                                                 absl::string_view format,
@@ -661,7 +804,8 @@ static absl::Status ValidateGraphElementValueImplicitCastAndAddStaticProperties(
 
 absl::StatusOr<Value> CastContext::CastValue(
     const Value& from_value, const Type* to_type,
-    const std::optional<std::string>& format) const {
+    const std::optional<std::string>& format,
+    bool* out_found_non_deterministic) const {
   GOOGLESQL_RET_CHECK(from_value.is_valid());
   // Use a shorter name inside the body of this method.
   const Value& v = from_value;
@@ -686,8 +830,9 @@ absl::StatusOr<Value> CastContext::CastValue(
   }
 
   // Check to see if the type kinds are castable.
-  if (!internal::GetGoogleSQLCasts().contains(
-          TypeKindPair(v.type_kind(), to_type->kind()))) {
+  const CastFunctionProperty* property =
+      GetCastProperty(v.type_kind(), to_type->kind(), &language_options());
+  if (property == nullptr) {
     return MakeSqlError()
            << "Unsupported cast from "
            << v.type()->ShortTypeName(language_options().product_mode())
@@ -1040,7 +1185,7 @@ absl::StatusOr<Value> CastContext::CastValue(
       // fields are present.  If we want to allow missing required fields
       // We could use SerializePartialToCord().
       absl::Cord cord_value;
-      bool is_valid = message->SerializeToCord(&cord_value);
+      bool is_valid = message->SerializeToString(&cord_value);
       if (!is_valid) {
         // TODO: This does not seem reachable given that we just
         // successfully parsed the string to a valid message.
@@ -1270,7 +1415,7 @@ absl::StatusOr<Value> CastContext::CastValue(
       google::protobuf::DynamicMessageFactory msg_factory;
       std::unique_ptr<google::protobuf::Message> message(
           msg_factory.GetPrototype(v.type()->AsProto()->descriptor())->New());
-      bool is_valid = message->ParsePartialFromCord(v.ToCord());
+      bool is_valid = message->ParsePartialFromString(v.ToCord());
       if (!is_valid) {
         std::string display_bytes =
             PrettyTruncateUTF8(ToBytesLiteral(std::string(v.ToCord())),
@@ -1597,6 +1742,33 @@ absl::StatusOr<Value> CastContext::CastValue(
       }
       return Value::MakeMap(to_type, std::move(casted_entries));
     }
+    case FCT(TYPE_BOOL, TYPE_JSON):
+    case FCT(TYPE_INT32, TYPE_JSON):
+    case FCT(TYPE_UINT32, TYPE_JSON):
+    case FCT(TYPE_INT64, TYPE_JSON):
+    case FCT(TYPE_UINT64, TYPE_JSON):
+    case FCT(TYPE_FLOAT, TYPE_JSON):
+    case FCT(TYPE_DOUBLE, TYPE_JSON):
+    case FCT(TYPE_NUMERIC, TYPE_JSON):
+    case FCT(TYPE_BIGNUMERIC, TYPE_JSON):
+    case FCT(TYPE_STRING, TYPE_JSON):
+    case FCT(TYPE_DATE, TYPE_JSON):
+    case FCT(TYPE_TIMESTAMP, TYPE_JSON):
+    case FCT(TYPE_DATETIME, TYPE_JSON):
+    case FCT(TYPE_TIME, TYPE_JSON):
+    case FCT(TYPE_UUID, TYPE_JSON):
+    case FCT(TYPE_ARRAY, TYPE_JSON):
+    case FCT(TYPE_STRUCT, TYPE_JSON):
+    case FCT(TYPE_BYTES, TYPE_JSON):
+    case FCT(TYPE_ENUM, TYPE_JSON):
+    case FCT(TYPE_INTERVAL, TYPE_JSON):
+    case FCT(TYPE_RANGE, TYPE_JSON):
+    case FCT(TYPE_GRAPH_ELEMENT, TYPE_JSON):
+    case FCT(TYPE_GRAPH_PATH, TYPE_JSON):
+    case FCT(TYPE_PROTO, TYPE_JSON): {
+      return CastToJSON(v, language_options(), canonicalize_zero_,
+                        out_found_non_deterministic);
+    }
     default:
       return ::googlesql_base::UnimplementedErrorBuilder()
              << "Unimplemented cast from "
@@ -1722,7 +1894,7 @@ absl::StatusOr<Value> CastValueWithoutTypeValidation(
     const std::optional<std::string>& format,
     const std::optional<std::string>& time_zone,
     const ExtendedCompositeCastEvaluator* extended_conversion_evaluator,
-    bool canonicalize_zero) {
+    bool canonicalize_zero, bool* out_found_non_deterministic) {
   absl::TimeZone timezone = default_timezone;
   if (time_zone.has_value()) {
     GOOGLESQL_RETURN_IF_ERROR(functions::MakeTimeZone(time_zone.value(), &timezone));
@@ -1730,7 +1902,7 @@ absl::StatusOr<Value> CastValueWithoutTypeValidation(
   return CastContextWithoutValidation(
              timezone, current_timestamp, language_options,
              extended_conversion_evaluator, canonicalize_zero)
-      .CastValue(from_value, to_type, format);
+      .CastValue(from_value, to_type, format, out_found_non_deterministic);
 }
 
 const CastHashMap& GetGoogleSQLCasts() {
@@ -1738,50 +1910,6 @@ const CastHashMap& GetGoogleSQLCasts() {
   return *cast_hash_map;
 }
 
-const CastFormatMap& GetCastFormatMap() {
-  static const CastFormatMap* cast_format_map = nullptr;
-  if (cast_format_map == nullptr) {
-    CastFormatMap* map = new CastFormatMap();
-    map->insert({{TYPE_STRING, TYPE_BYTES}, functions::ValidateFormat});
-    map->insert({{TYPE_BYTES, TYPE_STRING}, functions::ValidateFormat});
-
-    // String to Date/DateTime/Time/Timestamp
-    map->insert({{TYPE_STRING, TYPE_DATE}, ValidateFormatStringToDate});
-    map->insert({{TYPE_STRING, TYPE_DATETIME}, ValidateFormatStringToDatetime});
-    map->insert({{TYPE_STRING, TYPE_TIME}, ValidateFormatStringToTime});
-    map->insert(
-        {{TYPE_STRING, TYPE_TIMESTAMP}, ValidateFormatStringToTimestamp});
-
-    // Date/DateTime/Time/Timestamp to String
-    map->insert({{TYPE_DATE, TYPE_STRING}, ValidateFormatStringFromDate});
-    map->insert({{TYPE_TIME, TYPE_STRING}, ValidateFormatStringFromTime});
-    map->insert(
-        {{TYPE_DATETIME, TYPE_STRING}, ValidateFormatStringFromDateTime});
-    map->insert(
-        {{TYPE_TIMESTAMP, TYPE_STRING}, ValidateFormatStringFromTimestamp});
-
-    // Numerical types to String
-    map->insert({{TYPE_INT32, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_UINT32, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_INT64, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_UINT64, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_FLOAT, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_DOUBLE, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_NUMERIC, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-    map->insert({{TYPE_BIGNUMERIC, TYPE_STRING},
-                 googlesql::functions::ValidateNumericalToStringFormat});
-
-    cast_format_map = map;
-  }
-  return *cast_format_map;
-}
 
 }  // namespace internal
 

@@ -420,7 +420,7 @@ SELECT
   CAST(5 AS int32).x(),
   WITH(y AS 5, y).x(),
   INTERVAL 5 YEAR.x(),
-  `UPDATE`(myproto) {
+  UPDATE(myproto) {
     f : 10
   }.x(),
   (1).x(),

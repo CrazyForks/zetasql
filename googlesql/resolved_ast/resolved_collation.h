@@ -104,6 +104,10 @@ class ResolvedCollation {
   const ResolvedCollation& child(int i) const { return child_list_[i]; }
   uint64_t num_children() const { return child_list_.size(); }
 
+  // Recursively populates <map> with collation details from this
+  // ResolvedCollation.
+  void PopulateAnnotationMap(AnnotationMap* map) const;
+
   absl::Status Serialize(ResolvedCollationProto* proto) const;
   static absl::StatusOr<ResolvedCollation> Deserialize(
       const ResolvedCollationProto& proto);

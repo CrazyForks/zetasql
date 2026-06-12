@@ -245,6 +245,13 @@ class AnalyzerOutput {
   // Column ids above this number are unused.
   int max_column_id() const { return max_column_id_; }
 
+  // Returns the list of functions owned by this AnalyzerOutput.
+  // These are typically functions generated during analysis (e.g. for
+  // function-typed arguments).
+  const std::vector<std::shared_ptr<const Function>>& owned_functions() const {
+    return owned_functions_;
+  }
+
   const AnalyzerRuntimeInfo& runtime_info() const { return runtime_info_; }
 
  private:
@@ -257,6 +264,12 @@ class AnalyzerOutput {
 
   std::unique_ptr<const ResolvedStatement> statement_;
   std::unique_ptr<const ResolvedExpr> expr_;
+
+  // List of functions synthesized during analysis that are not in the catalog
+  // (e.g., proxies for function-typed UDF parameters). These must be owned
+  // by AnalyzerOutput to provide stable pointers for the inliner and execution
+  // engine after the resolver is destroyed.
+  std::vector<std::shared_ptr<const Function>> owned_functions_;
 
   AnalyzerOutputProperties analyzer_output_properties_;
 

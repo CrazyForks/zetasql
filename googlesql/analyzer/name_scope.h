@@ -80,7 +80,6 @@ class ValidNamePath {
       : name_path_(name_path), target_column_(target_column) {}
 
   ValidNamePath() = default;
-  ~ValidNamePath() = default;
 
   const std::vector<IdString>& name_path() const { return name_path_; }
   std::vector<IdString>* mutable_name_path() { return &name_path_; }
@@ -549,6 +548,12 @@ class NameTarget {
     return logging_target_info_;
   }
 
+  // Copies this NameTarget, invoking `copy_column` to produce a new
+  // ResolvedColumn for every column encountered.
+  absl::StatusOr<NameTarget> CopyWithNewColumns(
+      const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+      const;
+
  private:
   Kind kind_;
 
@@ -674,6 +679,16 @@ class NameScope {
            "destructing the NameScope.";
   }
 
+  // Creates a new NameScope with the given previous_scope, using the
+  // correlated_columns_set from the second provided NameScope if available.
+  static std::unique_ptr<NameScope> CreateWithCorrelatedColumnsSet(
+      const NameScope* previous_scope, const NameScope* source_scope) {
+    return std::make_unique<NameScope>(
+        previous_scope, source_scope != nullptr
+                            ? source_scope->correlated_columns_set_
+                            : nullptr);
+  }
+
   // Creates a new NameScope copied from the current NameScope, where
   // locally defined names are updated with new NameTargets.  The entries
   // in 'valid_field_info_list_in' determine which local names (including
@@ -709,6 +724,14 @@ class NameScope {
   absl::Status CopyNameScopeWithOverridingNameTargets(
       const IdStringHashMapCase<NameTarget>& overriding_name_targets,
       std::unique_ptr<NameScope>* scope_with_new_names) const;
+
+  // Copies this NameScope and all nested NameLists (for range variables),
+  // invoking `copy_column` to produce a new ResolvedColumn for every column
+  // encountered. This includes regular columns, pseudo-columns, and columns
+  // within range variables.
+  absl::StatusOr<std::unique_ptr<NameScope>> CopyWithNewColumns(
+      const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+      const;
 
   // Clones range variables from `other_scope` into this name scope, replacing
   // old columns in `other_scope` with new columns.
@@ -747,10 +770,11 @@ class NameScope {
   //
   // The returned sets are ordered so the ones attached to child scopes come
   // before the ones attached to their parent scopes.
-  bool LookupName(IdString name, NameTarget* found,
-                  CorrelatedColumnsSetList* correlated_columns_sets = nullptr,
-                  const std::vector<ExprResolutionInfo*>**
-                      out_lateral_column_reference_observers = nullptr) const;
+  absl::StatusOr<bool> LookupName(
+      IdString name, NameTarget* found,
+      CorrelatedColumnsSetList* correlated_columns_sets = nullptr,
+      const std::vector<ExprResolutionInfo*>**
+          out_lateral_column_reference_observers = nullptr) const;
 
   // Similar to the previous <LookupName> function, but allows multi-part
   // names to be looked up, and takes a PathExpressionSpan as input instead.
@@ -808,7 +832,7 @@ class NameScope {
   // Look up a name in this scope, and underlying scopes if necessary.
   // Return true if the name exists, including ambiguous names and field
   // names of value tables.
-  bool HasName(IdString name) const;
+  absl::StatusOr<bool> HasName(IdString name) const;
 
   // Returns the closest suggestion on a <mistyped_name> from the names present
   // in this scope, if one exists. Otherwise returns an empty string.
@@ -959,13 +983,13 @@ class NameScope {
             const std::vector<ValueTableColumn>& value_table_columns,
             CorrelatedColumnsSet* correlated_columns_set);
 
-  NameScope(const NameScope&) = delete;
-  NameScope& operator=(const NameScope&) = delete;
+  NameScope(const NameScope&) = default;
+  NameScope& operator=(const NameScope&) = default;
 
   // Adds 'name' to the excluded columns list of the 'value_table_column', if
   // and only if 'value_table_column' contains a field of that 'name' and that
   // 'name' is not already excluded.
-  static void ExcludeNameFromValueTableIfPresent(
+  static absl::Status ExcludeNameFromValueTableIfPresent(
       IdString name, ValueTableColumn* value_table_column);
 
   // Iterates over 'names', and for each entry inserts the name and
@@ -1109,7 +1133,7 @@ class NameScope {
 
   // Search for a field called <name> on any column in <value_table_columns_>.
   // Returns HAS_AMBIGUOUS_FIELD if <name> exists on multiple columns.
-  Type::HasFieldResult LookupFieldTargetLocalOnly(
+  absl::StatusOr<Type::HasFieldResult> LookupFieldTargetLocalOnly(
       IdString name, NameTarget* field_target) const;
 
   friend class NameList;
@@ -1252,7 +1276,7 @@ class NameList {
 
   // Options to customize behavior of NameList::MergeFrom.
   //
-  // `excluded_field_names`, `columns_to_rename` and `columns_to_rename` are
+  // `excluded_field_names`, `columns_to_replace` and `columns_to_rename` are
   // mutually exclusive.
   struct MergeOptions {
     // If non-NULL, names in this list will be excluded.
@@ -1264,8 +1288,13 @@ class NameList {
     // If non-NULL, names in this map will be replaced with the new
     // ResolvedColumn.  All matching names in the NameList will be replaced
     // with the new column.  All existing names in the scope (including
-    // columns, pseudo-columns, range variables, ambiguous names, etc)
-    // will be removed, and replaced by one new entry pointing at the column.
+    // columns, range variables, ambiguous names, etc) will be removed, and
+    // replaced by one new entry pointing at the column.
+    // Replacing pseudo-columns is not supported; if a name in this map matches
+    // only a pseudo-column in the source NameList, MergeFrom will return an
+    // error as there is no current way to replace a pseudo-column in SQL. If a
+    // name matches both a regular column and a pseudo-column, the regular
+    // column is replaced and the pseudo-column is dropped.
     // This also acts like `excluded_field_names` for other occurrences of
     // replaced name.
     typedef absl::flat_hash_map<IdString, ResolvedColumn, IdStringCaseHash,
@@ -1275,6 +1304,8 @@ class NameList {
 
     // If non-NULL, names in this map will be renamed to the map entry's value.
     // All matching names in the NameList will be renamed.
+    // Renaming pseudo-columns is not supported; if a name in this map matches
+    // a pseudo-column in the source NameList, MergeFrom will return an error.
     // A matching name in the scope will be renamed (possibly resulting
     // in an ambiguous name if it collides with another name).
     // All renames are applied simultaneously, so swaps will work.
@@ -1321,24 +1352,13 @@ class NameList {
   // Copy this NameList, like Copy() above, but also propagate `is_value_table`.
   std::shared_ptr<NameList> CopyWithIsValueTable() const;
 
-  // Clone current NameList, invoking clone_column for each column to create new
-  // columns.
-  //
-  // The <value_table_error> is used to produce a caller-context-specific error
-  // message if the name list contains currently unsupported value table
-  // columns.
-  //
-  // The <clone_column> function is invoked once for each column to be
-  // cloned. Range variables and pseudo columns are not cloned.
-  //
-  // In practice, note that some <clone_column> function
-  // implementations remember the mapping from the original
-  // column to the cloned column.
-  absl::StatusOr<std::shared_ptr<NameList>> CloneWithNewColumns(
-      const ASTNode* ast_location, absl::string_view value_table_error,
-      const ASTIdentifier* alias,
-      std::function<ResolvedColumn(const ResolvedColumn&)> clone_column,
-      IdStringPool* id_string_pool) const;
+  // Copies this NameList and all nested NameLists (for range variables),
+  // invoking `copy_column` to produce a new ResolvedColumn for every column
+  // encountered. This includes regular columns, pseudo-columns, and columns
+  // within range variables.
+  absl::StatusOr<std::shared_ptr<NameList>> CopyWithNewColumns(
+      const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+      const;
 
   // Clones range variables from `other_scope` to this name list, replacing
   // old columns in `other_scope` with new columns.
@@ -1368,6 +1388,12 @@ class NameList {
   // Return vector of Resolved pseudo-columns contained in columns().
   std::vector<ResolvedColumn> GetResolvedPseudoColumns() const;
 
+  // Return a vector of ResolvedColumns which are referenced by range variables
+  // but not present in excluded_column_ids. This function always includes
+  // pseudo-columns from the range variables.
+  std::vector<ResolvedColumn> GetColumnsForPassthrough(
+      const absl::flat_hash_set<int>& excluded_column_ids) const;
+
   // Return vector of NamedColumns corresponding to the pseudo-columns in
   // local name scope.
   std::vector<NamedColumn> GetNamedPseudoColumns() const;
@@ -1376,7 +1402,7 @@ class NameList {
   std::vector<IdString> GetColumnNames() const;
 
   // Look up a name in this NameList.
-  bool LookupName(IdString name, NameTarget* found) const;
+  absl::StatusOr<bool> LookupName(IdString name, NameTarget* found) const;
 
   // Check whether a column name will show up in SELECT * expansion for this
   // NameList.  The return value indicates if this column name was not present,
@@ -1389,7 +1415,7 @@ class NameList {
   // Please note that since SELECT * queries will never return special
   // pseudo-columns like has_ fields or named extensions, this function will
   // never return Type::HAS_PSEUDO_FIELD.
-  Type::HasFieldResult SelectStarHasColumn(IdString name) const;
+  absl::StatusOr<Type::HasFieldResult> SelectStarHasColumn(IdString name) const;
 
   // is_value_table indicates that this NameList represents a FROM clause that
   // produced a value table.  It has no effect on any lookup or mutation
@@ -1416,7 +1442,7 @@ class NameList {
   void DescribeInto(reflection::TableAlias* table_alias,
                     bool include_pseudo_columns = true) const;
 
-  bool HasRangeVariable(IdString name) const;
+  absl::StatusOr<bool> HasRangeVariable(IdString name) const;
 
   bool HasValueTableColumns() const {
     return name_scope_.HasLocalValueTableColumns();
@@ -1443,6 +1469,10 @@ class NameList {
   // Some will be marked as value tables; those may be expanded further
   // during SELECT * to show their fields instead of the value itself.
   std::vector<NamedColumn> columns_;
+  // This is the vector of pseudo-columns. Unlike columns_, pseudo-columns do
+  // not show up in SELECT * or regular scan outputs, but can be referenced
+  // by name.
+  std::vector<NamedColumn> pseudo_columns_;
 
   // This stores all resolvable names in the NameList, including range
   // variables and pseudo-columns, but excluding anonymous columns.

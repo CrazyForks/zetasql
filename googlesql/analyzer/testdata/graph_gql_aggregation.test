@@ -1686,29 +1686,20 @@ QueryStmt
 [SQLBUILDER_TARGET_SYNTAX_MODE standard]
 [SQLBUILDER_OUTPUT]
 SELECT
-  projectscan_7.a_5 AS name,
-  projectscan_7.a_6 AS distinct_ids
+  aml_1.a_5 AS name,
+  aml_1.a_6 AS distinct_ids
 FROM
-  (
-    SELECT
-      aml_1.a_6 AS a_6,
-      aml_1.a_5 AS a_5
-    FROM
-      GRAPH_TABLE(
-        aml
-        MATCH
-          (a_2
-          IS Person)
-          -[a_3
-          IS (% | ! %)]->
-          (a_4
-          IS Account)
-        RETURN
-          a_2.name AS a_5,
-          COUNT(DISTINCT a_2.id) AS a_6
-        GROUP BY a_5
-      ) AS aml_1
-  ) AS projectscan_7;
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
+    RETURN
+      a_2.name AS a_5,
+      COUNT(DISTINCT a_2.id) AS a_6
+    GROUP BY a_5
+  ) AS aml_1;
 
 [SQLBUILDER_TARGET_SYNTAX_MODE pipe]
 [SQLBUILDER_OUTPUT]
@@ -1716,24 +1707,17 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       COUNT(DISTINCT a_2.id) AS a_6
     GROUP BY a_5
   ) AS aml_1
 |> SELECT
-     aml_1.a_6 AS a_6,
-     aml_1.a_5 AS a_5
-|> AS projectscan_7
-|> SELECT
-     projectscan_7.a_5 AS name,
-     projectscan_7.a_6 AS distinct_ids;
+     aml_1.a_5 AS name,
+     aml_1.a_6 AS distinct_ids;
 ==
 
 # SQLBuilder test: more complex example
@@ -1934,24 +1918,18 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     RETURN
       a_2 AS a_5,
       a_3 AS a_6,
       a_4 AS a_7
     NEXT
     MATCH
-      (a_8
-      IS Person)
-      -[a_9
-      IS (% | ! %)]->
-      (a_10
-      IS Account)
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
       WHERE
         (a_10 = a_7) AND (a_9 = a_6) AND (a_8 = a_5)
     RETURN DISTINCT
@@ -1973,24 +1951,18 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     RETURN
       a_2 AS a_5,
       a_3 AS a_6,
       a_4 AS a_7
     NEXT
     MATCH
-      (a_8
-      IS Person)
-      -[a_9
-      IS (% | ! %)]->
-      (a_10
-      IS Account)
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
       WHERE
         (a_10 = a_7) AND (a_9 = a_6) AND (a_8 = a_5)
     RETURN DISTINCT
@@ -2237,12 +2209,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     RETURN DISTINCT
       a_2.birthday AS a_5,
       a_4.balance AS a_6
@@ -2254,12 +2223,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     RETURN DISTINCT
       a_2.birthday AS a_5,
       a_4.balance AS a_6
@@ -2952,7 +2918,7 @@ ERROR: GROUP BY () is not supported [at 5:14]
              ^
 ==
 
-# GROUPING builtin function is not allowed even in the absence of
+# GROUPING builtin
 # other GROUPING SETS features
 [language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+GROUPING_BUILTIN,+SQL_GRAPH_RETURN_EXTENSIONS]
 select gt.* from
@@ -2963,9 +2929,81 @@ graph_table(aml
   return *
 ) gt
 --
-ERROR: GROUPING must have an argument that exists within the group-by expression list. [at 4:27]
-  with SUM(n.id) as col1, GROUPING(n.id) as n_id_group
-                          ^
+QueryStmt
++-output_column_list=
+| +-$graph_table.col1#6 AS col1 [INT64]
+| +-$graph_table.n_id_group#7 AS n_id_group [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[col1#6, n_id_group#7]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[col1#6, n_id_group#7]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_table.[col1#6, n_id_group#7]
+            +-scan_list=
+              +-GraphLinearScan
+                +-column_list=$graph_table.[col1#6, n_id_group#7]
+                +-scan_list=
+                  +-GraphScan
+                  | +-column_list=[$element_table.n#1]
+                  | +-input_scan_list=
+                  | | +-GraphPathScan
+                  | |   +-column_list=[$element_table.n#1]
+                  | |   +-input_scan_list=
+                  | |   | +-GraphNodeScan
+                  | |   |   +-column_list=[$element_table.n#1]
+                  | |   |   +-label_expr=
+                  | |   |   | +-GraphLabelNaryExpr
+                  | |   |   |   +-op=OR
+                  | |   |   |   +-operand_list=
+                  | |   |   |     +-GraphWildCardLabel
+                  | |   |   |     +-GraphLabelNaryExpr
+                  | |   |   |       +-op=NOT
+                  | |   |   |       +-operand_list=
+                  | |   |   |         +-GraphWildCardLabel
+                  | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                  | |   +-head=$element_table.n#1
+                  | |   +-tail=$element_table.n#1
+                  | +-input_scan=
+                  |   +-SingleRowScan
+                  +-ProjectScan
+                  | +-column_list=[$graph_table.col1#2, $grouping_call.$grouping_call1#5]
+                  | +-input_scan=
+                  |   +-AggregateScan
+                  |     +-column_list=[$graph_table.id#4, $graph_table.col1#2, $grouping_call.$grouping_call1#5]
+                  |     +-input_scan=
+                  |     | +-GraphRefScan(column_list=[$element_table.n#1])
+                  |     +-group_by_list=
+                  |     | +-id#4 :=
+                  |     |   +-GraphGetElementProperty
+                  |     |     +-type=INT64
+                  |     |     +-expr=
+                  |     |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#1)
+                  |     |     +-property=id(INT64)
+                  |     +-aggregate_list=
+                  |     | +-col1#2 :=
+                  |     |   +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+                  |     |     +-GraphGetElementProperty
+                  |     |       +-type=INT64
+                  |     |       +-expr=
+                  |     |       | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#1)
+                  |     |       +-property=id(INT64)
+                  |     +-grouping_call_list=
+                  |       +-GroupingCall
+                  |         +-group_by_column=
+                  |         | +-ColumnRef(type=INT64, column=$graph_table.id#4)
+                  |         +-output_column=$grouping_call.$grouping_call1#5
+                  +-ProjectScan
+                    +-column_list=$graph_table.[col1#6, n_id_group#7]
+                    +-expr_list=
+                    | +-col1#6 := ColumnRef(type=INT64, column=$graph_table.col1#2)
+                    | +-n_id_group#7 := ColumnRef(type=INT64, column=$grouping_call.$grouping_call1#5)
+                    +-input_scan=
+                      +-GraphRefScan(column_list=[$graph_table.col1#2, $grouping_call.$grouping_call1#5])
+
 ==
 
 # GROUPING SETS, ROLLUP, CUBE are not allowed
@@ -4726,15 +4764,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2.name AS a_6,
       COUNT(DISTINCT a_2.id) AS a_5
+    GROUP BY a_6
     WITH
       a_6,
       a_5
@@ -4749,15 +4785,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2.name AS a_6,
       COUNT(DISTINCT a_2.id) AS a_5
+    GROUP BY a_6
     WITH
       a_6,
       a_5
@@ -4960,23 +4994,17 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2 AS a_5,
       a_3 AS a_6,
       a_4 AS a_7
     MATCH
-      (a_8
-      IS Person)
-      -[a_9
-      IS (% | ! %)]->
-      (a_10
-      IS Account)
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
       WHERE
         (a_10 = a_7) AND (a_9 = a_6) AND (a_8 = a_5)
     WITH
@@ -4984,6 +5012,7 @@ FROM
       COUNT(DISTINCT a_8.id
         HAVING MAX(a_8.id) + 1) AS a_11,
       ARRAY_AGG(a_10.id) AS a_12
+    GROUP BY a_13
     WITH
       a_13,
       a_11,
@@ -4993,6 +5022,7 @@ FROM
       a_13 AS a_15,
       a_11 AS a_16,
       a_14 AS a_17
+    GROUP BY a_15, a_16, a_17
     RETURN
       a_15 AS a_18,
       a_16 AS a_19,
@@ -5005,23 +5035,17 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2 AS a_5,
       a_3 AS a_6,
       a_4 AS a_7
     MATCH
-      (a_8
-      IS Person)
-      -[a_9
-      IS (% | ! %)]->
-      (a_10
-      IS Account)
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
       WHERE
         (a_10 = a_7) AND (a_9 = a_6) AND (a_8 = a_5)
     WITH
@@ -5029,6 +5053,7 @@ FROM
       COUNT(DISTINCT a_8.id
         HAVING MAX(a_8.id) + 1) AS a_11,
       ARRAY_AGG(a_10.id) AS a_12
+    GROUP BY a_13
     WITH
       a_13,
       a_11,
@@ -5038,6 +5063,7 @@ FROM
       a_13 AS a_15,
       a_11 AS a_16,
       a_14 AS a_17
+    GROUP BY a_15, a_16, a_17
     RETURN
       a_15 AS a_18,
       a_16 AS a_19,
@@ -5290,12 +5316,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2,
       a_3,
@@ -5305,6 +5328,7 @@ FROM
     WITH
       a_5 AS a_7,
       a_6 AS a_8
+    GROUP BY a_7, a_8
     RETURN
       a_7 AS a_9,
       a_8 AS a_10
@@ -5316,12 +5340,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
     WITH
       a_2,
       a_3,
@@ -5331,6 +5352,7 @@ FROM
     WITH
       a_5 AS a_7,
       a_6 AS a_8
+    GROUP BY a_7, a_8
     RETURN
       a_7 AS a_9,
       a_8 AS a_10

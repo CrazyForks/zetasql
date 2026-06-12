@@ -15,6 +15,7 @@
 //
 #include "googlesql/base/castops.h"
 
+#include <cmath>
 #include <cstdint>
 #include <limits>
 

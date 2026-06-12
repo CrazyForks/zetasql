@@ -25,13 +25,13 @@ SELECT LAX_FLOAT(JSON '-1.0');
 ARRAY<STRUCT<FLOAT>>[{-1}]
 ==
 [name=json_float_integer_float_positive_threshold]
--- The biggest integer that can be represented without precision loss.
+# The biggest integer that can be represented without precision loss.
 SELECT LAX_FLOAT(JSON '16777216');
 --
 ARRAY<STRUCT<FLOAT>>[{16777216}]
 ==
 [name=json_float_integer_float_negative_threshold]
--- The smallest integer that can be represented without precision loss.
+# The smallest integer that can be represented without precision loss.
 SELECT LAX_FLOAT(JSON '-16777216');
 --
 ARRAY<STRUCT<FLOAT>>[{-16777216}]

@@ -48,6 +48,7 @@
 #include "googlesql/base/case.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -56,7 +57,6 @@
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -435,8 +435,9 @@ absl::StatusOr<Value> UpdateTableRowsWithMeasureValues(
   }
 
   const ArrayType* new_array_type = nullptr;
-  GOOGLESQL_RET_CHECK_OK(
-      type_factory->MakeArrayType(new_row_as_struct_type, &new_array_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      new_array_type,
+      type_factory->MakeArrayType(new_row_as_struct_type, language_options));
   return Value::MakeArray(new_array_type, new_rows_as_struct_values);
 }
 

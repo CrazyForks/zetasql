@@ -44,11 +44,11 @@
 #include "absl/hash/hash.h"
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -194,6 +194,16 @@ TestIsSameExpressionForGroupBy(const ResolvedExpr* expr1,
           proto_field2->return_default_value_when_unset());
       break;
     }
+    case RESOLVED_GET_ROW_FIELD: {
+      const ResolvedGetRowField* row1 = expr1->GetAs<ResolvedGetRowField>();
+      const ResolvedGetRowField* row2 = expr2->GetAs<ResolvedGetRowField>();
+      RETURN_IF_EXPR_NOT_EQUAL(row1->expr(), row2->expr(), language_options);
+      // Column names in ResolvedGetRowField are normalized by the lookup, so OK
+      // to do a case-sensitive comparison.
+      RETURN_IF_PRIMITIVE_NOT_EQUAL(row1->column()->Name(),
+                                    row2->column()->Name());
+      break;
+    }
     case RESOLVED_CAST: {
       const ResolvedCast* cast1 = expr1->GetAs<ResolvedCast>();
       const ResolvedCast* cast2 = expr2->GetAs<ResolvedCast>();
@@ -302,6 +312,25 @@ TestIsSameExpressionForGroupBy(const ResolvedExpr* expr1,
                                     json_field2->field_name());
       break;
     }
+    case RESOLVED_GRAPH_GET_ELEMENT_PROPERTY: {
+      const auto* get_prop1 = expr1->GetAs<ResolvedGraphGetElementProperty>();
+      const auto* get_prop2 = expr2->GetAs<ResolvedGraphGetElementProperty>();
+      RETURN_IF_EXPR_NOT_EQUAL(get_prop1->expr(), get_prop2->expr(),
+                               language_options);
+
+      if ((get_prop1->property_name() == nullptr) !=
+          (get_prop2->property_name() == nullptr)) {
+        return TestIsSameExpressionForGroupByResult::kNotEqual;
+      }
+      if (get_prop1->property_name() != nullptr) {
+        RETURN_IF_EXPR_NOT_EQUAL(get_prop1->property_name(),
+                                 get_prop2->property_name(), language_options);
+      }
+
+      RETURN_IF_PRIMITIVE_NOT_EQUAL(get_prop1->property(),
+                                    get_prop2->property());
+      break;
+    }
     case RESOLVED_MAKE_STRUCT: {
       if (!language_options.LanguageFeatureEnabled(
               FEATURE_MATCH_MAKE_STRUCT_IN_GROUP_BY)) {
@@ -345,45 +374,54 @@ TestIsSameExpressionForGroupBy(const ResolvedExpr* expr1,
 static const ResolvedExpr* UnwindFieldAccesses(
     const ResolvedExpr* resolved_expr, ValidNamePath* name_path,
     IdStringPool* id_string_pool) {
-  while (resolved_expr->node_kind() == RESOLVED_GET_PROTO_FIELD) {
-    const ResolvedGetProtoField* get_proto_field =
-        resolved_expr->GetAs<ResolvedGetProtoField>();
-    // NOTE - The ResolvedGetProtoField has a get_has_bit() function
-    // that identifies whether this expression fetches the field value, or
-    // a boolean that indicates if the value was present.  If get_has_bit()
-    // is true, by convention the name of that pseudocolumn is the field
-    // name with the prefix 'has_'.
-    if (get_proto_field->get_has_bit()) {
+  while (true) {
+    if (resolved_expr->node_kind() == RESOLVED_GET_PROTO_FIELD) {
+      const ResolvedGetProtoField* get_proto_field =
+          resolved_expr->GetAs<ResolvedGetProtoField>();
+      // NOTE - The ResolvedGetProtoField has a get_has_bit() function
+      // that identifies whether this expression fetches the field value, or
+      // a boolean that indicates if the value was present.  If get_has_bit()
+      // is true, by convention the name of that pseudocolumn is the field
+      // name with the prefix 'has_'.
+      if (get_proto_field->get_has_bit()) {
+        name_path->mutable_name_path()->push_back(id_string_pool->Make(
+            absl::StrCat("has_", get_proto_field->field_descriptor()->name())));
+      } else {
+        name_path->mutable_name_path()->push_back(
+            id_string_pool->Make(get_proto_field->field_descriptor()->name()));
+      }
+      resolved_expr = get_proto_field->expr();
+    } else if (resolved_expr->node_kind() == RESOLVED_GET_STRUCT_FIELD) {
+      const ResolvedGetStructField* get_struct_field =
+          resolved_expr->GetAs<ResolvedGetStructField>();
+      const StructType* struct_type =
+          get_struct_field->expr()->type()->AsStruct();
       name_path->mutable_name_path()->push_back(id_string_pool->Make(
-          absl::StrCat("has_", get_proto_field->field_descriptor()->name())));
-    } else {
+          struct_type->field(get_struct_field->field_idx()).name));
+      resolved_expr = get_struct_field->expr();
+    } else if (resolved_expr->node_kind() == RESOLVED_GET_JSON_FIELD) {
+      const ResolvedGetJsonField* get_json_field =
+          resolved_expr->GetAs<ResolvedGetJsonField>();
       name_path->mutable_name_path()->push_back(
-          id_string_pool->Make(get_proto_field->field_descriptor()->name()));
-    }
-    resolved_expr = get_proto_field->expr();
-  }
-  while (resolved_expr->node_kind() == RESOLVED_GET_STRUCT_FIELD) {
-    const ResolvedGetStructField* get_struct_field =
-        resolved_expr->GetAs<ResolvedGetStructField>();
-    const StructType* struct_type =
-        get_struct_field->expr()->type()->AsStruct();
-    name_path->mutable_name_path()->push_back(id_string_pool->Make(
-        struct_type->field(get_struct_field->field_idx()).name));
-    resolved_expr = get_struct_field->expr();
-  }
-  while (resolved_expr->node_kind() == RESOLVED_GRAPH_GET_ELEMENT_PROPERTY) {
-    const ResolvedGraphGetElementProperty* get_element_property =
-        resolved_expr->GetAs<ResolvedGraphGetElementProperty>();
-    if (absl::StatusOr<std::string> property_name =
-            GetPropertyName(get_element_property);
-        property_name.ok()) {
-      name_path->mutable_name_path()->push_back(
-          id_string_pool->Make(*property_name));
-      resolved_expr = get_element_property->expr();
+          id_string_pool->Make(get_json_field->field_name()));
+      resolved_expr = get_json_field->expr();
+    } else if (resolved_expr->node_kind() ==
+               RESOLVED_GRAPH_GET_ELEMENT_PROPERTY) {
+      const ResolvedGraphGetElementProperty* get_element_property =
+          resolved_expr->GetAs<ResolvedGraphGetElementProperty>();
+      if (absl::StatusOr<std::string> property_name =
+              GetPropertyName(get_element_property);
+          property_name.ok()) {
+        name_path->mutable_name_path()->push_back(
+            id_string_pool->Make(*property_name));
+        resolved_expr = get_element_property->expr();
+      } else {
+        // If we fail to get the property name then we stop unwinding.
+        ABSL_DCHECK(false) << "Failed to get the property name out of expression: "
+                      << resolved_expr->DebugString();
+        break;
+      }
     } else {
-      // If we fail to get the property name then we stop unwinding.
-      ABSL_DCHECK(false) << "Failed to get the property name out of expression: "
-                    << resolved_expr->DebugString();
       break;
     }
   }
@@ -440,6 +478,29 @@ size_t FieldPathHash(const ResolvedExpr* expr) {
           expr->node_kind(), expr->type()->kind(), struct_field->field_idx(),
           FieldPathHash(struct_field->expr())));
     }
+    case RESOLVED_GET_JSON_FIELD: {
+      const ResolvedGetJsonField* json_field =
+          expr->GetAs<ResolvedGetJsonField>();
+      // Note that this only hashes the top-level type (e.g. ARRAY).
+      return absl::Hash<std::tuple<int, int, std::string, size_t>>()(
+          std::make_tuple(expr->node_kind(), expr->type()->kind(),
+                          json_field->field_name(),
+                          FieldPathHash(json_field->expr())));
+    }
+    case RESOLVED_GRAPH_GET_ELEMENT_PROPERTY: {
+      const auto* get_prop = expr->GetAs<ResolvedGraphGetElementProperty>();
+      // Note that this only hashes the top-level type (e.g. ARRAY).
+
+      size_t property_name_hash = 0;
+      if (get_prop->property_name() != nullptr) {
+        property_name_hash = FieldPathHash(get_prop->property_name());
+      }
+
+      return absl::Hash<std::tuple<int, int, const void*, size_t, size_t>>()(
+          std::make_tuple(expr->node_kind(), expr->type()->kind(),
+                          get_prop->property(), property_name_hash,
+                          FieldPathHash(get_prop->expr())));
+    }
     case RESOLVED_COLUMN_REF:
       return absl::Hash<std::pair<int, int>>()(std::make_pair(
           expr->node_kind(),
@@ -449,22 +510,11 @@ size_t FieldPathHash(const ResolvedExpr* expr) {
   }
 }
 
-absl::StatusOr<bool> ExprReferencesNonCorrelatedColumn(
-    const ResolvedExpr& expr) {
-  GOOGLESQL_ASSIGN_OR_RETURN(absl::flat_hash_set<const ResolvedColumnRef*> column_refs,
-                   CollectFreeColumnRefs(expr));
-
-  for (const ResolvedColumnRef* column_ref : column_refs) {
-    if (!column_ref->is_correlated()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static bool IsProtoOrStructFieldAccess(const ResolvedNode* node) {
   return node->node_kind() == RESOLVED_GET_PROTO_FIELD ||
-         node->node_kind() == RESOLVED_GET_STRUCT_FIELD;
+         node->node_kind() == RESOLVED_GET_STRUCT_FIELD ||
+         node->node_kind() == RESOLVED_GET_JSON_FIELD ||
+         node->node_kind() == RESOLVED_GRAPH_GET_ELEMENT_PROPERTY;
 }
 
 // Returns true if the `column_ref_list` contains a equal pointer to
@@ -660,6 +710,10 @@ bool ContainsTableArrayNamePathWithFreeColumnRef(const ResolvedExpr* node,
   if (node->node_kind() == RESOLVED_GET_JSON_FIELD) {
     return ContainsTableArrayNamePathWithFreeColumnRef(
         node->GetAs<ResolvedGetJsonField>()->expr(), column_id);
+  }
+  if (node->node_kind() == RESOLVED_GRAPH_GET_ELEMENT_PROPERTY) {
+    return ContainsTableArrayNamePathWithFreeColumnRef(
+        node->GetAs<ResolvedGraphGetElementProperty>()->expr(), column_id);
   }
   if (node->node_kind() == RESOLVED_GET_ROW_FIELD) {
     return ContainsTableArrayNamePathWithFreeColumnRef(

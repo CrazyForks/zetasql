@@ -17,27 +17,28 @@
 #include "googlesql/public/types/type_parameters.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "googlesql/public/functions/rounding_mode.pb.h"
 #include "googlesql/public/simple_value.pb.h"
 #include "googlesql/public/type_parameters.pb.h"
+#include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/array_type.h"
 #include "googlesql/public/types/range_type.h"
 #include "googlesql/public/types/simple_value.h"
 #include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -263,7 +264,40 @@ absl::StatusOr<TypeParameters> TypeParameters::Deserialize(
   return TypeParameters::MakeTypeParametersWithChildList(child_list);
 }
 
-bool TypeParameters::Equals(const TypeParameters& that) const {
+// Returns true if the type parameters is empty, or only contains
+// TimestampTypeParameters with the default precision (if provided - Otherwise,
+// this is just the same as IsEmpty()).
+// Useful when equating vs another empty TypeParameters.
+static bool IsEffectivelyEmpty(
+    const TypeParameters& type_parameters,
+    std::optional<int64_t> default_timestamp_precision) {
+  if (type_parameters.IsEmpty()) {
+    return true;
+  }
+  if (type_parameters.IsTimestampTypeParameters()) {
+    return default_timestamp_precision.has_value() &&
+           type_parameters.timestamp_type_parameters().precision() ==
+               *default_timestamp_precision;
+  }
+
+  for (const auto& child : type_parameters.child_list()) {
+    if (!IsEffectivelyEmpty(child, default_timestamp_precision)) {
+      return false;
+    }
+  }
+  return type_parameters.IsTopLevelEmpty();
+}
+
+bool TypeParameters::Equals(
+    const TypeParameters& that,
+    std::optional<int64_t> default_timestamp_precision) const {
+  if (IsEmpty()) {
+    return IsEffectivelyEmpty(that, default_timestamp_precision);
+  }
+  if (that.IsEmpty()) {
+    return IsEffectivelyEmpty(*this, default_timestamp_precision);
+  }
+
   if (IsStringTypeParameters()) {
     return that.IsStringTypeParameters() &&
            google::protobuf::util::MessageDifferencer::Equals(
@@ -274,21 +308,66 @@ bool TypeParameters::Equals(const TypeParameters& that) const {
            google::protobuf::util::MessageDifferencer::Equals(
                numeric_type_parameters(), that.numeric_type_parameters());
   }
+
+  if (IsTimestampTypeParameters()) {
+    return that.IsTimestampTypeParameters() &&
+           google::protobuf::util::MessageDifferencer::Equals(
+               timestamp_type_parameters(), that.timestamp_type_parameters());
+  }
+
   if (IsExtendedTypeParameters()) {
     if (!that.IsExtendedTypeParameters() ||
         !extended_type_parameters().Equals(that.extended_type_parameters())) {
       return false;
     }
   }
+
+  // Both are composite and non-empty.
   if (num_children() != that.num_children()) {
     return false;
   }
   for (int i = 0; i < num_children(); ++i) {
-    if (!child(i).Equals(that.child(i))) {
+    if (!child(i).Equals(that.child(i), default_timestamp_precision)) {
       return false;
     }
   }
+
   return true;
+}
+
+absl::StatusOr<bool> TypeParameters::EqualsAnnotations(
+    const AnnotationMap* annotation_map,
+    int64_t default_timestamp_precision) const {
+  GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters that, MakeTypeParameters(annotation_map));
+  return Equals(that, default_timestamp_precision);
+}
+
+absl::StatusOr<TypeParameters> TypeParameters::MakeTypeParameters(
+    const AnnotationMap* annotation_map) {
+  if (annotation_map == nullptr) {
+    return TypeParameters();
+  }
+
+  if (annotation_map->IsStructMap()) {
+    const StructAnnotationMap* struct_map = annotation_map->AsStructMap();
+    std::vector<TypeParameters> children;
+    bool has_non_empty_child = false;
+    for (int i = 0; i < struct_map->num_fields(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters child,
+                       MakeTypeParameters(struct_map->field(i)));
+      if (!child.IsEmpty()) {
+        has_non_empty_child = true;
+      }
+      children.push_back(std::move(child));
+    }
+
+    return has_non_empty_child
+               ? TypeParameters::MakeTypeParametersWithChildList(
+                     std::move(children))
+               : TypeParameters();
+  }
+
+  return TypeParameters();
 }
 
 bool TypeParameters::MatchType(const Type* type) const {

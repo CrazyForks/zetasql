@@ -47,7 +47,7 @@ namespace {
 
 Value ProtoToValue(const ProtoType* type, const google::protobuf::Message& msg) {
   absl::Cord bytes;
-  ABSL_CHECK(msg.SerializeToCord(&bytes));
+  ABSL_CHECK(msg.SerializeToString(&bytes));
   return Value::Proto(type, bytes);
 }
 

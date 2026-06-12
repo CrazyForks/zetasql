@@ -49,6 +49,18 @@ ARRAY<STRUCT<
       >>[{{"a": {{1, "b"}: {1.5: {2020-01-01: "e"}}}}}]
 ==
 
+[name=map_from_array_null_struct]
+SELECT MAP_FROM_ARRAY([CAST(NULL AS STRUCT<STRING, STRING>)])
+--
+ERROR: generic::out_of_range: Struct element in MAP_FROM_ARRAY must not be NULL
+==
+
+[name=map_from_array_with_mixed_nulls]
+SELECT MAP_FROM_ARRAY([("a", 1), NULL]);
+--
+ERROR: generic::out_of_range: Struct element in MAP_FROM_ARRAY must not be NULL
+==
+
 [name=map_from_array_nested_containers]
 [required_features=MAP_TYPE,GROUP_BY_STRUCT,GROUP_BY_ARRAY]
 SELECT MAP_FROM_ARRAY([(('key_struct', ['array_key1', 'array_key2']), 'foo_val')]);
@@ -589,10 +601,63 @@ SELECT CAST(MAP_FROM_ARRAY([(CAST(NULL AS STRING), "1"), ("1", NULL)]) AS MAP<IN
 ARRAY<STRUCT<MAP<INT64, INT64>>>[{{NULL: 1, 1: NULL}}]
 ==
 
-[name=cast_map_duplicate_keys_after_cast]
+[name=cast_map_duplicate_keys_after_cast_fails]
 SELECT CAST(MAP_FROM_ARRAY([(1.1, "a"), (1.2, "b")]) AS MAP<INT64, STRING>);
 --
 ERROR: generic::out_of_range: Duplicate map keys are not allowed, but got multiple instances of key: 1
+==
+
+[name=cast_map_duplicate_keys_after_cast_same_type_different_parameters_fails]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES,NUMERIC_TYPE]
+SELECT CAST(MAP_FROM_ARRAY([(CAST(1.21 AS NUMERIC(3,2)), "a"), (1.22, "b")]) AS MAP<NUMERIC(2,1), STRING>);
+--
+ERROR: generic::out_of_range: Duplicate map keys are not allowed, but got multiple instances of key: 1.2
+==
+
+[name=cast_map_parameterized_key_type_succeeds]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES]
+SELECT CAST(MAP_FROM_ARRAY([('a', 1), ('b', 2)]) AS MAP<STRING(5), INT64>);
+--
+ARRAY<STRUCT<MAP<STRING, INT64>>>[{{"a": 1, "b": 2}}]
+==
+
+[name=cast_map_parameterized_key_type_succeeds_applies_constraints]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES,NUMERIC_TYPE]
+SELECT CAST(MAP_FROM_ARRAY([(1.2340, 'a'), (1.2345, 'b')]) AS MAP<NUMERIC(4,3), STRING>);
+--
+ARRAY<STRUCT<MAP<NUMERIC, STRING>>>[{{1.234: "a", 1.235: "b"}}]
+
+NOTE: Reference implementation reports non-determinism.
+==
+
+[name=cast_map_parameterized_key_type_fails]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES]
+SELECT CAST(MAP_FROM_ARRAY([('a', 1), ('verylongkey', 2)]) AS MAP<STRING(5), INT64>);
+--
+ERROR: generic::out_of_range: STRING(5) has maximum length 5 but got a value with length 11
+==
+
+[name=cast_map_parameterized_value_type_succeeds]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES]
+SELECT CAST(MAP_FROM_ARRAY([('k1', 'b'), ('k2', 'b')]) AS MAP<STRING, STRING(1)>);
+--
+ARRAY<STRUCT<MAP<STRING, STRING>>>[{{"k1": "b", "k2": "b"}}]
+==
+
+[name=cast_map_parameterized_value_type_succeeds_applies_constraints]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES,NUMERIC_TYPE]
+SELECT CAST(MAP_FROM_ARRAY([('a', 1.0), ('b', 1.2345)]) AS MAP<STRING, NUMERIC(4,3)>);
+--
+ARRAY<STRUCT<MAP<STRING, NUMERIC>>>[{{"a": 1, "b": 1.235}}]
+
+NOTE: Reference implementation reports non-determinism.
+==
+
+[name=cast_map_parameterized_value_type_fails]
+[required_features=MAP_TYPE,PARAMETERIZED_TYPES,NUMERIC_TYPE]
+SELECT CAST(MAP_FROM_ARRAY([('a', 1.0), ('b', 11.2345)]) AS MAP<STRING, NUMERIC(4,3)>);
+--
+ERROR: generic::out_of_range: NUMERIC(4, 3) has precision 4 and scale 3 but got a value that is not in range of [-9.999, 9.999]
 ==
 
 [name=map_keys_values_sorted_unsorted_null]
@@ -1296,7 +1361,21 @@ SELECT
     (k, v) -> EXISTS(SELECT MAX(y) from t2 where y > outer_t.col GROUP BY y)
   ) FROM t1 as outer_t;
 --
-ARRAY<STRUCT<MAP<STRING, INT64>>>[unknown order:{{}}, {{"a": 1, "b": 2}}]
+ARRAY<STRUCT<MAP<STRING, INT64>>>[unknown order:{{"a": 1, "b": 2}}, {{}}]
+==
+
+[name=map_filter_lambda_returns_null]
+[required_features=MAP_TYPE,INLINE_LAMBDA_ARGUMENT]
+SELECT MAP_FILTER(MAP_FROM_ARRAY([('a', 1), ('b', 2)]), (k, v) -> NULL)
+--
+ARRAY<STRUCT<MAP<STRING, INT64>>>[{{}}]
+==
+
+[name=map_filter_lambda_returns_null_2]
+[required_features=MAP_TYPE,INLINE_LAMBDA_ARGUMENT]
+SELECT MAP_FILTER(MAP_FROM_ARRAY([('a', true), ('b', false), ('c', NULL)]), (k, v) -> v)
+--
+ARRAY<STRUCT<MAP<STRING, BOOL>>>[{{"a": true}}]
 ==
 
 [name=map_filter_lambda_error]

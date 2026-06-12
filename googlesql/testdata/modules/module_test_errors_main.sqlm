@@ -19,7 +19,7 @@ IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_e;
 IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_f;
 
 -- non-existing module
-IMPORT MODULE foo;
+IMPORT MODULE googlesql.foo;
 
 -- Catalog initialization error - SELECT statements are invalid inside modules.
 SELECT * FROM some_table;

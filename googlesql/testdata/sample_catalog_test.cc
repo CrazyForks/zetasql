@@ -36,6 +36,7 @@
 #include "googlesql/resolved_ast/resolved_ast_enums.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/string_view.h"
 
 namespace googlesql {
@@ -280,6 +281,58 @@ TEST(SampleCatalogTest, BuiltInTVFSerialize) {
     }
   }
   EXPECT_FALSE(found_tvf_proto);
+}
+
+TEST(SampleCatalogTest, MeasureTablesHaveUniqueKeys) {
+  LanguageOptions options;
+  options.EnableMaximumLanguageFeatures();
+  TypeFactory type_factory;
+  SampleCatalog sample(options, &type_factory);
+
+  std::vector<std::string> measure_tables = {
+      "MeasureTable_SingleKey",
+      "MeasureTable_TwoKeys",
+      "MeasureTable_DifferentNames",
+      "MeasureTable_WithPseudoColumns",
+      "MeasureTable_WithSubqueryMeasureExprs",
+      "MeasureTable_WithUdfs",
+      "MeasureTable_WithTemplatedUdfs",
+      "MeasureTable_WithRewritableExprs",
+      "MeasureTable_WithUdas",
+      "StructValueTable_WithMeasures",
+      "Int64ValueTable_WithMeasures",
+      "MeasureTable_ComplexExprs",
+      "MeasureTable_SalesFacts",
+      // MeasureTable_NoTableKey has no row identity columns
+  };
+
+  for (const std::string& table_name : measure_tables) {
+    const Table* table = nullptr;
+    GOOGLESQL_ASSERT_OK(sample.catalog()->GetTable(table_name, &table));
+    ASSERT_NE(table, nullptr);
+
+    std::optional<std::vector<int>> key_columns = table->RowIdentityColumns();
+    if (!key_columns.has_value() || key_columns->empty()) {
+      continue;
+    }
+
+    absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> iter_status =
+        table->CreateEvaluatorTableIterator(key_columns.value());
+    GOOGLESQL_ASSERT_OK(iter_status);
+    std::unique_ptr<EvaluatorTableIterator> iter =
+        std::move(iter_status).value();
+
+    absl::flat_hash_set<std::string> seen_keys;
+    while (iter->NextRow()) {
+      std::string key_str;
+      for (int i = 0; i < key_columns->size(); ++i) {
+        key_str += iter->GetValue(i).DebugString() + "|";
+      }
+      EXPECT_TRUE(seen_keys.insert(key_str).second)
+          << "Duplicate key found in table " << table_name << ": " << key_str;
+    }
+    GOOGLESQL_EXPECT_OK(iter->Status());
+  }
 }
 
 }  // namespace googlesql

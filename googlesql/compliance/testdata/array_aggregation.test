@@ -1089,15 +1089,18 @@ SELECT ARRAY_CONCAT_AGG(x) FROM (
 --
 ARRAY<STRUCT<ARRAY<>>>[{ARRAY<STRUCT<i INT64>>[unknown order:{2}, {1}]}]
 ==
+
+[required_features=ARRAY_OF_ARRAY]
 [name=array_concat_agg_array]
 SELECT ARRAY_CONCAT_AGG(x) FROM (
     SELECT ARRAY[ARRAY[1]] x UNION ALL
     SELECT ARRAY[ARRAY[2]]) foo
 --
-ERROR: generic::invalid_argument: Cannot construct array with element type ARRAY<INT64> because nested arrays are not supported [at 2:18]
-    SELECT ARRAY[ARRAY[1]] x UNION ALL
-                 ^
+ARRAY<STRUCT<ARRAY<>>>[
+  {ARRAY<ARRAY<>>[unknown order:ARRAY<INT64>[2], ARRAY<INT64>[1]]}
+]
 ==
+
 [name=array_concat_agg_proto]
 SELECT ARRAY_CONCAT_AGG(x) FROM (
     SELECT ARRAY<`googlesql_test.KitchenSinkPB`>[
@@ -1868,3 +1871,127 @@ ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[1]}]
 select array_agg(1 limit 100) from (select 1)
 --
 ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[1]}]
+==
+
+[required_features=ARRAY_OF_ARRAY]
+[name=array_agg_nested_array]
+SELECT
+  ARRAY_AGG(arr1) AS arr_agg,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+         [[1.0, 2.0], [3.0, 4.0]] AS arr3,
+)
+--
+ARRAY<STRUCT<arr_agg ARRAY<>>>[
+  {ARRAY<ARRAY<>>[ARRAY<ARRAY<>>[known order:
+                    ARRAY<INT64>[known order:1, 2],
+                    ARRAY<INT64>[known order:3, 4]
+                  ]]}
+]
+==
+
+[required_features=ARRAY_OF_ARRAY,ORDER_BY_IN_AGGREGATE]
+[name=array_agg_nested_array_with_order_by]
+SELECT
+  ARRAY_AGG(arr1 ORDER BY arr1[OFFSET(0)][OFFSET(0)]) AS arr_agg,
+  ARRAY_CONCAT_AGG(arr1 ORDER BY arr1[OFFSET(0)][OFFSET(0)]) AS arr_concat_agg,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+         [[1.0, 2.0], [3.0, 4.0]] AS arr3,
+)
+--
+ARRAY<STRUCT<
+        arr_agg ARRAY<>,
+        arr_concat_agg ARRAY<>
+      >>
+[{ARRAY<ARRAY<>>[ARRAY<ARRAY<>>[known order:
+                   ARRAY<INT64>[known order:1, 2],
+                   ARRAY<INT64>[known order:3, 4]
+                 ]],
+  ARRAY<ARRAY<>>[known order:
+    ARRAY<INT64>[known order:1, 2],
+    ARRAY<INT64>[known order:3, 4]
+  ]}]
+==
+
+[required_features=ARRAY_OF_ARRAY,MULTILEVEL_AGGREGATION]
+[name=nested_array_with_multi_level_aggregation]
+SELECT
+  ARRAY_AGG(array_concat_agg([arr1, arr2]) GROUP BY arr2[OFFSET(0)][OFFSET(0)]) AS multilevel_agg,
+  ARRAY_CONCAT_AGG(array_concat_agg([arr1, arr2]) GROUP BY arr2[OFFSET(0)][OFFSET(0)]) AS multilevel_concat_agg,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2 UNION ALL
+  SELECT [[9,10], [11,12]] AS arr1,
+         [[13,14], [15,16]] AS arr2
+)
+--
+ARRAY<STRUCT<
+        multilevel_agg ARRAY<>,
+        multilevel_concat_agg ARRAY<>
+      >>
+[{ARRAY<ARRAY<>>[unknown order:
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<ARRAY<>>[known order:
+        ARRAY<INT64>[known order:1, 2],
+        ARRAY<INT64>[known order:3, 4]
+      ],
+      ARRAY<ARRAY<>>[known order:
+        ARRAY<INT64>[known order:5, 6],
+        ARRAY<INT64>[known order:7, 8]
+      ]
+    ],
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<ARRAY<>>[known order:
+        ARRAY<INT64>[known order:9, 10],
+        ARRAY<INT64>[known order:11, 12]
+      ],
+      ARRAY<ARRAY<>>[known order:
+        ARRAY<INT64>[known order:13, 14],
+        ARRAY<INT64>[known order:15, 16]
+      ]
+    ]
+  ],
+  ARRAY<ARRAY<>>[unknown order:
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:1, 2],
+      ARRAY<INT64>[known order:3, 4]
+    ],
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:5, 6],
+      ARRAY<INT64>[known order:7, 8]
+    ],
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:9, 10],
+      ARRAY<INT64>[known order:11, 12]
+    ],
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:13, 14],
+      ARRAY<INT64>[known order:15, 16]
+    ]
+  ]}]
+==
+
+[required_features=ARRAY_OF_ARRAY,ORDER_BY_IN_AGGREGATE,MULTILEVEL_AGGREGATION]
+[name=nested_array_with_multi_level_aggregation_and_order_by]
+SELECT
+  ARRAY_AGG(array_concat_agg([arr1, arr2]) GROUP BY arr2[OFFSET(0)][OFFSET(0)] ORDER BY MIN(arr1[OFFSET(0)][OFFSET(0)])) AS multilevel_agg
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+ARRAY<STRUCT<multilevel_agg ARRAY<>>>[
+  {ARRAY<ARRAY<>>[ARRAY<ARRAY<>>[known order:
+                    ARRAY<ARRAY<>>[known order:
+                      ARRAY<INT64>[known order:1, 2],
+                      ARRAY<INT64>[known order:3, 4]
+                    ],
+                    ARRAY<ARRAY<>>[known order:
+                      ARRAY<INT64>[known order:5, 6],
+                      ARRAY<INT64>[known order:7, 8]
+                    ]
+                  ]]}
+]

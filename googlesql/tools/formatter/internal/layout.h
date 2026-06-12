@@ -101,10 +101,10 @@ class StmtLayout : public Layout {
     friend H AbslHashValue(H h, const Line& l) {
       return H::combine(std::move(h), l.start, l.end);
     }
-    inline friend bool operator==(const Line& lhs, const Line& rhs) {
+    friend bool operator==(const Line& lhs, const Line& rhs) {
       return lhs.start == rhs.start && lhs.end == rhs.end;
     }
-    inline friend bool operator!=(const Line& lhs, const Line& rhs) {
+    friend bool operator!=(const Line& lhs, const Line& rhs) {
       return !(lhs == rhs);
     }
     friend bool operator<(const Line& lhs, const Line& rhs) {
@@ -212,6 +212,9 @@ class StmtLayout : public Layout {
   // original input. Takes into account only those line breaks that formatter
   // would do itself if it decided to break the line.
   void BreakLinesThatWereSplitByUser();
+
+  // Transforms layout by removing line breaks that can be skipped.
+  void PruneLineBreaks();
 
   // Breaks the given <line> into multiple lines on given <breakpoints>.
   LinesT LinesFromSetOfBreakpoints(
@@ -325,9 +328,6 @@ class StmtLayout : public Layout {
   bool FormatterBreakpointsRoughlyMatchUsers(
       const Line& line, const absl::btree_set<int>& user_breakpoints,
       const absl::btree_set<int>& formatter_breakpoints) const;
-
-  // Transforms layout by removing line breaks that can be skipped.
-  void PruneLineBreaks();
 
   const std::vector<Chunk>& chunks_;
   const FormatterOptions options_;

@@ -1,0 +1,12 @@
+-- This module is used for test case:
+--   googlesql/common/testdata/import_nested_module.module_test
+-- See the test file comments for details about how this module is
+-- related to other modules in that test.
+
+MODULE doubly_nested_module;
+
+CREATE PUBLIC FUNCTION fn1(a int64) as (a+1);
+
+CREATE PUBLIC FUNCTION fn2(a int64) as (private_fn(a));
+
+CREATE PRIVATE FUNCTION private_fn(a int64) as (a - 1);

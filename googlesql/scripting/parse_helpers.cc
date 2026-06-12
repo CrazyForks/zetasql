@@ -21,9 +21,9 @@
 #include "googlesql/parser/parser.h"
 #include "googlesql/public/error_helpers.h"
 #include "googlesql/scripting/parsed_script.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 absl::StatusOr<std::unique_ptr<ParserOutput>> ParseAndValidateScript(

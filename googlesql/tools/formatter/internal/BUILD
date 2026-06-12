@@ -21,6 +21,10 @@ package(
     default_visibility = ["//googlesql/base:googlesql_implementation"],
 )
 
+# Export token.h so it can be used as a source file by the gen_token_type_names
+# genrule in //devtools/googlesql/stats/formatter_analysis:BUILD.
+exports_files(["token.h"])
+
 cc_library(
     name = "chunk",
     srcs = [
@@ -29,6 +33,7 @@ cc_library(
     hdrs = ["chunk.h"],
     deps = [
         ":fusible_tokens",
+        ":procedural_block_def",
         ":token",
         "//googlesql/base:check",
         "//googlesql/base:flat_set",
@@ -62,6 +67,7 @@ cc_library(
     hdrs = ["chunk_grouping_strategy.h"],
     deps = [
         ":chunk",
+        ":procedural_block_def",
         ":token",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -89,10 +95,22 @@ cc_library(
 )
 
 cc_library(
+    name = "procedural_block_def",
+    srcs = ["procedural_block_def.cc"],
+    hdrs = ["procedural_block_def.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "token",
     srcs = ["token.cc"],
     hdrs = ["token.h"],
     deps = [
+        ":procedural_block_def",
         "//googlesql/base:flat_set",
         "//googlesql/base:status",
         "//googlesql/base:strings",
@@ -105,6 +123,7 @@ cc_library(
         "//googlesql/public:parse_resume_location",
         "//googlesql/public:type_cc_proto",
         "//googlesql/public:value",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

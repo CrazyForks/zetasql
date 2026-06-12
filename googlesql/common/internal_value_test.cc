@@ -128,12 +128,12 @@ TEST(InternalValueTest, MeasureFormatting) {
                                                 captured_values_as_struct, {0},
                                                 language_options));
   EXPECT_EQ(measure.DebugString(/*verbose=*/true),
-            "Measure<Int64>{Struct{key:Int64(1), value:Int64(100)}}");
-  EXPECT_EQ(measure.DebugString(), "Measure<Int64>{{key:1, value:100}}");
+            "MEASURE<INT64>{Struct{key:Int64(1), value:Int64(100)}}");
+  EXPECT_EQ(measure.DebugString(), "MEASURE<INT64>{{key:1, value:100}}");
   EXPECT_EQ(measure.Format(/*print_top_level_type=*/false),
-            "Measure<Int64>{{key:1, value:100}}");
+            "MEASURE<INT64>{{key:1, value:100}}");
   EXPECT_EQ(measure.Format(),
-            "Measure<Int64>{Struct{key:Int64(1), value:Int64(100)}}");
+            "MEASURE<INT64>{Struct{key:Int64(1), value:Int64(100)}}");
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value measure_as_struct,
                        InternalValue::GetMeasureAsStructValue(measure));
   EXPECT_EQ(measure_as_struct, captured_values_as_struct);
@@ -147,10 +147,10 @@ TEST(InternalValueTest, NullMeasure) {
                        type_factory.MakeMeasureType(types::Int64Type()));
   Value null_measure = Value::Null(measure_type);
   EXPECT_TRUE(null_measure.is_null());
-  EXPECT_EQ(null_measure.DebugString(/*verbose=*/true), "Measure<Int64>(NULL)");
+  EXPECT_EQ(null_measure.DebugString(/*verbose=*/true), "MEASURE<INT64>(NULL)");
   EXPECT_EQ(null_measure.DebugString(), "NULL");
   EXPECT_EQ(null_measure.Format(/*print_top_level_type=*/false), "NULL");
-  EXPECT_EQ(null_measure.Format(), "Measure<Int64>(NULL)");
+  EXPECT_EQ(null_measure.Format(), "MEASURE<INT64>(NULL)");
   // Measures do not have SQL literals, and do not support CASTs. The printed
   // SQL is thus not meaningful.
   EXPECT_EQ(null_measure.GetSQLLiteral(PRODUCT_INTERNAL), "NULL");

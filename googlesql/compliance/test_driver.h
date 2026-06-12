@@ -47,6 +47,7 @@
 #include "absl/base/macros.h"
 #include "absl/flags/declare.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -59,7 +60,6 @@
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -484,7 +484,7 @@ class TestDriver {
 
   // Similar to ExecuteStatement(), but executes 'sql' as a script, rather than
   // an individual statement.
-  virtual absl::StatusOr<ScriptResult> ExecuteScript(
+  virtual absl::StatusOr<MultiStmtResult> ExecuteScript(
       const std::string& sql, const std::map<std::string, Value>& parameters,
       TypeFactory* type_factory) {
     return absl::UnimplementedError("Scripts are not supported");

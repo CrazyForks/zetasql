@@ -15,6 +15,7 @@
 #
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -123,11 +124,9 @@ cc_library(
     deps = [
         ":parsed_script",
         "//googlesql/base:status",
-        "//googlesql/common:errors",
         "//googlesql/parser",
         "//googlesql/public:error_helpers",
         "//googlesql/public:options_cc_proto",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -191,7 +190,7 @@ cc_library(
         ":stack_frame",
         ":type_aliases",
         ":variable_cc_proto",
-        "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base:flat_set",
         "//googlesql/base:map_util",
         "//googlesql/base:ret_check",
@@ -218,6 +217,7 @@ cc_library(
         "//googlesql/public/types",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

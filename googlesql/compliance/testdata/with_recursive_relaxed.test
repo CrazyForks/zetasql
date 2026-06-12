@@ -61,10 +61,10 @@ WITH RECURSIVE t AS (
 SELECT * FROM t2;
 --
 ARRAY<STRUCT<a INT64, b INT64, depth INT64>>[unknown order:
-  {3, 4, 0},
   {1, 2, 0},
-  {5, 4, 0},
   {6, 2, 0},
+  {3, 4, 0},
+  {5, 4, 0},
   {8, 4, 1},
   {7, 2, 1},
   {8, 4, 2},
@@ -88,10 +88,10 @@ WITH RECURSIVE t AS (
 SELECT * FROM t2;
 --
 ARRAY<STRUCT<a INT64, b INT64, depth INT64>>[unknown order:
-  {3, 4, 0},
+  {1, 2, 0},
   {1, 2, 0},
   {3, 4, 0},
-  {1, 2, 0},
+  {3, 4, 0},
   {3, 4, 1},
   {1, 2, 1},
   {3, 4, 2},

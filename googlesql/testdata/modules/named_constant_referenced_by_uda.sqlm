@@ -1,0 +1,7 @@
+MODULE named_constant_referenced_by_uda;
+
+CREATE PRIVATE CONSTANT bar = 1;
+
+CREATE PUBLIC AGGREGATE FUNCTION uda(a INT32) AS (SUM(a * bar));
+CREATE PUBLIC AGGREGATE FUNCTION uda_templated(a ANY TYPE)
+    AS (SUM(a * bar));

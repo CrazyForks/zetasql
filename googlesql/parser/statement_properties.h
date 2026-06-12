@@ -35,6 +35,9 @@ struct ASTStatementProperties {
   // if <node_kind> is AST_CREATE_TABLE_STATEMENT.
   bool is_create_table_as_select = false;
 
+  // Whether or not the statement is a top-level GRAPH statement syntax.
+  bool is_top_level_graph_statement_syntax = false;
+
   // The create scope of the statement (i.e. TEMP, DEFAULT, etc.).  Only
   // applies if <node_kind> is AST_CREATE_*.
   ASTCreateStatement::Scope create_scope = ASTCreateStatement::DEFAULT_SCOPE;

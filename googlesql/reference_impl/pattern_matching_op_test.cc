@@ -42,8 +42,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/types/span.h"
 
 using ::testing::_;
 using ::testing::ElementsAre;

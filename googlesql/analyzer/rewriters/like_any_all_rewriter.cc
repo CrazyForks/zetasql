@@ -25,203 +25,29 @@
 #include "googlesql/analyzer/substitute.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/analyzer_output_properties.h"
+#include "googlesql/public/annotation/collation.h"
 #include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/rewriter_interface.h"
+#include "googlesql/public/types/simple_value.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
+#include "googlesql/resolved_ast/resolved_collation.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
-
-// Contains helper functions for building the ResolvedAST for a
-// 'search_value LIKE {{ANY|ALL}} <subquery>' expression.
-// This builder is responsible for constructing the AST that corresponds to the
-// conceptual SQL transformation, turning the expression into a scalar subquery
-// that uses aggregation and a CASE statement to handle all semantics correctly.
-class LikeAnyAllSubqueryScanBuilder {
- public:
-  LikeAnyAllSubqueryScanBuilder(const AnalyzerOptions* analyzer_options,
-                                Catalog* catalog, ColumnFactory* column_factory,
-                                TypeFactory* type_factory)
-      : analyzer_options_(analyzer_options),
-        catalog_(catalog),
-        fn_builder_(*analyzer_options, *catalog, *type_factory),
-        column_factory_(column_factory) {}
-
- private:
-  // Builds the AggregateScan of the ResolvedAST for a
-  // <input> LIKE {{ANY|ALL}} <subquery>
-  // expression as detailed at (broken link)
-  // Maps to:
-  // AggregateScan
-  //   +-input_scan=SubqueryScan  // User input subquery
-  //     +-pattern_col#2=subquery_column
-  //   +-like_agg_col#3=AggregateFunctionCall(
-  //         LOGICAL_OR/AND(input_expr#1 LIKE pattern_col#2) -> BOOL)
-  //           // OR for ANY, AND for ALL
-  //   +-null_agg_col#4=AggregateFunctionCall(
-  //         LOGICAL_OR(pattern_col#2 IS NULL) -> BOOL)
-  // in the ResolvedAST
-  absl::StatusOr<std::unique_ptr<ResolvedAggregateScan>> BuildAggregateScan(
-      const ResolvedColumn& input_column, const ResolvedColumn& subquery_column,
-      std::unique_ptr<const ResolvedScan> input_scan,
-      ResolvedSubqueryExpr::SubqueryType subquery_type);
-
-  // Constructs a ResolvedAggregateFunctionCall for a LOGICAL_OR/AND function
-  // for use in the LIKE ANY/ALL rewriter
-  //
-  // The signature for the built-in function "logical_or" or "logical_and" must
-  // be available in <catalog> or an error status is returned
-  absl::StatusOr<std::unique_ptr<const ResolvedAggregateFunctionCall>>
-  AggregateLogicalOperation(FunctionSignatureId context_id,
-                            std::unique_ptr<const ResolvedExpr> expression);
-
-  const AnalyzerOptions* analyzer_options_;
-  Catalog* catalog_;
-  FunctionCallBuilder fn_builder_;
-  ColumnFactory* column_factory_;
-};
-
-absl::StatusOr<std::unique_ptr<ResolvedAggregateScan>>
-LikeAnyAllSubqueryScanBuilder::BuildAggregateScan(
-    const ResolvedColumn& input_column, const ResolvedColumn& subquery_column,
-    std::unique_ptr<const ResolvedScan> input_scan,
-    ResolvedSubqueryExpr::SubqueryType subquery_type) {
-  std::vector<std::unique_ptr<const ResolvedComputedColumn>> aggregate_list;
-  std::vector<ResolvedColumn> column_list;
-
-  // Create a LOGICAL_OR/AND(input LIKE pattern) function using ColumnRefs to
-  // the input and subquery columns, and add it as a column to the
-  // AggregateScan.
-  // Maps to:
-  // +-like_agg_col#3=AggregateFunctionCall(
-  //       LOGICAL_OR/AND(input_expr#1 LIKE pattern_col#2) -> BOOL)
-  //         // OR for ANY, AND for ALL
-  // in the ResolvedAST.
-  std::unique_ptr<ResolvedColumnRef> like_input_column_ref =
-      MakeResolvedColumnRef(input_column,
-                            /*is_correlated=*/true);
-  std::unique_ptr<ResolvedColumnRef> subquery_column_ref_like =
-      MakeResolvedColumnRef(subquery_column,
-                            /*is_correlated=*/false);
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> like_fn,
-                   fn_builder_.Like(std::move(like_input_column_ref),
-                                    std::move(subquery_column_ref_like)));
-  FunctionSignatureId context_id;
-  std::string column_name;
-  if (subquery_type == ResolvedSubqueryExpr::LIKE_ANY) {
-    context_id = FN_LOGICAL_OR;
-    column_name = "like_any";
-  } else if (subquery_type == ResolvedSubqueryExpr::LIKE_ALL) {
-    context_id = FN_LOGICAL_AND;
-    column_name = "like_all";
-  } else {
-    GOOGLESQL_RET_CHECK_FAIL()
-        << "Subquery type can only be LIKE_ANY or LIKE_ALL. Subquery type: "
-        << ResolvedSubqueryExprEnums_SubqueryType_Name(subquery_type);
-  }
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedAggregateFunctionCall>
-                       logical_operation_like_fn,
-                   AggregateLogicalOperation(context_id, std::move(like_fn)));
-  ResolvedColumn like_column =
-      column_factory_->MakeCol("aggregate", column_name, types::BoolType());
-  std::unique_ptr<ResolvedComputedColumn> like_computed_column =
-      MakeResolvedComputedColumn(like_column,
-                                 std::move(logical_operation_like_fn));
-  aggregate_list.push_back(std::move(like_computed_column));
-  column_list.push_back(like_column);
-
-  // Create a LOGICAL_OR(pattern IS NULL) function using ColumnRefs to the
-  // subquery column, and add it as a column to the AggregateScan.
-  // Maps to:
-  // +-null_agg_col#4=AggregateFunctionCall(
-  //       LOGICAL_OR(pattern_col#2 IS NULL) -> BOOL)
-  // in the ResolvedAST.
-  std::unique_ptr<ResolvedColumnRef> subquery_column_ref_contains_null =
-      MakeResolvedColumnRef(subquery_column,
-                            /*is_correlated=*/false);
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<const ResolvedExpr> is_null_fn,
-      fn_builder_.IsNull(std::move(subquery_column_ref_contains_null)));
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<const ResolvedAggregateFunctionCall> contains_null_fn,
-      AggregateLogicalOperation(FN_LOGICAL_OR, std::move(is_null_fn)));
-  ResolvedColumn contains_null_column = column_factory_->MakeCol(
-      "aggregate", "has_null_pattern", types::BoolType());
-  std::unique_ptr<ResolvedComputedColumn> contains_null_computed_column =
-      MakeResolvedComputedColumn(contains_null_column,
-                                 std::move(contains_null_fn));
-  aggregate_list.push_back(std::move(contains_null_computed_column));
-  column_list.push_back(contains_null_column);
-
-  // Maps to:
-  // AggregateScan
-  //   +-input_scan=SubqueryScan  // User input subquery
-  //     +-pattern_col#2=subquery_column
-  //   +-like_agg_col#3=AggregateFunctionCall(
-  //         LOGICAL_OR/AND(input_expr#1 LIKE pattern_col#2) -> BOOL)
-  //           // OR for ANY, AND for ALL
-  //   +-null_agg_col#4=AggregateFunctionCall(
-  //         LOGICAL_OR(pattern_col#2 IS NULL) -> BOOL)
-  // in the ResolvedAST
-  return MakeResolvedAggregateScan(column_list, std::move(input_scan),
-                                   /*group_by_list=*/{},
-                                   std::move(aggregate_list),
-                                   /*grouping_set_list=*/{},
-                                   /*rollup_column_list=*/{},
-                                   /*grouping_call_list=*/{});
-}
-
-absl::StatusOr<std::unique_ptr<const ResolvedAggregateFunctionCall>>
-LikeAnyAllSubqueryScanBuilder::AggregateLogicalOperation(
-    FunctionSignatureId context_id,
-    std::unique_ptr<const ResolvedExpr> expression) {
-  GOOGLESQL_RET_CHECK_EQ(expression->type(), types::BoolType());
-
-  std::string logical_fn;
-  if (context_id == FN_LOGICAL_OR) {
-    logical_fn = "logical_or";
-  } else if (context_id == FN_LOGICAL_AND) {
-    logical_fn = "logical_and";
-  } else {
-    GOOGLESQL_RET_CHECK_FAIL() << "Function context_id did not match LOGICAL_OR or "
-                        "LOGICAL_AND. context_id: "
-                     << FunctionSignatureId_Name(context_id);
-  }
-
-  const Function* logical_operation_fn;
-  GOOGLESQL_RET_CHECK_OK(catalog_->FindFunction({logical_fn}, &logical_operation_fn,
-                                      analyzer_options_->find_options()))
-      << "Engine does not support " << logical_fn << " function";
-  GOOGLESQL_RET_CHECK(logical_operation_fn->IsGoogleSQLBuiltin());
-  GOOGLESQL_RET_CHECK_NE(logical_operation_fn, nullptr);
-
-  FunctionSignature logical_operation_signature(
-      {types::BoolType(), 1}, {{types::BoolType(), 1}}, context_id);
-  std::vector<std::unique_ptr<const ResolvedExpr>> logical_operation_args;
-  logical_operation_args.push_back(std::move(expression));
-
-  return MakeResolvedAggregateFunctionCall(
-      types::BoolType(), logical_operation_fn, logical_operation_signature,
-      std::move(logical_operation_args),
-      ResolvedFunctionCallBaseEnums::DEFAULT_ERROR_MODE, /*distinct=*/false,
-      ResolvedNonScalarFunctionCallBaseEnums::DEFAULT_NULL_HANDLING,
-      /*having_modifier=*/nullptr, /*order_by_item_list=*/{},
-      /*limit=*/nullptr);
-}
 
 // Template for rewriting LIKE ANY with null handling for cases:
 //   SELECT <input> LIKE ANY UNNEST([]) -> FALSE
@@ -340,6 +166,9 @@ class LikeAnyAllRewriteVisitor : public ResolvedASTDeepCopyVisitor {
   absl::Status VisitResolvedFunctionCall(
       const ResolvedFunctionCall* node) override;
 
+  absl::Status VisitResolvedSubqueryExpr(
+      const ResolvedSubqueryExpr* node) override;
+
   // Rewrites a function of the form:
   //   input [NOT] LIKE {{ANY|ALL}} (pattern1, [...])
   // to use the LOGICAL_OR aggregation function with the LIKE operator
@@ -351,6 +180,10 @@ class LikeAnyAllRewriteVisitor : public ResolvedASTDeepCopyVisitor {
   // to use the LOGICAL_OR aggregation function with the LIKE operator
   absl::Status RewriteLikeAnyAllArray(const ResolvedFunctionCall* node,
                                       absl::string_view rewrite_template);
+
+  // Rewrites a subquery expression of the form:
+  //   input [NOT] LIKE [ANY|ALL] (<subquery>)
+  absl::Status RewriteLikeAnyAllSubquery(const ResolvedSubqueryExpr* node);
 
   absl::Status RewriteLikeAnyAllArrayWithAggregate(
       std::unique_ptr<const ResolvedExpr> input_expr,
@@ -460,6 +293,17 @@ absl::Status LikeAnyAllRewriteVisitor::VisitResolvedFunctionCall(
   }
 }
 
+absl::Status LikeAnyAllRewriteVisitor::VisitResolvedSubqueryExpr(
+    const ResolvedSubqueryExpr* node) {
+  if (node->subquery_type() == ResolvedSubqueryExpr::LIKE_ANY ||
+      node->subquery_type() == ResolvedSubqueryExpr::LIKE_ALL ||
+      node->subquery_type() == ResolvedSubqueryExpr::NOT_LIKE_ANY ||
+      node->subquery_type() == ResolvedSubqueryExpr::NOT_LIKE_ALL) {
+    return RewriteLikeAnyAllSubquery(node);
+  }
+  return CopyVisitResolvedSubqueryExpr(node);
+}
+
 absl::Status LikeAnyAllRewriteVisitor::RewriteLikeAnyAll(
     const ResolvedFunctionCall* node, absl::string_view rewrite_template) {
   GOOGLESQL_RET_CHECK_GE(node->argument_list_size(), 2)
@@ -528,6 +372,69 @@ absl::Status LikeAnyAllRewriteVisitor::RewriteLikeAnyAllArrayWithAggregate(
                          {"patterns", patterns_array_expr.get()}}));
   PushNodeToStack(std::move(result));
   return absl::OkStatus();
+}
+
+absl::Status LikeAnyAllRewriteVisitor::RewriteLikeAnyAllSubquery(
+    const ResolvedSubqueryExpr* node) {
+  GOOGLESQL_RET_CHECK_NE(node->in_expr(), nullptr);
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> rewritten_input_expr,
+                   ProcessNode(node->in_expr()));
+
+  GOOGLESQL_RET_CHECK_NE(node->subquery(), nullptr);
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedScan> copied_subquery_scan,
+                   ProcessNode(node->subquery()));
+
+  GOOGLESQL_RET_CHECK_GT(copied_subquery_scan->column_list_size(), 0);
+  const Type* element_type = copied_subquery_scan->column_list(0).type();
+  GOOGLESQL_RET_CHECK(element_type->IsString() || element_type->IsBytes());
+
+  std::vector<std::unique_ptr<const ResolvedColumnRef>> parameter_list;
+  parameter_list.reserve(node->parameter_list_size());
+  for (const auto& param : node->parameter_list()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(auto copied_param, ProcessNode(param.get()));
+    parameter_list.push_back(std::move(copied_param));
+  }
+
+  const ArrayType* array_type;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeArrayType(element_type, &array_type));
+  std::unique_ptr<ResolvedSubqueryExpr> array_subquery_expr =
+      MakeResolvedSubqueryExpr(
+          array_type, ResolvedSubqueryExpr::ARRAY, std::move(parameter_list),
+          /*in_expr=*/nullptr, std::move(copied_subquery_scan));
+
+  if (node->in_collation().HasCollation()) {
+    std::unique_ptr<AnnotationMap> array_annotation_map =
+        AnnotationMap::Create(array_type);
+    array_annotation_map->AsStructMap()
+        ->mutable_field(0)
+        ->SetAnnotation<CollationAnnotation>(SimpleValue::String(
+            std::string(node->in_collation().CollationName())));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        const AnnotationMap* type_annotation_map,
+        type_factory_->TakeOwnership(std::move(array_annotation_map)));
+    array_subquery_expr->set_type_annotation_map(type_annotation_map);
+  }
+
+  std::string template_string;
+  switch (node->subquery_type()) {
+    case ResolvedSubqueryExpr::LIKE_ANY:
+      template_string = kLikeAnyTemplate;
+      break;
+    case ResolvedSubqueryExpr::LIKE_ALL:
+      template_string = kLikeAllTemplate;
+      break;
+    case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+      template_string = kNotLikeAnyTemplate;
+      break;
+    case ResolvedSubqueryExpr::NOT_LIKE_ALL:
+      template_string = kNotLikeAllTemplate;
+      break;
+    default:
+      GOOGLESQL_RET_CHECK_FAIL() << "Unsupported subquery type";
+  }
+  return RewriteLikeAnyAllArrayWithAggregate(std::move(rewritten_input_expr),
+                                             std::move(array_subquery_expr),
+                                             template_string);
 }
 
 }  // namespace

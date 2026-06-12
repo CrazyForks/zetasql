@@ -38,12 +38,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
+#include "googlesql/base/status_macros.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/reflection.h"
 #include "google/protobuf/text_format.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -272,6 +273,21 @@ TEST(ExecuteQueryJsonWriterTest, Basic) {
                        JSONValue::ParseJSONString(buf.str()));
 
   EXPECT_THAT(gotValue.GetConstRef(), JsonEq(wantValue.GetConstRef()));
+}
+
+TEST(ExecuteQueryStreamProtobufWriter, ExecutedNullIterator) {
+  bool fn_called = false;
+  ExecuteQueryStreamProtobufWriter writer{
+      google::protobuf::DescriptorPool::generated_pool(),
+      [&fn_called](const google::protobuf::Message& msg) {
+        fn_called = true;
+        return absl::OkStatus();
+      }};
+
+  // executed() should handle nullptr safely (returning OkStatus and not calling
+  // fn)
+  GOOGLESQL_EXPECT_OK(writer.executed(*MakeResolvedLiteral(), nullptr));
+  EXPECT_FALSE(fn_called);
 }
 
 }  // namespace googlesql

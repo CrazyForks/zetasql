@@ -87,11 +87,6 @@ absl::StatusOr<TestIsSameExpressionForGroupByResult>
 TestIsSameExpressionForGroupBy(const ResolvedExpr* expr1,
                                const ResolvedExpr* expr2);
 
-// Checks whether the expression references any non-local and non-correlated
-// column.
-absl::StatusOr<bool> ExprReferencesNonCorrelatedColumn(
-    const ResolvedExpr& expr);
-
 // Returns true if all path expressions in `expr`, subject to the caveats that
 // follow, have a prefix in `expected_prefixes`. The only path expressions we
 // consider in `expr` are those that start with non-correlated column references

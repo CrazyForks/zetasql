@@ -27,8 +27,8 @@
 #include "gtest/gtest.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql {
 namespace parser {

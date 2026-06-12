@@ -34,6 +34,7 @@
 
 #include "googlesql/base/logging.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/common/proto_format_utils.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/public/functions/comparison.h"
 #include "googlesql/public/functions/convert_string.h"
@@ -63,6 +64,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/match.h"
@@ -81,7 +83,6 @@
 #include "google/protobuf/message.h"
 #include "googlesql/base/map_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 // TODO: Remove flag once no longer required.
 ABSL_FLAG(bool, googlesql_allow_proto3_unknown_enum_values, true,
@@ -248,7 +249,11 @@ Value::Value(const Type* type, bool is_null, OrderPreservationKind order_kind) {
 void Value::CopyFrom(const Value& that) {
   // Self-copy check is done in the copy constructor. Here we just ABSL_DCHECK that.
   ABSL_DCHECK_NE(this, &that);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+  // NOLINTNEXTLINE - Suppress clang-tidy warning on not TriviallyCopyable.
   memcpy(this, &that, sizeof(Value));
+#pragma clang diagnostic pop
   if (!is_valid()) {
     return;
   }
@@ -472,8 +477,10 @@ absl::StatusOr<Value> Value::MakeGraphElement(
   // Validates the property types based on name.
   for (const auto& [name, value] : labels_and_properties.static_properties) {
     int field_index;
-    GOOGLESQL_RET_CHECK(graph_element_type->HasField(name, &field_index) ==
-              Type::HAS_FIELD)
+    GOOGLESQL_ASSIGN_OR_RETURN(Type::FindFieldResult find_result,
+                     graph_element_type->FindField(name));
+    field_index = find_result.field_id;
+    GOOGLESQL_RET_CHECK(find_result.has_field == Type::HAS_FIELD)
         << "Unknown property: " << name;
     const PropertyType* property_type =
         graph_element_type->FindPropertyType(name);
@@ -784,16 +791,8 @@ uint64_t Value::physical_byte_size() const {
     return physical_size;
   }
 
-  if (DoesTypeUseValueList()) {
-    physical_size += container_ptr_->physical_byte_size();
-  } else if (DoesTypeUseValueMap()) {
-    physical_size += map_ptr_->physical_byte_size();
-  } else if (DoesTypeUseValueMeasure()) {
-    physical_size += measure_ptr_->physical_byte_size();
-  } else {
-    physical_size +=
-        type()->GetValueContentExternallyAllocatedByteSize(GetContent());
-  }
+  physical_size +=
+      type()->GetValueContentExternallyAllocatedByteSize(GetContent());
 
   return physical_size;
 }
@@ -880,7 +879,7 @@ google::protobuf::Message* Value::ToMessage(
   ABSL_CHECK(!is_null());
   std::unique_ptr<google::protobuf::Message> m(
       message_factory->GetPrototype(type()->AsProto()->descriptor())->New());
-  const bool success = m->ParsePartialFromCord(ToCord());
+  const bool success = m->ParsePartialFromString(ToCord());
   if (!success && return_null_on_error) return nullptr;
   return m.release();
 }
@@ -1339,14 +1338,14 @@ std::string Value::DebugString(bool verbose) const {
   if (is_null()) {
     result = "NULL";
   } else {
-    if (DoesTypeUseValueList() || DoesTypeUseValueMap() ||
-        DoesTypeUseValueMeasure()) {
-      add_type_prefix = false;
-    }
     Type::FormatValueContentOptions options;
     options.product_mode = ProductMode::PRODUCT_INTERNAL;
     options.mode = Type::FormatValueContentOptions::Mode::kDebug;
     options.verbose = verbose;
+
+    if (type()->VerboseDebugFormatValueContentHasTypeName()) {
+      add_type_prefix = false;
+    }
 
     result = type()->FormatValueContent(GetContent(), options);
   }
@@ -1440,7 +1439,7 @@ size_t LongestLine(absl::string_view formatted) {
 
 // Add to the indentation of all lines other than the first.
 std::string ReIndentTail(absl::string_view formatted, int added_depth) {
-  std::vector<std::string> lines =
+  std::vector<absl::string_view> lines =
       absl::StrSplit(formatted, "\n  ", absl::SkipWhitespace());
   return absl::StrJoin(lines, absl::StrCat("\n", Indent(added_depth)));
 }
@@ -1691,9 +1690,8 @@ std::string Value::FormatInternal(
     google::protobuf::DynamicMessageFactory message_factory;
     std::unique_ptr<google::protobuf::Message> m(this->ToMessage(&message_factory));
     // Split and re-wrap the proto debug string to achieve proper indentation.
-    std::vector<std::string> field_strings = absl::StrSplit(
-         m->DebugString(),
-        '\n', absl::SkipWhitespace());
+    std::vector<std::string> field_strings =
+        absl::StrSplit(ToStableDebugString(*m), '\n', absl::SkipWhitespace());
     bool wraps = field_strings.size() > 1;
     // We don't need to sanitize the type string here since proto field names
     // cannot contain '$' characters.

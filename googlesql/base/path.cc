@@ -17,9 +17,13 @@
 #include "googlesql/base/path.h"
 
 #include <string.h>
+#include <initializer_list>
+#include <string>
+#include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql_base {
 

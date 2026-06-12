@@ -19,9 +19,9 @@
 #include <cstdint>
 #include <string>
 
-#include "googlesql/base/logging.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "googlesql/base/check.h"
 #include "absl/random/mock_distributions.h"
 #include "absl/random/mocking_bit_gen.h"
 #include "absl/random/random.h"

@@ -1,0 +1,175 @@
+# These test cases use inline module contents, so note that the error locations
+# in error messages have no filename.
+
+[no_resolve_statements]
+MODULE a.b.c;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+CREATE PUBLIC FUNCTION oops I got a parse error;
+--
+Lazy_resolution_function:foo
+--
+Module errors:
+INVALID_ARGUMENT: Syntax error: Expected "(" or "." but got identifier "I" [at 3:29]
+CREATE PUBLIC FUNCTION oops I got a parse error;
+                            ^
+==
+
+# Completely empty module.
+# TODO: The first error is a bit odd, can we special case this so that
+# we only get the second error below?
+--
+--
+Module errors:
+INVALID_ARGUMENT: Syntax error: Unexpected end of statement [at 1:1]
+
+^
+
+INVALID_ARGUMENT: A module must contain exactly one MODULE statement
+==
+
+# Missing MODULE statement.
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+CREATE PRIVATE FUNCTION bar(a int32) as (a);
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: The first statement in a module must be a MODULE statement
+==
+
+# The MODULE statement is not first.
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+MODULE a.b.c;
+CREATE PUBLIC FUNCTION bar(a int32) as (a);
+CREATE PUBLIC FUNCTION baz(a float) as (foo(a));
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: The first statement in a module must be a MODULE statement
+==
+
+# Two MODULE statements.
+MODULE a.b.c;
+MODULE a.b.c;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+--
+Lazy_resolution_function:foo
+  (INT32 a) -> INT32
+--
+Module errors:
+INVALID_ARGUMENT: Found more than one MODULE statement [at 2:1]
+MODULE a.b.c;
+^
+==
+
+# Bad parsing and bad functions.
+MODULE x;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);  -- good function
+CREATE PUBLIC FUNCTION baz(a float) as (a + 'b');  -- invalid resolution
+CREATE OR REPLACE PUBLIC FUNCTION foo(a int32) as (a);  -- invalid overload and OR REPLACE
+CREATE PUBLIC FUNCTION IF NOT EXISTS bat(a int32) as (a);  -- invalid IF NOT EXISTS
+CREATE PUBLIC FUNCTION bar(a int32) as ohmy-gosh it is a parse error();
+--
+Lazy_resolution_function:bat
+ERROR: Function bat is invalid [at 5:38]
+CREATE PUBLIC FUNCTION IF NOT EXISTS bat(a int32) as (a);  -- invalid IF NOT ...
+                                     ^
+Modules do not support IF NOT EXISTS for CREATE FUNCTION [at 5:1]
+CREATE PUBLIC FUNCTION IF NOT EXISTS bat(a int32) as (a);  -- invalid IF NOT ...
+^
+
+Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 3:24]
+CREATE PUBLIC FUNCTION baz(a float) as (a + 'b');  -- invalid resolution
+                       ^
+No matching signature for operator +
+  Argument types: FLOAT, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type FLOAT to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type FLOAT to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type FLOAT to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type FLOAT to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type FLOAT to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type FLOAT to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL [at 3:41]
+CREATE PUBLIC FUNCTION baz(a float) as (a + 'b');  -- invalid resolution
+                                        ^
+
+Lazy_resolution_function:foo
+  (INT32 a) -> INT32
+--
+Module errors:
+INVALID_ARGUMENT: Modules do not support function overloads yet but found multiple CREATE FUNCTION statements for function foo [at 4:1]
+CREATE OR REPLACE PUBLIC FUNCTION foo(a int32) as (a);  -- invalid overload a...
+^
+
+INVALID_ARGUMENT: Syntax error: Expected "(" or string literal but got identifier "ohmy" [at 6:40]
+CREATE PUBLIC FUNCTION bar(a int32) as ohmy-gosh it is a parse error();
+                                       ^
+==
+
+IMPORT MODULE simple;
+MODULE a;
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: The first statement in a module must be a MODULE statement
+==
+
+MODULE a;
+IMPORT MODULE googlesql.d.e.f as f;      -- Non-existent module
+--
+--
+Module errors:
+INVALID_ARGUMENT: IMPORT MODULE f failed resolution with error: Module googlesql.d.e.f not found in following locations:
+.../googlesql/d/e/f.sqlm;
+.../googlesql/d/e/f/f.sqlm [at 2:1]
+IMPORT MODULE googlesql.d.e.f as f;      -- Non-existent module
+^
+==
+
+# Bad IMPORT statements.
+MODULE a.b.c;
+IMPORT PROTO "a/b/c.proto" as d;    -- Invalid, aliases not supported
+IMPORT PROTO "a/b/c.proto" into d;  -- Invalid, aliases not supported
+IMPORT MODULE d.e.f as d.e.f;       -- Syntax error (explicit multi-part alias)
+--
+--
+Module errors:
+INVALID_ARGUMENT: The IMPORT PROTO statement does not support AS alias; use INTO alias instead [at 2:28]
+IMPORT PROTO "a/b/c.proto" as d;    -- Invalid, aliases not supported
+                           ^
+
+INVALID_ARGUMENT: IMPORT PROTO statements inside modules do not allow AS or INTO alias, but found alias d [at 3:28]
+IMPORT PROTO "a/b/c.proto" into d;  -- Invalid, aliases not supported
+                           ^
+
+INVALID_ARGUMENT: Syntax error: Expected ";" or end of input but got "." [at 4:25]
+IMPORT MODULE d.e.f as d.e.f;       -- Syntax error (explicit multi-part alias)
+                        ^
+==
+
+MODULE a;
+IMPORT MODULE "d.e.f" as f;      -- IMPORT MODULE require path expression
+--
+--
+Module errors:
+INVALID_ARGUMENT: The IMPORT MODULE statement requires a path expression [at 2:15]
+IMPORT MODULE "d.e.f" as f;      -- IMPORT MODULE require path expression
+              ^

@@ -1,0 +1,110 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+from Foo
+|> AGGREGATE {{|a,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-29] [from Foo |> AGGREGATE  **cols]
+  Query [0-29] [from Foo |> AGGREGATE  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-29] [|> AGGREGATE  **cols]
+      Select [12-29] [AGGREGATE  **cols]
+        SelectList [23-29] [**cols]
+          SelectColumn [23-29] [**cols]
+            UnpackExpression [23-29] [**cols]
+              PathExpression [25-29] [cols]
+                Identifier(cols) [25-29] [cols]
+
+--
+FROM
+  Foo
+|> AGGREGATE
+     ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-32] [from Foo |...**cols ,y]
+  Query [0-32] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-32] [|> AGGREGATE  **cols ,y]
+      Select [12-32] [AGGREGATE  **cols ,y]
+        SelectList [23-32] [**cols ,y]
+          SelectColumn [23-29] [**cols]
+            UnpackExpression [23-29] [**cols]
+              PathExpression [25-29] [cols]
+                Identifier(cols) [25-29] [cols]
+          SelectColumn [31-32] [y]
+            PathExpression [31-32] [y]
+              Identifier(y) [31-32] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     ** (cols),
+     y
+--
+ALTERNATION GROUP: a,,
+--
+QueryStatement [0-31] [from Foo |...a, **cols]
+  Query [0-31] [from Foo |...a, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-31] [|> AGGREGATE a, **cols]
+      Select [12-31] [AGGREGATE a, **cols]
+        SelectList [22-31] [a, **cols]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+          SelectColumn [25-31] [**cols]
+            UnpackExpression [25-31] [**cols]
+              PathExpression [27-31] [cols]
+                Identifier(cols) [27-31] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a,
+     ** (cols)
+--
+ALTERNATION GROUP: a,,,y
+--
+QueryStatement [0-34] [from Foo |...**cols ,y]
+  Query [0-34] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-34] [|> AGGREGATE a, **cols ,y]
+      Select [12-34] [AGGREGATE a, **cols ,y]
+        SelectList [22-34] [a, **cols ,y]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+          SelectColumn [25-31] [**cols]
+            UnpackExpression [25-31] [**cols]
+              PathExpression [27-31] [cols]
+                Identifier(cols) [27-31] [cols]
+          SelectColumn [33-34] [y]
+            PathExpression [33-34] [y]
+              Identifier(y) [33-34] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a,
+     ** (cols),
+     y

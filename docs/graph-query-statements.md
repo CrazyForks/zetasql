@@ -8,7 +8,7 @@ Graph Query Language (GQL) lets you execute multiple linear
 graph queries in one query. Each linear graph query generates results
 (the working table) and then passes those results to the next.
 
-GQL supports the following building blocks, which can be composited into a
+GQL supports the following building blocks, which can be composed into a
 GQL query based on the [syntax rules][gql_syntax].
 
 ## Language list
@@ -183,7 +183,7 @@ to composite the building blocks of GQL into a query.
 +   `graph_query`: A GQL query that starts with a [`GRAPH` clause][graph-clause],
     then follows with a `multi_linear_query_statement`.
 
-[language-list]: https://github.com/google/googlesql/blob/master/docs/graph-query-statements.md#language-list
+[language-list]: https://github.com/google/googlesql/blob/master/docs/graph-query-statements.md#language_list
 
 [graph-clause]: https://github.com/google/googlesql/blob/master/docs/graph-query-statements.md#graph_query
 
@@ -642,8 +642,8 @@ ORDER BY account_Id;
 **Example: Call a named TVF on the entire working table with `PER ()`**
 
 The following query uses the `CALL PER()` statement to call a `PageRank` TVF on
-the entire working. The query takes the entire graph, including all nodes and
-edges from the input table, and returns a table with each element and its
+the entire working table. The query takes the entire graph, including all nodes
+and edges from the input table, and returns a table with each element and its
 calculated `PageRank` score.
 
 ```googlesql
@@ -827,13 +827,10 @@ The `FOR` statement expands the working table by defining a new column for the
 elements of `array_expression`, with an optional offset column. The cardinality
 of the working table might change as a result.
 
-The `FOR` statement can reference columns in the working table.
-
-The `FOR` statement evaluation is similar to the [`UNNEST`][unnest-operator] operator.
-
-The `FOR` statement doesn't preserve order.
-
-And empty or `NULL` `array_expression` produces zero rows.
++ The `FOR` statement can reference columns in the working table.
++ The `FOR` statement evaluation is similar to the [`UNNEST`][unnest-operator] operator.
++ The `FOR` statement doesn't preserve order.
++ An empty or `NULL` `array_expression` produces zero rows.
 
 The keyword `WITH` following the `FOR` statement is always interpreted as the
 beginning of `with_offset_clause`. If you want to use the `WITH` statement
@@ -977,16 +974,13 @@ linear query statement.
 `LET` doesn't change the cardinality of the working table nor modify its
 existing columns.
 
-The variable can only be used in the current linear query statement. To use it
-in a following linear query statement, you must include it in the `RETURN`
-statement as a column.
-
-You can't define and reference a variable within the same `LET` statement.
-
-You can't redefine a variable with the same name.
-
-You can use horizontal aggregate functions in this statement. To learn more, see
-[Horizontal aggregate function calls in GQL][horizontal-aggregation].
++ The variable can only be used in the current linear query statement. To use it
+  in a following linear query statement, you must include it in the `RETURN`
+  statement as a column.
++ You can't define and reference a variable within the same `LET` statement.
++ You can't redefine a variable with the same name.
++ You can use horizontal aggregate functions in this statement. To learn more, see
+  [Horizontal aggregate function calls in GQL][horizontal-aggregation].
 
 #### Examples
 
@@ -1149,7 +1143,7 @@ RETURN b.id
  +------*/
 ```
 
-[horizontal-aggregation]: https://github.com/google/googlesql/blob/master/docs/graph-gql-functions.md
+[horizontal-aggregation]: https://github.com/google/googlesql/blob/master/docs/graph-gql-functions.md#gql-horiz-agg-func-calls
 
 ## `LIMIT` statement 
 <a id="gql_limit"></a>
@@ -1251,21 +1245,21 @@ result with either `INNER JOIN` or `CROSS JOIN` semantics.
 
 The `INNER JOIN` semantics is used when the working table and matched result
 have variables in common. In the following example, the `INNER JOIN`
-semantics is used because `friend` is produced by both `MATCH` statements:
+semantics is used because `account` is produced by both `MATCH` statements:
 
 ```googlesql
-MATCH (person:Person)-[:knows]->(friend:Person)
-MATCH (friend)-[:knows]->(otherFriend:Person)
+MATCH (person:Person)-[:Owns]->(account:Account)
+MATCH (account)-[:Transfers]->(otherAcct:Account)
 ```
 
 The `CROSS JOIN` semantics is used when the incoming working table and matched
 result have no variables in common. In the following example, the `CROSS JOIN`
-semantics is used because `person1` and `friend` exist in the result of the
+semantics is used because `person1` and `account` exist in the result of the
 first `MATCH` statement, but not the second one:
 
 ```googlesql
-MATCH (person1:Person)-[:knows]->(friend:Person)
-MATCH (person2:Person)-[:knows]->(otherFriend:Person)
+MATCH (person1:Person)-[:Owns]->(account:Account)
+MATCH (person2:Person)-[:Owns]->(otherAcct:Account)
 ```
 
 #### Examples
@@ -1498,7 +1492,7 @@ RETURN n.name, a.id AS blocked_account_id
 NEXT
 </pre>
 
-##### Description
+#### Description
 
 Chains multiple linear query statements together.
 
@@ -1777,6 +1771,11 @@ statement is allowed in a linear query statement.
 
 #### Details
 
+You can return graph elements to make them visible from one linear query
+statement to the next, but the final `RETURN` statement in a graph query can't
+contain a graph element on its own. Instead, you can return a property of a
+graph element.
+
 If any expression performs aggregation, and no `GROUP BY` clause is
 specified, all groupable items from the return list are used implicitly as
 grouping keys (This is
@@ -1805,6 +1804,16 @@ RETURN p.name, p.id
  | Dana | 2  |
  | Lee  | 3  |
  +-----------*/
+```
+
+The following query fails because you can't return a graph element from a
+query:
+
+```googlesql {.bad}
+-- Error: You can't return a graph element
+GRAPH FinGraph
+MATCH (p:Person)
+RETURN p
 ```
 
 In the following example, the first linear query statement returns all columns
@@ -2173,7 +2182,8 @@ RETURN src.id AS source_id
 ][...]
 
 <span class="var">set_operator</span>:
-  { 
+  { [ <span class="var">column_propagation_mode</span> ]
+    
     UNION ALL
     | UNION DISTINCT
     | INTERSECT ALL
@@ -2181,6 +2191,15 @@ RETURN src.id AS source_id
     | EXCEPT ALL
     | EXCEPT DISTINCT
   }
+
+<span class="var">column_propagation_mode</span>:
+  {
+    FULL [ OUTER ]
+    | OUTER
+    | LEFT [ OUTER ]
+    | INNER
+  }
+
 </pre>
 
 #### Description
@@ -2192,6 +2211,22 @@ Only one type of set operation is allowed per set operation.
 
 +   `linear_query_statement`: A [linear query statement][gql_syntax] to
     include in the set operation.
++   `column_propagation_mode`: Specifies how to combine columns from multiple
+    linear query statements when their output column lists don't exactly match.
+    If the mode is unspecified, the default behavior requires all inputs to have
+    the same set of column names.
+
+    The following column propagation modes are supported:
+
+    +   `FULL OUTER`, `FULL`, or `OUTER`: Preserves all columns from both linear
+        query statements. Adds `NULL` values for any missing columns in either
+        statement. Columns from the first statement are returned first, followed
+        by unique columns from the second statement.
+    +   `LEFT OUTER` or `LEFT`: Preserves all columns from the first linear
+        query statement. Adds `NULL` values for any missing columns from the
+        second statement.
+    +   `INNER`: Preserves columns that are present in both linear query
+        statements.
 
 #### Details
 
@@ -2200,7 +2235,9 @@ Each linear query statement in the same set operation shares the same working ta
 Most of the rules for GQL set operators are the same as those for
 SQL [set operators][set-op], but there are some differences:
 
-+   A GQL set operator doesn't support hints, or the `CORRESPONDING` keyword.
++   A GQL set operator doesn't support
+    the `CORRESPONDING` keyword.
+    However, you can use a `column_propagation_mode`.
     Since each set operation input (a linear query statement) only
     produces columns with names, the default behavior of GQL set operations
     requires all inputs to have the same set of column names and all
@@ -2265,6 +2302,18 @@ RETURN 3 AS group_id, p.name
  | Dana |    3     |
  | Lee  |    3     |
  +------+----------*/
+```
+
+A set operation with a column propagation mode combines outputs with different
+column names. For example:
+
+```googlesql
+GRAPH FinGraph
+MATCH (a:Person)
+RETURN a.name, a.age
+FULL OUTER UNION ALL
+MATCH (a:Person)-[b]->(c)
+RETURN a.name, b.relationship
 ```
 
 ```googlesql {.bad}

@@ -26,7 +26,6 @@ option java_outer_classname = "GoogleSQLFunction";
 // A unique ID for GoogleSQL function signatures.  Resolved GoogleSQL functions
 // will provide one of these enums, and GoogleSQL implementations should map
 // them to something they can evaluate.
-// Next id: 1952
 enum FunctionSignatureId {
   // User code that switches on this enum must have a default case so
   // builds won't break if new enums get added.
@@ -39,7 +38,7 @@ enum FunctionSignatureId {
   // other special functions (CASE).  FunctionSignatureIds are assigned
   // in ranges:
   //
-  // 0002-0999 Non-standard function calls    (NextId: 334)
+  // 0002-0999 Non-standard function calls    (NextId: 354)
   // 1000-1099 String functions               (NextId: 1086)
   // 1100-1199 Control flow functions         (NextId: 1108)
   // 1200-1299 Time functions                 (Fully used)
@@ -49,7 +48,7 @@ enum FunctionSignatureId {
   // 1600-1699 Misc functions                 (Fully used)
   // 1700-1799 Net functions                  (NextId: 1716)
   // 1800-1899 More time functions            (NextId: 1876)
-  // 1900-1999 Hashing/encryption functions   (NextId: 1952)
+  // 1900-1999 Hashing/encryption functions   (NextId: 1956)
   // 2000-2199 Geography functions            (NextId: 2096)
   // 2200-2299 Anonymization functions        (NextId: 2232)
   // 2300-2499 Numeric, more math & distances (NextId: 2394)
@@ -64,6 +63,7 @@ enum FunctionSignatureId {
   // 3300-3399 Aggregate functions III        (NextId: 3303)
   // 3400-3499 Misc functions II              (NextId: 3410)
   // 4000-4099 Table valued functions         (NextId: 4005)
+  // 5000-5099 AI functions                   (NextId: 5024)
 
   // enum value                       // Related function name
   // ----------                       // ---------------------
@@ -91,18 +91,28 @@ enum FunctionSignatureId {
   FN_GREATER = 107;                        // $greater
   FN_GREATER_INT64_UINT64 = 222;           // $greater
   FN_GREATER_UINT64_INT64 = 223;           // $greater
+  FN_GREATER_JSON_NONJSON = 345;           // $greater
+  FN_GREATER_NONJSON_JSON = 346;           // $greater
   FN_GREATER_OR_EQUAL = 108;               // $greater_or_equal
   FN_GREATER_OR_EQUAL_INT64_UINT64 = 224;  // $greater_or_equal
   FN_GREATER_OR_EQUAL_UINT64_INT64 = 225;  // $greater_or_equal
+  FN_GREATER_OR_EQUAL_JSON_NONJSON = 347;  // $greater_or_equal
+  FN_GREATER_OR_EQUAL_NONJSON_JSON = 348;  // $greater_or_equal
   FN_LESS = 105;                           // $less
   FN_LESS_INT64_UINT64 = 226;              // $less
   FN_LESS_UINT64_INT64 = 227;              // $less
+  FN_LESS_JSON_NONJSON = 349;              // $less
+  FN_LESS_NONJSON_JSON = 350;              // $less
   FN_LESS_OR_EQUAL = 106;                  // $less_or_equal
   FN_LESS_OR_EQUAL_INT64_UINT64 = 228;     // $less_or_equal
   FN_LESS_OR_EQUAL_UINT64_INT64 = 229;     // $less_or_equal
+  FN_LESS_OR_EQUAL_JSON_NONJSON = 351;     // $less_or_equal
+  FN_LESS_OR_EQUAL_NONJSON_JSON = 352;     // $less_or_equal
   FN_EQUAL = 42;                           // $equal
   FN_EQUAL_INT64_UINT64 = 230;             // $equal
   FN_EQUAL_UINT64_INT64 = 231;             // $equal
+  FN_EQUAL_JSON_NONJSON = 336;             // $equal
+  FN_EQUAL_NONJSON_JSON = 337;             // $equal
   FN_STRING_ARRAY_LIKE_ANY = 291;          // $like_any_array
   FN_STRING_ARRAY_LIKE_ALL = 292;          // $like_all_array
   FN_STRING_LIKE = 97;                     // $like
@@ -122,6 +132,7 @@ enum FunctionSignatureId {
   FN_STRING_ARRAY_NOT_LIKE_ALL = 308;      // $not_like_all_array
   FN_BYTE_ARRAY_NOT_LIKE_ALL = 309;        // $not_like_all_array
   FN_IN = 100;                             // $in
+  FN_IN_JSON_NONJSON = 338;                // $in
   FN_IN_ARRAY = 219;                       // $in_array
   FN_BETWEEN = 110;                        // $between
   FN_BETWEEN_INT64_UINT64_UINT64 = 254;    // $between
@@ -130,6 +141,7 @@ enum FunctionSignatureId {
   FN_BETWEEN_UINT64_INT64_INT64 = 257;     // $between
   FN_BETWEEN_UINT64_UINT64_INT64 = 258;    // $between
   FN_BETWEEN_UINT64_INT64_UINT64 = 259;    // $between
+  FN_BETWEEN_JSON_ANY_ANY = 353;           // $between
   FN_IS_NULL = 101;                        // $is_null
   FN_IS_TRUE = 102;                        // $is_true
   FN_IS_FALSE = 103;                       // $is_false
@@ -140,10 +152,18 @@ enum FunctionSignatureId {
   FN_MULTIPLY_BIGNUMERIC = 264;            // $multiply
   FN_MULTIPLY_INTERVAL_INT64 = 299;        // $multiply
   FN_MULTIPLY_INT64_INTERVAL = 300;        // $multiply
+  FN_MULTIPLY_INTERVAL_DOUBLE = 334;       // $multiply
+  FN_MULTIPLY_DOUBLE_INTERVAL = 335;       // $multiply
   FN_NOT = 45;                             // $not
   FN_NOT_EQUAL = 109;                      // $not_equal
   FN_NOT_EQUAL_INT64_UINT64 = 232;         // $not_equal
   FN_NOT_EQUAL_UINT64_INT64 = 233;         // $not_equal
+  FN_NOT_EQUAL_JSON_NONJSON = 339;         // $not_equal
+  FN_NOT_EQUAL_NONJSON_JSON = 340;         // $not_equal
+  FN_DISTINCT_JSON_NONJSON = 341;          // $is_distinct
+  FN_DISTINCT_NONJSON_JSON = 342;          // $is_distinct
+  FN_NOT_DISTINCT_JSON_NONJSON = 343;      // $is_not_distinct
+  FN_NOT_DISTINCT_NONJSON_JSON = 344;      // $is_not_distinct
   FN_OR = 46;                              // $or
   FN_SUBTRACT_DOUBLE = 115;                // $subtract
   FN_SUBTRACT_INT64 = 48;                  // $subtract
@@ -856,6 +876,8 @@ enum FunctionSignatureId {
 
   FN_SESSION_USER = 1612;  // session_user
 
+  FN_SECURE_CONTEXT = 1954;  // secure_context(string) -> string
+
   FN_GENERATE_ARRAY_INT64 = 1613;       // generate_array(int64)
   FN_GENERATE_ARRAY_UINT64 = 1614;      // generate_array(uint64)
   FN_GENERATE_ARRAY_NUMERIC = 1625;     // generate_array(numeric)
@@ -1041,6 +1063,8 @@ enum FunctionSignatureId {
   // Keyset management, encryption, and decryption functions
   // ((broken link)). Requires that FEATURE_ENCRYPTION is enabled.
   FN_KEYS_NEW_KEYSET = 1910;  // keys.new_keyset(string)
+  // keys.new_keyset(string, string)
+  FN_KEYS_NEW_KEYSET_WITH_METADATA = 1955;
   // keys.add_key_from_raw_bytes(bytes, string, bytes)
   FN_KEYS_ADD_KEY_FROM_RAW_BYTES = 1911;
   FN_KEYS_ROTATE_KEYSET = 1912;     // keys.rotate_keyset(bytes, string)
@@ -1110,6 +1134,10 @@ enum FunctionSignatureId {
   FN_DETERMINISTIC_DECRYPT_STRUCT_STRING = 1940;
   // deterministic_decrypt_bytes(struct, bytes, bytes)
   FN_DETERMINISTIC_DECRYPT_STRUCT_BYTES = 1941;
+  // fpe_encrypt(bytes, array<int64>[, bytes])
+  FN_FPE_ENCRYPT = 1952;
+  // fpe_decrypt(bytes, array<int64>[, bytes])
+  FN_FPE_DECRYPT = 1953;
 
   // ST_ family of functions (Geography related - (broken link))
   // Constructors
@@ -1746,4 +1774,72 @@ enum FunctionSignatureId {
   FN_TUMBLE_NO_TIMESTAMP_COL = 4003;
   // hop(table<any>, interval, interval[, timestamp]) -> table<any>
   FN_HOP_NO_TIMESTAMP_COL = 4004;
+
+  // KMEANS(table, string, int64, string, double, json) -> ANY TABLE
+  FN_KMEANS_TVF = 4005;
+
+  // AI functions
+  // TODO: Add function overloads for `model` to be a MODEL
+  // reference once this argument type is available.
+  // Signature ids for AI.IF(prompt). This must be the minimal signature for
+  // AI.IF and can't have any fewer arguments.
+  FN_AI_IF_WITH_STRING_PROMPT = 5000;  // AI.IF(string) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT = 5001;  // AI.IF(struct) -> bool
+
+  // Signature id for AI.IF(prompt, payload)
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD = 5002;  // AI.IF(string, any) -> bool
+
+  // Signature ids for AI.IF(prompt, model)
+  FN_AI_IF_WITH_STRING_PROMPT_STRING_MODEL =
+      5003;  // AI.IF(string, string) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRING_MODEL =
+      5004;  // AI.IF(struct, string) -> bool
+
+  // Signature ids for AI.IF(prompt, options)
+  FN_AI_IF_WITH_STRING_PROMPT_JSON_OPTIONS =
+      5005;  // AI.IF(string, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_STRUCT_OPTIONS =
+      5006;  // AI.IF(string, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_STRING_OPTIONS =
+      5007;  // AI.IF(string, string) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_JSON_OPTIONS =
+      5008;  // AI.IF(struct, json) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRUCT_OPTIONS =
+      5009;  // AI.IF(struct, struct) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRING_OPTIONS =
+      5010;  // AI.IF(struct, string) -> bool
+
+  // Signature ids for AI.IF(prompt, model, options)
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRING_MODEL_JSON_OPTIONS =
+      5011;  // AI.IF(struct, string, json) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRING_MODEL_STRUCT_OPTIONS =
+      5012;  // AI.IF(struct, string, struct) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_STRING_MODEL_STRING_OPTIONS =
+      5013;  // AI.IF(struct, string, string) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_STRING_MODEL_JSON_OPTIONS =
+      5014;  // AI.IF(string, string, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_STRING_MODEL_STRUCT_OPTIONS =
+      5015;  // AI.IF(string, string, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_STRING_MODEL_STRING_OPTIONS =
+      5016;  // AI.IF(string, string, string) -> bool
+
+  // Signature id for AI.IF(prompt, payload, model)
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL =
+      5017;  // AI.IF(string, any, string) -> bool
+
+  // Signature ids for AI.IF(prompt, payload, options)
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_JSON_OPTIONS =
+      5018;  // AI.IF(string, any, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRUCT_OPTIONS =
+      5019;  // AI.IF(string, any, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_OPTIONS =
+      5020;  // AI.IF(string, any, string) -> bool
+
+  // Signature ids for AI.IF(prompt, payload, model, options)
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL_JSON_OPTIONS =
+      5021;  // AI.IF(string, any, string, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL_STRUCT_OPTIONS =
+      5022;  // AI.IF(string, any, string, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL_STRING_OPTIONS =
+      5023;  // AI.IF(string, any, string, string) -> bool
 }

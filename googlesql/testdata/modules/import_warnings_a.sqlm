@@ -1,0 +1,10 @@
+-- A module used in
+-- googlesql/common/testdata/nested_warnings.module_test
+-- See the file comments at the top of that file for how this module interacts
+-- with other modules involved in that test case.
+
+MODULE import_warnings_a;
+
+IMPORT MODULE googlesql.testdata.modules.import_warnings_b AS b;
+
+CREATE PUBLIC FUNCTION warning_a() AS (b.warning_b());

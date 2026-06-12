@@ -47,10 +47,10 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -90,9 +90,10 @@ absl::StatusOr<ResolvedColumn> GetInvokedMeasureColumn(
 // the measure type rewriter.
 class UnsupportedQueryShapeFinder : public ResolvedASTVisitor {
  public:
-  static absl::Status HasUnsupportedQueryShape(const ResolvedNode* input) {
+  static absl::Status HasUnsupportedQueryShape(
+      const ResolvedNode* input, const LanguageOptions& language_options) {
     // First, gather information about measure columns that need to be expanded.
-    UnsupportedQueryShapeFinder unsupport_query_shape_finder;
+    UnsupportedQueryShapeFinder unsupport_query_shape_finder(language_options);
     return input->Accept(&unsupport_query_shape_finder);
   }
 
@@ -147,16 +148,27 @@ class UnsupportedQueryShapeFinder : public ResolvedASTVisitor {
     if (IsMeasureAggFunction(node)) {
       GOOGLESQL_RET_CHECK(node->argument_list().size() == 1);
       const ResolvedExpr* arg = node->argument_list()[0].get();
-      if (!arg->Is<ResolvedColumnRef>()) {
+      const bool allow_get_struct_field =
+          language_options_.LanguageFeatureEnabled(FEATURE_MEASURES_IN_STRUCT);
+      const bool is_valid_arg =
+          arg->Is<ResolvedColumnRef>() ||
+          (allow_get_struct_field && arg->Is<ResolvedGetStructField>());
+      if (!is_valid_arg) {
         // The measure rewriter currently assumes that the argument to the AGG
-        // function invocation is a column ref. The MeasureColumnRewriter makes
-        // this assumption as well, since it skips mapping measure typed columns
-        // to closure columns if the measure typed column is rooted within an
-        // AGG function call sub-tree. Removing this check will require relaxing
-        // that assumption.
-        return absl::UnimplementedError(
+        // function invocation is a column ref or a struct field access
+        // resolving to measure. The MeasureColumnRewriter makes this assumption
+        // as well, since it skips mapping measure typed columns to closure
+        // columns if the measure typed column is rooted within an AGG function
+        // call sub-tree. Removing this check will require relaxing that
+        // assumption.
+        std::string error_message =
             "Measure type rewriter expects argument to AGG function to be a "
-            "direct column reference");
+            "direct column reference";
+        if (allow_get_struct_field) {
+          absl::StrAppend(&error_message,
+                          " or a struct field access resolving to measure");
+        }
+        return absl::UnimplementedError(error_message);
       }
     }
     return DefaultVisit(node);
@@ -186,14 +198,19 @@ class UnsupportedQueryShapeFinder : public ResolvedASTVisitor {
   }
 
  private:
-  UnsupportedQueryShapeFinder() = default;
+  explicit UnsupportedQueryShapeFinder(const LanguageOptions& language_options)
+      : language_options_(language_options) {}
   UnsupportedQueryShapeFinder(const UnsupportedQueryShapeFinder&) = delete;
   UnsupportedQueryShapeFinder& operator=(const UnsupportedQueryShapeFinder&) =
       delete;
+
+  const LanguageOptions& language_options_;
 };
 
-absl::Status HasUnsupportedQueryShape(const ResolvedNode* input) {
-  return UnsupportedQueryShapeFinder::HasUnsupportedQueryShape(input);
+absl::Status HasUnsupportedQueryShape(const ResolvedNode* input,
+                                      const LanguageOptions& language_options) {
+  return UnsupportedQueryShapeFinder::HasUnsupportedQueryShape(
+      input, language_options);
 }
 
 // Validates the struct field names in `key_columns_struct_type` are the same
@@ -233,19 +250,16 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   MultiLevelAggregateRewriter(
       const Function* any_value_fn, FunctionCallBuilder& function_call_builder,
       const LanguageOptions& language_options, ColumnFactory& column_factory,
-      TypeFactory& type_factory, ResolvedColumn struct_column,
+      TypeFactory& type_factory, const ResolvedColumnRef* closure_struct_ref,
       const absl::btree_set<std::string, googlesql_base::CaseLess>&
-          row_identity_column_names,
-      bool struct_column_refs_are_correlated)
+          row_identity_column_names)
       : any_value_fn_(any_value_fn),
         function_call_builder_(function_call_builder),
         language_options_(language_options),
         column_factory_(column_factory),
         type_factory_(type_factory),
-        struct_column_(struct_column),
-        row_identity_column_names_(row_identity_column_names),
-        struct_column_refs_are_correlated_(struct_column_refs_are_correlated) {
-        };
+        closure_struct_ref_(closure_struct_ref),
+        row_identity_column_names_(row_identity_column_names) {};
   MultiLevelAggregateRewriter(const MultiLevelAggregateRewriter&) = delete;
   MultiLevelAggregateRewriter& operator=(const MultiLevelAggregateRewriter&) =
       delete;
@@ -432,11 +446,11 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   // returns a MakeStruct expression that creates a new struct containing only
   // the needed row identity columns.
   absl::StatusOr<std::unique_ptr<const ResolvedExpr>> CreateGrainLockingKey() {
-    GOOGLESQL_RET_CHECK(struct_column_.type()->IsStruct());
-    GOOGLESQL_RET_CHECK(struct_column_.type()->AsStruct()->num_fields() == 2);
+    GOOGLESQL_RET_CHECK(closure_struct_ref_->type()->IsStruct());
+    GOOGLESQL_RET_CHECK(closure_struct_ref_->type()->AsStruct()->num_fields() == 2);
 
     const StructField& key_columns_field =
-        struct_column_.type()->AsStruct()->field(kKeyColumnsFieldIndex);
+        closure_struct_ref_->type()->AsStruct()->field(kKeyColumnsFieldIndex);
 
     const StructType* key_columns_struct_type =
         key_columns_field.type->AsStruct();
@@ -453,8 +467,11 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
       // must match.
       GOOGLESQL_DCHECK_OK(CheckEqualRowIdentityColumnNames(key_columns_struct_type,
                                                  row_identity_column_names_));
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedColumnRef> struct_ref_copy,
+                       ResolvedASTDeepCopyVisitor::Copy(closure_struct_ref_));
       grain_lock_key_expr = MakeResolvedGetStructField(
-          key_columns_field.type, MakeStructColumnRef(), kKeyColumnsFieldIndex);
+          key_columns_field.type, std::move(struct_ref_copy),
+          kKeyColumnsFieldIndex);
     } else {
       // This measure column only needs some of the row identity columns;
       std::vector<StructField> grain_lock_struct_fields;
@@ -474,10 +491,12 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
 
         grain_lock_struct_fields.push_back(
             StructField(field_name, field->type));
+        GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedColumnRef> struct_ref_copy,
+                         ResolvedASTDeepCopyVisitor::Copy(closure_struct_ref_));
         grain_lock_struct_field_exprs.push_back(MakeResolvedGetStructField(
             field->type,
             MakeResolvedGetStructField(key_columns_field.type,
-                                       MakeStructColumnRef(),
+                                       std::move(struct_ref_copy),
                                        kKeyColumnsFieldIndex),
             field_idx));
       }
@@ -517,8 +536,11 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
       GOOGLESQL_RET_CHECK(node->where_expr() == nullptr);
       ResolvedAggregateFunctionCallBuilder aggregate_function_call_builder =
           ToBuilder(std::move(node));
-      GOOGLESQL_ASSIGN_OR_RETURN(auto struct_is_not_null,
-                       function_call_builder_.IsNotNull(MakeStructColumnRef()));
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedColumnRef> struct_ref_copy,
+                       ResolvedASTDeepCopyVisitor::Copy(closure_struct_ref_));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          auto struct_is_not_null,
+          function_call_builder_.IsNotNull(std::move(struct_ref_copy)));
       aggregate_function_call_builder.set_where_expr(
           std::move(struct_is_not_null));
       return std::move(aggregate_function_call_builder).Build();
@@ -526,18 +548,9 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
     return node;
   }
 
-  std::unique_ptr<ResolvedColumnRef> MakeStructColumnRef() {
-    return MakeResolvedColumnRef(
-        struct_column_.type(), struct_column_,
-        /*is_correlated=*/struct_column_refs_are_correlated_);
-  }
-
   absl::StatusOr<const bool> ContainsResolvedColumn(const ResolvedExpr* expr) {
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedNode> copied_arg,
-                     ResolvedASTDeepCopyVisitor::Copy(expr));
     ContainsResolvedColumnVisitor contains_resolved_column_visitor;
-    auto unused =
-        contains_resolved_column_visitor.VisitAll(std::move(copied_arg));
+    GOOGLESQL_RETURN_IF_ERROR(expr->Accept(&contains_resolved_column_visitor));
     return contains_resolved_column_visitor.ContainsResolvedColumn();
   }
 
@@ -557,9 +570,9 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   // column-level row identity columns.
   TypeFactory& type_factory_;
 
-  // The special STRUCT-typed column that contains the grouping keys needed for
-  // grain-locking.
-  ResolvedColumn struct_column_;
+  // The ColumnRef to the special STRUCT-typed column that contains the grouping
+  // keys needed for grain-locking.
+  const ResolvedColumnRef* closure_struct_ref_;
 
   // Names of row identity columns for the measure being rewritten.
   //
@@ -581,10 +594,6 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   // currently within a top-level aggregate function call, and a WHERE modifier
   // should be injected to discard NULL struct column values.
   uint64_t aggregate_function_depth_ = 0;
-  // Indicates whether references to `struct_column_` are correlated. This
-  // is true when the measure column is being invoked in a correlated context;
-  // e.g. AGG(correlated_reference_to_measure_column).
-  bool struct_column_refs_are_correlated_;
 };
 
 // `StructColumnReferenceRewriter` rewrites a measure expression to reference
@@ -768,11 +777,11 @@ class StructColumnReferenceRewriter : public ResolvedASTDeepCopyVisitor {
 };
 
 absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
-    const ResolvedExpr* measure_expr, ResolvedColumn struct_column,
+    const ResolvedExpr* measure_expr,
+    const ResolvedColumnRef* closure_struct_ref,
     const absl::btree_set<std::string, googlesql_base::CaseLess>&
         row_identity_column_names,
-    bool struct_column_refs_are_correlated, const Function* any_value_fn,
-    FunctionCallBuilder& function_call_builder,
+    const Function* any_value_fn, FunctionCallBuilder& function_call_builder,
     const LanguageOptions& language_options, ColumnFactory& column_factory,
     TypeFactory& type_factory) {
   // Remap column ids in the measure expression to use new column ids
@@ -786,17 +795,17 @@ absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
 
   // Rewrite the measure expression to reference columns from
   // `struct_column`.
-  GOOGLESQL_ASSIGN_OR_RETURN(rewritten_measure_expr,
-                   StructColumnReferenceRewriter::RewriteMeasureExpression(
-                       rewritten_measure_expr.get(), struct_column,
-                       struct_column_refs_are_correlated));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      rewritten_measure_expr,
+      StructColumnReferenceRewriter::RewriteMeasureExpression(
+          rewritten_measure_expr.get(), closure_struct_ref->column(),
+          closure_struct_ref->is_correlated()));
 
   // Rewrite the measure expression to use multi-level aggregation to
   // grain-lock and avoid overcounting.
   MultiLevelAggregateRewriter multi_level_aggregate_rewriter(
       any_value_fn, function_call_builder, language_options, column_factory,
-      type_factory, struct_column, row_identity_column_names,
-      struct_column_refs_are_correlated);
+      type_factory, closure_struct_ref, row_identity_column_names);
   GOOGLESQL_ASSIGN_OR_RETURN(rewritten_measure_expr,
                    multi_level_aggregate_rewriter.RewriteMultiLevelAggregate(
                        std::move(rewritten_measure_expr)));

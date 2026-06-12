@@ -25,12 +25,15 @@
 #include "googlesql/proto/internal_error_location.pb.h"
 #include "googlesql/public/deprecation_warning.pb.h"
 #include "googlesql/public/error_helpers.h"
+#include "googlesql/public/options.pb.h"
 #include "googlesql/public/parse_location.h"
 #include "googlesql/testdata/test_schema.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "googlesql/base/status_builder.h"
 
 namespace googlesql {

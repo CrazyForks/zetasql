@@ -177,12 +177,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY a_2.name
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -199,12 +196,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY a_2.name
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -410,18 +404,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
       (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]->
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]->
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
-      (a_6
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
     LET
       a_7 = AFN_AGG(SUM(a_4.amount)) OVER (PARTITION BY a_2.name
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -438,18 +427,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
       (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]->
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]->
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
-      (a_6
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
     LET
       a_7 = AFN_AGG(SUM(a_4.amount)) OVER (PARTITION BY a_2.name
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -621,12 +605,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY SOURCE_NODE_ID(a_3)
         ORDER BY a_2.age RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -641,12 +622,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY SOURCE_NODE_ID(a_3)
         ORDER BY a_2.age RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -850,18 +828,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
       (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]->
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]->
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
-      (a_6
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
     LET
       a_7 = AFN_AGG(SUM(a_4.amount)) OVER (PARTITION BY SOURCE_NODE_ID(ARRAY_FIRST(a_4))
         ORDER BY a_2.age RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -876,18 +849,13 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
       (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]->
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]->
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
-      (a_6
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
     LET
       a_7 = AFN_AGG(SUM(a_4.amount)) OVER (PARTITION BY SOURCE_NODE_ID(ARRAY_FIRST(a_4))
         ORDER BY a_2.age RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -1076,12 +1044,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       AFN_AGG(SUM(CAST(a_2.age AS UINT64))) OVER (PARTITION BY ANY_VALUE(SOURCE_NODE_ID(a_3))
         ORDER BY MIN(a_2.id) RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a_5
@@ -1094,12 +1059,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       AFN_AGG(SUM(CAST(a_2.age AS UINT64))) OVER (PARTITION BY ANY_VALUE(SOURCE_NODE_ID(a_3))
         ORDER BY MIN(a_2.id) RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a_5
@@ -1267,12 +1229,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       AFN_AGG(a_2.age) OVER (PARTITION BY a_2.id
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a_5,
@@ -1287,12 +1246,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       AFN_AGG(a_2.age) OVER (PARTITION BY a_2.id
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a_5,
@@ -1462,12 +1418,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     WITH
       a_2,
       a_3,
@@ -1494,12 +1447,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     WITH
       a_2,
       a_3,
@@ -1682,17 +1632,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     WITH
       a_3 AS a_8,
       ANY_VALUE(a_2.age) AS a_5,
       ANY_VALUE(SOURCE_NODE_ID(a_3)) AS a_6,
       MAX(a_2.age) AS a_7
+    GROUP BY a_8
     WITH
       a_8,
       a_5,
@@ -1717,17 +1665,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     WITH
       a_3 AS a_8,
       ANY_VALUE(a_2.age) AS a_5,
       ANY_VALUE(SOURCE_NODE_ID(a_3)) AS a_6,
       MAX(a_2.age) AS a_7
+    GROUP BY a_8
     WITH
       a_8,
       a_5,
@@ -2454,12 +2400,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY a_2
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -2476,12 +2419,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     LET
       a_5 = AFN_AGG(a_2.age) OVER (PARTITION BY a_2
         ORDER BY a_2.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -2638,12 +2578,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
-      -[a_4
-      IS (% | ! %)]->
-      (a_5
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
+      -[a_4 IS (% | ! %)]->
+      (a_5 IS (% | ! %))
     LET
       a_6 = AFN_AGG(a_3.age) OVER (PARTITION BY a_2
         ORDER BY a_3.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
@@ -2660,12 +2597,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
-      -[a_4
-      IS (% | ! %)]->
-      (a_5
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
+      -[a_4 IS (% | ! %)]->
+      (a_5 IS (% | ! %))
     LET
       a_6 = AFN_AGG(a_3.age) OVER (PARTITION BY a_2
         ORDER BY a_3.id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)

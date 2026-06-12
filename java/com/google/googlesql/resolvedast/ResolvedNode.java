@@ -22,6 +22,7 @@ import com.google.protobuf.Message;
 import com.google.googlesql.DebugPrintableNode;
 import com.google.googlesql.FileDescriptorSetsBuilder;
 import com.google.googlesql.GoogleSQLResolvedNodeKind.ResolvedNodeKind;
+import com.google.googlesql.ParseLocationRange;
 import com.google.googlesql.ResolvedNodeProto;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -39,11 +40,22 @@ import java.util.List;
  * <p> In this hierarchy, classes are either abstract or leaves.
  */
 public abstract class ResolvedNode implements Serializable, DebugPrintableNode {
+  private final ParseLocationRange parseLocationRange;
+
   ResolvedNode(ResolvedNodeProto proto, AbstractDeserializationHelper helper) {
-    // Nothing to deserialize for now.
+    this.parseLocationRange =
+        proto.hasParseLocationRange()
+            ? ParseLocationRange.deserialize(proto.getParseLocationRange())
+            : null;
   }
 
-  ResolvedNode() {}
+  ResolvedNode() {
+    this.parseLocationRange = null;
+  }
+
+  public final ParseLocationRange getParseLocationRange() {
+    return parseLocationRange;
+  }
 
   /**
    * Base case for recursive call in derived AST nodes.

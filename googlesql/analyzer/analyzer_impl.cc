@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <utility>
 
@@ -44,9 +45,10 @@
 #include "googlesql/resolved_ast/validator.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/ret_check.h"
 
 // This provides a way to extract and look at the googlesql resolved AST
 // from within some other test or tool.  It prints to cout rather than logging
@@ -61,7 +63,8 @@ namespace {
 absl::Status AnalyzeExpressionImpl(absl::string_view sql,
                                    const AnalyzerOptions& options_in,
                                    Catalog* catalog, TypeFactory* type_factory,
-                                   AnnotatedType target_type,
+                                   const Type* target_type,
+                                   std::optional<TypeModifiers> type_modifiers,
                                    std::unique_ptr<AnalyzerOutput>* output) {
   output->reset();
   internal::TimedValue overall_timed_value;
@@ -81,7 +84,7 @@ absl::Status AnalyzeExpressionImpl(absl::string_view sql,
 
     GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpressionFromParserAST(
         *expression, std::move(parser_output), sql, options, catalog,
-        type_factory, target_type, output));
+        type_factory, target_type, std::move(type_modifiers), output));
   }
   AnalyzerOutputMutator(*output).overall_timed_value().Accumulate(
       overall_timed_value);
@@ -92,22 +95,38 @@ absl::Status AnalyzeExpressionImpl(absl::string_view sql,
 
 absl::Status InternalAnalyzeExpression(
     absl::string_view sql, const AnalyzerOptions& options, Catalog* catalog,
-    TypeFactory* type_factory, AnnotatedType target_type,
+    TypeFactory* type_factory, const Type* target_type,
+    std::optional<TypeModifiers> type_modifiers,
     std::unique_ptr<AnalyzerOutput>* output) {
   return ConvertInternalErrorLocationAndAdjustErrorString(
       options.error_message_options(), sql,
       AnalyzeExpressionImpl(sql, options, catalog, type_factory, target_type,
-                            output));
+                            std::move(type_modifiers), output));
 }
 
 absl::Status ConvertExprToTargetType(
     const ASTExpression& ast_expression, absl::string_view sql,
     const AnalyzerOptions& analyzer_options, Catalog* catalog,
-    TypeFactory* type_factory, AnnotatedType target_type,
+    TypeFactory* type_factory, const Type* target_type,
+    std::optional<TypeModifiers> type_modifiers,
     std::unique_ptr<const ResolvedExpr>* resolved_expr) {
-  Resolver resolver(catalog, type_factory, &analyzer_options);
+  AnalyzerOutputProperties analyzer_output_properties;
+  Resolver resolver(catalog, type_factory, &analyzer_options,
+                    analyzer_output_properties);
+
+  TypeModifiers target_type_modifiers;
+  if (type_modifiers.has_value()) {
+    GOOGLESQL_RET_CHECK(target_type != nullptr);
+    target_type_modifiers = *type_modifiers;
+  } else {
+    GOOGLESQL_RET_CHECK(target_type != nullptr);
+    GOOGLESQL_ASSIGN_OR_RETURN(target_type_modifiers,
+                     TypeModifiers::MakeTypeModifiers(
+                         resolved_expr->get()->type_annotation_map()));
+  }
   return ConvertInternalErrorPayloadsToExternal(
       resolver.CoerceExprToType(&ast_expression, target_type,
+                                std::move(target_type_modifiers),
                                 Resolver::kImplicitAssignment, resolved_expr),
       sql);
 }
@@ -116,7 +135,8 @@ absl::Status InternalAnalyzeExpressionFromParserAST(
     const ASTExpression& ast_expression,
     std::unique_ptr<ParserOutput> parser_output, absl::string_view sql,
     const AnalyzerOptions& options, Catalog* catalog, TypeFactory* type_factory,
-    AnnotatedType target_type, std::unique_ptr<AnalyzerOutput>* output) {
+    const Type* target_type, std::optional<TypeModifiers> type_modifiers,
+    std::unique_ptr<AnalyzerOutput>* output) {
   AnalyzerRuntimeInfo analyzer_runtime_info;
   if (parser_output != nullptr) {
     // Add in the parser output, we _assume_ this is semantically part of this
@@ -129,7 +149,9 @@ absl::Status InternalAnalyzeExpressionFromParserAST(
         &analyzer_runtime_info.overall_timed_value());
 
     std::unique_ptr<const ResolvedExpr> resolved_expr;
-    Resolver resolver(catalog, type_factory, &options);
+    AnalyzerOutputProperties analyzer_output_properties;
+    Resolver resolver(catalog, type_factory, &options,
+                      analyzer_output_properties);
     {
       auto resolver_timer = internal::MakeScopedTimerStarted(
           &analyzer_runtime_info.resolver_timed_value());
@@ -137,12 +159,14 @@ absl::Status InternalAnalyzeExpressionFromParserAST(
           resolver.ResolveStandaloneExpr(sql, &ast_expression, &resolved_expr));
       GOOGLESQL_VLOG(3) << "Resolved AST:\n" << resolved_expr->DebugString();
 
-      if (target_type.type != nullptr ||
-          (target_type.type == nullptr &&
-           target_type.annotation_map != nullptr)) {
-        GOOGLESQL_RETURN_IF_ERROR(ConvertExprToTargetType(ast_expression, sql, options,
-                                                catalog, type_factory,
-                                                target_type, &resolved_expr));
+      if (type_modifiers.has_value() && target_type == nullptr) {
+        target_type = resolved_expr->type();
+      }
+
+      if (target_type != nullptr) {
+        GOOGLESQL_RETURN_IF_ERROR(ConvertExprToTargetType(
+            ast_expression, sql, options, catalog, type_factory, target_type,
+            std::move(type_modifiers), &resolved_expr));
       }
     }
 
@@ -180,6 +204,8 @@ absl::Status InternalAnalyzeExpressionFromParserAST(
             resolver.deprecation_warnings()),
         type_assignments, resolver.undeclared_positional_parameters(),
         resolver.max_column_id(), resolver.has_graph_references());
+    AnalyzerOutputMutator(*output).TakeOwnership(
+        resolver.release_generated_functions());
     GOOGLESQL_RETURN_IF_ERROR(InternalRewriteResolvedAst(options, sql, catalog,
                                                type_factory, **output));
   }

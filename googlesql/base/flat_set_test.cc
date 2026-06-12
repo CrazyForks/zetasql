@@ -16,12 +16,17 @@
 #include "googlesql/base/flat_set.h"
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <random>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "googlesql/base/logging.h"
@@ -34,6 +39,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "googlesql/base/flat_internal.h"
 #include "googlesql/base/stl_util.h"
 
 namespace googlesql_base {

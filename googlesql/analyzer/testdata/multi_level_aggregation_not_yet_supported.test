@@ -226,7 +226,7 @@ SELECT
 FROM SimpleTypes
 GROUP BY int32;
 --
-ERROR: Dot-star and star expansion is not permitted on expressions that use GROUP ROWS or GROUP BY modifiers on an aggregate function. [at 2:3]
+ERROR: Dot-star and star expansion is not permitted on expressions that use GROUP BY modifiers on an aggregate function. [at 2:3]
   STRUCT(
   ^
 ==

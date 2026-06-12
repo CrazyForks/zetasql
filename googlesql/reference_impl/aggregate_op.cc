@@ -32,7 +32,6 @@
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/value.h"
-#include "googlesql/reference_impl/common.h"
 #include "googlesql/reference_impl/evaluation.h"
 #include "googlesql/reference_impl/function.h"
 #include "googlesql/reference_impl/operator.h"
@@ -40,7 +39,6 @@
 #include "googlesql/reference_impl/tuple_comparator.h"
 #include "googlesql/reference_impl/variable_id.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
-#include "googlesql/resolved_ast/resolved_collation.h"
 #include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
@@ -49,6 +47,7 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -59,7 +58,7 @@
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "google/rpc/status.pb.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 using googlesql::types::EmptyStructType;
 using googlesql::values::Bool;
@@ -68,7 +67,22 @@ namespace googlesql {
 
 namespace {
 
+using CollatorPtrList = std::vector<const GoogleSqlCollator*>;
+
 static constexpr int64_t NoGroupingSetId() { return -1; }
+
+static std::vector<CollatorPtrInfo> MakeCollatorPtrInfoList(
+    absl::Span<const CollatorInfo> collator_info_list) {
+  std::vector<CollatorPtrInfo> collator_ptr_info_list;
+  collator_ptr_info_list.reserve(collator_info_list.size());
+
+  for (const CollatorInfo& collator_info : collator_info_list) {
+    collator_ptr_info_list.push_back(
+        {collator_info.collator.get(), collator_info.collation_key_type});
+  }
+
+  return collator_ptr_info_list;
+}
 
 // A struct holding the accumulator and other additional information about the
 // current aggregate arg.
@@ -212,26 +226,15 @@ struct UnorderedArrayCollisionTracker {
 };
 
 // Prepare collators for each KeyArg in `keys`.
-absl::StatusOr<CollatorList> SetupCollators(
+absl::StatusOr<std::vector<CollatorPtrInfo>> SetupCollators(
     absl::Span<const TupleData* const> params,
     absl::Span<const KeyArg* const> keys, EvaluationContext* context) {
-  CollatorList collators;
+  std::vector<CollatorPtrInfo> collators;
+  collators.reserve(keys.size());
   for (const KeyArg* key : keys) {
-    if (key->collation() == nullptr) {
-      collators.push_back(nullptr);
-      continue;
-    }
-    TupleSlot collation_slot;
-    absl::Status status;
-    if (!key->collation()->EvalSimple(params, context, &collation_slot,
-                                      &status)) {
-      return status;
-    }
-
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<const GoogleSqlCollator> collator,
-        GetCollatorFromResolvedCollationValue(collation_slot.value()));
-    collators.push_back(std::move(collator));
+    GOOGLESQL_ASSIGN_OR_RETURN(CollatorPtrInfo collator,
+                     key->GetCollator(context, params));
+    collators.push_back(collator);
   }
   return collators;
 }
@@ -246,31 +249,15 @@ bool IsGroupingFunction(const AggregateFunctionCallExpr* func_expr) {
   return false;
 }
 
-// TODO: Extend to support Array and Struct later.
-// Returns Bytes value which represents the sort key for input <value> with
-// given <collator>. If the input value is null, NullBytes() is returned.
-absl::StatusOr<Value> GetValueSortKey(const Value& value,
-                                      const GoogleSqlCollator& collator) {
-  GOOGLESQL_RET_CHECK(value.type()->IsString())
-      << "Cannot get sort key for value in non-String type: "
-      << value.type()->DebugString();
-
-  if (value.is_null()) {
-    return values::NullBytes();
-  }
-  absl::Cord sort_key;
-  GOOGLESQL_RETURN_IF_ERROR(collator.GetSortKeyUtf8(value.string_value(), &sort_key));
-  return values::Bytes(sort_key);
-}
-
 // `AccumulateTuple` performs core aggregation logic for a single input tuple.
 // TODO: Refactor this logic into a class (maybe make `group_map`
 // a separate class and refactor logic into it).
 absl::Status AccumulateTuple(
     const TupleData* /*absl_nonnull*/ tuple,
     absl::Span<const TupleData* const> params,
-    absl::Span<const int64_t> grouping_sets, const CollatorList& collators,
-    int key_size, int grouping_key_size, absl::Span<const KeyArg* const> keys,
+    absl::Span<const int64_t> grouping_sets,
+    absl::Span<const CollatorPtrInfo> collators, int key_size,
+    int grouping_key_size, absl::Span<const KeyArg* const> keys,
     absl::Span<const AggregateArg* const> aggregators,
     EvaluationContext* context,
     UnorderedArrayCollisionTracker& unordered_array_collision_tracker,
@@ -337,11 +324,14 @@ absl::Status AccumulateTuple(
 
       Value* collated_slot_value =
           collated_key_data->mutable_slot(i)->mutable_value();
-      if (collators[i] == nullptr) {
+      if (collators[i].collator == nullptr) {
         *collated_slot_value = slot->value();
       } else {
+        GOOGLESQL_RET_CHECK(collators[i].collation_key_type != nullptr);
         GOOGLESQL_ASSIGN_OR_RETURN(*collated_slot_value,
-                         GetValueSortKey(slot->value(), *(collators[i])));
+                         ReplaceStringsWithCollationKeys(
+                             slot->value(), collators[i].collation_key_type,
+                             collators[i].collator));
       }
     }
 
@@ -359,26 +349,32 @@ absl::Status AccumulateTuple(
     std::unique_ptr<GroupValue>* found_group_value =
         googlesql_base::FindOrNull(group_map, TupleDataPtr(collated_key_data.get()));
     if (found_group_value == nullptr) {
+      // Create accumulators in a local vector (before moving key_data).
+      std::vector<AggregateArgAccumulatorParam> local_accumulators;
+      local_accumulators.reserve(aggregators.size());
+      for (const AggregateArg* aggregator : aggregators) {
+        AggregateArgAccumulatorParam accumulator_param;
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            accumulator_param.accumulator,
+            aggregator->CreateAccumulator(params, context, key_data.get()));
+        accumulator_param.is_grouping_function =
+            IsGroupingFunction(aggregator->aggregate_function());
+        accumulator_param.stop_bit = false;
+        local_accumulators.push_back(std::move(accumulator_param));
+      }
+
       // Create the new GroupValue.
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<GroupValue> inserted_group_value,
                        GroupValue::Create(std::move(key_data),
                                           context->memory_accountant()));
 
-      // Initialize the accumulators.
+      // Initialize accumulator errors.
       accumulator_errors = &inserted_group_value->mutable_accumulator_errors();
       *accumulator_errors = std::vector<absl::Status>(aggregators.size());
 
+      // Initialize accumulators.
       accumulators = inserted_group_value->mutable_accumulator_list();
-      accumulators->reserve(aggregators.size());
-      for (const AggregateArg* aggregator : aggregators) {
-        AggregateArgAccumulatorParam accumulator_param;
-        GOOGLESQL_ASSIGN_OR_RETURN(accumulator_param.accumulator,
-                         aggregator->CreateAccumulator(params, context));
-        accumulator_param.is_grouping_function =
-            IsGroupingFunction(aggregator->aggregate_function());
-        accumulator_param.stop_bit = false;
-        accumulators->push_back(std::move(accumulator_param));
-      }
+      *accumulators = std::move(local_accumulators);
 
       // Insert the new GroupValue.
       GOOGLESQL_RET_CHECK(group_map
@@ -589,8 +585,6 @@ absl::StatusOr<std::unique_ptr<TupleDataDeque>> GatherTuples(
 // AggregateArg
 // -------------------------------------------------------
 
-// TODO: b/430036320 - Remove group_rows_subquery arg if no longer needed with
-//                     GROUP ROWS simplified.
 absl::StatusOr<std::unique_ptr<AggregateArg>> AggregateArg::Create(
     const VariableId& variable,
     std::unique_ptr<const AggregateFunctionBody> function,
@@ -604,7 +598,7 @@ absl::StatusOr<std::unique_ptr<AggregateArg>> AggregateArg::Create(
     std::vector<std::unique_ptr<AggregateArg>> inner_aggregators,
     ResolvedFunctionCallBase::ErrorMode error_mode,
     std::unique_ptr<ValueExpr> filter, std::unique_ptr<ValueExpr> having_filter,
-    const std::vector<ResolvedCollation>& collation_list,
+    std::vector<CollatorInfo> collation_list,
     const VariableId& side_effects_variable) {
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<AggregateFunctionCallExpr> aggregate_expr,
                    AggregateFunctionCallExpr::Create(std::move(function),
@@ -614,21 +608,40 @@ absl::StatusOr<std::unique_ptr<AggregateArg>> AggregateArg::Create(
       having_modifier_kind, std::move(order_by_keys), std::move(limit),
       std::move(group_rows_subquery), std::move(inner_grouping_keys),
       std::move(inner_aggregators), error_mode, std::move(filter),
-      std::move(having_filter), collation_list, side_effects_variable));
+      std::move(having_filter), std::move(collation_list),
+      side_effects_variable));
 }
 
 absl::Status AggregateArg::SetSchemasForEvaluation(
     const TupleSchema& group_schema,
-    absl::Span<const TupleSchema* const> params_schemas) {
+    absl::Span<const TupleSchema* const> params_schemas,
+    const TupleSchema* grouping_keys_schema) {
   std::vector<const TupleSchema*> params_and_group_schemas =
       ConcatSpans(params_schemas, {&group_schema});
-  std::unique_ptr<TupleSchema> group_rows_schema;
+  // Owned pointer of group rows schema that needs to stay alive for when
+  // params_and_group_schemas points to it.
+  std::unique_ptr<TupleSchema> group_rows_schema_owner;
+
+  // Set schema for group rows subqueries, including group keys (post-grouping)
+  // to support correlation.
   if (group_rows_subquery_ != nullptr) {
+    std::vector<const TupleSchema*> subquery_params_schemas(
+        params_schemas.begin(), params_schemas.end());
+    if (grouping_keys_schema != nullptr) {
+      subquery_params_schemas.push_back(grouping_keys_schema);
+    }
     GOOGLESQL_RETURN_IF_ERROR(
-        group_rows_subquery_->SetSchemasForEvaluation(params_schemas));
-    group_rows_schema = group_rows_subquery_->CreateOutputSchema();
+        group_rows_subquery_->SetSchemasForEvaluation(subquery_params_schemas));
+
+    // Create schema for evaluating arguments. We include grouping keys because
+    // expressions containing the subquery might reference them (e.g. on the LHS
+    // of a quantified comparison like 'team LIKE ANY (...)').
+    group_rows_schema_owner = group_rows_subquery_->CreateOutputSchema();
     params_and_group_schemas =
-        ConcatSpans(params_schemas, {group_rows_schema.get()});
+        ConcatSpans(params_schemas, {group_rows_schema_owner.get()});
+    if (grouping_keys_schema != nullptr) {
+      params_and_group_schemas.push_back(grouping_keys_schema);
+    }
   }
 
   // Filter is evaluated before multi-level aggregation, so it uses the
@@ -1035,8 +1048,7 @@ class DistinctAccumulator : public IntermediateAggregateAccumulator {
  public:
   DistinctAccumulator(
       std::unique_ptr<IntermediateAggregateAccumulator> accumulator,
-      EvaluationContext* context,
-      std::unique_ptr<const GoogleSqlCollator> collator)
+      EvaluationContext* context, CollatorPtrInfo collator)
       : distinct_values_(context->memory_accountant()),
         accumulator_(std::move(accumulator)),
         collator_(std::move(collator)) {}
@@ -1056,11 +1068,12 @@ class DistinctAccumulator : public IntermediateAggregateAccumulator {
     bool distinct;
 
     Value value_to_insert;
-    if (collator_ == nullptr) {
+    if (collator_.collator == nullptr) {
       value_to_insert = value;
     } else {
       absl::StatusOr<Value> collated_distinct_key =
-          GetValueSortKey(value, *(collator_));
+          ReplaceStringsWithCollationKeys(value, collator_.collation_key_type,
+                                          collator_.collator);
       if (!collated_distinct_key.ok()) {
         *status = collated_distinct_key.status();
         return false;
@@ -1088,7 +1101,7 @@ class DistinctAccumulator : public IntermediateAggregateAccumulator {
  private:
   ValueHashSet distinct_values_;
   std::unique_ptr<IntermediateAggregateAccumulator> accumulator_;
-  const std::unique_ptr<const GoogleSqlCollator> collator_;
+  const CollatorPtrInfo collator_;
 };
 
 // Accumulator that discards NULL values.
@@ -1375,17 +1388,19 @@ class WithGroupRowsAccumulator : public IntermediateAggregateAccumulator {
   WithGroupRowsAccumulator(
       absl::Span<const TupleData* const> params,
       const RelationalOp* group_rows_subquery,
-      std::vector<const ValueExpr*> agg_fn_input_fields,
-      const Type* agg_fn_input_type,
+      const ValueExpr* agg_fn_input_field, const Type* agg_fn_input_type,
       std::unique_ptr<IntermediateAggregateAccumulator> accumulator,
-      EvaluationContext* context)
+      std::vector<VariableId> agg_input_variables, EvaluationContext* context,
+      const TupleData* group_keys)
       : params_(params),
         group_rows_subquery_(group_rows_subquery),
-        agg_fn_input_fields_(agg_fn_input_fields),
+        agg_fn_input_field_(agg_fn_input_field),
         agg_fn_input_type_(agg_fn_input_type),
         inputs_(context->memory_accountant()),
         accumulator_(std::move(accumulator)),
-        context_(context) {}
+        agg_input_variables_(std::move(agg_input_variables)),
+        context_(context),
+        group_keys_(group_keys) {}
 
   absl::Status Reset() override {
     inputs_.Clear();
@@ -1404,51 +1419,71 @@ class WithGroupRowsAccumulator : public IntermediateAggregateAccumulator {
   }
 
   absl::StatusOr<Value> GetFinalResult(bool inputs_in_defined_order) override {
-    // Set inputs_ on context to make it available for GROUP_ROWS scan;
-    // Fetch all rows from the subquery, running accumulator_ through them;
-    // compute the argument expression values for the aggregate function
-    // (similar to what IntermediateAggregateAccumulatorAdaptor does).
+    // Register accumulated group rows to make it available for GroupRowsOp.
+    //
+    // NOTE: `agg_input_variables_` are the VariableIds for all columns in the
+    //       input stream of the aggregation. We register the row buffer for
+    //       EVERY variable in the input stream to ensure that no matter which
+    //       variable GroupRowsOp chooses as its lookup key, it will resolve to
+    //       the correct buffer.
+    for (const VariableId& var : agg_input_variables_) {
+      GOOGLESQL_RETURN_IF_ERROR(context_->RegisterGroupRows(var, &inputs_));
+    }
+    auto cleanup = absl::MakeCleanup([this]() {
+      for (const VariableId& var : agg_input_variables_) {
+        // Cannot use GOOGLESQL_RETURN_IF_ERROR from a cleanup lambda, so the best option
+        // is to use GOOGLESQL_DCHECK_OK instead.
+        const absl::Status status = context_->UnregisterGroupRows(var);
+        // We don't GOOGLESQL_DCHECK_OK directly on the function call because GOOGLESQL_DCHECK_OK is
+        // a no-op in opt mode, which would skip the unregistration side-effect.
+        GOOGLESQL_DCHECK_OK(status);
+      }
+    });
 
-    context_->set_active_group_rows(&inputs_);
-    auto cleanup = absl::MakeCleanup(
-        [this]() { context_->set_active_group_rows(nullptr); });
-
-    // TODO: don't we need to pass different params_ here? params_
-    // seem to be for the aggregate function itself, not for the subquery, on
-    // the other hand the same params are passed to all aggregates. Reference:
-    // https://github.com/google/googlesql/blob/master/googlesql/reference_impl/aggregate_op.cc?l=1089&rcl=327634640
+    // Create subquery iterator. Pass outer parameters and grouping keys to
+    // support correlated references to grouping keys inside the GROUP ROWS
+    // subquery.
+    std::vector<const TupleData*> subquery_params(params_.begin(),
+                                                  params_.end());
+    if (group_keys_ != nullptr) {
+      subquery_params.push_back(group_keys_);
+    }
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<TupleIterator> input_iter,
                      group_rows_subquery_->CreateIterator(
-                         params_, /*num_extra_slots=*/0, context_));
+                         subquery_params, /*num_extra_slots=*/0, context_));
+
+    // Iterate over subquery results and evaluate them.
     absl::Status status;
     while (true) {
+      // Get the next row from the subquery result.
       const TupleData* next_input = input_iter->Next();
       if (next_input == nullptr) {
         GOOGLESQL_RETURN_IF_ERROR(input_iter->Status());
         break;
       }
-      std::vector<Value> values(agg_fn_input_fields_.size());
-      for (int i = 0; i < agg_fn_input_fields_.size(); ++i) {
-        const ValueExpr* value_expr = agg_fn_input_fields_[i];
 
-        std::shared_ptr<TupleSlot::SharedProtoState> shared_state;
-        VirtualTupleSlot slot(&values[i], &shared_state);
-
-        if (!value_expr->Eval(
-                ConcatSpans(absl::Span<const TupleData* const>(params_),
-                            {next_input}),
-                context_, &slot, &status)) {
-          return status;
-        }
-      }
-
+      // Evaluate expression with outer params and current subquery row.
       Value value;
-      if (values.size() == 1) {
-        value = std::move(values[0]);
-      } else {
-        value = Value::UnsafeStruct(agg_fn_input_type_->AsStruct(),
-                                    std::move(values));
+      std::shared_ptr<TupleSlot::SharedProtoState> shared_state;
+      VirtualTupleSlot slot(&value, &shared_state);
+
+      // Evaluate expression with outer params, subquery row, and grouping keys.
+      // This allows expressions processing subquery results (e.g., LHS of LIKE
+      // ANY, IN, etc) to reference grouping keys.
+      std::vector<const TupleData*> eval_params(params_.begin(), params_.end());
+      eval_params.push_back(next_input);
+      if (group_keys_ != nullptr) {
+        eval_params.push_back(group_keys_);
       }
+      if (!agg_fn_input_field_->Eval(eval_params, context_, &slot, &status)) {
+        return status;
+      }
+
+      GOOGLESQL_RET_CHECK(value.type()->Equals(agg_fn_input_type_))
+          << "Type mismatch: value type is " << value.type()->DebugString()
+          << ", but expected " << agg_fn_input_type_->DebugString();
+
+      // Accumulate the evaluated subquery value into the aggregate function.
       bool stop_accumulation;
       if (!accumulator_->Accumulate(*next_input, value, &stop_accumulation,
                                     &status)) {
@@ -1465,11 +1500,13 @@ class WithGroupRowsAccumulator : public IntermediateAggregateAccumulator {
  private:
   absl::Span<const TupleData* const> params_;
   const RelationalOp* group_rows_subquery_;
-  std::vector<const ValueExpr*> agg_fn_input_fields_;
+  const ValueExpr* agg_fn_input_field_;
   const Type* agg_fn_input_type_;
   TupleDataDeque inputs_;
   std::unique_ptr<IntermediateAggregateAccumulator> accumulator_;
+  std::vector<VariableId> agg_input_variables_;
   EvaluationContext* context_;
+  const TupleData* group_keys_;
 };
 
 // Adapts IntermediateAggregateAccumulator to AggregateArgAccumulator.
@@ -1625,7 +1662,7 @@ class MultiLevelAggregateAccumulator : public IntermediateAggregateAccumulator {
       std::vector<const AggregateArg*> inner_aggregators,
       std::unique_ptr<IntermediateAggregateAccumulator> accumulator,
       EvaluationContext* context) {
-    GOOGLESQL_ASSIGN_OR_RETURN(CollatorList collators,
+    GOOGLESQL_ASSIGN_OR_RETURN(std::vector<CollatorPtrInfo> collators,
                      SetupCollators(params, inner_grouping_keys, context));
     return absl::WrapUnique(new MultiLevelAggregateAccumulator(
         params, aggregate_function_input_type, aggregate_function_input_fields,
@@ -1724,7 +1761,7 @@ class MultiLevelAggregateAccumulator : public IntermediateAggregateAccumulator {
       std::vector<const KeyArg*> inner_grouping_keys,
       std::vector<const AggregateArg*> inner_aggregators,
       std::unique_ptr<IntermediateAggregateAccumulator> accumulator,
-      CollatorList collators, EvaluationContext* context)
+      std::vector<CollatorPtrInfo> collators, EvaluationContext* context)
       : params_(params),
         aggregate_function_input_type_(aggregate_function_input_type),
         aggregate_function_input_fields_(aggregate_function_input_fields),
@@ -1744,7 +1781,7 @@ class MultiLevelAggregateAccumulator : public IntermediateAggregateAccumulator {
   std::vector<int64_t> grouping_sets_ = {NoGroupingSetId()};
   absl::flat_hash_map<TupleDataPtr, std::unique_ptr<GroupValue>> group_map_;
   std::vector<std::unique_ptr<TupleData>> group_map_keys_memory_;
-  CollatorList collators_;
+  std::vector<CollatorPtrInfo> collators_;
   UnorderedArrayCollisionTracker unordered_array_collision_tracker_;
 
   EvaluationContext* context_;
@@ -1767,7 +1804,8 @@ std::vector<const T*> RawPtrVector(
 
 absl::StatusOr<std::unique_ptr<AggregateArgAccumulator>>
 AggregateArg::CreateAccumulator(absl::Span<const TupleData* const> params,
-                                EvaluationContext* context) const {
+                                EvaluationContext* context,
+                                const TupleData* group_keys) const {
   // Build the underlying AggregateAccumulator.
   std::vector<Value> args(parameter_list_size());
   for (int i = 0; i < parameter_list_size(); ++i) {
@@ -1776,8 +1814,9 @@ AggregateArg::CreateAccumulator(absl::Span<const TupleData* const> params,
     absl::Status status;
     if (!parameter(i)->Eval(params, context, &slot, &status)) return status;
   }
-  GOOGLESQL_ASSIGN_OR_RETURN(CollatorList collator_list,
-                   MakeCollatorList(collation_list()));
+
+  std::vector<CollatorPtrInfo> collator_list =
+      MakeCollatorPtrInfoList(collation_list());
 
   std::unique_ptr<IntermediateAggregateAccumulator> accumulator;
 
@@ -1859,12 +1898,14 @@ AggregateArg::CreateAccumulator(absl::Span<const TupleData* const> params,
 
   // DISTINCT support.
   if (distinct()) {
-    GOOGLESQL_ASSIGN_OR_RETURN(CollatorList collator_list,
-                     MakeCollatorList(collation_list()));
+    std::vector<CollatorPtrInfo> collator_list =
+        MakeCollatorPtrInfoList(collation_list());
+
     GOOGLESQL_RET_CHECK_LE(collator_list.size(), 1);
     accumulator = std::make_unique<DistinctAccumulator>(
         std::move(accumulator), context,
-        collator_list.empty() ? nullptr : std::move(collator_list[0]));
+        collator_list.empty() ? CollatorPtrInfo{nullptr, nullptr}
+                              : std::move(collator_list[0]));
   }
 
   // Support for aggregation functions that ignore NULLs.
@@ -1891,12 +1932,14 @@ AggregateArg::CreateAccumulator(absl::Span<const TupleData* const> params,
   }
   if (group_rows_subquery_ != nullptr) {
     GOOGLESQL_RET_CHECK(inner_grouping_keys_.empty());
+    GOOGLESQL_RET_CHECK_EQ(input_fields.size(), 1);
     // Create accumulator that knows the subquery and how to accumulate the
     // aggregate function in the end. At iteration if would interact with
     // GroupRowsOp.
     accumulator = std::make_unique<WithGroupRowsAccumulator>(
-        params, group_rows_subquery_.get(), input_fields, type,
-        std::move(accumulator), context);
+        params, group_rows_subquery_.get(), input_fields[0], type,
+        std::move(accumulator), group_schema_->variables(), context,
+        group_keys);
     type = EmptyStructType();
     input_fields.clear();
   }
@@ -2008,7 +2051,18 @@ std::string AggregateArg::DebugInternal(const std::string& indent,
                                                         /*indent=*/"", verbose))
                          : "",
       !collation_list_.empty()
-          ? absl::StrCat(" ", ResolvedCollation::ToString(collation_list_))
+          ? absl::StrCat(
+                " ",
+                absl::StrJoin(
+                    collation_list_, ",",
+                    [](std::string* out, const CollatorInfo& collation_info) {
+                      if (collation_info.collator != nullptr) {
+                        absl::StrAppend(out,
+                                        collation_info.collator->DebugString());
+                      } else {
+                        absl::StrAppend(out, "<no collation>");
+                      }
+                    }))
           : "");
   if (group_rows_subquery_ != nullptr) {
     std::string indent_child = indent + AggregateOp::kIndentSpace;
@@ -2044,7 +2098,7 @@ AggregateArg::AggregateArg(
     std::vector<std::unique_ptr<AggregateArg>> inner_aggregators,
     ResolvedFunctionCallBase::ErrorMode error_mode,
     std::unique_ptr<ValueExpr> filter, std::unique_ptr<ValueExpr> having_filter,
-    const std::vector<ResolvedCollation>& collation_list,
+    std::vector<CollatorInfo> collation_list,
     const VariableId& side_effects_variable)
     : ExprArg(variable, std::move(function)),
       distinct_(distinct),
@@ -2058,7 +2112,7 @@ AggregateArg::AggregateArg(
       error_mode_(error_mode),
       filter_(std::move(filter)),
       having_filter_(std::move(having_filter)),
-      collation_list_(collation_list),
+      collation_list_(std::move(collation_list)),
       side_effects_variable_(side_effects_variable) {}
 
 const AggregateFunctionCallExpr* AggregateArg::aggregate_function() const {
@@ -2149,9 +2203,17 @@ absl::Status AggregateOp::SetSchemasForEvaluation(
         ConcatSpans(params_schemas, {input_schema.get()})));
   }
 
+  // Compute the schema for grouping keys to be passed to aggregators.
+  std::vector<VariableId> grouping_key_vars;
+  grouping_key_vars.reserve(keys().size());
+  for (const auto& key : keys()) {
+    grouping_key_vars.push_back(key->variable());
+  }
+  auto grouping_keys_schema = std::make_unique<TupleSchema>(grouping_key_vars);
+
   for (AggregateArg* arg : mutable_aggregators()) {
-    GOOGLESQL_RETURN_IF_ERROR(
-        arg->SetSchemasForEvaluation(*input_schema, params_schemas));
+    GOOGLESQL_RETURN_IF_ERROR(arg->SetSchemasForEvaluation(*input_schema, params_schemas,
+                                                 grouping_keys_schema.get()));
   }
 
   return absl::OkStatus();
@@ -2229,7 +2291,7 @@ absl::StatusOr<std::unique_ptr<TupleIterator>> AggregateOp::CreateIterator(
   // The key is owned by the <group_map_keys_memory> defined below.
   absl::flat_hash_map<TupleDataPtr, std::unique_ptr<GroupValue>> group_map;
   std::vector<std::unique_ptr<TupleData>> group_map_keys_memory;
-  GOOGLESQL_ASSIGN_OR_RETURN(CollatorList collators,
+  GOOGLESQL_ASSIGN_OR_RETURN(std::vector<CollatorPtrInfo> collators,
                    SetupCollators(params, keys(), context));
   UnorderedArrayCollisionTracker unordered_array_collision_tracker;
 
@@ -2374,11 +2436,15 @@ absl::Span<const int64_t> AggregateOp::grouping_sets() const {
 
 //  static
 absl::StatusOr<std::unique_ptr<GroupRowsOp>> GroupRowsOp::Create(
-    std::vector<std::unique_ptr<ExprArg>> columns) {
-  return absl::WrapUnique(new GroupRowsOp(std::move(columns)));
+    std::vector<std::unique_ptr<ExprArg>> columns,
+    VariableId input_rows_lookup_key) {
+  return absl::WrapUnique(
+      new GroupRowsOp(std::move(columns), std::move(input_rows_lookup_key)));
 }
 
-GroupRowsOp::GroupRowsOp(std::vector<std::unique_ptr<ExprArg>> columns) {
+GroupRowsOp::GroupRowsOp(std::vector<std::unique_ptr<ExprArg>> columns,
+                         VariableId input_rows_lookup_key)
+    : input_rows_lookup_key_(std::move(input_rows_lookup_key)) {
   SetArgs<ExprArg>(kColumn, std::move(columns));
 }
 
@@ -2473,15 +2539,16 @@ class TupleDataDequeIterator : public TupleIterator {
 absl::StatusOr<std::unique_ptr<TupleIterator>> GroupRowsOp::CreateIterator(
     absl::Span<const TupleData* const> params, int num_extra_slots,
     EvaluationContext* context) const {
-  if (context->active_group_rows() == nullptr) {
-    return ::googlesql_base::OutOfRangeErrorBuilder()
-           << "GROUP_ROWS() cannot read group rows data it the current context";
-  }
+  // Lookup the accumulated group rows.
+  const TupleDataDeque* active_group_rows =
+      context->GetGroupRows(input_rows_lookup_key_);
+  GOOGLESQL_RET_CHECK(active_group_rows != nullptr)
+      << "GROUP_ROWS() cannot read group rows data in the current context for "
+      << "variable " << input_rows_lookup_key_.ToString();
 
   std::unique_ptr<TupleIterator> iter =
-      std::make_unique<TupleDataDequeIterator>(*context->active_group_rows(),
-                                               num_extra_slots,
-                                               CreateOutputSchema(), context);
+      std::make_unique<TupleDataDequeIterator>(
+          *active_group_rows, num_extra_slots, CreateOutputSchema(), context);
   return MaybeReorder(std::move(iter), context);
 }
 

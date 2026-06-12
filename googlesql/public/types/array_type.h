@@ -33,7 +33,6 @@
 namespace googlesql {
 
 // An array type.
-// Arrays of arrays are not supported.
 class LanguageOptions;
 class TypeFactory;
 class TypeParameterValue;

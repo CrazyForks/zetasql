@@ -38,12 +38,12 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -1245,7 +1245,7 @@ void GetDatetimeFormatFunctions(TypeFactory* type_factory,
         {string_type,
          string_type,
          {types::Int64Type(), FunctionArgumentTypeOptions()
-                                  .set_must_be_analysis_constant(true)
+                                  .set_must_be_analysis_constant()
                                   .set_argument_name("precision", kNamedOnly)}},
         FN_PARSE_TIMESTAMP_WITH_PRECISION,
         FunctionSignatureOptions().AddRequiredLanguageFeature(
@@ -1254,7 +1254,7 @@ void GetDatetimeFormatFunctions(TypeFactory* type_factory,
         {string_type,
          string_type,
          {types::Int64Type(), FunctionArgumentTypeOptions()
-                                  .set_must_be_analysis_constant(true)
+                                  .set_must_be_analysis_constant()
                                   .set_argument_name("precision", kNamedOnly)},
          {string_type, FunctionArgumentTypeOptions().set_argument_name(
                            "timezone", kNamedOnly)}},
@@ -1521,9 +1521,15 @@ void GetArithmeticFunctions(TypeFactory* type_factory,
         FN_MULTIPLY_BIGNUMERIC,
         has_bignumeric_type_argument},
        {interval_type, {interval_type, int64_type}, FN_MULTIPLY_INTERVAL_INT64},
+       {interval_type, {int64_type, interval_type}, FN_MULTIPLY_INT64_INTERVAL},
        {interval_type,
-        {int64_type, interval_type},
-        FN_MULTIPLY_INT64_INTERVAL}},
+        {interval_type, double_type},
+        FN_MULTIPLY_INTERVAL_DOUBLE,
+        has_floating_point_argument},
+       {interval_type,
+        {double_type, interval_type},
+        FN_MULTIPLY_DOUBLE_INTERVAL,
+        has_floating_point_argument}},
       FunctionOptions()
           .set_supports_safe_error_mode(false)
           .set_sql_name("*")

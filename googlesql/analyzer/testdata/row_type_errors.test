@@ -1,8 +1,8 @@
 # This has tests for error cases where ROW types are not allowed.
 # All tests run on both KeyValue{{Lazy|FindOnly}}, and mostly get
 # the same errors for both.
-#
-# TODO Enable default testing modes.
+
+# TODO: Enable testing modes disabled with no_* options.
 [default language_features=MAXIMUM,+ROW_TYPE]
 [default no_run_deserializer]
 [default no_run_sqlbuilder]
@@ -473,13 +473,13 @@ FROM KeyValue{{Lazy|FindOnly}} kv
 --
 ALTERNATION GROUP: Lazy
 --
-ERROR: UNNEST not allowed for value with type ROW<KeyValueLazy> when the value is not a join column [at 2:16]
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueLazy> [at 2:16]
 |> JOIN UNNEST(kv)
                ^
 --
 ALTERNATION GROUP: FindOnly
 --
-ERROR: UNNEST not allowed for value with type ROW<KeyValueFindOnly> when the value is not a join column [at 2:16]
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueFindOnly> [at 2:16]
 |> JOIN UNNEST(kv)
                ^
 ==
@@ -490,13 +490,13 @@ FROM KeyValue{{Lazy|FindOnly}} kv
 --
 ALTERNATION GROUP: Lazy
 --
-ERROR: UNNEST not allowed for value with type ROW<KeyValueLazy> when the value is not a join column [at 2:16]
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueLazy> [at 2:16]
 |> JOIN UNNEST(kv) WITH OFFSET
                ^
 --
 ALTERNATION GROUP: FindOnly
 --
-ERROR: UNNEST not allowed for value with type ROW<KeyValueFindOnly> when the value is not a join column [at 2:16]
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueFindOnly> [at 2:16]
 |> JOIN UNNEST(kv) WITH OFFSET
                ^
 ==
@@ -504,6 +504,14 @@ ERROR: UNNEST not allowed for value with type ROW<KeyValueFindOnly> when the val
 FROM KeyValue{{Lazy|FindOnly}} kv
 |> JOIN UNNEST(kv, kv)
 --
-ERROR: Multi-argument UNNEST not allowed for value with ROW type [at 2:16]
+ALTERNATION GROUP: Lazy
+--
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueLazy> [at 2:16]
+|> JOIN UNNEST(kv, kv)
+               ^
+--
+ALTERNATION GROUP: FindOnly
+--
+ERROR: Values referenced in UNNEST must be arrays. UNNEST contains expression of type ROW<KeyValueFindOnly> [at 2:16]
 |> JOIN UNNEST(kv, kv)
                ^

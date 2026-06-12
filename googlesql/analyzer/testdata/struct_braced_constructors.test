@@ -3,9 +3,9 @@
 [language_features=NONE]
 SELECT STRUCT {}
 --
-ERROR: Braced constructors are not supported [at 1:15]
+ERROR: Braced constructors are not supported [at 1:8]
 SELECT STRUCT {}
-              ^
+       ^
 ==
 
 # Error
@@ -177,7 +177,7 @@ SET @@struct_system_variable = {c:1}
 # Error: STRUCT should not use proto extension.
 SELECT STRUCT {(a.b): 1}
 --
-ERROR: Fields in STRUCT Braced constructor should always have a single identifier specified, not a path expression [at 1:16]
+ERROR: Field name in the STRUCT Braced constructor must be a single identifier [at 1:16]
 SELECT STRUCT {(a.b): 1}
                ^
 ==
@@ -1711,3 +1711,50 @@ QueryStmt
     |         +-Literal(type=ARRAY<STRUCT<x INT64>>, value=[])
     +-input_scan=
       +-SingleRowScan
+==
+
+[language_features=NONE]
+select STRUCT { a: 1 };
+--
+ERROR: Braced constructors are not supported [at 1:8]
+select STRUCT { a: 1 };
+       ^
+==
+
+SELECT
+  STRUCT {
+    "s" : 1
+  }
+--
+ERROR: Field name in the STRUCT Braced constructor must be a single identifier [at 3:5]
+    "s" : 1
+    ^
+==
+
+# TODO: b/299411581 - Make this an error due to the parens.
+SELECT STRUCT { (a) : 1 };
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRUCT<a INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=STRUCT<a INT64>, value={a:1})
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT STRUCT { a + b : 1 };
+--
+ERROR: Field name in the STRUCT Braced constructor must be a single identifier [at 1:17]
+SELECT STRUCT { a + b : 1 };
+                ^
+==
+
+SELECT STRUCT { k1 : 1 { k2 : 2 } };
+--
+ERROR: Syntax error: Unexpected braced constructor [at 1:24]
+SELECT STRUCT { k1 : 1 { k2 : 2 } };
+                       ^

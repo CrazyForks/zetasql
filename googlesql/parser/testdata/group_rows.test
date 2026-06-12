@@ -284,3 +284,558 @@ FROM
   Transactions
 GROUP BY State
 ==
+
+# Use group rows sugar syntax within subquery.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-79] [SELECT ARRAY...GROUP BY State]
+  Query [0-79] [SELECT ARRAY...GROUP BY State]
+    Select [0-79] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-46] [ARRAY(   SELECT...GROUP ROWS )]
+        SelectColumn [7-46] [ARRAY(   SELECT...GROUP ROWS )]
+          ExpressionSubquery(modifier=ARRAY) [7-46] [ARRAY(   SELECT...GROUP ROWS )]
+            Query [16-44] [SELECT col   FROM GROUP ROWS]
+              Select [16-44] [SELECT col   FROM GROUP ROWS]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-44] [FROM GROUP ROWS]
+                  GroupRows [34-44] [GROUP ROWS]
+      FromClause [47-64] [FROM Transactions]
+        TablePathExpression [52-64] [Transactions]
+          PathExpression [52-64] [Transactions]
+            Identifier(Transactions) [52-64] [Transactions]
+      GroupBy [65-79] [GROUP BY State]
+        GroupingItem [74-79] [State]
+          PathExpression [74-79] [State]
+            Identifier(State) [74-79] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# Use group rows sugar syntax with alias within subquery.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS AS gr
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-85] [SELECT ARRAY...GROUP BY State]
+  Query [0-85] [SELECT ARRAY...GROUP BY State]
+    Select [0-85] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-52] [ARRAY(   SELECT...ROWS AS gr )]
+        SelectColumn [7-52] [ARRAY(   SELECT...ROWS AS gr )]
+          ExpressionSubquery(modifier=ARRAY) [7-52] [ARRAY(   SELECT...ROWS AS gr )]
+            Query [16-50] [SELECT col...ROWS AS gr]
+              Select [16-50] [SELECT col...ROWS AS gr]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-50] [FROM GROUP ROWS AS gr]
+                  GroupRows [34-50] [GROUP ROWS AS gr]
+                    Alias [45-50] [AS gr]
+                      Identifier(gr) [48-50] [gr]
+      FromClause [53-70] [FROM Transactions]
+        TablePathExpression [58-70] [Transactions]
+          PathExpression [58-70] [Transactions]
+            Identifier(Transactions) [58-70] [Transactions]
+      GroupBy [71-85] [GROUP BY State]
+        GroupingItem [80-85] [State]
+          PathExpression [80-85] [State]
+            Identifier(State) [80-85] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS AS gr
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS sugar syntax with PIVOT after it.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS PIVOT(SUM(val) FOR col2 IN (1, 2))
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-114] [SELECT ARRAY...GROUP BY State]
+  Query [0-114] [SELECT ARRAY...GROUP BY State]
+    Select [0-114] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-81] [ARRAY(   SELECT...(1, 2)) )]
+        SelectColumn [7-81] [ARRAY(   SELECT...(1, 2)) )]
+          ExpressionSubquery(modifier=ARRAY) [7-81] [ARRAY(   SELECT...(1, 2)) )]
+            Query [16-79] [SELECT col...IN (1, 2))]
+              Select [16-79] [SELECT col...IN (1, 2))]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-79] [FROM GROUP...IN (1, 2))]
+                  GroupRows [34-79] [GROUP ROWS...IN (1, 2))]
+                    PivotClause [45-79] [PIVOT(SUM(...IN (1, 2))]
+                      PivotExpressionList [51-59] [SUM(val)]
+                        PivotExpression [51-59] [SUM(val)]
+                          FunctionCall [51-59] [SUM(val)]
+                            PathExpression [51-54] [SUM]
+                              Identifier(SUM) [51-54] [SUM]
+                            PathExpression [55-58] [val]
+                              Identifier(val) [55-58] [val]
+                      PathExpression [64-68] [col2]
+                        Identifier(col2) [64-68] [col2]
+                      PivotValueList [73-77] [1, 2]
+                        PivotValue [73-74] [1]
+                          IntLiteral(1) [73-74] [1]
+                        PivotValue [76-77] [2]
+                          IntLiteral(2) [76-77] [2]
+      FromClause [82-99] [FROM Transactions]
+        TablePathExpression [87-99] [Transactions]
+          PathExpression [87-99] [Transactions]
+            Identifier(Transactions) [87-99] [Transactions]
+      GroupBy [100-114] [GROUP BY State]
+        GroupingItem [109-114] [State]
+          PathExpression [109-114] [State]
+            Identifier(State) [109-114] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS PIVOT(SUM(val) FOR col2 IN (1, 2))
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS sugar syntax with MATCH_RECOGNIZE after it.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS MATCH_RECOGNIZE(
+    ORDER BY col
+    MEASURES A.col AS col
+    PATTERN (A)
+    DEFINE A AS A.col > 5
+  )
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-185] [SELECT ARRAY...GROUP BY State]
+  Query [0-185] [SELECT ARRAY...GROUP BY State]
+    Select [0-185] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-152] [ARRAY(   SELECT...> 5   ) )]
+        SelectColumn [7-152] [ARRAY(   SELECT...> 5   ) )]
+          ExpressionSubquery(modifier=ARRAY) [7-152] [ARRAY(   SELECT...> 5   ) )]
+            Query [16-150] [SELECT col...col > 5   )]
+              Select [16-150] [SELECT col...col > 5   )]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-150] [FROM GROUP...col > 5   )]
+                  GroupRows [34-150] [GROUP ROWS...col > 5   )]
+                    MatchRecognizeClause [45-150] [MATCH_RECOGNIZE...col > 5   )]
+                      OrderBy [66-78] [ORDER BY col]
+                        OrderingExpression(ASC) [75-78] [col]
+                          PathExpression [75-78] [col]
+                            Identifier(col) [75-78] [col]
+                      SelectList [92-104] [A.col AS col]
+                        SelectColumn [92-104] [A.col AS col]
+                          PathExpression [92-97] [A.col]
+                            Identifier(A) [92-93] [A]
+                            Identifier(col) [94-97] [col]
+                          Alias [98-104] [AS col]
+                            Identifier(col) [101-104] [col]
+                      RowPatternVariable [118-119] [A]
+                        Identifier(A) [118-119] [A]
+                      SelectList [132-146] [A AS A.col > 5]
+                        SelectColumn [132-146] [A AS A.col > 5]
+                          BinaryExpression(>) [137-146] [A.col > 5]
+                            PathExpression [137-142] [A.col]
+                              Identifier(A) [137-138] [A]
+                              Identifier(col) [139-142] [col]
+                            IntLiteral(5) [145-146] [5]
+                          Alias [132-136] [A AS]
+                            Identifier(A) [132-133] [A]
+      FromClause [153-170] [FROM Transactions]
+        TablePathExpression [158-170] [Transactions]
+          PathExpression [158-170] [Transactions]
+            Identifier(Transactions) [158-170] [Transactions]
+      GroupBy [171-185] [GROUP BY State]
+        GroupingItem [180-185] [State]
+          PathExpression [180-185] [State]
+            Identifier(State) [180-185] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS MATCH_RECOGNIZE(
+        ORDER BY col
+        MEASURES
+          A.col AS col
+        PATTERN (A)
+        DEFINE
+          A AS A.col > 5
+      )
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS sugar syntax with TABLESAMPLE after it.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS TABLESAMPLE SYSTEM (10 PERCENT)
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-111] [SELECT ARRAY...GROUP BY State]
+  Query [0-111] [SELECT ARRAY...GROUP BY State]
+    Select [0-111] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-78] [ARRAY(   SELECT...PERCENT) )]
+        SelectColumn [7-78] [ARRAY(   SELECT...PERCENT) )]
+          ExpressionSubquery(modifier=ARRAY) [7-78] [ARRAY(   SELECT...PERCENT) )]
+            Query [16-76] [SELECT col...10 PERCENT)]
+              Select [16-76] [SELECT col...10 PERCENT)]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-76] [FROM GROUP...10 PERCENT)]
+                  GroupRows [34-76] [GROUP ROWS...10 PERCENT)]
+                    SampleClause [45-76] [TABLESAMPLE...10 PERCENT)]
+                      Identifier(SYSTEM) [57-63] [SYSTEM]
+                      SampleSize [65-75] [10 PERCENT]
+                        IntLiteral(10) [65-67] [10]
+      FromClause [79-96] [FROM Transactions]
+        TablePathExpression [84-96] [Transactions]
+          PathExpression [84-96] [Transactions]
+            Identifier(Transactions) [84-96] [Transactions]
+      GroupBy [97-111] [GROUP BY State]
+        GroupingItem [106-111] [State]
+          PathExpression [106-111] [State]
+            Identifier(State) [106-111] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS TABLESAMPLE SYSTEM(10 PERCENT)
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS sugar syntax with ALIGN after it.
+SELECT ARRAY(
+  SELECT col
+  FROM GROUP ROWS ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    OUTPUT WITHIN INTERVAL 5 MINUTE
+  )
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-173] [SELECT ARRAY...GROUP BY State]
+  Query [0-173] [SELECT ARRAY...GROUP BY State]
+    Select [0-173] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-140] [ARRAY(   SELECT...MINUTE   ) )]
+        SelectColumn [7-140] [ARRAY(   SELECT...MINUTE   ) )]
+          ExpressionSubquery(modifier=ARRAY) [7-140] [ARRAY(   SELECT...MINUTE   ) )]
+            Query [16-138] [SELECT col...MINUTE   )]
+              Select [16-138] [SELECT col...MINUTE   )]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-138] [FROM GROUP...MINUTE   )]
+                  GroupRows [34-138] [GROUP ROWS...MINUTE   )]
+                    AlignOperator [45-138] [ALIGN (...MINUTE   )]
+                      ExpressionWithOptAlias [67-69] [ts]
+                        PathExpression [67-69] [ts]
+                          Identifier(ts) [67-69] [ts]
+                      IntervalExpr [81-98] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [90-91] [1]
+                        Identifier(MINUTE) [92-98] [MINUTE]
+                      AlignWithinClause [117-134] [INTERVAL 5 MINUTE]
+                        AlignWithinBoundExpr(INTERVAL PRECEDING) [117-134] [INTERVAL 5 MINUTE]
+                          IntervalExpr [117-134] [INTERVAL 5 MINUTE]
+                            IntLiteral(5) [126-127] [5]
+                            Identifier(MINUTE) [128-134] [MINUTE]
+      FromClause [141-158] [FROM Transactions]
+        TablePathExpression [146-158] [Transactions]
+          PathExpression [146-158] [Transactions]
+            Identifier(Transactions) [146-158] [Transactions]
+      GroupBy [159-173] [GROUP BY State]
+        GroupingItem [168-173] [State]
+          PathExpression [168-173] [State]
+            Identifier(State) [168-173] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      GROUP ROWS ALIGN (
+        TIMESTAMP ts
+        PERIOD INTERVAL 1 MINUTE
+        OUTPUT WITHIN RANGE FROM INTERVAL 5 MINUTE PRECEDING
+      )
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS not left-most in FROM clause (comma join)
+SELECT ARRAY(
+  SELECT col
+  FROM Transactions t, GROUP ROWS
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-95] [SELECT ARRAY...GROUP BY State]
+  Query [0-95] [SELECT ARRAY...GROUP BY State]
+    Select [0-95] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-62] [ARRAY(   SELECT...GROUP ROWS )]
+        SelectColumn [7-62] [ARRAY(   SELECT...GROUP ROWS )]
+          ExpressionSubquery(modifier=ARRAY) [7-62] [ARRAY(   SELECT...GROUP ROWS )]
+            Query [16-60] [SELECT col...GROUP ROWS]
+              Select [16-60] [SELECT col...GROUP ROWS]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-60] [FROM Transactions...GROUP ROWS]
+                  Join(COMMA) [34-60] [Transactions t, GROUP ROWS]
+                    TablePathExpression [34-48] [Transactions t]
+                      PathExpression [34-46] [Transactions]
+                        Identifier(Transactions) [34-46] [Transactions]
+                      Alias [47-48] [t]
+                        Identifier(t) [47-48] [t]
+                    Location [48-49] [,]
+                    GroupRows [50-60] [GROUP ROWS]
+      FromClause [63-80] [FROM Transactions]
+        TablePathExpression [68-80] [Transactions]
+          PathExpression [68-80] [Transactions]
+            Identifier(Transactions) [68-80] [Transactions]
+      GroupBy [81-95] [GROUP BY State]
+        GroupingItem [90-95] [State]
+          PathExpression [90-95] [State]
+            Identifier(State) [90-95] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      Transactions AS t,
+      GROUP ROWS
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# GROUP ROWS not left-most in FROM clause (JOIN)
+SELECT ARRAY(
+  SELECT col
+  FROM Transactions t JOIN GROUP ROWS
+)
+FROM Transactions
+GROUP BY State
+--
+QueryStatement [0-99] [SELECT ARRAY...GROUP BY State]
+  Query [0-99] [SELECT ARRAY...GROUP BY State]
+    Select [0-99] [SELECT ARRAY...GROUP BY State]
+      SelectList [7-66] [ARRAY(   SELECT...GROUP ROWS )]
+        SelectColumn [7-66] [ARRAY(   SELECT...GROUP ROWS )]
+          ExpressionSubquery(modifier=ARRAY) [7-66] [ARRAY(   SELECT...GROUP ROWS )]
+            Query [16-64] [SELECT col...GROUP ROWS]
+              Select [16-64] [SELECT col...GROUP ROWS]
+                SelectList [23-26] [col]
+                  SelectColumn [23-26] [col]
+                    PathExpression [23-26] [col]
+                      Identifier(col) [23-26] [col]
+                FromClause [29-64] [FROM Transactions...GROUP ROWS]
+                  Join [34-64] [Transactions t JOIN GROUP ROWS]
+                    TablePathExpression [34-48] [Transactions t]
+                      PathExpression [34-46] [Transactions]
+                        Identifier(Transactions) [34-46] [Transactions]
+                      Alias [47-48] [t]
+                        Identifier(t) [47-48] [t]
+                    Location [49-53] [JOIN]
+                    GroupRows [54-64] [GROUP ROWS]
+      FromClause [67-84] [FROM Transactions]
+        TablePathExpression [72-84] [Transactions]
+          PathExpression [72-84] [Transactions]
+            Identifier(Transactions) [72-84] [Transactions]
+      GroupBy [85-99] [GROUP BY State]
+        GroupingItem [94-99] [State]
+          PathExpression [94-99] [State]
+            Identifier(State) [94-99] [State]
+--
+SELECT
+  ARRAY(
+    SELECT
+      col
+    FROM
+      Transactions AS t
+      JOIN
+      GROUP ROWS
+  )
+FROM
+  Transactions
+GROUP BY State
+==
+
+# Group Rows with TIMESTAMP and VERSION keyword as the identifier is not
+# allowed. This avoids a parser conflict.
+SELECT (
+  WITH {{timestamp|version}}() AS GROUP ROWS
+  SELECT col
+  FROM timestamp
+)
+FROM Transactions
+GROUP BY State
+--
+ALTERNATION GROUP: timestamp
+--
+ERROR: Syntax error: Expected keyword AS but got "(" [at 2:17]
+  WITH timestamp() AS GROUP ROWS
+                ^
+--
+ALTERNATION GROUP: version
+--
+ERROR: Syntax error: Expected keyword AS but got "(" [at 2:15]
+  WITH version() AS GROUP ROWS
+              ^
+==
+
+# With backticks, timestamp and version are allowed.
+SELECT (
+  WITH `{{timestamp|version}}`() AS GROUP ROWS
+  SELECT col
+  FROM timestamp
+)
+FROM Transactions
+GROUP BY State
+--
+ALTERNATION GROUP: timestamp
+--
+QueryStatement [0-108] [SELECT (...GROUP BY State]
+  Query [0-108] [SELECT (...GROUP BY State]
+    Select [0-108] [SELECT (...GROUP BY State]
+      SelectList [7-75] [(   WITH `...timestamp )]
+        SelectColumn [7-75] [(   WITH `...timestamp )]
+          ExpressionSubquery [7-75] [(   WITH `...timestamp )]
+            Query [11-73] [WITH `timestamp...timestamp]
+              WithClause [11-43] [WITH `timestamp...GROUP ROWS]
+                WithClauseEntry [16-43] [`timestamp`() AS GROUP ROWS]
+                  AliasedGroupRows [16-43] [`timestamp`() AS GROUP ROWS]
+                    Identifier(timestamp) [16-27] [`timestamp`]
+              Select [46-73] [SELECT col   FROM timestamp]
+                SelectList [53-56] [col]
+                  SelectColumn [53-56] [col]
+                    PathExpression [53-56] [col]
+                      Identifier(col) [53-56] [col]
+                FromClause [59-73] [FROM timestamp]
+                  TablePathExpression [64-73] [timestamp]
+                    PathExpression [64-73] [timestamp]
+                      Identifier(timestamp) [64-73] [timestamp]
+      FromClause [76-93] [FROM Transactions]
+        TablePathExpression [81-93] [Transactions]
+          PathExpression [81-93] [Transactions]
+            Identifier(Transactions) [81-93] [Transactions]
+      GroupBy [94-108] [GROUP BY State]
+        GroupingItem [103-108] [State]
+          PathExpression [103-108] [State]
+            Identifier(State) [103-108] [State]
+--
+SELECT
+  (WITH
+      `timestamp`() AS GROUP ROWS
+    SELECT
+      col
+    FROM
+      timestamp
+  )
+FROM
+  Transactions
+GROUP BY State
+--
+ALTERNATION GROUP: version
+--
+QueryStatement [0-106] [SELECT (...GROUP BY State]
+  Query [0-106] [SELECT (...GROUP BY State]
+    Select [0-106] [SELECT (...GROUP BY State]
+      SelectList [7-73] [(   WITH `...timestamp )]
+        SelectColumn [7-73] [(   WITH `...timestamp )]
+          ExpressionSubquery [7-73] [(   WITH `...timestamp )]
+            Query [11-71] [WITH `version...timestamp]
+              WithClause [11-41] [WITH `version`() AS GROUP ROWS]
+                WithClauseEntry [16-41] [`version`() AS GROUP ROWS]
+                  AliasedGroupRows [16-41] [`version`() AS GROUP ROWS]
+                    Identifier(version) [16-25] [`version`]
+              Select [44-71] [SELECT col   FROM timestamp]
+                SelectList [51-54] [col]
+                  SelectColumn [51-54] [col]
+                    PathExpression [51-54] [col]
+                      Identifier(col) [51-54] [col]
+                FromClause [57-71] [FROM timestamp]
+                  TablePathExpression [62-71] [timestamp]
+                    PathExpression [62-71] [timestamp]
+                      Identifier(timestamp) [62-71] [timestamp]
+      FromClause [74-91] [FROM Transactions]
+        TablePathExpression [79-91] [Transactions]
+          PathExpression [79-91] [Transactions]
+            Identifier(Transactions) [79-91] [Transactions]
+      GroupBy [92-106] [GROUP BY State]
+        GroupingItem [101-106] [State]
+          PathExpression [101-106] [State]
+            Identifier(State) [101-106] [State]
+--
+SELECT
+  (WITH
+      `version`() AS GROUP ROWS
+    SELECT
+      col
+    FROM
+      timestamp
+  )
+FROM
+  Transactions
+GROUP BY State

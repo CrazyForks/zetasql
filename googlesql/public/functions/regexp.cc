@@ -29,7 +29,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/utf_util.h"
 #include "googlesql/public/functions/string.h"
 #include "googlesql/public/functions/util.h"
@@ -41,8 +40,10 @@
 #include "googlesql/public/value.h"
 #include "googlesql/base/case.h"
 #include "absl/container/flat_hash_set.h"
+#include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -52,7 +53,6 @@
 #include "unicode/utypes.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

@@ -43,6 +43,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -52,7 +53,6 @@
 #include "googlesql/base/lossless_convert.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {
@@ -1078,7 +1078,8 @@ absl::Status JsonAppendArrayElement(JSONValueRef input,
 absl::Status JsonSet(JSONValueRef input, StrictJSONPathIterator& path_iterator,
                      const Value& value, bool create_if_missing,
                      const LanguageOptions& language_options,
-                     bool canonicalize_zero) {
+                     bool canonicalize_zero, bool error_on_type_mismatch,
+                     JsonSetFailureDetails* failure_details) {
   // Ensure we always start from the beginning of the path.
   path_iterator.Rewind();
   // First token is always empty (no-op).
@@ -1133,7 +1134,20 @@ absl::Status JsonSet(JSONValueRef input, StrictJSONPathIterator& path_iterator,
       // Auto-creation is allowed on JSON 'null'.
       break;
     }
-    // Type mismatch, ignore operation and return early.
+    // Type mismatch. If `error_on_type_mismatch` return an error. Otherwise
+    // ignore operation and return early.
+    if (error_on_type_mismatch) {
+      if (failure_details != nullptr) {
+        if (token.MaybeGetObjectKey()) {
+          failure_details->mismatch_type =
+              JsonMismatchType::kObjectFieldMismatch;
+        } else {
+          failure_details->mismatch_type =
+              JsonMismatchType::kArrayIndexMismatch;
+        }
+      }
+      return MakeEvalError() << "Type mismatch in JSON path.";
+    }
     return absl::OkStatus();
   }
 
@@ -1494,7 +1508,7 @@ absl::StatusOr<JSONValue> JsonQueryLax(JSONValueConstRef input,
 }
 
 bool JsonContainsImpl(JSONValueConstRef input, JSONValueConstRef target,
-                      bool is_top_level) {
+                      bool compare_numbers_in_decimal, bool is_top_level) {
   if (target.IsObject()) {
     if (!input.IsObject()) {
       return false;
@@ -1502,6 +1516,7 @@ bool JsonContainsImpl(JSONValueConstRef input, JSONValueConstRef target,
     for (const auto& [key, value] : target.GetMembers()) {
       if (!input.HasMember(key) ||
           !JsonContainsImpl(input.GetMember(key), value,
+                            compare_numbers_in_decimal,
                             /*is_top_level=*/false)) {
         return false;
       }
@@ -1517,7 +1532,8 @@ bool JsonContainsImpl(JSONValueConstRef input, JSONValueConstRef target,
       // Find element from input JSON array.
       bool exists = false;
       for (const auto& source : input.GetArrayElements()) {
-        if (JsonContainsImpl(source, element, /*is_top_level=*/false)) {
+        if (JsonContainsImpl(source, element, compare_numbers_in_decimal,
+                             /*is_top_level=*/false)) {
           exists = true;
           break;
         }
@@ -1539,19 +1555,38 @@ bool JsonContainsImpl(JSONValueConstRef input, JSONValueConstRef target,
       return false;
     }
     for (const auto& source : input.GetArrayElements()) {
-      if (JsonContainsImpl(source, target, /*is_top_level=*/false)) {
+      if (JsonContainsImpl(source, target, compare_numbers_in_decimal,
+                           /*is_top_level=*/false)) {
         return true;
       }
     }
     return false;
   }
 
+  // Are we comparing an int64/uint64 to a double?
+  const bool is_mixed_int_double_comparison =
+      (input.IsDouble() || target.IsDouble()) &&
+      (input.IsInt64() || input.IsUInt64() || target.IsInt64() ||
+       target.IsUInt64());
+  if (compare_numbers_in_decimal && is_mixed_int_double_comparison) {
+    // Double has less precision than an int64, so if they are unequal to one
+    // another as doubles (which requires rounding and dropping precision from
+    // the int64), then they are definitely not equal in decimal.
+    if (input.GetDouble() != target.GetDouble()) {
+      return false;
+    }
+    return BigNumericValue::FromStringStrict(input.ToString()) ==
+           BigNumericValue::FromStringStrict(target.ToString());
+  }
+
   // The `input` and `target` are both a scalar value.
   return input.NormalizedEquals(target);
 }
 
-bool JsonContains(JSONValueConstRef input, JSONValueConstRef target) {
-  return JsonContainsImpl(input, target, /*is_top_level=*/true);
+bool JsonContains(JSONValueConstRef input, JSONValueConstRef target,
+                  bool compare_numbers_in_decimal) {
+  return JsonContainsImpl(input, target, compare_numbers_in_decimal,
+                          /*is_top_level=*/true);
 }
 
 namespace {

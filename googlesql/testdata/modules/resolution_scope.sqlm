@@ -1,0 +1,46 @@
+# Test module with various objects using different resolution scope options.
+MODULE googlesql.testdata.modules.resolution_scope;
+
+CREATE PUBLIC FUNCTION function_valid_public_builtin()
+AS (
+  1
+);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_public_builtin()
+AS (
+  SELECT 1 AS val
+);
+
+CREATE PRIVATE FUNCTION function_valid_private_builtin()
+AS (
+  1
+);
+
+CREATE PRIVATE TABLE FUNCTION tvf_valid_private_builtin()
+AS (
+  SELECT 1 AS val
+);
+
+CREATE PUBLIC FUNCTION function_valid_public_global()
+  OPTIONS (allowed_references = 'global')
+AS (
+  1
+);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_public_global()
+  OPTIONS (allowed_references = 'global')
+AS (
+  SELECT 1 AS val
+);
+
+CREATE PRIVATE FUNCTION function_valid_private_global()
+  OPTIONS (allowed_references = 'global')
+AS (
+  1
+);
+
+CREATE PRIVATE TABLE FUNCTION tvf_valid_private_global()
+  OPTIONS (allowed_references = 'global')
+AS (
+  SELECT 1 AS val
+);

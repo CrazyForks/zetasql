@@ -238,12 +238,6 @@ public class TypeFactoryTest {
     builder.setTypeKind(TypeKind.TYPE_ARRAY);
     assertThrows(IllegalArgumentException.class, () -> factory.deserialize(builder.build()));
 
-    // Should throw when deserializing array of array.
-    TypeProto.Builder elementBuilder = builder.getArrayTypeBuilder().getElementTypeBuilder();
-    elementBuilder.setTypeKind(TypeKind.TYPE_ARRAY);
-    elementBuilder.getArrayTypeBuilder().getElementTypeBuilder().setTypeKind(TypeKind.TYPE_BOOL);
-    assertThrows(IllegalArgumentException.class, () -> factory.deserialize(builder.build()));
-
     // Should throw when deserializing range with an invalid element type.
     builder.clearArrayType();
     TypeProto.Builder rangeElementBuilder = builder.getRangeTypeBuilder().getElementTypeBuilder();

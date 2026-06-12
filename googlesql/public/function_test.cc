@@ -323,8 +323,12 @@ class FunctionSerializationTests : public ::testing::Test {
               argument2.options().must_be_analysis_constant());
     EXPECT_EQ(argument1.options().must_be_immutable_constant(),
               argument2.options().must_be_immutable_constant());
+    EXPECT_EQ(argument1.options().must_be_stable_constant(),
+              argument2.options().must_be_stable_constant());
     EXPECT_EQ(argument1.options().must_be_constant_expression(),
               argument2.options().must_be_constant_expression());
+    EXPECT_EQ(argument1.options().must_be_query_constant(),
+              argument2.options().must_be_query_constant());
     EXPECT_EQ(argument1.options().has_argument_name(),
               argument2.options().has_argument_name());
     if (argument1.options().has_argument_name()) {
@@ -519,6 +523,27 @@ TEST_F(FunctionSerializationTests, BuiltinFunctions) {
   FunctionSignature new_signature = *chosen_function->GetSignature(0);
   new_signature.SetAdditionalDeprecationWarnings({CreateDeprecationWarning()});
   CheckSerializationAndDeserialization(*chosen_function);
+}
+
+TEST_F(FunctionSerializationTests, AnalysisConstant) {
+  const FunctionArgumentType argument_type(
+      types::Int64Type(),
+      FunctionArgumentTypeOptions().set_must_be_analysis_constant());
+  CheckSerializationAndDeserialization(argument_type);
+}
+
+TEST_F(FunctionSerializationTests, ImmutableConstant) {
+  const FunctionArgumentType argument_type(
+      types::Int64Type(),
+      FunctionArgumentTypeOptions().set_must_be_immutable_constant());
+  CheckSerializationAndDeserialization(argument_type);
+}
+
+TEST_F(FunctionSerializationTests, QueryConstant) {
+  const FunctionArgumentType argument_type(
+      types::Int64Type(),
+      FunctionArgumentTypeOptions().set_must_be_query_constant());
+  CheckSerializationAndDeserialization(argument_type);
 }
 
 TEST_F(FunctionSerializationTests, Volatility) {

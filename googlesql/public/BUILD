@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -33,9 +34,9 @@ cc_library(
     deps = [
         ":analyzer_options",
         "//googlesql/base:case",
-        "//googlesql/base:no_destructor",
         "//googlesql/proto:options_cc_proto",
         "//googlesql/public/types",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
@@ -97,6 +98,7 @@ cc_library(
         "type.h",
     ],
     deps = [
+        ":options_cc_proto",
         ":type_annotation_cc_proto",
         ":type_cc_proto",
         ":value_cc_proto",
@@ -162,6 +164,49 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "catalog_wrapper",
+    srcs = ["catalog_wrapper.cc"],
+    hdrs = ["catalog_wrapper.h"],
+    deps = [
+        ":catalog",
+        ":function",
+        ":simple_catalog",
+        ":type",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "catalog_wrapper_test",
+    size = "small",
+    srcs = ["catalog_wrapper_test.cc"],
+    deps = [
+        ":catalog",
+        ":catalog_wrapper",
+        ":coercer",
+        ":constant",
+        ":function",
+        ":function_headers",
+        ":language_options",
+        ":simple_catalog",
+        ":value",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/base/testing:status_matchers",
+        "//googlesql/public/types",
+        "//googlesql/public/types:type",
+        "//googlesql/testdata:sample_catalog",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -433,6 +478,7 @@ cc_library(
         "//googlesql/proto:module_options_cc_proto",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_protobuf//:protobuf",
@@ -690,9 +736,7 @@ cc_library(
         ":parse_helpers",
         ":parse_location",
         ":parse_resume_location",
-        "//googlesql/base",
         "//googlesql/base:ret_check",
-        "//googlesql/base:source_location",
         "//googlesql/base:status",
         "//googlesql/parser",
         "@com_google_absl//absl/status",
@@ -760,6 +804,8 @@ cc_library(
         "//googlesql/public/functions:datetime_cc_proto",
         "//googlesql/public/functions:range",
         "//googlesql/public/functions:string",
+        "//googlesql/public/functions:to_json",
+        "//googlesql/public/functions:unsupported_fields_cc_proto",
         "//googlesql/public/types",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
@@ -1068,10 +1114,10 @@ cc_library(
     ],
     deps = [
         "//googlesql/base:endian",
-        "//googlesql/base:no_destructor",
         "//googlesql/base:status",
         "//googlesql/common:errors",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status",
@@ -1132,6 +1178,7 @@ cc_library(
         "//googlesql/base:status",
         "//googlesql/base:strings",
         "//googlesql/common:errors",
+        "//googlesql/common:proto_format_utils",
         "//googlesql/common:thread_stack",
         "//googlesql/public/functions:arithmetics",
         "//googlesql/public/functions:comparison",
@@ -1668,6 +1715,7 @@ cc_test(
         "@com_google_protobuf//:protobuf",
         "//googlesql/common/testing:proto_matchers",
         "//googlesql/base/testing:status_matchers",
+        "//googlesql/common:proto_format_utils",
         "//googlesql/public/proto:type_annotation_cc_proto",
         ":token_list_util",
         "//googlesql/public/types",
@@ -1678,12 +1726,12 @@ cc_test(
         "//googlesql/base/testing:googlesql_gtest_main",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/status",
+        "//googlesql/base:status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/strings",
         "//googlesql/base:map_util",
-        "//googlesql/base:status",
         "//googlesql/base:ret_check",
     ],
 )
@@ -1968,7 +2016,6 @@ cc_library(
         ":function",
         ":parse_resume_location",
         ":type",
-        "//googlesql/base",
         "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
@@ -2102,6 +2149,7 @@ cc_library(
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -2177,12 +2225,16 @@ cc_test(
     size = "small",
     srcs = ["cast_test.cc"],
     deps = [
+        ":civil_time",
         ":coercer",
         ":function",
+        ":interval_value",
         ":json_value",
         ":language_options",
+        ":numeric_value",
         ":options_cc_proto",
         ":type",
+        ":uuid_value",
         ":value",
         "//googlesql/base",
         "//googlesql/base:status",
@@ -2250,8 +2302,9 @@ cc_test(
         ":function_cc_proto",
         ":options_cc_proto",
         ":type",
+        ":type_parameters_cc_proto",
         ":value",
-        "//googlesql/base:status",
+        "//googlesql/base:enum_utils",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
         "//googlesql/common:function_signature_testutil",
@@ -2380,6 +2433,7 @@ cc_library(
     ],
     deps = [
         ":error_helpers",
+        ":graph_dml_parse_util",
         ":language_options",
         ":options_cc_proto",
         ":parse_location",
@@ -2392,9 +2446,11 @@ cc_library(
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/common:errors",
+        "//googlesql/common:warning_sink",
         "//googlesql/parser",
         "//googlesql/parser:keywords",
         "//googlesql/parser:lookahead_transformer",
+        "//googlesql/parser:parser_internal",
         "//googlesql/parser:parser_mode",
         "//googlesql/parser:token",
         "//googlesql/parser:token_with_location",
@@ -2430,13 +2486,33 @@ cc_test(
 )
 
 cc_library(
+    name = "kmeans_options",
+    srcs = ["kmeans_options.cc"],
+    hdrs = ["kmeans_options.h"],
+    deps = [
+        "//googlesql/proto:kmeans_options_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "kmeans_options_test",
+    srcs = ["kmeans_options_test.cc"],
+    deps = [
+        ":kmeans_options",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/common/testing:proto_matchers",
+        "//googlesql/proto:kmeans_options_cc_proto",
+    ],
+)
+
+cc_library(
     name = "language_options",
     srcs = ["language_options.cc"],
     hdrs = ["language_options.h"],
     deps = [
         ":options_cc_proto",
-        "//googlesql/base",
         "//googlesql/base:case",
+        "//googlesql/base:check",
         "//googlesql/base:map_util",
         "//googlesql/base:status",
         "//googlesql/parser:keywords",
@@ -2467,7 +2543,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
-        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -2612,6 +2687,7 @@ cc_library(
         "//googlesql/resolved_ast:column_factory",
         "//googlesql/resolved_ast:resolved_node_kind_cc_proto",
         "//googlesql/resolved_ast:validator",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/flags:flag",
@@ -2854,6 +2930,7 @@ cc_test(
         "//googlesql/proto:function_cc_proto",
         "//googlesql/public/types",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -2875,7 +2952,6 @@ cc_test(
     size = "small",
     srcs = ["time_zone_util_test.cc"],
     deps = [
-        ":time_zone_util",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
         "//googlesql/public/functions:date_time_util",
@@ -3179,4 +3255,32 @@ proto_library(
 cc_proto_library(
     name = "fix_suggestion_cc_proto",
     deps = [":fix_suggestion_proto"],
+)
+
+cc_library(
+    name = "graph_dml_parse_util",
+    srcs = ["graph_dml_parse_util.cc"],
+    hdrs = ["graph_dml_parse_util.h"],
+    deps = [
+        "//googlesql/base:status",
+        "//googlesql/parser:parse_tree",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "graph_dml_parse_util_test",
+    size = "small",
+    srcs = ["graph_dml_parse_util_test.cc"],
+    deps = [
+        ":graph_dml_parse_util",
+        ":language_options",
+        "//googlesql/base:status",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/base/testing:status_matchers",
+        "//googlesql/parser",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:string_view",
+    ],
 )

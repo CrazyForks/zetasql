@@ -18,6 +18,12 @@ GoogleSQL supports the following datetime functions.
   <tbody>
 
 <tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/datetime_functions.md#add_months"><code>ADD_MONTHS</code></a>
+</td>
+  <td>Adds a specified number of months to a <code>DATETIME</code> value.</td>
+</tr>
+
+<tr>
   <td><a href="https://github.com/google/googlesql/blob/master/docs/datetime_functions.md#current_datetime"><code>CURRENT_DATETIME</code></a>
 </td>
   <td>
@@ -97,6 +103,21 @@ GoogleSQL supports the following datetime functions.
 </tr>
 
 <tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/datetime_functions.md#months_between"><code>MONTHS_BETWEEN</code></a>
+</td>
+  <td>Returns the number of months between two <code>DATETIME</code> values.</td>
+</tr>
+
+<tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/datetime_functions.md#next_day"><code>NEXT_DAY</code></a>
+</td>
+  <td>
+    Returns the <code>DATE</code> of the first specified weekday that is later than the
+    input <code>DATETIME</code>.
+  </td>
+</tr>
+
+<tr>
   <td><a href="https://github.com/google/googlesql/blob/master/docs/datetime_functions.md#parse_datetime"><code>PARSE_DATETIME</code></a>
 </td>
   <td>
@@ -107,6 +128,75 @@ GoogleSQL supports the following datetime functions.
 
   </tbody>
 </table>
+
+## `ADD_MONTHS`
+
+```googlesql
+ADD_MONTHS(datetime, count)
+```
+
+**Description**
+
+Adds a specified number of months to a `DATETIME` value.
+
+**Definitions**
+
++   `datetime`: A `DATETIME` value.
++   `count`: An `INT64` value representing the number of months to add, or to
+    subtract if negative.
+
+**Details**
+
+If the input is the last day of the month, or if the resulting month has fewer
+days than the input day component, then the result is last day of the new month.
+Otherwise the result has the same day as the input.
+
+The time part remains unchanged.
+
+If either parameter is `NULL`, the result is `NULL`.
+
+**Return Data Type**
+
+`DATETIME`
+
+**Examples**
+
+Target month has fewer days than the input day component, returns end of target
+month:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-01-30 09:30:00', 1) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-02-28 09:30:00 |
+ +---------------------*/
+```
+
+Input is the end of its month, returns end of target month:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-02-28 10:00:05', -1) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-01-31 10:00:05 |
+ +---------------------*/
+```
+
+No special end-of-month handling:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-02-15', 2) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-04-15 00:00:00 |
+ +---------------------*/
+```
 
 ## `CURRENT_DATETIME`
 
@@ -880,6 +970,174 @@ SELECT LAST_DAY(DATETIME '2008-11-10 15:30:00', WEEK(MONDAY)) AS last_day
 [ISO-8601]: https://en.wikipedia.org/wiki/ISO_8601
 
 [ISO-8601-week]: https://en.wikipedia.org/wiki/ISO_week_date
+
+## `MONTHS_BETWEEN`
+
+```googlesql
+MONTHS_BETWEEN(datetime_end, datetime_start)
+```
+
+**Description**
+
+Returns the number of whole and partial months between `datetime_end` and
+`datetime_start`, represented as a floating-point number.
+
+**Definitions**
+
++   `datetime_end`: A `DATETIME` value.
++   `datetime_start`: A `DATETIME` value.
+
+**Details**
+
+At a high level this computes `datetime_end - datetime_start` and returns a
+floating-point number with a whole number for the full months and fractional
+portion based on a 31-day month.
+
+If `datetime_end` is later than `datetime_start` the result is positive. If
+`datetime_end` is earlier than `datetime_start`, the result is negative.
+
+If both dates are the same day of the month or both are the last day of their
+respective months, the result is an integer, regardless of the time portion.
+Otherwise, the result includes a fractional part from the difference in days,
+based on a 31-day month, taking into account the partial-day time difference.
+
+If either parameter is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DOUBLE`
+
+**Examples**
+
+Partial month:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-03-14', DATETIME '2025-02-13') AS results
+
+/*-------------------+
+ | results           |
+ +-------------------+
+ | 1.032258064516129 |    -- calculated as (3-2) + (14-13)/31
+ +-------------------*/
+```
+
+Partial month with negative fraction:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-03-01', DATETIME '2025-02-15') AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 0.54838709677419351 |    -- calculated as (3-2) + (1-15)/31
+ +---------------------*/
+```
+
+Negative if first date is older than second date:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-02-15', DATETIME '2025-03-01') AS results
+
+/*----------------------+
+ | results              |
+ +----------------------+
+ | -0.54838709677419351 |    -- calculated as (2-3) + (15-1)/31
+ +----------------------*/
+```
+
+Same day of month, time not used:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2007-12-13 09:40:00',
+                      DATETIME '2007-11-13 08:15:55') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+Both end of month, time not used:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2008-03-31 04:00:00',
+                      DATETIME '2008-02-29 12:30:10') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+Half a day:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2008-02-29 00:00:00',
+                      DATETIME '2008-02-28 12:00:00') AS results
+
+/*----------------------+
+ | results              |
+ +----------------------+
+ | 0.016129032258064516 |    -- 0.5/31
+ +----------------------*/
+```
+
+## `NEXT_DAY`
+
+```googlesql
+NEXT_DAY(datetime, day_of_week)
+```
+
+**Description**
+
+Returns the `DATE` of the first weekday named `day_of_week` that is later than
+`datetime`. The time part is ignored.
+
+**Definitions**
+
++   `datetime`: A `DATETIME` value.
++   `day_of_week`: A `STRING` value representing the name of the day of the week
+    or its three-letter abbreviation (for example, `'Sunday'`, `'Mon'`, etc.).
+    This argument is case-insensitive.
+
+**Details**
+
+If the input datetime is already on the specified day of the week, the result is
+the date plus seven days.
+
+If either argument is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DATE`
+
+**Examples**
+
+Friday after a Tuesday:
+
+```googlesql
+SELECT NEXT_DAY(DATETIME '2026-05-19 12:30', 'Friday') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-22 |
+ +------------*/
+```
+
+Friday after a Friday:
+
+```googlesql
+SELECT NEXT_DAY(DATETIME '2026-05-22 16:59', 'fri') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-29 |
+ +------------*/
+```
 
 ## `PARSE_DATETIME`
 

@@ -36,11 +36,11 @@
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
+#include "absl/base/no_destructor.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
-#include "googlesql/base/no_destructor.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -183,7 +183,7 @@ class InsertDmlValuesRewriter : public Rewriter {
 };
 
 const Rewriter* GetInsertDmlValuesRewriter() {
-  static const googlesql_base::NoDestructor<InsertDmlValuesRewriter> dmlValuesRewriter;
+  static const absl::NoDestructor<InsertDmlValuesRewriter> dmlValuesRewriter;
   return dmlValuesRewriter.get();
 }
 

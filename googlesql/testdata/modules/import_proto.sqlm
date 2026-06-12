@@ -1,0 +1,71 @@
+-- A module for use in test case:
+--
+--    googlesql/common/testdata/import_proto.module_test
+--
+-- UDFs/TVFs in this module reference names imported from the specified
+-- proto file.
+
+MODULE import_proto;
+
+-- IMPORT PROTO does not support AS or INTO alias.
+IMPORT PROTO "bogus_pathname.proto" AS foo;
+IMPORT PROTO "another_bogus_pathname.proto" INTO foo;
+
+-- This one is successful, and it imports Types into this module's catalog.
+IMPORT PROTO "googlesql/testdata/referencing_schema.proto";
+
+CREATE PUBLIC FUNCTION TestReferencingPB(a string, b string, c int32)
+AS (NEW googlesql_test.TestReferencingPB(
+        c AS test_enum,
+        CONCAT("int64_key_1: ", a, " int64_key_2: ", b) as kitchen_sink));
+
+CREATE PUBLIC FUNCTION TestReferencingPB_2()
+AS (CAST("test_enum: 1" AS googlesql_test.TestReferencingPB));
+
+-- The type name can also be back-ticked.
+CREATE PUBLIC FUNCTION TestReferencingPB_3()
+AS (CAST("test_enum: 1" AS `googlesql_test.TestReferencingPB`));
+
+CREATE PUBLIC FUNCTION TestReferencingPB_4(a int64)
+AS (NEW googlesql_test.TestReferencingPB(
+        CONCAT("int64_key_1: ", CAST(a AS STRING),
+               " int64_key_2: ", CAST(a AS STRING)) as kitchen_sink));
+
+CREATE PUBLIC TABLE FUNCTION TestReferencingPBTable(a string, b string, c int32)
+AS (SELECT NEW googlesql_test.TestReferencingPB(
+        c AS test_enum,
+        CONCAT("int64_key_1: ", a, " int64_key_2: ", b) as kitchen_sink)
+        AS TestReferencingPB_value
+    UNION ALL
+    SELECT NEW googlesql_test.TestReferencingPB(
+        c+1 AS test_enum,
+        CONCAT("int64_key_1: ", b, " int64_key_2: ", a) as kitchen_sink));
+
+CREATE PUBLIC TABLE FUNCTION TestReferencingPBTable_2(a int64)
+AS (SELECT 1 AS key,
+           NEW googlesql_test.TestReferencingPB(
+               CONCAT("int64_key_1: ", CAST(a AS STRING),
+                      " int64_key_2: ", CAST(a AS STRING)) as kitchen_sink)
+             AS TestReferencingPB_value
+    UNION ALL
+    SELECT 2 AS key,
+           NEW googlesql_test.TestReferencingPB(
+               CONCAT("int64_key_1: ", CAST(a+1 AS STRING),
+                      " int64_key_2: ", CAST(a+1 AS STRING)) as kitchen_sink)
+             AS TestReferencingPB_value);
+
+-- These functions reference nested enum types.
+CREATE PUBLIC FUNCTION TestCastToNestedEnum(a INT64)
+AS (CAST(a AS googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum));
+
+CREATE PUBLIC FUNCTION TestCastToTriplyNestedEnum(a INT64)
+AS (CAST(a AS googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.
+                  TestTriplyNestedPB.TestTriplyNestedEnum));
+
+-- These functions reference nested proto types.
+CREATE PUBLIC FUNCTION TestCastToNestedProto(a STRING)
+AS (CAST(a AS googlesql_test.TestTopLevelPB.TestNestedPB));
+
+CREATE PUBLIC FUNCTION TestCastToTriplyNestedProto(a STRING)
+AS (CAST(a AS googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.
+                  TestTriplyNestedPB));

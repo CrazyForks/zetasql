@@ -27,6 +27,7 @@
 #include "googlesql/base/logging.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/public/options.pb.h"
 #include "googlesql/public/proto/wire_format_annotation.pb.h"
 #include "googlesql/public/types/measure_type.h"
 #include "googlesql/public/types/type.h"
@@ -34,6 +35,7 @@
 #include "googlesql/base/case.h"
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -41,7 +43,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -383,6 +384,11 @@ absl::Status TypeToProtoConverter::MakeFieldDescriptor(
       // TODO: Implement proto type conversion for Row.
       return absl::UnimplementedError(
           "Proto type conversion for ROW is not yet implemented.");
+    case TYPE_DECLARATIVE:
+      // TODO: Implement proto type conversion for DeclarativeType.
+      return absl::UnimplementedError(absl::StrCat(
+          "Proto type conversion for type ",
+          field_type->TypeName(PRODUCT_EXTERNAL), " is not yet implemented."));
     case __TypeKind__switch_must_have_a_default__:
     case TYPE_UNKNOWN:
       break;  // Error generated below.

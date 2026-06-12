@@ -1,0 +1,124 @@
+# Tests for recursive imports
+
+# Module 1 imports module 2, which imports module 1
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.recursive_1_imports_2
+    AS recursive_import_1;
+--
+Lazy_resolution_function:fn1
+  () -> INT64
+--
+MODULE recursive_2 imported AS recursive_2_imports_1 by MODULE recursive_1
+Module 'recursive_2'
+Module contents:
+\-- This module is used for test case:
+\--   googlesql/common/testdata/recursive_imports.module_test
+
+MODULE recursive_2;
+
+IMPORT MODULE googlesql.testdata.modules.recursive_1_imports_2;
+
+create public function fn2() as (2);
+
+Initialized functions:
+Lazy_resolution_function:fn2
+  () -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: IMPORT MODULE recursive_1_imports_2 failed resolution with error: Recursive IMPORTs detected when creating module googlesql.testdata.modules.recursive_1_imports_2, which includes modules (googlesql.testdata.modules.recursive_1_imports_2, googlesql.testdata.modules.recursive_2_imports_1) [at .../googlesql/testdata/modules/recursive_2_imports_1.sqlm:6:1]
+IMPORT MODULE googlesql.testdata.modules.recursive_1_imports_2;
+^
+==
+
+# Module 2 imports module 1, which imports module 2
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.recursive_2_imports_1
+    AS recursive_import_2;
+--
+Lazy_resolution_function:fn2
+  () -> INT64
+--
+MODULE recursive_1 imported AS recursive_1_imports_2 by MODULE recursive_2
+Module 'recursive_1'
+Module contents:
+\-- This module is used for test case:
+\--   googlesql/common/testdata/recursive_imports.module_test
+
+MODULE recursive_1;
+
+IMPORT MODULE googlesql.testdata.modules.recursive_2_imports_1;
+
+create public function fn1() as (1);
+
+Initialized functions:
+Lazy_resolution_function:fn1
+  () -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: IMPORT MODULE recursive_2_imports_1 failed resolution with error: Recursive IMPORTs detected when creating module googlesql.testdata.modules.recursive_2_imports_1, which includes modules (googlesql.testdata.modules.recursive_1_imports_2, googlesql.testdata.modules.recursive_2_imports_1) [at .../googlesql/testdata/modules/recursive_1_imports_2.sqlm:6:1]
+IMPORT MODULE googlesql.testdata.modules.recursive_2_imports_1;
+^
+==
+
+# Module 3 imports module 2
+# Module 2 imports module 1, which imports module 2
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.recursive_3_imports_2
+    AS recursive_import_3;
+--
+Lazy_resolution_function:fn3
+  () -> INT64
+--
+MODULE recursive_2 imported AS recursive_2_imports_1 by MODULE recursive_3
+Module 'recursive_2'
+Module contents:
+\-- This module is used for test case:
+\--   googlesql/common/testdata/recursive_imports.module_test
+
+MODULE recursive_2;
+
+IMPORT MODULE googlesql.testdata.modules.recursive_1_imports_2;
+
+create public function fn2() as (2);
+
+Initialized functions:
+Lazy_resolution_function:fn2
+  () -> INT64
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE recursive_1 imported AS recursive_1_imports_2 by MODULE recursive_2
+Module 'recursive_1'
+Module contents:
+\-- This module is used for test case:
+\--   googlesql/common/testdata/recursive_imports.module_test
+
+MODULE recursive_1;
+
+IMPORT MODULE googlesql.testdata.modules.recursive_2_imports_1;
+
+create public function fn1() as (1);
+
+Initialized functions:
+Lazy_resolution_function:fn1
+  () -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: IMPORT MODULE recursive_2_imports_1 failed resolution with error: Recursive IMPORTs detected when creating module googlesql.testdata.modules.recursive_2_imports_1, which includes modules (googlesql.testdata.modules.recursive_1_imports_2, googlesql.testdata.modules.recursive_2_imports_1, googlesql.testdata.modules.recursive_3_imports_2) [at .../googlesql/testdata/modules/recursive_1_imports_2.sqlm:6:1]
+IMPORT MODULE googlesql.testdata.modules.recursive_2_imports_1;
+^
+==
+
+# This module imports itself
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.recursive_self;
+--
+Lazy_resolution_function:fn1
+  () -> INT64
+--
+Module errors:
+INVALID_ARGUMENT: IMPORT MODULE recursive_self failed resolution with error: Module googlesql.testdata.modules.recursive_self recursively imports itself [at .../googlesql/testdata/modules/recursive_self.sqlm:6:1]
+IMPORT MODULE googlesql.testdata.modules.recursive_self;
+^

@@ -1,0 +1,56 @@
+-- This module is used for test case:
+--   googlesql/common/testdata/module_with_name_override.module_test
+
+MODULE googlesql.testdata.modules.module_with_name_override;
+
+-- This module defines a functions with the same names as those in the builtin `net` namespace.
+-- Referencing those functions in this module resolves to the imported function, not the builtin
+-- function.
+IMPORT MODULE googlesql.testdata.modules.module_with_name_override_nested AS net;
+
+-- This function references `NET.HOST`, which is in both the imported module and in the builtin
+-- function catalog. It resolves to the imported module.
+CREATE PUBLIC FUNCTION function_references_net_host(a STRING)
+  AS (net.host(a));
+
+-- This function references `NET.IP_FROM_STRING`, which is in both the imported module and in the
+-- builtin function catalog. It resolves to the imported module.
+CREATE PUBLIC FUNCTION function_references_net_ip_from_string(a INT64)
+  AS (net.ip_from_string(a));
+
+-- This function references `NET.IP_TRUNC`, which is only in the builtin function catalog. The
+-- module imported with the `net` alias should not shadow this, so it resolves to the builtin.
+CREATE PUBLIC FUNCTION function_references_net_ip_trunc(a BYTES)
+AS (
+  NET.IP_TRUNC(a, 4)
+);
+
+-- This function overrides a function in the builtin catalog, with the same signature.
+CREATE PUBLIC FUNCTION IS_INF(a DOUBLE) AS (true);
+
+-- This function references IS_INF, which is in both this module and in the builtin catalog. It
+-- resolves to the function in this module.
+CREATE PUBLIC FUNCTION function_references_is_inf(a DOUBLE)
+AS (
+  is_inf(a)
+);
+
+-- This function overrides a function in the builtin catalog, with a completely different signature.
+CREATE PRIVATE FUNCTION IS_NAN(a STRING)
+AS (
+  'hahaha'
+);
+
+-- This function references IS_NAN, which is in both this module and in the builtin catalog. It
+-- resolves to the function in this module.
+CREATE PUBLIC FUNCTION function_references_is_nan(a STRING)
+AS (
+  is_nan(a)
+);
+
+-- This function tries to reference IS_NAN with the original signature (taking a DOUBLE argument).
+-- It does not work, so this function is invalid.
+CREATE PUBLIC FUNCTION function_references_is_nan_invalid(a DOUBLE)
+AS (
+  is_nan(a)
+);

@@ -32,12 +32,12 @@
 #include "googlesql/public/value.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -241,8 +241,29 @@ absl::Status ApplyConstraints(const TypeParameters& type_params,
       GOOGLESQL_ASSIGN_OR_RETURN(value, Value::MakeRange(new_start_value, new_end_value));
       return absl::OkStatus();
     }
-    default:
+    case TYPE_MAP: {
+      std::vector<std::pair<Value, Value>> new_map_entries;
+      for (const auto& [map_key, map_value] : value.map_entries()) {
+        Value constrained_map_key = map_key;
+        GOOGLESQL_RETURN_IF_ERROR(
+            ApplyConstraints(type_params.child(0), mode, constrained_map_key));
+        Value constrained_map_value = map_value;
+        GOOGLESQL_RETURN_IF_ERROR(ApplyConstraints(type_params.child(1), mode,
+                                         constrained_map_value));
+        new_map_entries.emplace_back(constrained_map_key,
+                                     constrained_map_value);
+      }
+      GOOGLESQL_ASSIGN_OR_RETURN(value, Value::MakeMap(value.type()->AsMap(),
+                                             std::move(new_map_entries)));
       return absl::OkStatus();
+    }
+    default:
+      // If type parameters is non-empty, then the type should have been
+      // explicitly handled above.
+      GOOGLESQL_RET_CHECK_FAIL() << absl::Substitute(
+          "Type parameters are not handled for $0. (Got type "
+          "parameters: $1)",
+          value.type()->DebugString(), type_params.DebugString());
   }
 }
 

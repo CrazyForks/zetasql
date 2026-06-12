@@ -1,0 +1,15 @@
+# Constant evaluation is disabled until the reference implementation supports
+# TVFs.
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referencing_tvf;
+--
+PRIVATE TVF:tvf
+  (INT32 a) -> TABLE<foo DOUBLE>
+
+TVF:tvf_templated
+  (ANY TYPE a) -> ANY TABLE
+
+CONSTANT named_constant_tvf=Double(-1234) (DOUBLE)
+
+CONSTANT named_constant_tvf_templated=Int64(1233) (INT64)

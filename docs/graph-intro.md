@@ -86,7 +86,7 @@ into one.
 #### Examples
 
 The following is an example of a graph query chaining multiple linear query statements
-using `NEXT`.
+using `NEXT`:
 
 ```googlesql
 GRAPH FinGraph

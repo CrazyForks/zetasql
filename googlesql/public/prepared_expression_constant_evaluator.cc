@@ -20,8 +20,8 @@
 #include "googlesql/public/evaluator.h"
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 
 namespace googlesql {
 

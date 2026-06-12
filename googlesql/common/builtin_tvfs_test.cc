@@ -45,6 +45,19 @@ class GetVectorSearchTableValuedFunctionsTest : public ::testing::Test {
   std::unique_ptr<GoogleSQLBuiltinFunctionOptions> options_;
 };
 
+class GetKMeansTableValuedFunctionsTest : public ::testing::Test {
+ protected:
+  GetKMeansTableValuedFunctionsTest() {
+    options_ =
+        std::make_unique<GoogleSQLBuiltinFunctionOptions>(language_options_);
+  }
+
+  TypeFactory type_factory_;
+  BuiltinsOutputProperties output_properties_;
+  LanguageOptions language_options_;
+  std::unique_ptr<GoogleSQLBuiltinFunctionOptions> options_;
+};
+
 TEST_F(GetVectorSearchTableValuedFunctionsTest, VectorSearchFunction) {
   NameToTableValuedFunctionMap functions;
   GOOGLESQL_ASSERT_OK(GetVectorSearchTableValuedFunctions(
@@ -62,6 +75,19 @@ TEST_F(GetVectorSearchTableValuedFunctionsTest, VectorSearchFunction) {
   EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
                 FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS, 4),
             true);
+}
+
+TEST_F(GetKMeansTableValuedFunctionsTest, KMeansFunction) {
+  NameToTableValuedFunctionMap functions;
+  GOOGLESQL_ASSERT_OK(
+      GetKMeansTableValuedFunction(&type_factory_, *options_, &functions));
+  constexpr absl::string_view kKMeans = "kmeans";
+  ASSERT_TRUE(functions.contains(kKMeans));
+  EXPECT_EQ(
+      functions[kKMeans]->DebugString(),
+      "GoogleSQL:kmeans\n  (ANY TABLE, STRING vectors_column, optional INT64 "
+      "k, "
+      "optional PROTO<googlesql.KMeansOptions> options) -> ANY TABLE");
 }
 
 }  // namespace

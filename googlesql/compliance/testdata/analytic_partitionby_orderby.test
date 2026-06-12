@@ -393,7 +393,6 @@ ARRAY<STRUCT<float_val FLOAT, double_val DOUBLE, INT64>>[unknown order:
 ]
 ==
 
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 [name=orderby_float_2]
 SELECT double_val, count(row_id) OVER (ORDER BY double_val RANGE 2 PRECEDING)
 FROM TableAllTypes
@@ -407,7 +406,6 @@ ARRAY<STRUCT<double_val DOUBLE, INT64>>[unknown order:
 ]
 ==
 
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 [name=orderby_float_3]
 SELECT double_val, count(row_id) OVER (ORDER BY float_val RANGE 2 PRECEDING)
 FROM TableAllTypes

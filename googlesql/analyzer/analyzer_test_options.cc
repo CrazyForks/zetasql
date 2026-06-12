@@ -28,6 +28,7 @@
 #include "googlesql/testdata/test_schema.pb.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -35,7 +36,6 @@
 #include "file_based_test_driver/test_case_options.h"
 #include "google/protobuf/text_format.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -126,6 +126,7 @@ const char* const kTableForMeasureExprAnalysis =
     "table_for_measure_expr_analysis";
 const char* const kLogImpactOfLateralColumnReferences =
     "log_impact_of_lateral_column_references";
+const char* const kReproReanalyzeFailure = "repro_reanalyze_failure";
 
 void RegisterAnalyzerTestOptions(
     file_based_test_driver::TestCaseOptions* test_case_options) {
@@ -204,6 +205,7 @@ void RegisterAnalyzerTestOptions(
                                     kSqlBuilderTargetSyntaxModeBoth);
   test_case_options->RegisterBool(kUseConstantEvaluator, false);
   test_case_options->RegisterString(kTableForMeasureExprAnalysis, "");
+  test_case_options->RegisterBool(kReproReanalyzeFailure, false);
 
   // For analyzer tests, we turn this on to get the maximum coverage for the
   // blast radius of lateral column references.

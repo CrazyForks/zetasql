@@ -18,17 +18,10 @@
 #define GOOGLESQL_PARSER_TEXTMAPPER_LEXER_ADAPTER_H_
 
 #include <cstdint>
-#include <deque>
-#include <memory>
-#include <vector>
 
-#include "googlesql/base/arena.h"
-#include "googlesql/parser/lookahead_transformer.h"
-#include "googlesql/parser/macros/macro_catalog.h"
-#include "googlesql/parser/parser_mode.h"
 #include "googlesql/parser/tm_token.h"
+#include "googlesql/parser/token_stream.h"
 #include "googlesql/parser/token_with_location.h"
-#include "googlesql/public/language_options.h"
 #include "googlesql/public/parse_location.h"
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
@@ -41,19 +34,13 @@ namespace parser {
 // a stream of tokens that can be consumed by the TextMapper parser.
 class TextMapperLexerAdapter {
  public:
-  using InputToken = Token;
-  using Location = ParseLocationRange;
+  ~TextMapperLexerAdapter() = default;
 
-  explicit TextMapperLexerAdapter(ParserMode mode, absl::string_view filename,
-                                  absl::string_view input, int start_offset,
-                                  const LanguageOptions& language_options,
-                                  MacroExpansionMode macro_expansion_mode,
-                                  const macros::MacroCatalog* macro_catalog,
-                                  googlesql_base::UnsafeArena* arena);
-  ~TextMapperLexerAdapter();
+  explicit TextMapperLexerAdapter(TokenStream* input);
 
-  TextMapperLexerAdapter(const TextMapperLexerAdapter& other);
-
+  TextMapperLexerAdapter(const TextMapperLexerAdapter& other) = delete;
+  TextMapperLexerAdapter& operator=(const TextMapperLexerAdapter& other) =
+      delete;
   TextMapperLexerAdapter(TextMapperLexerAdapter&& other) = delete;
   TextMapperLexerAdapter& operator=(TextMapperLexerAdapter&& other) = delete;
 
@@ -83,29 +70,10 @@ class TextMapperLexerAdapter {
   // Returns the kind of the last token.
   ABSL_MUST_USE_RESULT Token Last() const { return last_token_.kind; }
 
-  // Returns the location of token prior to the last token, or an empty location
-  // range if fewer than two tokens have been returned by Next().
-  ABSL_MUST_USE_RESULT ParseLocationRange LastLastTokenLocation() const;
-
-  LookaheadTransformer& tokenizer() { return *tokenizer_; }
-
  private:
-  struct TextMapperToken {
-    Token kind;
-    Location location;
-    absl::string_view text;
-  };
-  std::deque<TextMapperToken> queued_tokens_;
-
-  // This is used by macro expander to create new stack frames and maintain
-  // their ownership.
-  StackFrame::StackFrameFactory stack_frame_factory_;
-
-  std::shared_ptr<LookaheadTransformer> tokenizer_;
-  TextMapperToken last_token_;
+  TokenStream* input_;
+  TokenWithLocation last_token_;
 };
-
-using Lexer = TextMapperLexerAdapter;
 
 }  // namespace parser
 

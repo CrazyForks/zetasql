@@ -19,10 +19,9 @@ package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.googlesql.FunctionProtos.FunctionOptionsProto;
 import com.google.googlesql.FunctionProtos.FunctionProto;
 import com.google.googlesql.FunctionProtos.FunctionSignatureOptionsProto;
@@ -125,34 +124,30 @@ public class FunctionTest {
         .setSupportsOverClause(false)
         .setSupportsWindowFraming(true)
         .setWindowOrderingSupport(WindowOrderSupport.ORDER_UNSUPPORTED);
-    try {
-      new Function(
-          "test_function_4",
-          "GoogleSQLTest",
-          Mode.ANALYTIC,
-          new ArrayList<FunctionSignature>(),
-          options.build());
-      fail();
-    } catch (IllegalArgumentException expected) {
-      assertThat(expected)
-          .hasMessageThat()
-          .isEqualTo("Analytic functions must support over clause");
-    }
+    IllegalArgumentException expected =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Function(
+                    "test_function_4",
+                    "GoogleSQLTest",
+                    Mode.ANALYTIC,
+                    new ArrayList<FunctionSignature>(),
+                    options.build()));
+    assertThat(expected).hasMessageThat().isEqualTo("Analytic functions must support over clause");
 
     options.clear().setSupportsOverClause(true);
-    try {
-      new Function(
-          "test_function_4",
-          "GoogleSQLTest",
-          Mode.SCALAR,
-          new ArrayList<FunctionSignature>(),
-          options.build());
-      fail();
-    } catch (IllegalArgumentException expected) {
-      assertThat(expected)
-          .hasMessageThat()
-          .isEqualTo("Scalar functions cannot support over clause");
-    }
+    IllegalArgumentException expected2 =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Function(
+                    "test_function_4",
+                    "GoogleSQLTest",
+                    Mode.SCALAR,
+                    new ArrayList<FunctionSignature>(),
+                    options.build()));
+    assertThat(expected2).hasMessageThat().isEqualTo("Scalar functions cannot support over clause");
   }
 
   @Test
@@ -299,9 +294,9 @@ public class FunctionTest {
         FunctionSignatureOptionsProto.newBuilder().setIsDeprecated(true).build();
     return ImmutableList.of(
         new FunctionSignature(
-            resultType, Lists.<FunctionArgumentType>newArrayList(), 1, signatureOptions),
+            resultType, new ArrayList<FunctionArgumentType>(), 1, signatureOptions),
         new FunctionSignature(
-            resultType, Lists.<FunctionArgumentType>newArrayList(), -1, signatureOptions));
+            resultType, new ArrayList<FunctionArgumentType>(), -1, signatureOptions));
   }
 
   private static void checkSerializeAndDeserialize(Function function) {

@@ -24,13 +24,10 @@
 #include "googlesql/public/json_value.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/value.h"
+#include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 namespace googlesql {
-
-class Function;
-class ResolvedExpr;
-class ResolvedGraphGetElementProperty;
 
 // Helper function that is used to determine a type is or contains in its
 // nesting structure a GraphElement or GraphPath type.
@@ -62,6 +59,24 @@ absl::StatusOr<bool> ContainsDynamicPropertySpecification(
 // property specifications.
 absl::StatusOr<std::vector<std::pair<std::string, const ResolvedExpr*>>>
 ToPropertySpecifications(std::vector<const ResolvedExpr*> exprs);
+
+// Returns true if the path mode is restrictive.
+bool IsRestrictivePathMode(ResolvedGraphPathModeEnums::PathMode path_mode);
+
+// Returns true if the path search prefix is specified.
+bool HasSearchPrefix(
+    ResolvedGraphPathSearchPrefixEnums::PathSearchPrefixType prefix_type);
+
+// Returns the intersection of the two periods.
+// REQUIRES: `period1` and `period2` are valid non-null RANGE<TIMESTAMP> values.
+absl::StatusOr<Value> IntersectPeriods(const Value& period1,
+                                       const Value& period2);
+
+// Returns true if the period contains the timestamp.
+// REQUIRES: `period` is a valid non-null RANGE<TIMESTAMP> value
+// and `point` is a valid non-null TIMESTAMP value.
+absl::StatusOr<bool> PeriodContainsPoint(const Value& period,
+                                         const Value& point);
 
 }  // namespace googlesql
 

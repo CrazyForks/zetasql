@@ -1,0 +1,10 @@
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.
+    named_constant_conflict_with_module_alias_after;
+--
+CONSTANT named_constant=Int64(1) (INT64)
+--
+Module errors:
+INVALID_ARGUMENT: Module name 'named_constant' conflicts with a named constant with the same name [at .../googlesql/testdata/modules/named_constant_conflict_with_module_alias_after.sqlm:5:1]
+IMPORT MODULE googlesql.testdata.modules.named_constant;
+^

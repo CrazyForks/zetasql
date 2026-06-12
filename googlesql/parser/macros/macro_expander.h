@@ -29,31 +29,23 @@
 #include "googlesql/parser/macros/diagnostic.h"
 #include "googlesql/parser/macros/macro_catalog.h"
 #include "googlesql/parser/macros/token_provider_base.h"
+#include "googlesql/parser/token_stream.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/public/error_location.pb.h"
 #include "googlesql/public/parse_location.h"
 #include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
+#include "absl/types/span.h"
 
 namespace googlesql {
 namespace parser {
 namespace macros {
-
-// Interface for the macro expander
-class MacroExpanderBase {
- public:
-  virtual ~MacroExpanderBase() = default;
-
-  virtual absl::StatusOr<TokenWithLocation> GetNextToken() = 0;
-  virtual int num_unexpanded_tokens_consumed() const = 0;
-};
 
 // Options to configure the macro expander.
 struct MacroExpanderOptions {
@@ -100,27 +92,33 @@ struct ExpansionOutput {
 };
 
 // GoogleSQL's implementation of the macro expander.
-class MacroExpander final : public MacroExpanderBase {
+class MacroExpander final : public TokenStream {
  public:
-  MacroExpander(std::unique_ptr<TokenProviderBase> token_provider,
-                const MacroCatalog& macro_catalog, googlesql_base::UnsafeArena* arena,
-                StackFrame::StackFrameFactory& stack_frame_factory,
-                MacroExpanderOptions macro_expander_options,
-                StackFrame* /*absl_nullable*/ parent_location);
+  static absl::StatusOr<std::unique_ptr<MacroExpander>> Create(
+      TokenStream* token_provider, const MacroCatalog& macro_catalog,
+      googlesql_base::UnsafeArena* arena, StackFrame::StackFrameFactory& stack_frame_factory,
+      MacroExpanderOptions macro_expander_options,
+      StackFrame* /*absl_nullable*/ parent_location);
 
   MacroExpander(const MacroExpander&) = delete;
   MacroExpander& operator=(const MacroExpander&) = delete;
 
   absl::StatusOr<TokenWithLocation> GetNextToken() override;
 
-  int num_unexpanded_tokens_consumed() const override;
+  int num_consumed_tokens() const override;
 
   // Convenient non-streaming API to return all expanded tokens.
   static absl::StatusOr<ExpansionOutput> ExpandMacros(
-      std::unique_ptr<TokenProviderBase> token_provider,
+      std::unique_ptr<TokenStream> token_provider,
       const MacroCatalog& macro_catalog, MacroExpanderOptions options = {});
 
  private:
+  MacroExpander(TokenProviderBase* token_provider,
+                const MacroCatalog& macro_catalog, googlesql_base::UnsafeArena* arena,
+                StackFrame::StackFrameFactory& stack_frame_factory,
+                MacroExpanderOptions macro_expander_options,
+                StackFrame* /*absl_nullable*/ parent_location);
+
   // Collects warnings from the current expansion across all levels, hiding the
   // logic to cap the number of warnings.
   class WarningCollector {
@@ -175,15 +173,14 @@ class MacroExpander final : public MacroExpanderBase {
   };
 
   MacroExpander(
-      std::unique_ptr<TokenProviderBase> token_provider,
-      const MacroCatalog& macro_catalog, googlesql_base::UnsafeArena* arena,
-      StackFrame::StackFrameFactory& stack_frame_factory,
+      TokenProviderBase* token_provider, const MacroCatalog& macro_catalog,
+      googlesql_base::UnsafeArena* arena, StackFrame::StackFrameFactory& stack_frame_factory,
       ExpansionState& expansion_state,
       const std::vector<std::vector<TokenWithLocation>> call_arguments,
       MacroExpanderOptions macro_expander_options,
       WarningCollector* override_warning_collector,
       StackFrame* /*absl_nullable*/ parent_location)
-      : token_provider_(std::move(token_provider)),
+      : token_provider_(token_provider),
         macro_catalog_(macro_catalog),
         arena_(arena),
         stack_frame_factory_(stack_frame_factory),
@@ -200,7 +197,7 @@ class MacroExpander final : public MacroExpanderBase {
   // Because this function may be called internally (e.g. when expanding
   // a nested macro), it appends to `out_warnings`, instead of replacing it.
   static absl::Status ExpandMacrosInternal(
-      std::unique_ptr<TokenProviderBase> token_provider,
+      std::unique_ptr<TokenStream> token_provider,
       const MacroCatalog& macro_catalog, googlesql_base::UnsafeArena* arena,
       StackFrame::StackFrameFactory& stack_frame_factory,
       ExpansionState& expansion_state,
@@ -296,6 +293,37 @@ class MacroExpander final : public MacroExpanderBase {
       const TokenWithLocation& token, const MacroInfo& macro_info,
       std::vector<TokenWithLocation>& expanded_tokens);
 
+  // Expands the builtin macro invocation starting at the given token.
+  //
+  // REQUIRES: the argument tokens to be already loaded into the splicing
+  // buffer and the parentheses, if any, in each argument are balanced.
+  //
+  // The result is appended to `expanded_tokens`.
+  absl::Status ExpandBuiltinMacroInvocation(
+      const TokenWithLocation& invocation_token,
+      std::vector<TokenWithLocation>& expanded_tokens);
+
+  // Expands the IDENTIFIER builtin macro.
+  // The `invocation_location` is the location of the `$$IDENTIFIER` token.
+  //
+  // REQUIRES: argument tokens to be expanded prior to calling this function and
+  // no further expansion is performed. Each argument must be at most a single
+  // token and must be one of the following kind:
+  //   1.  identifier
+  //   2.  keyword
+  //   3.  decimal integer literal
+  // At least one non-empty argument is required for the invocation to
+  // succeed.
+  //
+  // The result is always a single IDENTIFIER token obtained by the
+  // concatenation of the text value of the argument tokens, which is appended
+  // to `expanded_tokens`.
+  absl::Status ExpandIdentifierBuiltin(
+      const ParseLocationRange& invocation_location,
+      absl::Span<const std::vector<TokenWithLocation>> builtin_args,
+      StackFrame* builtin_invocation_frame,
+      std::vector<TokenWithLocation>& expanded_tokens);
+
   // Expands a string literal or a quoted identifier.
   absl::StatusOr<TokenWithLocation> ExpandLiteral(
       TokenWithLocation pending_token, TokenWithLocation literal_token);
@@ -335,7 +363,14 @@ class MacroExpander final : public MacroExpanderBase {
   absl::Status MakeSqlErrorAt(const ParseLocationPoint& location,
                               absl::string_view message);
 
-  std::unique_ptr<TokenProviderBase> token_provider_;
+  // Creates an INVALID_ARGUMENT status with the given message at the unexpanded
+  // argument token's location that expanded to the given `expanded_arg_token`,
+  // within the builtin macro invocation represented by `invocation_frame`.
+  absl::Status MakeInvalidBuiltinArgumentError(
+      const StackFrame& invocation_frame,
+      const TokenWithLocation& expanded_arg_token, absl::string_view message);
+
+  TokenProviderBase* token_provider_;
 
   // The macro catalog which contains current definitions.
   // Never changes during the expansion of a statement.

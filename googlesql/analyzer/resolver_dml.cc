@@ -36,6 +36,7 @@
 #include "googlesql/analyzer/query_resolver_helper.h"
 #include "googlesql/analyzer/resolver.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
 #include "googlesql/resolved_ast/resolved_ast_rewrite_visitor.h"
 // This includes common macro definitions to define in the resolver cc files.
@@ -43,6 +44,7 @@
 #include "googlesql/parser/ast_node_kind.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parse_tree_errors.h"
+#include "googlesql/public/cast.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/coercer.h"
 #include "googlesql/public/cycle_detector.h"
@@ -63,6 +65,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -71,7 +74,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -115,7 +117,9 @@ absl::Status Resolver::ResolveDMLTargetTable(
       /*remaining_names=*/nullptr, resolved_table_scan, name_list,
       /*output_column_name_list=*/nullptr,
       resolved_columns_to_catalog_columns_for_target_scan));
-  GOOGLESQL_RET_CHECK((*name_list)->HasRangeVariable(*alias));
+  GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable,
+                   (*name_list)->HasRangeVariable(*alias));
+  GOOGLESQL_RET_CHECK(has_range_variable);
   return absl::OkStatus();
 }
 
@@ -361,6 +365,7 @@ absl::Status Resolver::ResolveInsertQuery(
   if (query != nullptr) {
     GOOGLESQL_RETURN_IF_ERROR(ResolveQuery(query, name_scope, kInsertId, &resolved_query,
                                  &owned_query_name_list,
+                                 /*parent_expr_resolution_info=*/nullptr,
                                  {.is_outer_query = !is_nested}));
     query_name_list = owned_query_name_list.get();
   } else {
@@ -1075,9 +1080,12 @@ absl::Status Resolver::ResolveDMLValue(
     GOOGLESQL_RETURN_IF_ERROR(ResolveScalarExpr(ast_value, scope, clause_name,
                                       &resolved_value,
                                       annotated_target_type.type));
-    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(ast_value, annotated_target_type,
-                                     kImplicitAssignment, coercion_err_msg,
-                                     &resolved_value));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        TypeModifiers type_modifiers,
+        TypeModifiers::MakeTypeModifiers(annotated_target_type.annotation_map));
+    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
+        ast_value, annotated_target_type.type, std::move(type_modifiers),
+        kImplicitAssignment, coercion_err_msg, &resolved_value));
   }
 
   *output = MakeResolvedDMLValue(std::move(resolved_value));
@@ -1091,9 +1099,12 @@ absl::Status Resolver::ResolveDMLValue(
     std::unique_ptr<const ResolvedDMLValue>* output) {
   std::unique_ptr<const ResolvedExpr> resolved_value =
       MakeColumnRef(referenced_column);
-  GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(ast_location, annotated_target_type,
-                                   kImplicitAssignment, coercion_err_msg,
-                                   &resolved_value));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      TypeModifiers type_modifiers,
+      TypeModifiers::MakeTypeModifiers(annotated_target_type.annotation_map));
+  GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
+      ast_location, annotated_target_type.type, std::move(type_modifiers),
+      kImplicitAssignment, coercion_err_msg, &resolved_value));
   *output = MakeResolvedDMLValue(std::move(resolved_value));
   return absl::OkStatus();
 }
@@ -1142,10 +1153,11 @@ static std::string GeneralizedPathAsString(
     }
     case AST_ARRAY_ELEMENT: {
       const auto* array_element = path->GetAsOrDie<ASTArrayElement>();
-      return absl::StrCat(GeneralizedPathAsString(
-                              static_cast<const ASTGeneralizedPathExpression*>(
-                                  array_element->array())),
-                          "[]");
+      return absl::StrCat(
+          GeneralizedPathAsString(
+              static_cast<const ASTGeneralizedPathExpression*>(
+                  array_element->array())),
+          "[]");
     }
     default:
       const std::string ret =
@@ -1554,14 +1566,14 @@ absl::Status Resolver::PopulateUpdateTargetInfos(
             &function_name_path, &unwrapped_ast_position_expr,
             &info.subscript_expr, &original_wrapper_name));
         if (info.target->type()->IsJson()) {
-          AnnotatedType int64_type = AnnotatedType(types::Int64Type());
-          AnnotatedType string_type = AnnotatedType(types::StringType());
-          auto coerce_to_int64 = CoerceExprToType(
-              array_element->position(), int64_type, kImplicitCoercion,
-              /*error_template=*/"", &info.subscript_expr);
-          auto coerce_to_string = CoerceExprToType(
-              array_element->position(), string_type, kImplicitCoercion,
-              /*error_template=*/"", &info.subscript_expr);
+          auto coerce_to_int64 =
+              CoerceExprToType(array_element->position(), types::Int64Type(),
+                               TypeModifiers(), kImplicitCoercion,
+                               /*error_template=*/"", &info.subscript_expr);
+          auto coerce_to_string =
+              CoerceExprToType(array_element->position(), types::StringType(),
+                               TypeModifiers(), kImplicitCoercion,
+                               /*error_template=*/"", &info.subscript_expr);
           if (!coerce_to_int64.ok() && !coerce_to_string.ok()) {
             return MakeSqlErrorAt(array_element->position())
                    << "JSON subscript expression in [] must be coercible to "
@@ -1572,11 +1584,10 @@ absl::Status Resolver::PopulateUpdateTargetInfos(
         } else if (info.target->type()->IsMap()) {
           GOOGLESQL_RET_CHECK(info.target->type_annotation_map() == nullptr)
               << "Unexpected for a MAP type to allow annotations";
-          AnnotatedType annotated_map_key =
-              AnnotatedType(info.target->type()->AsMap()->key_type(), {});
           GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
-              array_element->position(), annotated_map_key, kImplicitCoercion,
-              "Cannot coerce type $1 to MAP key type $0.",
+              array_element->position(),
+              info.target->type()->AsMap()->key_type(), TypeModifiers(),
+              kImplicitCoercion, "Cannot coerce type $1 to MAP key type $0.",
               &info.subscript_expr));
         } else {
           GOOGLESQL_RET_CHECK_FAIL() << "Unexpected type with subscript in "
@@ -1738,7 +1749,7 @@ absl::Status Resolver::VerifyUpdateTargetIsWritable(
 
 absl::StatusOr<bool> Resolver::IsColumnWritable(const ResolvedColumn& column) {
   // ROW types don't work in DML yet. This gives an error to avoid RET_CHECks.
-  if (column.type()->IsRow()) {
+  if (column.type()->IsRowOrTable()) {
     return false;
   }
   const googlesql::Column** catalog_column =
@@ -1765,7 +1776,7 @@ absl::Status Resolver::VerifyTableScanColumnIsWritable(
     const char* statement_type, const ASTExpression* value) {
   bool writable = true;
   std::string name;
-  if (column.type()->IsRow()) {
+  if (column.type()->IsRowOrTable()) {
     // ROW types don't work in DML yet. This gives an error to avoid RET_CHECks.
     writable = false;
     name = "ROW-typed value";
@@ -2176,16 +2187,27 @@ absl::Status Resolver::MergeWithUpdateItem(
                              resolved_value != nullptr &&
                              !resolved_value->type()->IsJson();
       if (convert_to_json) {
-        std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
-        arguments.push_back(std::move(resolved_value));
-        std::unique_ptr<const ResolvedExpr> resolved_to_json_wrapper;
-        ExprResolutionInfo expr_resolution_info(update_scope, "UPDATE clause");
-        GOOGLESQL_RETURN_IF_ERROR(ResolveFunctionCallWithResolvedArguments(
-            ast_value, {ast_value}, /*match_internal_signatures=*/false,
-            /*function_name=*/"TO_JSON", std::move(arguments),
-            /*named_arguments=*/{}, &expr_resolution_info,
-            &resolved_to_json_wrapper));
-        set_value = MakeResolvedDMLValue(std::move(resolved_to_json_wrapper));
+        if (resolved_value->Is<ResolvedLiteral>()) {
+          auto status_or_value =
+              CastValue(resolved_value->GetAs<ResolvedLiteral>()->value(),
+                        analyzer_options().default_time_zone(), language(),
+                        annotated_target_type.type);
+          if (!status_or_value.ok()) {
+            return StatusWithInternalErrorLocation(
+                status_or_value.status(),
+                GetErrorLocationPoint(ast_value,
+                                      /*include_leftmost_child=*/true));
+          }
+          set_value = MakeResolvedDMLValue(MakeResolvedLiteral(
+              ast_value, annotated_target_type, status_or_value.value(),
+              /*has_explicit_type=*/true));
+        } else {
+          GOOGLESQL_RETURN_IF_ERROR(ResolveCastWithResolvedArgument(
+              ast_value, annotated_target_type.type,
+              /*format=*/nullptr, /*time_zone=*/nullptr, TypeModifiers(),
+              /*return_null_on_error=*/false, &resolved_value));
+          set_value = MakeResolvedDMLValue(std::move(resolved_value));
+        }
       } else {
         set_value = MakeResolvedDMLValue(std::move(resolved_value));
       }
@@ -2396,7 +2418,9 @@ absl::Status Resolver::ResolveUpdateStatement(
   // FROM clause, so prepare a combined name list.
   std::unique_ptr<NameList> update_name_list = std::make_unique<NameList>();
   if (ast_statement->from_clause() != nullptr) {
-    if (from_name_list->HasRangeVariable(target_alias)) {
+    GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable,
+                     from_name_list->HasRangeVariable(target_alias));
+    if (has_range_variable) {
       return MakeSqlErrorAt(ast_statement->from_clause())
              << "Alias " << ToIdentifierLiteral(target_alias)
              << " in the FROM clause was already defined as the UPDATE target";
@@ -2559,7 +2583,9 @@ absl::Status Resolver::ResolveMergeStatement(
       empty_name_scope_.get(), /*is_leftmost=*/true,
       /*on_rhs_of_right_or_full_join=*/false, &resolved_from_scan,
       &source_name_list));
-  if (source_name_list->HasRangeVariable(alias)) {
+  GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable,
+                   source_name_list->HasRangeVariable(alias));
+  if (has_range_variable) {
     return MakeSqlErrorAt(statement->table_expression())
            << "Alias " << ToIdentifierLiteral(alias) << " in the source "
            << "was already defined as the MERGE target";

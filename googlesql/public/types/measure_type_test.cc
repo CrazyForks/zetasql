@@ -52,7 +52,7 @@ TEST(MeasureTypeTest, TestNames) {
   EXPECT_TRUE(measure_type_with_int64->IsMeasureType());
   EXPECT_TRUE(measure_type_with_int64->AsMeasure()->result_type()->IsInt64());
   EXPECT_EQ(measure_type_with_int64->AsMeasure()->CapitalizedName(),
-            "Measure<Int64>");
+            "MEASURE<INT64>");
   EXPECT_EQ(measure_type_with_int64->AsMeasure()->nesting_depth(), 1);
 
   googlesql_test::KitchenSinkPB kitchen_sink;
@@ -69,7 +69,7 @@ TEST(MeasureTypeTest, TestNames) {
   EXPECT_TRUE(measure_type_with_proto->IsMeasureType());
   EXPECT_TRUE(measure_type_with_proto->AsMeasure()->result_type()->IsProto());
   EXPECT_EQ(measure_type_with_proto->AsMeasure()->CapitalizedName(),
-            "Measure<Proto<googlesql_test.KitchenSinkPB>>");
+            "MEASURE<googlesql_test.KitchenSinkPB>");
   EXPECT_EQ(measure_type_with_proto->AsMeasure()->nesting_depth(), 1);
 
   const StructType* struct_type;
@@ -87,7 +87,7 @@ TEST(MeasureTypeTest, TestNames) {
   EXPECT_TRUE(measure_type_with_nested->IsMeasureType());
   EXPECT_TRUE(measure_type_with_nested->AsMeasure()->result_type()->IsArray());
   EXPECT_EQ(measure_type_with_nested->AsMeasure()->CapitalizedName(),
-            "Measure<Array<STRUCT<a STRING>>>");
+            "MEASURE<ARRAY<STRUCT<a STRING>>>");
   EXPECT_EQ(measure_type_with_nested->AsMeasure()->nesting_depth(), 3);
 }
 

@@ -227,7 +227,7 @@ TEST(GraphPathTypeTest, BasicTest) {
       TypeModifiers::MakeTypeModifiers(type_parameters, Collation());
   EXPECT_THAT(path_type->TypeNameWithModifiers(inconsistent_type_modifiers,
                                                PRODUCT_INTERNAL),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInternal));
 
   EXPECT_FALSE(path_type->IsSimpleType());
   EXPECT_FALSE(path_type->IsEnum());
@@ -467,6 +467,50 @@ TEST(GraphPathTypeTest, TypeDeserializerGraphPath) {
   EXPECT_TRUE(deserialized_path_type->Equivalent(path_type));
   TypeProto roundtrip_proto;
   GOOGLESQL_ASSERT_OK(path_type->SerializeToProtoAndFileDescriptors(&roundtrip_proto));
+}
+
+TEST(GraphPathTypeTest, ValidateResolvedTypeParameters) {
+  TypeFactory factory;
+  const GraphElementType* node_type;
+  GOOGLESQL_ASSERT_OK(
+      factory.MakeGraphElementType({"graph_name"}, GraphElementType::kNode,
+                                   {{"p0", factory.get_string()}}, &node_type));
+  const GraphElementType* edge_type;
+  GOOGLESQL_ASSERT_OK(
+      factory.MakeGraphElementType({"graph_name"}, GraphElementType::kEdge,
+                                   {{"p1", factory.get_int32()}}, &edge_type));
+
+  const GraphPathType* path_type;
+  GOOGLESQL_ASSERT_OK(factory.MakeGraphPathType(node_type, edge_type, &path_type));
+
+  // 1. Empty TypeParameters is OK.
+  GOOGLESQL_EXPECT_OK(path_type->ValidateResolvedTypeParameters(TypeParameters(),
+                                                      PRODUCT_INTERNAL));
+
+  // 2. Valid TypeParameters has matching children count (2).
+  StringTypeParametersProto param_proto;
+  param_proto.set_max_length(10);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeParameters string_type_param,
+                       TypeParameters::MakeStringTypeParameters(param_proto));
+
+  TypeParameters node_params =
+      TypeParameters::MakeTypeParametersWithChildList({string_type_param});
+  TypeParameters edge_params =
+      TypeParameters::MakeTypeParametersWithChildList({TypeParameters()});
+
+  TypeParameters valid_path_params =
+      TypeParameters::MakeTypeParametersWithChildList(
+          {node_params, edge_params});
+
+  GOOGLESQL_EXPECT_OK(path_type->ValidateResolvedTypeParameters(valid_path_params,
+                                                      PRODUCT_INTERNAL));
+
+  // 3. Invalid TypeParameters: wrong child count (1 nested element).
+  TypeParameters invalid_path_params =
+      TypeParameters::MakeTypeParametersWithChildList({node_params});
+  EXPECT_THAT(path_type->ValidateResolvedTypeParameters(invalid_path_params,
+                                                        PRODUCT_INTERNAL),
+              StatusIs(absl::StatusCode::kInternal));
 }
 
 }  // namespace

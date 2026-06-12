@@ -38,6 +38,7 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/cord.h"  
@@ -52,7 +53,6 @@
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(std::string, googlesql_minimized_error_message_tag,
           "(broken link)",
@@ -415,7 +415,7 @@ static absl::Status UpdateErrorFromPayload(absl::Status status,
       status.GetPayload(kErrorMessageModeUrl);
   if (applied_mode_payload.has_value()) {
     ErrorMessageModeForPayload mode_already_applied;
-    mode_already_applied.ParseFromCord(applied_mode_payload.value());
+    mode_already_applied.ParseFromString(applied_mode_payload.value());
     GOOGLESQL_RET_CHECK_EQ(mode_already_applied.mode(), mode);
     return status;
   }
@@ -769,6 +769,8 @@ constexpr ErrorRedaction kRedactions[] = {
     {"CANNOT_ALTER_DEFAULT_COLLATE",
      "ALTER SCHEMA does not support SET DEFAULT COLLATE"},
     {"COLLATION_CONFLICT", "Collation conflict:"},
+    {"ANNOTATIONS_NOT_ALLOWED",
+     R"re(Annotations .* not (allowed|supported))re"},
 
     // Aggregate and window function clause arguments
     {"ORDER_BY_IN_ARG_NOT_SUPPORTED",

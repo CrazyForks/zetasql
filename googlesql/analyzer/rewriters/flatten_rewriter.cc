@@ -14,7 +14,9 @@
 // limitations under the License.
 //
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,13 +39,29 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
+
+// Extracts the element type and its annotation map from an array-like
+// ResolvedExpr.
+absl::StatusOr<AnnotatedType> GetArrayElementTypeAndAnnotation(
+    AnnotatedType annotated_type) {
+  const auto& [type, annotation_map] = annotated_type;
+  GOOGLESQL_RET_CHECK(type->IsArrayLike()) << type->DebugString();
+  const AnnotationMap* element_annotation_map = nullptr;
+  if (annotation_map != nullptr) {
+    GOOGLESQL_RET_CHECK(annotation_map->IsStructMap()) << annotation_map->DebugString();
+    GOOGLESQL_ASSIGN_OR_RETURN(element_annotation_map,
+                     annotation_map->AsStructMap()->child(0));
+  }
+  GOOGLESQL_ASSIGN_OR_RETURN(const Type* field_element_type, type->GetElementType());
+  return AnnotatedType(field_element_type, element_annotation_map);
+}
 
 // A visitor that rewrites ResolvedFlatten nodes into standard UNNESTs.
 class FlattenRewriterVisitor : public ResolvedASTDeepCopyVisitor {
@@ -83,8 +101,19 @@ class FlattenRewriterVisitor : public ResolvedASTDeepCopyVisitor {
   absl::StatusOr<std::unique_ptr<ResolvedScan>> FlattenToScan(
       std::unique_ptr<ResolvedExpr> flatten_expr,
       absl::Span<const std::unique_ptr<const ResolvedExpr>> get_field_list,
-      std::unique_ptr<ResolvedScan> input_scan, bool order_results,
-      bool in_subquery);
+      const ResolvedExpr* depth_expr, std::unique_ptr<ResolvedScan> input_scan,
+      bool order_results, bool in_subquery);
+
+  // Creates a ResolvedArrayScan for the given array expression.
+  // Updates `out_element_column` with the new element column, and appends
+  // new columns to `column_list` and `offset_columns` if `order_results` is
+  // true.
+  absl::StatusOr<std::unique_ptr<ResolvedScan>> AddArrayScanForArrayExpr(
+      std::unique_ptr<const ResolvedExpr> array_expr, bool order_results,
+      ResolvedColumn& out_element_column,
+      std::vector<ResolvedColumn>& column_list,
+      std::vector<ResolvedColumn>& offset_columns,
+      std::unique_ptr<ResolvedScan> input_scan);
 
   FunctionCallBuilder fn_builder_;
   ColumnFactory* column_factory_;
@@ -127,7 +156,8 @@ absl::Status FlattenRewriterVisitor::VisitResolvedArrayScan(
     GOOGLESQL_ASSIGN_OR_RETURN(
         std::unique_ptr<ResolvedScan> scan,
         FlattenToScan(std::move(flatten_expr), flatten->get_field_list(),
-                      MakeResolvedSingleRowScan(), need_offset_column,
+                      flatten->depth(), MakeResolvedSingleRowScan(),
+                      need_offset_column,
                       /*in_subquery=*/true));
 
     std::vector<std::unique_ptr<const ResolvedColumnRef>> column_refs;
@@ -160,11 +190,11 @@ absl::Status FlattenRewriterVisitor::VisitResolvedArrayScan(
 
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> flatten_expr,
                    ProcessNode(flatten->expr()));
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<ResolvedScan> scan,
-      FlattenToScan(std::move(flatten_expr), flatten->get_field_list(),
-                    std::move(input_scan), /*order_results=*/false,
-                    /*in_subquery=*/false));
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedScan> scan,
+                   FlattenToScan(std::move(flatten_expr),
+                                 flatten->get_field_list(), flatten->depth(),
+                                 std::move(input_scan), /*order_results=*/false,
+                                 /*in_subquery=*/false));
 
   // Project the flatten result back to the expected output column.
   std::vector<std::unique_ptr<const ResolvedComputedColumn>> expr_list;
@@ -208,10 +238,10 @@ absl::Status FlattenRewriterVisitor::VisitResolvedFlatten(
   // RowTypes are like joins and scanning them does not preserve order.
   // TODO: If we step through single-row ROWs, and had other arrays
   // before or after, maybe we should preserve order from the arrays?
-  bool order_results = !node->expr()->type()->IsRow();
+  bool order_results = !node->expr()->type()->IsRowOrTable();
   for (const auto& get_field : node->get_field_list()) {
     GOOGLESQL_RETURN_IF_ERROR(CollectColumnRefs(*get_field, &column_refs));
-    if (get_field->type()->IsRow()) {
+    if (get_field->type()->IsRowOrTable()) {
       // TODO: Add a test for this.  We can't current reach this
       // because we can't have ROW types in structs or returned from functions,
       // so there's always a ROW type on the outside, so order_results is
@@ -225,7 +255,8 @@ absl::Status FlattenRewriterVisitor::VisitResolvedFlatten(
       std::unique_ptr<ResolvedScan> rewritten_flatten,
       FlattenToScan(MakeResolvedColumnRef(flatten_expr_column,
                                           /*is_correlated=*/true),
-                    node->get_field_list(), /*input_scan=*/nullptr,
+                    node->get_field_list(), node->depth(),
+                    /*input_scan=*/nullptr,
                     /*order_results=*/order_results, /*in_subquery=*/true));
   std::unique_ptr<ResolvedExpr> if_else = MakeResolvedSubqueryExpr(
       node->type(), ResolvedSubqueryExpr::ARRAY, std::move(column_refs),
@@ -248,57 +279,78 @@ absl::Status FlattenRewriterVisitor::VisitResolvedFlatten(
 }
 
 absl::StatusOr<std::unique_ptr<ResolvedScan>>
-FlattenRewriterVisitor::FlattenToScan(
-    std::unique_ptr<ResolvedExpr> flatten_expr,
-    absl::Span<const std::unique_ptr<const ResolvedExpr>> get_field_list,
-    std::unique_ptr<ResolvedScan> input_scan, bool order_results,
-    bool in_subquery) {
-  std::vector<ResolvedColumn> column_list;
-  if (input_scan != nullptr) column_list = input_scan->column_list();
-  GOOGLESQL_RET_CHECK(flatten_expr->type()->IsArrayLike());
-  GOOGLESQL_ASSIGN_OR_RETURN(const Type* element_type,
-                   flatten_expr->type()->GetElementType());
-  const AnnotationMap* element_annotation_map = nullptr;
-  if (flatten_expr->type_annotation_map() != nullptr) {
-    element_annotation_map =
-        flatten_expr->type_annotation_map()->AsStructMap()->field(0);
-  }
-  ResolvedColumn column = column_factory_->MakeCol(
-      "$flatten", "injected", {element_type, element_annotation_map});
-  column_list.push_back(column);
+FlattenRewriterVisitor::AddArrayScanForArrayExpr(
+    std::unique_ptr<const ResolvedExpr> array_expr, bool order_results,
+    ResolvedColumn& out_element_column,
+    std::vector<ResolvedColumn>& column_list,
+    std::vector<ResolvedColumn>& offset_columns,
+    std::unique_ptr<ResolvedScan> input_scan) {
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      AnnotatedType element_annotated_type,
+      GetArrayElementTypeAndAnnotation(array_expr->annotated_type()));
+  out_element_column =
+      column_factory_->MakeCol("$flatten", "injected", element_annotated_type);
+  column_list.push_back(out_element_column);
 
-  std::vector<ResolvedColumn> offset_columns;
-  ResolvedColumn offset_column;
+  std::unique_ptr<ResolvedColumnHolder> offset_column_holder = nullptr;
   if (order_results) {
-    offset_column =
+    ResolvedColumn offset_column =
         column_factory_->MakeCol("$offset", "injected", types::Int64Type());
     offset_columns.push_back(offset_column);
     column_list.push_back(offset_column);
+    offset_column_holder = MakeResolvedColumnHolder(offset_column);
+  }
+  std::vector<std::unique_ptr<const ResolvedExpr>> array_expr_list;
+  array_expr_list.push_back(std::move(array_expr));
+  return MakeResolvedArrayScan(column_list, std::move(input_scan),
+                               std::move(array_expr_list), {out_element_column},
+                               std::move(offset_column_holder),
+                               /*join_expr=*/nullptr,
+                               /*is_outer=*/false,
+                               /*array_zip_mode=*/nullptr);
+}
+
+absl::StatusOr<std::unique_ptr<ResolvedScan>>
+FlattenRewriterVisitor::FlattenToScan(
+    std::unique_ptr<ResolvedExpr> flatten_expr,
+    absl::Span<const std::unique_ptr<const ResolvedExpr>> get_field_list,
+    const ResolvedExpr* depth_expr, std::unique_ptr<ResolvedScan> input_scan,
+    bool order_results, bool in_subquery) {
+  std::vector<ResolvedColumn> column_list;
+  if (input_scan != nullptr) {
+    column_list = input_scan->column_list();
   }
 
-  std::vector<std::unique_ptr<const ResolvedExpr>> array_expr_list_233;
-  array_expr_list_233.push_back(std::move(flatten_expr));
-  std::vector<ResolvedColumn> element_column_list_233;
-  element_column_list_233.push_back(column);
-  std::unique_ptr<ResolvedScan> scan = MakeResolvedArrayScan(
-      column_list, std::move(input_scan), std::move(array_expr_list_233),
-      std::move(element_column_list_233),
-      order_results ? MakeResolvedColumnHolder(offset_column) : nullptr,
-      /*join_expr=*/nullptr,
-      /*is_outer=*/false,
-      /*array_zip_mode=*/nullptr);
+  std::vector<ResolvedColumn> offset_columns;
+  ResolvedColumn column;
 
   // Keep track of pending Get*Field on non-array fields.
-  std::unique_ptr<const ResolvedExpr> input;
+  std::unique_ptr<const ResolvedExpr> input = std::move(flatten_expr);
+  std::unique_ptr<ResolvedScan> scan = std::move(input_scan);
+
+  GOOGLESQL_RET_CHECK(input->type()->IsArrayLike());
+  // We always need to unpack one layer since the rewrite expects this function
+  // to return a column with the elements, to be supplied to an ARRAY()
+  // subquery.
+  GOOGLESQL_RET_CHECK(input->type()->IsArrayLike());
+  GOOGLESQL_ASSIGN_OR_RETURN(scan, AddArrayScanForArrayExpr(
+                             std::move(input), order_results, column,
+                             column_list, offset_columns, std::move(scan)));
+  input = MakeResolvedColumnRef(column, /*is_correlated=*/false);
 
   for (const auto& const_get_field : get_field_list) {
+    // Flatten all along the path before the current `get_field`.
+    while (input->type()->IsArrayLike()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(scan, AddArrayScanForArrayExpr(
+                                 std::move(input), order_results, column,
+                                 column_list, offset_columns, std::move(scan)));
+      input = MakeResolvedColumnRef(column, /*is_correlated=*/false);
+    }
+
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> get_field,
                      ProcessNode(const_get_field.get()));
     // Change the input from the FlattenedArg to instead be a ColumnRef or the
     // built-up non-array expression.
-    if (input == nullptr) {
-      input = MakeResolvedColumnRef(column, /*is_correlated=*/false);
-    }
     ResolvedExpr* to_set_input = get_field.get();
     // ResolvedFunctionCalls show up here for $array_at_offset.
     if (get_field->Is<ResolvedFunctionCall>()) {
@@ -309,7 +361,10 @@ FlattenRewriterVisitor::FlattenToScan(
       GOOGLESQL_RET_CHECK_EQ(2, call->argument_list_size());
       to_set_input = const_cast<ResolvedExpr*>(
           get_field->GetAs<ResolvedFunctionCall>()->argument_list(0));
+
+      // This is the only case where we do not fully unfold along the path.
     }
+
     if (to_set_input->Is<ResolvedGetProtoField>()) {
       to_set_input->GetAs<ResolvedGetProtoField>()->set_expr(std::move(input));
     } else if (to_set_input->Is<ResolvedGetStructField>()) {
@@ -324,47 +379,42 @@ FlattenRewriterVisitor::FlattenToScan(
     } else {
       GOOGLESQL_RET_CHECK_FAIL() << "Unsupported node: " << to_set_input->DebugString();
     }
-    input = nullptr;  // already null, but avoids ClangTidy "use after free"
 
-    if (!get_field->type()->IsArrayLike()) {
-      // Not array-like so can't turn it into an ArrayScan.
-      // Collect as input for next array.
-      input = std::move(get_field);
-    } else {
-      const AnnotationMap* element_annotation_map = nullptr;
-      if (get_field->type_annotation_map() != nullptr) {
-        element_annotation_map =
-            get_field->type_annotation_map()->AsStructMap()->field(0);
-      }
-      GOOGLESQL_ASSIGN_OR_RETURN(const Type* field_element_type,
-                       get_field->type()->GetElementType());
-      column = column_factory_->MakeCol(
-          "$flatten", "injected", {field_element_type, element_annotation_map});
-      column_list.push_back(column);
+    input = std::move(get_field);
+  }
 
-      if (order_results) {
-        offset_column =
-            column_factory_->MakeCol("$offset", "injected", types::Int64Type());
-        offset_columns.push_back(offset_column);
-        column_list.push_back(offset_column);
-      }
-      std::vector<std::unique_ptr<const ResolvedExpr>> array_expr_list;
-      array_expr_list.push_back(std::move(get_field));
-      std::vector<ResolvedColumn> element_column_list;
-      element_column_list.push_back(column);
-      scan = MakeResolvedArrayScan(
-          column_list, std::move(scan), std::move(array_expr_list),
-          std::move(element_column_list),
-          order_results ? MakeResolvedColumnHolder(offset_column) : nullptr,
-          /*join_expr=*/nullptr,
-          /*is_outer=*/false,
-          /*array_zip_mode=*/nullptr);
+  std::optional<int64_t> depth;
+  if (depth_expr != nullptr) {
+    GOOGLESQL_RET_CHECK(depth_expr->Is<ResolvedLiteral>());
+    const Value& depth_value = depth_expr->GetAs<ResolvedLiteral>()->value();
+    GOOGLESQL_RET_CHECK(depth_value.is_valid());
+    if (!depth_value.is_null()) {
+      GOOGLESQL_RET_CHECK(depth_value.type()->IsInt64());
+      depth = depth_value.int64_value();
     }
   }
 
-  if (input != nullptr) {
-    // We have leftover "gets" that resulted in non-arrays.
-    // Use a ProjectScan to resolve them to the expected column.
+  int num_layers_unnested = 0;
+  while (input->type()->IsArrayLike() &&
+         (!depth.has_value() || num_layers_unnested < *depth)) {
+    num_layers_unnested++;
+
+    GOOGLESQL_ASSIGN_OR_RETURN(scan, AddArrayScanForArrayExpr(
+                               std::move(input), order_results, column,
+                               column_list, offset_columns, std::move(scan)));
+    input = MakeResolvedColumnRef(column, /*is_correlated=*/false);
+  }
+
+  if (depth.has_value()) {
+    GOOGLESQL_RET_CHECK_EQ(num_layers_unnested, depth.value()) << scan->DebugString();
+  } else {
+    GOOGLESQL_RET_CHECK(!input->type()->IsArrayLike());
+  }
+
+  if (!get_field_list.empty() && num_layers_unnested == 0) {
+    // We have leftover "gets" that resulted in either non-arrays or arrays
+    // that should be preserved (explicit depth of 0).
+    // Use a ProjectScan to resolve them to the expected column
     column = column_factory_->MakeCol("$flatten", "injected",
                                       input->annotated_type());
     column_list.push_back(column);

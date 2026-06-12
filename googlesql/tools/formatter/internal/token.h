@@ -144,6 +144,13 @@ class Token : public ParseToken {
     SET_OPERATOR_START,
     // Marks a dot that separates chained method calls.
     CHAINED_METHOD_DOT_SEPARATOR,
+    // Marks keywords that open a procedural block (e.g., "IF", "CASE").
+    PROCEDURAL_BLOCK_OPENER,
+    // Marks keywords that continue a procedural block by dividing branches or
+    // starting bodies (e.g., "THEN", "ELSE", "ELSEIF", "WHEN").
+    PROCEDURAL_BLOCK_CONTINUER,
+    // Marks keywords that close a procedural block (e.g., "END", or "END IF").
+    PROCEDURAL_BLOCK_CLOSER,
   };
 
   explicit Token(ParseToken t)
@@ -192,6 +199,16 @@ class Token : public ParseToken {
   // Returns true if the current token is the keyword used in a CASE expression
   // (one of: "WHEN", "THEN", "ELSE", "END", but not "CASE" itself).
   bool IsCaseExprKeyword() const;
+
+  // Returns true if the token is a procedural block keyword (opener, continuer,
+  // or closer).
+  bool IsProceduralKeyword() const;
+
+  // Returns true if the token is a procedural block continuer or closer.
+  bool IsProceduralContinuerOrCloser() const;
+
+  // Returns true if the token is a procedural block opener or continuer.
+  bool IsProceduralOpenerOrContinuer() const;
 
   // Returns true if the current token is a string literal.
   bool IsStringLiteral() const;
@@ -354,6 +371,12 @@ OperatorPrecedenceEnum OperatorPrecedenceLevel(const Token& token);
 // open-ended byte range [start, end), where `start` - is start of the first
 // line containing the statement and `end` - end of the last line.
 FormatterRange FindNextStatementOrComment(absl::string_view input, int start);
+
+// Determines if a keyword starts a block or expression that MUST be closed by
+// an `END` keyword (e.g., `CASE` expressions/statements, or `IF` statements).
+// This is necessary to balance `END` keywords correctly during tokenization.
+bool IsBlockOpenerRequiringEnd(absl::string_view keyword,
+                               absl::string_view previous_keyword);
 
 }  // namespace googlesql::formatter::internal
 

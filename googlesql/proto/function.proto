@@ -31,6 +31,7 @@ import "googlesql/public/parse_location_range.proto";
 import "googlesql/public/parse_resume_location.proto";
 import "googlesql/public/simple_table.proto";
 import "googlesql/public/type.proto";
+import "googlesql/public/type_modifiers.proto";
 import "googlesql/public/value.proto";
 import "googlesql/resolved_ast/resolved_ast_enums.proto";
 import "googlesql/resolved_ast/serialization.proto";
@@ -42,10 +43,12 @@ message TVFRelationColumnProto {
   optional string name = 1;
   optional TypeProto type = 2;
   optional bool is_pseudo_column = 3;
+  optional bool is_passthrough_column = 7;
   optional AnnotationMapProto annotation_map = 6;
   // Store the parse location ranges for column name and type.
   optional ParseLocationRangeProto name_parse_location_range = 4;
   optional ParseLocationRangeProto type_parse_location_range = 5;
+  optional TypeModifiersProto type_modifiers = 8;
 }
 
 message TVFRelationProto {
@@ -137,6 +140,8 @@ message FunctionArgumentTypeProto {
   optional FunctionArgumentTypeOptionsProto options = 3;
 
   optional ArgumentTypeLambdaProto lambda = 5;
+
+  optional TypeModifiersProto type_modifiers = 6;
 }
 
 message FunctionSignatureRewriteOptionsProto {

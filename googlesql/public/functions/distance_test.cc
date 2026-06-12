@@ -153,14 +153,14 @@ std::vector<Value> CreateArrayPair(std::vector<IdxType> arr1,
 TEST(CosineDistanceTest, DenseArrayLengthMismatch) {
   std::vector<Value> args = CreateArrayPair<double>({1.0, 2.0}, {3.0});
   EXPECT_THAT(CosineDistanceDense(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Array length mismatch: 2 and 1"));
 }
 
 TEST(CosineDistanceTest, DenseZeroArray) {
   std::vector<Value> args = CreateArrayPair<double>({1.0, 2.0}, {0.0, 0.0});
   EXPECT_THAT(CosineDistanceDense(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Cannot compute cosine distance against zero vector"));
 }
 
@@ -168,7 +168,7 @@ TEST(CosineDistanceTest, SparseArrayDuplicateInt64Key) {
   std::vector<Value> args =
       CreateArrayPair<Int64Value>({{1, 1.0}, {1, 2.0}}, {{2, 3.0}, {3, 4.0}});
   EXPECT_THAT(CosineDistanceSparseInt64Key(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Duplicate index 1 found in the input array"));
 }
 
@@ -176,14 +176,14 @@ TEST(CosineDistanceTest, SparseArrayDuplicateStringKey) {
   std::vector<Value> args = CreateArrayPair<StringValue>(
       {{"a", 1.0}, {"a", 2.0}}, {{"a", 3.0}, {"b", 4.0}});
   EXPECT_THAT(CosineDistanceSparseStringKey(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Duplicate index a found in the input array"));
 }
 
 TEST(EuclideanDistanceTest, DenseArrayLengthMismatch) {
   std::vector<Value> args = CreateArrayPair<double>({1.0, 2.0}, {0.0});
   EXPECT_THAT(EuclideanDistanceDense(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Array length mismatch: 2 and 1"));
 }
 
@@ -191,7 +191,7 @@ TEST(EuclideanDistanceTest, SparseArrayDuplicateInt64Key) {
   std::vector<Value> args =
       CreateArrayPair<Int64Value>({{1, 1.0}, {1, 2.0}}, {{2, 3.0}, {3, 4.0}});
   EXPECT_THAT(EuclideanDistanceSparseInt64Key(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Duplicate index 1 found in the input array"));
 }
 
@@ -199,7 +199,7 @@ TEST(EuclideanDistanceTest, SparseArrayDuplicateStringKey) {
   std::vector<Value> args = CreateArrayPair<StringValue>(
       {{"a", 1.0}, {"a", 2.0}}, {{"a", 3.0}, {"b", 4.0}});
   EXPECT_THAT(EuclideanDistanceSparseStringKey(args[0], args[1]),
-              StatusIs(absl::StatusCode::kInvalidArgument,
+              StatusIs(absl::StatusCode::kOutOfRange,
                        "Duplicate index a found in the input array"));
 }
 

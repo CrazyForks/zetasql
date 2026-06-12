@@ -265,6 +265,39 @@ SELECT interval '1' month * 20, interval '2' hour / 4
 --
 ARRAY<STRUCT<INTERVAL, INTERVAL>>[{1-8 0 0:0:0, 0-0 0 0:30:0}]
 ==
+[required_features=INTERVAL_TYPE]
+[name=multiply_double]
+SELECT interval '1' month * 3.5, 4.5 * interval '2' hour, interval '2' day * 2.0;
+--
+ARRAY<STRUCT<INTERVAL, INTERVAL, INTERVAL>>[
+  {0-3 15 0:0:0, 0-0 0 9:0:0, 0-0 4 0:0:0}
+]
+==
+[required_features=INTERVAL_TYPE]
+[name=multiply_float]
+SELECT interval '1' month * cast(3.5 as float), cast(4.5 as float) * interval '2' hour, interval '2' day * cast(2.0 as float);
+--
+ARRAY<STRUCT<INTERVAL, INTERVAL, INTERVAL>>[
+  {0-3 15 0:0:0, 0-0 0 9:0:0, 0-0 4 0:0:0}
+]
+==
+[required_features=INTERVAL_TYPE]
+[name=multiply_double_without_nanos_feature]
+SELECT interval '1' second * (1.0 / 3.0), (1.0 / 7.0) * interval '1' second
+--
+ARRAY<STRUCT<INTERVAL, INTERVAL>>[{0-0 0 0:0:0.333333, 0-0 0 0:0:0.142857}]
+==
+[required_features=INTERVAL_TYPE,TIMESTAMP_NANOS]
+[name=multiply_double_with_nanos_feature]
+SELECT interval '1' second * (1.0 / 3.0), (1.0 / 7.0) * interval '1' second
+--
+ARRAY<STRUCT<INTERVAL, INTERVAL>>[
+  {
+    0-0 0 0:0:0.333333333,
+    0-0 0 0:0:0.142857142
+  }
+]
+==
 [required_features=INTERVAL_TYPE,TIMESTAMP_NANOS]
 [name=divide_fractional_micros_with_nanos_feature]
 SELECT (interval '0.000008' SECOND) / 3,  -- 2.666666666...
@@ -789,8 +822,8 @@ ARRAY<STRUCT<BOOL, BOOL, ARRAY<>>>[
   {true,
    true,
    ARRAY<STRING>[unknown order:
-     "0-0 29 24:0:0/0-0 31 -24:0:0",
-     "0-0 28 48:0:0/0-0 32 -48:0:0"
+     "0-0 28 48:0:0/0-0 32 -48:0:0",
+     "0-0 29 24:0:0/0-0 31 -24:0:0"
    ]}
 ]
 ==
@@ -828,9 +861,9 @@ ARRAY<STRUCT<BOOL, x INT64, BOOL, ARRAY<>>>[unknown order:
    1,
    true,
    ARRAY<STRING>[unknown order:
-     "0-0 28 48:0:0/0-0 32 -48:0:0",
      "0-0 29 24:0:0/0-0 31 -24:0:0",
-     "0-0 29 24:0:0/0-0 31 -24:0:0"
+     "0-0 29 24:0:0/0-0 31 -24:0:0",
+     "0-0 28 48:0:0/0-0 32 -48:0:0"
    ]}
 ]
 ==
@@ -891,11 +924,11 @@ ARRAY<STRUCT<i INTERVAL, ARRAY<>, ARRAY<>>>[unknown order:
     ARRAY<INT64>[1],
     ARRAY<INTERVAL>[0-0 0 0:0:0.123456789]
   },
-  {0-0 1 0:0:0.000000001,
-   ARRAY<INT64>[unknown order:9, 10],
+  {0-0 0 24:0:0.000000001,
+   ARRAY<INT64>[unknown order:10, 9],
    ARRAY<INTERVAL>[unknown order:
-     0-0 1 0:0:0.000000001,
-     0-0 0 24:0:0.000000001
+     0-0 0 24:0:0.000000001,
+     0-0 1 0:0:0.000000001
    ]}
 ]
 ==

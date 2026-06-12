@@ -17,8 +17,10 @@
 
 package com.google.googlesql;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import com.google.auto.value.AutoValue;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.google.googlesql.FunctionProtos.ArgumentTypeLambdaProto;
@@ -54,9 +56,11 @@ public final class FunctionArgumentType implements Serializable {
   private final FunctionArgumentTypeOptions options;
   private final LambdaArgument lambda;
 
+  // TODO: b/490102087 - Add TypeModifiers field.
+
   public FunctionArgumentType(
       SignatureArgumentKind kind, FunctionArgumentTypeOptions options, int numOccurrences) {
-    Preconditions.checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
+    checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
     this.kind = kind;
     this.type = null;
     this.numOccurrences = numOccurrences;
@@ -76,7 +80,7 @@ public final class FunctionArgumentType implements Serializable {
 
   public FunctionArgumentType(
       SignatureArgumentKind kind, ArgumentCardinality cardinality, int numOccurrences) {
-    Preconditions.checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
+    checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
     this.kind = kind;
     this.type = null;
     this.numOccurrences = numOccurrences;
@@ -98,8 +102,8 @@ public final class FunctionArgumentType implements Serializable {
       List<FunctionArgumentType> lambdaArgumentTypes,
       FunctionArgumentType lambdaBodyType,
       FunctionArgumentTypeOptions options) {
-    Preconditions.checkNotNull(lambdaArgumentTypes);
-    Preconditions.checkNotNull(lambdaBodyType);
+    checkNotNull(lambdaArgumentTypes);
+    checkNotNull(lambdaBodyType);
     this.kind = SignatureArgumentKind.ARG_TYPE_LAMBDA;
     this.type = null;
     this.numOccurrences = -1;
@@ -202,7 +206,7 @@ public final class FunctionArgumentType implements Serializable {
     } else if (kind == SignatureArgumentKind.ARG_TYPE_ARBITRARY) {
       builder.append("ANY TYPE");
     } else if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
-      Preconditions.checkNotNull(lambda);
+      checkNotNull(lambda);
       builder.append("FUNCTION<");
       List<String> args = new ArrayList<>();
       for (FunctionArgumentType argType : lambda.argumentTypes) {
@@ -239,7 +243,7 @@ public final class FunctionArgumentType implements Serializable {
   }
 
   public TVFRelation getRelation() {
-    Preconditions.checkArgument(kind == SignatureArgumentKind.ARG_TYPE_RELATION);
+    checkArgument(kind == SignatureArgumentKind.ARG_TYPE_RELATION);
     return options.getRelationInputSchema();
   }
 
@@ -310,6 +314,8 @@ public final class FunctionArgumentType implements Serializable {
         return "<graph_path>";
       case ARG_TYPE_SEQUENCE:
         return "ANY SEQUENCE";
+      case ARG_TYPE_STRING_ANY:
+        return "ANY STRING";
       case __SignatureArgumentKind__switch_must_have_a_default__:
       default:
         return "UNKNOWN_ARG_KIND";
@@ -332,7 +338,7 @@ public final class FunctionArgumentType implements Serializable {
     }
 
     if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
-      Preconditions.checkArgument(lambda != null);
+      checkArgument(lambda != null);
       ArgumentTypeLambdaProto.Builder lambdaBuilder = ArgumentTypeLambdaProto.newBuilder();
       for (FunctionArgumentType arg : lambda.argumentTypes) {
         lambdaBuilder.addArgument(arg.serialize(fileDescriptorSetsBuilder));
@@ -377,7 +383,7 @@ public final class FunctionArgumentType implements Serializable {
 
   private void validate() {
     if (getOptions().getDefault() != null) {
-      Preconditions.checkArgument(
+      checkArgument(
           kind != SignatureArgumentKind.ARG_TYPE_RELATION
               && kind != SignatureArgumentKind.ARG_TYPE_VOID
               && kind != SignatureArgumentKind.ARG_TYPE_MODEL
@@ -388,7 +394,7 @@ public final class FunctionArgumentType implements Serializable {
           "%s argument cannot have a default value",
           signatureArgumentKindToString(kind));
       if (type != null) {
-        Preconditions.checkArgument(
+        checkArgument(
             type.equals(getOptions().getDefault().getType()),
             "Default value type does not match the argument type: %s vs %s",
             type,
@@ -420,6 +426,14 @@ public final class FunctionArgumentType implements Serializable {
 
     public boolean getMustBeImmutableConstant() {
       return getConstnessLevel() == ConstnessLevelProto.Level.IMMUTABLE_CONST;
+    }
+
+    public boolean getMustBeStableConstant() {
+      return getConstnessLevel() == ConstnessLevelProto.Level.STABLE_CONST;
+    }
+
+    public boolean getMustBeQueryConstant() {
+      return getConstnessLevel() == ConstnessLevelProto.Level.QUERY_CONST;
     }
 
     @Nullable
@@ -670,7 +684,7 @@ public final class FunctionArgumentType implements Serializable {
       if (proto.hasDefaultValue()) {
         Type type = argType;
         if (type == null) {
-          Preconditions.checkArgument(proto.hasDefaultValueType());
+          checkArgument(proto.hasDefaultValueType());
           type = typeFactory.deserialize(proto.getDefaultValueType(), pools);
         }
         builder.setDefault(Value.deserialize(type, proto.getDefaultValue()));
@@ -699,11 +713,20 @@ public final class FunctionArgumentType implements Serializable {
       if (getMustBeImmutableConstant()) {
         options.add("must_be_immutable_constant: true");
       }
+      if (getMustBeStableConstant()) {
+        options.add("must_be_stable_constant: true");
+      }
+      if (getMustBeQueryConstant()) {
+        options.add("must_be_query_constant: true");
+      }
       if (getMustBeConstantExpression()) {
         options.add("must_be_constant_expression: true");
       }
       if (getMustBeNonNull() != null) {
         options.add("must_be_non_null: true");
+      }
+      if (getDefault() != null) {
+        options.add("default_value: " + getDefault());
       }
       if (getIsNotAggregate() != null) {
         options.add("is_not_aggregate: true");
@@ -711,9 +734,6 @@ public final class FunctionArgumentType implements Serializable {
       if (getProcedureArgumentMode() != null
           && getProcedureArgumentMode() != ProcedureArgumentMode.NOT_SET) {
         options.add("procedure_argument_mode: " + getProcedureArgumentMode().name());
-      }
-      if (getDefault() != null) {
-        options.add("default_value: " + getDefault());
       }
       if (getArgumentAliasKind() != null
           && getArgumentAliasKind() != FunctionEnums.ArgumentAliasKind.ARGUMENT_NON_ALIASED) {
@@ -736,14 +756,14 @@ public final class FunctionArgumentType implements Serializable {
       @Nullable
       abstract ConstnessLevelProto.Level getConstnessLevel();
 
+      /**
+       * @deprecated Use setter of a specific constness level instead (e.g. {@link
+       *     #setMustBeAnalysisConstant()}).
+       */
+      @Deprecated
       @CanIgnoreReturnValue
       public Builder setMustBeConstant(boolean constant) {
         if (constant) {
-          Preconditions.checkState(
-              getConstnessLevel() == null
-                  || getConstnessLevel() == ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED
-                  || getConstnessLevel() == ConstnessLevelProto.Level.LEGACY_LITERAL_OR_PARAMETER,
-              "Cannot set mustBeConstant when another constness level is already set.");
           setConstnessLevel(ConstnessLevelProto.Level.LEGACY_LITERAL_OR_PARAMETER);
         } else {
           setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
@@ -751,14 +771,14 @@ public final class FunctionArgumentType implements Serializable {
         return this;
       }
 
+      /**
+       * @deprecated Use setter of a specific constness level instead (e.g. {@link
+       *     #setMustBeAnalysisConstant()}).
+       */
+      @Deprecated
       @CanIgnoreReturnValue
       public Builder setMustBeConstantExpression(boolean constantExpression) {
         if (constantExpression) {
-          Preconditions.checkState(
-              getConstnessLevel() == null
-                  || getConstnessLevel() == ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED
-                  || getConstnessLevel() == ConstnessLevelProto.Level.LEGACY_CONSTANT_EXPRESSION,
-              "Cannot set mustBeConstantExpression when another constness level is already set.");
           setConstnessLevel(ConstnessLevelProto.Level.LEGACY_CONSTANT_EXPRESSION);
         } else {
           setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
@@ -767,33 +787,26 @@ public final class FunctionArgumentType implements Serializable {
       }
 
       @CanIgnoreReturnValue
-      public Builder setMustBeAnalysisConstant(boolean analysisConstant) {
-        if (analysisConstant) {
-          Preconditions.checkState(
-              getConstnessLevel() == null
-                  || getConstnessLevel() == ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED
-                  || getConstnessLevel() == ConstnessLevelProto.Level.ANALYSIS_CONST,
-              "Cannot set mustBeAnalysisConstant when another constness level is already set.");
-          setConstnessLevel(ConstnessLevelProto.Level.ANALYSIS_CONST);
-        } else {
-          setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
-        }
+      public Builder setMustBeAnalysisConstant() {
+        setConstnessLevel(ConstnessLevelProto.Level.ANALYSIS_CONST);
         return this;
       }
 
       @CanIgnoreReturnValue
-      public Builder setMustBeImmutableConstant(boolean immutableConstant) {
-        if (immutableConstant) {
-          Preconditions.checkState(
-              getConstnessLevel() == null
-                  || getConstnessLevel() == ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED
-                  || getConstnessLevel() == ConstnessLevelProto.Level.IMMUTABLE_CONST,
-              "Cannot set mustBeImmutableConstant when another constness level "
-                  + "is already set.");
-          setConstnessLevel(ConstnessLevelProto.Level.IMMUTABLE_CONST);
-        } else {
-          setConstnessLevel(ConstnessLevelProto.Level.CONSTNESS_UNSPECIFIED);
-        }
+      public Builder setMustBeImmutableConstant() {
+        setConstnessLevel(ConstnessLevelProto.Level.IMMUTABLE_CONST);
+        return this;
+      }
+
+      @CanIgnoreReturnValue
+      public Builder setMustBeStableConstant() {
+        setConstnessLevel(ConstnessLevelProto.Level.STABLE_CONST);
+        return this;
+      }
+
+      @CanIgnoreReturnValue
+      public Builder setMustBeQueryConstant() {
+        setConstnessLevel(ConstnessLevelProto.Level.QUERY_CONST);
         return this;
       }
 
@@ -856,7 +869,7 @@ public final class FunctionArgumentType implements Serializable {
       public FunctionArgumentTypeOptions build() {
         FunctionArgumentTypeOptions options = autoBuild();
         if (options.getDefault() != null) {
-          Preconditions.checkArgument(
+          checkArgument(
               options.getCardinality() == ArgumentCardinality.OPTIONAL,
               "Default value cannot be applied to a %s argument",
               options.getCardinality());

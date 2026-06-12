@@ -1,0 +1,11 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referenced_by_tvf;
+--
+TVF:tvf
+  (INT32 a) -> TABLE<foo INT64>
+
+TVF:tvf_templated
+  (ANY TYPE a) -> ANY TABLE
+
+PRIVATE CONSTANT bar=Int64(1) (INT64)

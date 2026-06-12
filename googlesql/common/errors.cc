@@ -35,14 +35,15 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace googlesql {
 
@@ -114,6 +115,14 @@ ErrorSource MakeErrorSource(const absl::Status& status, absl::string_view text,
   error_source.set_error_message(status.message());
   ErrorLocation status_error_location;
   if (GetErrorLocation(status, &status_error_location)) {
+    // Clear the error sources from the ErrorLocation because it is changing
+    // from a top-level error location associated with `Status` to a nested
+    // ErrorLocation within the returned ErrorSource. The top level
+    // ErrorLocation associated directly with a Status object will contain a
+    // flat list of the error sources leading back to the point of error. We do
+    // not want nested error locations to contain copies of that data because it
+    // is redundant and will cause the payload to grow exponentially.
+    status_error_location.clear_error_source();
     *error_source.mutable_error_location() = status_error_location;
     if (mode == ErrorMessageMode::ERROR_MESSAGE_MULTI_LINE_WITH_CARET &&
         !text.empty()) {

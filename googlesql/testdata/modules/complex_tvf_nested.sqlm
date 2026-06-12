@@ -1,0 +1,44 @@
+-- A module for use in test cases:
+--
+--    googlesql/common/testdata/import_complex_tvf.module_test
+--    googlesql/common/testdata/import_complex_tvf_nested.module_test
+--
+-- UDFs/TVFs in this module reference UDFs/TVFs in this module.
+--
+-- In test case import_complex_tvf.module_test, this module is imported by
+-- complex_tvf.sqlm, and the UDFs/TVFs in this module are referenced by
+-- UDFs/TVFs in the importing module.
+--
+-- Test case import_complex_tvf_nested.module_test just imports this module,
+-- which is completely self-contained.
+
+MODULE complex_tvf_nested;
+
+-- For input <a>, returns <a+1>
+CREATE PUBLIC FUNCTION nested_fun1(a int64) AS (a+1);
+
+-- For input <b>, returns one row with two column values <b, b+1>
+CREATE PUBLIC TABLE FUNCTION nested_tvf1(b int64)
+  AS (SELECT b, nested_fun1(b) c);
+
+-- For input <a>, returns <a+1>
+CREATE PUBLIC FUNCTION nested_fun2(a int64)
+  AS ((SELECT max(c) FROM nested_tvf1(a)));
+
+-- For input <a>, returns row with two colums values <a, a+1>
+CREATE PUBLIC TABLE FUNCTION nested_tvf2(a int64)
+  AS (SELECT a, nested_fun2(b) AS b FROM nested_tvf1(a));
+
+-- This table function references all of the UDFs and TVFs defined
+-- above.
+-- For input <a>, returns two rows with values:
+--   <a,  a,  a+1,  a+2,  a+1>
+--   <a, -a, -a-1,   -a, -a+1>
+CREATE PUBLIC TABLE FUNCTION cliff_em_all(a int64)
+    RETURNS table<a int64, x int64, y int64, p int64, q int64>
+  AS (SELECT a, x, y, nested_fun1(x) AS q, nested_fun2(y) AS p
+      FROM ((SELECT b AS x, c AS y            -- returns <a AS x, a+1 AS y>
+             FROM nested_tvf1(a))             -- returns <a, a+1>
+            UNION ALL
+            (SELECT -tvf2.a AS x, -b AS y     -- returns <-a, -(a+1)>
+             FROM nested_tvf2(a) AS tvf2)));  -- returns <a, a+1>

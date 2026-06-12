@@ -25,9 +25,9 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/graph_element_utils.h"
 #include "googlesql/common/internal_value.h"
+#include "googlesql/common/proto_format_utils.h"
 #include "googlesql/common/status_payload_utils.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/compliance/functions_testlib.h"
@@ -35,6 +35,7 @@
 #include "googlesql/public/builtin_function.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/catalog.h"
+#include "googlesql/public/civil_time.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/id_string.h"
@@ -50,6 +51,7 @@
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/timestamp_util.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/uuid_value.h"
 #include "googlesql/public/value.h"
 #include "googlesql/reference_impl/evaluation.h"
 #include "googlesql/reference_impl/function.h"
@@ -73,8 +75,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -84,7 +89,6 @@
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/wire_format_lite.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -388,7 +392,7 @@ class EvalTest : public ::testing::Test {
     proto.set_int64_key_2(10 * i);
 
     absl::Cord bytes;
-    ABSL_CHECK(proto.SerializeToCord(&bytes));
+    ABSL_CHECK(proto.SerializeToString(&bytes));
     return Value::Proto(proto_type_, bytes);
   }
 
@@ -588,6 +592,25 @@ TEST_F(EvalTest, NewGraphNodeExpr) {
                HasSubstr("Cannot construct graph element Value larger than ")));
 }
 
+TEST_F(EvalTest, NewGraphNodeExprWithBoolKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp({Value::Bool(true), Value::Bool(false)},
+                         &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.DebugString(), "{a:1, b:\"foo\", c:NULL}");
+  EXPECT_EQ(graph_element_value.type(), new_graph_element_op->output_type());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[BOOL]true[BOOL]false");
+}
+
 TEST_F(EvalTest, NewGraphEdgeExpr) {
   SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
   SimpleGraphEdgeTable edge_table =
@@ -650,6 +673,272 @@ TEST_F(EvalTest, NewGraphEdgeExpr) {
             src_node_value.GetIdentifier());
   EXPECT_NE(reverse_edge_value.GetSourceNodeIdentifier(),
             src_node_value.GetIdentifier());
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithBoolKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp({Value::Bool(true), Value::Bool(false)}, &edge_table,
+                         {Value::Bool(true), Value::Bool(true)},
+                         {Value::Bool(false), Value::Bool(false)}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(edge_value.DebugString(), "{a:1, b:\"foo\", c:NULL}");
+  EXPECT_EQ(edge_value.type(), edge_op->output_type());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> src_node_op,
+      MakeGraphElementOp({Value::Bool(true), Value::Bool(true)}, &node_table));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value src_node_value,
+                       EvalExpr(*src_node_op, EmptyParams()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> reverse_edge_op,
+      MakeGraphElementOp({Value::Bool(true), Value::Bool(false)}, &edge_table,
+                         {Value::Bool(false), Value::Bool(false)},
+                         {Value::Bool(true), Value::Bool(true)}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value reverse_edge_value,
+                       EvalExpr(*reverse_edge_op, EmptyParams()));
+  EXPECT_EQ(
+      edge_value.GetIdentifier(),
+      "[STRING]graph0.edge_table1[BOOL]true[BOOL]false[BOOL]true[BOOL]true"
+      "[BOOL]false[BOOL]false");
+  EXPECT_NE(edge_value.GetIdentifier(), reverse_edge_value.GetIdentifier());
+  EXPECT_EQ(edge_value.GetSourceNodeIdentifier(),
+            src_node_value.GetIdentifier());
+  EXPECT_NE(edge_value.GetDestNodeIdentifier(), src_node_value.GetIdentifier());
+  EXPECT_EQ(reverse_edge_value.GetDestNodeIdentifier(),
+            src_node_value.GetIdentifier());
+  EXPECT_NE(reverse_edge_value.GetSourceNodeIdentifier(),
+            src_node_value.GetIdentifier());
+}
+
+TEST_F(EvalTest, NewGraphNodeExprWithDateKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp({Value::Date(1), Value::Date(2)}, &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[DATE]1[DATE]2");
+}
+
+TEST_F(EvalTest, NewGraphNodeExprWithTimeKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp(
+          {Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 12345)),
+           Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 23456))},
+          &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[TIME]12345000[TIME]23456000");
+}
+
+TEST_F(EvalTest, NewGraphNodeExprWithDatetimeKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp({Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 12345)),
+                          Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 23456))},
+                         &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[DATETIME]140742023840804921"
+            "[DATETIME]140742023840816032");
+}
+
+TEST_F(EvalTest, NewGraphNodeExprWithNumericKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp({Value::Numeric(NumericValue(12345)),
+                          Value::Numeric(NumericValue(6789))},
+                         &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[NUMERIC]12345[NUMERIC]6789");
+}
+
+TEST_F(EvalTest, NewGraphNodeExprWithUuidKey) {
+  SimpleGraphNodeTable element_table = MakeSimpleGraphNodeTable();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      UuidValue uuid1,
+      UuidValue::FromString("12345678-9abc-deff-0123-456789abcdef"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      UuidValue uuid2,
+      UuidValue::FromString("22345678-9abc-deff-0123-456789abcdef"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> new_graph_element_op,
+      MakeGraphElementOp({Value::Uuid(uuid1), Value::Uuid(uuid2)},
+                         &element_table));
+
+  GOOGLESQL_ASSERT_OK(
+      new_graph_element_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value graph_element_value,
+                       EvalExpr(*new_graph_element_op, EmptyParams()));
+  EXPECT_FALSE(graph_element_value.is_null());
+  EXPECT_EQ(graph_element_value.GetIdentifier(),
+            "[STRING]graph0.node_table1[UUID]12345678-9abc-deff-0123-"
+            "456789abcdef[UUID]22345678-9abc-deff-0123-456789abcdef");
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithDateKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp({Value::Date(1), Value::Date(2)}, &edge_table,
+                         {Value::Date(1), Value::Date(1)},
+                         {Value::Date(2), Value::Date(2)}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(edge_value.GetIdentifier(),
+            "[STRING]graph0.edge_table1[DATE]1[DATE]2[DATE]1[DATE]1"
+            "[DATE]2[DATE]2");
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithTimeKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp(
+          {Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 1)),
+           Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 2))},
+          &edge_table,
+          {Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 1)),
+           Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 1))},
+          {Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 2)),
+           Value::Time(TimeValue::FromHMSAndMicros(0, 0, 0, 2))}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(edge_value.GetIdentifier(),
+            "[STRING]graph0.edge_table1[TIME]1000[TIME]2000"
+            "[TIME]1000[TIME]1000[TIME]2000[TIME]2000");
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithDatetimeKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp({Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 1)),
+                          Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 2))},
+                         &edge_table,
+                         {Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 1)),
+                          Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 1))},
+                         {Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 2)),
+                          Value::Datetime(DatetimeValue::FromYMDHMSAndMicros(
+                              2000, 1, 1, 0, 0, 0, 2))}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(edge_value.GetIdentifier(),
+            "[STRING]graph0.edge_table1[DATETIME]140742023840792577"
+            "[DATETIME]140742023840792578[DATETIME]140742023840792577"
+            "[DATETIME]140742023840792577[DATETIME]140742023840792578"
+            "[DATETIME]140742023840792578");
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithNumericKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp(
+          {Value::Numeric(NumericValue(1)), Value::Numeric(NumericValue(2))},
+          &edge_table,
+          {Value::Numeric(NumericValue(1)), Value::Numeric(NumericValue(1))},
+          {Value::Numeric(NumericValue(2)), Value::Numeric(NumericValue(2))}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(edge_value.GetIdentifier(),
+            "[STRING]graph0.edge_table1[NUMERIC]1[NUMERIC]2[NUMERIC]1[NUMERIC]1"
+            "[NUMERIC]2[NUMERIC]2");
+}
+
+TEST_F(EvalTest, NewGraphEdgeExprWithUuidKey) {
+  SimpleGraphNodeTable node_table = MakeSimpleGraphNodeTable();
+  SimpleGraphEdgeTable edge_table =
+      MakeSimpleGraphEdgeTable(&node_table, &node_table);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      UuidValue uuid1,
+      UuidValue::FromString("11111111-1111-1111-1111-111111111111"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      UuidValue uuid2,
+      UuidValue::FromString("22222222-2222-2222-2222-222222222222"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NewGraphElementExpr> edge_op,
+      MakeGraphElementOp({Value::Uuid(uuid1), Value::Uuid(uuid2)}, &edge_table,
+                         {Value::Uuid(uuid1), Value::Uuid(uuid1)},
+                         {Value::Uuid(uuid2), Value::Uuid(uuid2)}));
+
+  GOOGLESQL_ASSERT_OK(edge_op->SetSchemasForEvaluation(EmptyParamsSchemas()));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value edge_value, EvalExpr(*edge_op, EmptyParams()));
+  EXPECT_FALSE(edge_value.is_null());
+  EXPECT_EQ(
+      edge_value.GetIdentifier(),
+      "[STRING]graph0.edge_table1[UUID]11111111-1111-1111-1111-111111111111["
+      "UUID]22222222-2222-2222-2222-222222222222[UUID]11111111-1111-1111-1111-"
+      "111111111111[UUID]11111111-1111-1111-1111-111111111111"
+      "[UUID]22222222-2222-2222-2222-222222222222[UUID]22222222-2222-2222-2222-"
+      "222222222222");
 }
 
 enum class DynamicLabelValueKindInTest {
@@ -3037,7 +3326,7 @@ class ProtoEvalTest : public ::testing::Test {
                                       absl::string_view field_name) {
     const ProtoType* proto_type = MakeProtoType(msg);
     absl::Cord bytes;
-    ABSL_CHECK(msg->SerializePartialToCord(&bytes));
+    ABSL_CHECK(msg->SerializePartialToString(&bytes));
     return GetProtoField(Value::Proto(proto_type, bytes), field_name);
   }
 
@@ -3059,7 +3348,7 @@ class ProtoEvalTest : public ::testing::Test {
                            absl::string_view field_name) {
     const ProtoType* proto_type = MakeProtoType(msg);
     absl::Cord bytes;
-    ABSL_CHECK(msg->SerializePartialToCord(&bytes));
+    ABSL_CHECK(msg->SerializePartialToString(&bytes));
     return HasProtoFieldOrDie(Value::Proto(proto_type, bytes), field_name);
   }
 
@@ -3244,7 +3533,7 @@ class ProtoEvalTest : public ::testing::Test {
     ABSL_CHECK(result.type()->IsProto());
     out->Clear();
     if (!result.is_null()) {
-      EXPECT_TRUE(out->ParsePartialFromCord(result.ToCord()))
+      EXPECT_TRUE(out->ParsePartialFromString(result.ToCord()))
           << result.FullDebugString();
     }
     return absl::OkStatus();
@@ -3255,7 +3544,7 @@ class ProtoEvalTest : public ::testing::Test {
     std::unique_ptr<google::protobuf::Message> tmp(msg.New());
     GOOGLESQL_CHECK_OK(MakeProto(fields, tmp.get()));
     absl::Cord bytes;
-    ABSL_CHECK(tmp->SerializePartialToCord(&bytes));
+    ABSL_CHECK(tmp->SerializePartialToString(&bytes));
     return Value::Proto(MakeProtoType(&msg), bytes);
   }
 
@@ -3265,7 +3554,7 @@ class ProtoEvalTest : public ::testing::Test {
       google::protobuf::Message* out) {
     absl::Status result = MakeProto(fields, out);
     if (result.ok()) {
-      return out->ShortDebugString();
+      return ToStableShortDebugString(*out);
     } else {
       return googlesql::internal::StatusToString(result);
     }
@@ -4062,7 +4351,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprProtosEnums) {
   EXPECT_EQ(Value::Int64(88), GetProtoFieldOrDie(n, "nested_int64"));
   n->add_nested_repeated_int64(300);
   n->add_nested_repeated_int64(301);
-  ASSERT_TRUE(nested_tmp.ParseFromCord(
+  ASSERT_TRUE(nested_tmp.ParseFromString(
       GetProtoFieldOrDie(&p, "nested_value").ToCord()));
   EXPECT_EQ(absl::StrCat(*n), absl::StrCat(nested_tmp));
   EXPECT_EQ(Value::Bool(true), HasProtoFieldOrDie(&p, "nested_value"));
@@ -4074,7 +4363,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprProtosEnums) {
   p.add_nested_repeated_value()->CopyFrom(*n);
   p.add_nested_repeated_value()->CopyFrom(*n);
   absl::Cord bytes_3145;
-  ABSL_CHECK(n->SerializePartialToCord(&bytes_3145));
+  ABSL_CHECK(n->SerializePartialToString(&bytes_3145));
   absl::Cord nested_bytes = bytes_3145;
   EXPECT_EQ(Value::Array(nested_array_type,
                          {Value::Proto(nested_type, nested_bytes),
@@ -4114,7 +4403,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprProtosEnums) {
   googlesql_test::KitchenSinkPB::OptionalGroup* g = p.mutable_optional_group();
   g->set_int64_val(500);
   g->add_optionalgroupnested()->set_int64_val(510);
-  ASSERT_TRUE(group_tmp.ParseFromCord(
+  ASSERT_TRUE(group_tmp.ParseFromString(
       GetProtoFieldOrDie(&p, "optional_group").ToCord()));
   EXPECT_EQ(absl::StrCat(*g), absl::StrCat(group_tmp));
   EXPECT_EQ(Value::Bool(true), HasProtoFieldOrDie(&p, "optional_group"));
@@ -4131,10 +4420,10 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprProtosEnums) {
   p.add_nested_repeated_group()->add_nestedrepeatedgroupnested()->set_id(610);
 
   absl::Cord bytes_3200;
-  ABSL_CHECK(p.nested_repeated_group(0).SerializePartialToCord(&bytes_3200));
+  ABSL_CHECK(p.nested_repeated_group(0).SerializePartialToString(&bytes_3200));
   absl::Cord group_bytes0 = bytes_3200;
   absl::Cord bytes_3201;
-  ABSL_CHECK(p.nested_repeated_group(1).SerializePartialToCord(&bytes_3201));
+  ABSL_CHECK(p.nested_repeated_group(1).SerializePartialToString(&bytes_3201));
   absl::Cord group_bytes1 = bytes_3201;
   EXPECT_EQ(Value::Array(repeated_group_array_type,
                          {Value::Proto(repeated_group_type, group_bytes0),
@@ -4247,11 +4536,11 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprLastFieldOccurrence) {
 
   p.set_int32_val(5);
   absl::Cord bytes_3312;
-  ABSL_CHECK(p.SerializePartialToCord(&bytes_3312));
+  ABSL_CHECK(p.SerializePartialToString(&bytes_3312));
   absl::Cord bytes1 = bytes_3312;
   p.set_int32_val(7);
   absl::Cord bytes_3314;
-  ABSL_CHECK(p.SerializePartialToCord(&bytes_3314));
+  ABSL_CHECK(p.SerializePartialToString(&bytes_3314));
   absl::Cord bytes2 = bytes_3314;
   absl::Cord bytes;
   bytes.Append(bytes1);
@@ -4260,7 +4549,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprLastFieldOccurrence) {
   EXPECT_EQ(Value::Int32(7), GetProtoFieldOrDie(proto_value, "int32_val"));
   // Proto API has the same behavior.
   p.Clear();
-  ASSERT_TRUE(p.ParsePartialFromCord(proto_value.ToCord()));
+  ASSERT_TRUE(p.ParsePartialFromString(proto_value.ToCord()));
   EXPECT_EQ(7, p.int32_val());
 }
 
@@ -4312,7 +4601,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprCorruptedProto) {
 
   // Proto2 API won't parse the value.
   absl::Cord bytes = cord_stream.Consume();
-  ASSERT_FALSE(p.ParsePartialFromCord(bytes));
+  ASSERT_FALSE(p.ParsePartialFromString(bytes));
   Value proto_value = Value::Proto(MakeProtoType(&p), bytes);
   EXPECT_EQ("{<unparseable>}", proto_value.ShortDebugString());
   // Returns an error.
@@ -4348,23 +4637,23 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprsMultipleFieldsMultipleRows) {
     nested3->set_nested_int64(300);
 
     absl::Cord bytes_3409;
-    ABSL_CHECK(p1.SerializeToCord(&bytes_3409));
+    ABSL_CHECK(p1.SerializeToString(&bytes_3409));
     absl::Cord bytes1 = bytes_3409;
     absl::Cord bytes_3410;
-    ABSL_CHECK(p2.SerializeToCord(&bytes_3410));
+    ABSL_CHECK(p2.SerializeToString(&bytes_3410));
     absl::Cord bytes2 = bytes_3410;
     absl::Cord bytes_3411;
-    ABSL_CHECK(p3.SerializeToCord(&bytes_3411));
+    ABSL_CHECK(p3.SerializeToString(&bytes_3411));
     absl::Cord bytes3 = bytes_3411;
 
     absl::Cord bytes_3413;
-    ABSL_CHECK(nested1->SerializeToCord(&bytes_3413));
+    ABSL_CHECK(nested1->SerializeToString(&bytes_3413));
     absl::Cord nested_bytes1 = bytes_3413;
     absl::Cord bytes_3414;
-    ABSL_CHECK(nested2->SerializeToCord(&bytes_3414));
+    ABSL_CHECK(nested2->SerializeToString(&bytes_3414));
     absl::Cord nested_bytes2 = bytes_3414;
     absl::Cord bytes_3415;
-    ABSL_CHECK(nested3->SerializeToCord(&bytes_3415));
+    ABSL_CHECK(nested3->SerializeToString(&bytes_3415));
     absl::Cord nested_bytes3 = bytes_3415;
 
     const std::vector<Value> v = {Value::Proto(MakeProtoType(&p1), bytes1),
@@ -4456,7 +4745,7 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprsMultipleFieldsMultipleRows) {
         googlesql_test::KitchenSinkPB_Nested nested_msg;
         nested_msg.set_nested_int64(3 * first_field_value);
         absl::Cord bytes;
-        ABSL_CHECK(nested_msg.SerializeToCord(&bytes));
+        ABSL_CHECK(nested_msg.SerializeToString(&bytes));
         absl::Cord nested_bytes = bytes;
         const Value nested_value =
             Value::Proto(MakeProtoType(&nested_msg), nested_bytes);

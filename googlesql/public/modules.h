@@ -17,6 +17,7 @@
 #ifndef GOOGLESQL_PUBLIC_MODULES_H_
 #define GOOGLESQL_PUBLIC_MODULES_H_
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <set>
@@ -238,22 +239,27 @@ class ModuleCatalog : public Catalog {
   // When forwarding the request to the embedded <public_catalog_>, the
   // object's statement will be resolved if applicable and necessary (if the
   // statement has not been resolved yet).
-  absl::Status FindTable(
-      const absl::Span<const std::string>& path, const Table** table,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) override;
-  absl::Status FindProcedure(
-      const absl::Span<const std::string>& path, const Procedure** procedure,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) override;
-  absl::Status FindType(
-      const absl::Span<const std::string>& path, const Type** type,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) override;
-  absl::Status FindFunction(
-      const absl::Span<const std::string>& path, const Function** function,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) override;
+  using Catalog::FindTable;  // Support non-virtual signatures.
+  absl::Status FindTable(const absl::Span<const std::string>& path,
+                         const Table** table,
+                         const Catalog::FindOptions& options) override;
+  using Catalog::FindProcedure;  // Support non-virtual signatures.
+  absl::Status FindProcedure(const absl::Span<const std::string>& path,
+                             const Procedure** procedure,
+                             const Catalog::FindOptions& options) override;
+  using Catalog::FindType;  // Support non-virtual signatures.
+  absl::Status FindType(const absl::Span<const std::string>& path,
+                        const Type** type,
+                        const Catalog::FindOptions& options) override;
+  using Catalog::FindFunction;  // Support non-virtual signatures.
+  absl::Status FindFunction(const absl::Span<const std::string>& path,
+                            const Function** function,
+                            const Catalog::FindOptions& options) override;
+  using Catalog::FindTableValuedFunction;  // Support non-virtual signatures.
   absl::Status FindTableValuedFunction(
       const absl::Span<const std::string>& path,
       const TableValuedFunction** function,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) override;
+      const Catalog::FindOptions& options) override;
 
   // Extends the contract of Catalog::FindConstantWithPathPrefix() as follows:
   // - If <constant> is a LazyResolutionConstant, resolves the constant
@@ -266,6 +272,10 @@ class ModuleCatalog : public Catalog {
   absl::Status FindConstantWithPathPrefix(
       absl::Span<const std::string> path, int* num_names_consumed,
       const Constant** constant, const Catalog::FindOptions& options) override;
+
+  absl::Status FindPrivateProcedure(
+      absl::Span<const std::string> path, const Procedure** procedure,
+      const Catalog::FindOptions& options = Catalog::FindOptions());
 
   // Resolves all of the valid module statements.  If object resolution produces
   // an error, then any lookup of that object from the catalog returns this
@@ -373,11 +383,19 @@ class ModuleCatalog : public Catalog {
   }
 
   // Returns whether or not this module imported another module with <alias>.
-  bool HasImportedModule(const std::string& alias) const;
+  bool HasImportedModule(absl::string_view alias) const;
+
+  // Returns module catalog for the given alias. Returns nullptr if the alias
+  // is not found.
+  ModuleCatalog* GetModuleCatalogForAlias(absl::string_view alias) const;
 
   // Returns whether the module contains any global-scope objects (those
   // defined with the `allowed_references="GLOBAL"` option).
   bool HasGlobalScopeObjects() const;
+
+  // Returns whether the module has a non-null global-scope catalog, which is
+  // required to resolve global-scope objects.
+  bool HasGlobalScopeCatalog() const;
 
   // Returns a debug string for the ModuleCatalog, including the module name,
   // functions/objects, and initialization errors.  Respects <verbose> when
@@ -875,7 +893,8 @@ class ModuleCatalog : public Catalog {
   };
 
   // A list of imported module information.
-  std::map<std::string, ImportModuleInfo> imported_modules_by_alias_;
+  std::map<std::string, ImportModuleInfo, std::less<>>
+      imported_modules_by_alias_;
 
   // List of analyzer outputs for import statements in this module. This list is
   // populated only if <store_import_stmt_analyzer_output> is true in

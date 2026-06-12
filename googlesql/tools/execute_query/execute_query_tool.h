@@ -33,9 +33,11 @@
 #include "googlesql/parser/parser.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/catalog.h"
+#include "googlesql/public/constant_evaluator.h"
 #include "googlesql/public/evaluator.h"
 #include "googlesql/public/module_factory.h"
 #include "googlesql/public/multi_catalog.h"
+#include "googlesql/public/prepared_expression_constant_evaluator.h"
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/types/proto_type.h"
 #include "googlesql/public/types/type_factory.h"
@@ -187,6 +189,14 @@ class ExecuteQueryConfig {
   // A TypeFactory that can be used for creating tables for this request.
   TypeFactory* type_factory() { return &type_factory_; }
 
+  void set_constant_evaluator(
+      std::unique_ptr<ConstantEvaluator> constant_evaluator) {
+    constant_evaluator_ = std::move(constant_evaluator);
+    analyzer_options_.set_constant_evaluator(constant_evaluator_.get());
+  }
+
+  ConstantEvaluator* constant_evaluator() { return constant_evaluator_.get(); }
+
   using ExamineResolvedASTCallback =
       std::function<absl::Status(const ResolvedNode* node)>;
 
@@ -285,6 +295,7 @@ class ExecuteQueryConfig {
   TypeFactory type_factory_;
 
   EvaluatorOptions evaluator_options_;
+  std::unique_ptr<ConstantEvaluator> constant_evaluator_;
   ParameterValueMap query_parameter_values_;
   const google::protobuf::DescriptorPool* descriptor_pool_ = nullptr;
   std::unique_ptr<const google::protobuf::DescriptorPool> owned_descriptor_pool_;

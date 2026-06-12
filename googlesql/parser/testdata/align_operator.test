@@ -1,0 +1,2657 @@
+[default reserve_align]
+# basic test
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts AS timestamp
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+  OUTPUT WITHIN 50 PERIOD
+  PARTITION BY k as kv
+  METRICS SUM(value) WITHIN (INTERVAL 5 MINUTE) AS sm
+)
+--
+QueryStatement [13-248] [SELECT * FROM...INUTE) AS sm )]
+  Query [13-248] [SELECT * FROM...INUTE) AS sm )]
+    Select [13-248] [SELECT * FROM...INUTE) AS sm )]
+      SelectList [20-21] [*]
+        SelectColumn [20-21] [*]
+          Star(*) [20-21] [*]
+      FromClause [22-248] [FROM ts_table...INUTE) AS sm )]
+        TablePathExpression [27-248] [ts_table ALIGN...NUTE) AS sm )]
+          PathExpression [27-35] [ts_table]
+            Identifier(ts_table) [27-35] [ts_table]
+          AlignOperator [36-248] [ALIGN (...MINUTE) AS sm )]
+            ExpressionWithOptAlias [56-71] [ts AS timestamp]
+              PathExpression [56-58] [ts]
+                Identifier(ts) [56-58] [ts]
+              Alias [59-71] [AS timestamp]
+                Identifier(timestamp) [62-71] [timestamp]
+            IntervalExpr [81-98] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [90-91] [1]
+              Identifier(MINUTE) [92-98] [MINUTE]
+            AlignOriginExpression [101-143] [ORIGIN TIMESTAMP...00:00+00')]
+              FunctionCall [108-143] [TIMESTAMP(...00:00+00')]
+                PathExpression [108-117] [TIMESTAMP]
+                  Identifier(TIMESTAMP) [108-117] [TIMESTAMP]
+                StringLiteral [118-142] ['2000-01-01 00:00:00+00']
+                  StringLiteralComponent('2000-01-01 00:00:00+00') [118-142] ['2000-01-01 00:00:00+00']
+            AlignWithinClause [160-169] [50 PERIOD]
+              AlignWithinBoundExpr(PERIOD PRECEDING) [160-169] [50 PERIOD]
+                IntLiteral(50) [160-162] [50]
+            PartitionByWithOptAlias [172-192] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [185-192] [k as kv]
+                PathExpression [185-186] [k]
+                  Identifier(k) [185-186] [k]
+                Alias [187-192] [as kv]
+                  Identifier(kv) [190-192] [kv]
+            MetricsClause [195-246] [METRICS SUM...MINUTE) AS sm]
+              ExpressionWithAlias [203-246] [SUM(value)...MINUTE) AS sm]
+                EstimatorFunctionCall [203-240] [SUM(value)...5 MINUTE)]
+                  FunctionCall [203-213] [SUM(value)]
+                    PathExpression [203-206] [SUM]
+                      Identifier(SUM) [203-206] [SUM]
+                    PathExpression [207-212] [value]
+                      Identifier(value) [207-212] [value]
+                  AlignWithinClause [214-240] [WITHIN (INTERVAL 5 MINUTE)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [222-239] [INTERVAL 5 MINUTE]
+                      IntervalExpr [222-239] [INTERVAL 5 MINUTE]
+                        IntLiteral(5) [231-232] [5]
+                        Identifier(MINUTE) [233-239] [MINUTE]
+                Alias [241-246] [AS sm]
+                  Identifier(sm) [244-246] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts AS timestamp
+    PERIOD INTERVAL 1 MINUTE
+    ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+    OUTPUT WITHIN RANGE FROM 50 PERIOD PRECEDING
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 5 MINUTE PRECEDING) AS sm)
+==
+
+# output within clause (relative bound)
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN {{INTERVAL 1 MINUTE|MAKE_INTERVAL(minute => 1)|1 PERIOD|INTERVAL 1 MINUTE PRECEDING|MAKE_INTERVAL(minute => 1) FOLLOWING|1 PERIOD FOLLOWING|UNBOUNDED FOLLOWING}}
+)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE
+--
+QueryStatement [0-118] [SELECT * FROM...1 MINUTE )]
+  Query [0-118] [SELECT * FROM...1 MINUTE )]
+    Select [0-118] [SELECT * FROM...1 MINUTE )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-118] [FROM ts_table...1 MINUTE )]
+        TablePathExpression [14-118] [ts_table ALIGN...1 MINUTE )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-118] [ALIGN (...1 MINUTE )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-116] [INTERVAL 1 MINUTE]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [99-116] [INTERVAL 1 MINUTE]
+                IntervalExpr [99-116] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [108-109] [1]
+                  Identifier(MINUTE) [110-116] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE PRECEDING
+  )
+--
+ALTERNATION GROUP: MAKE_INTERVAL(minute => 1)
+--
+QueryStatement [0-127] [SELECT * FROM...minute => 1) )]
+  Query [0-127] [SELECT * FROM...minute => 1) )]
+    Select [0-127] [SELECT * FROM...minute => 1) )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-127] [FROM ts_table...minute => 1) )]
+        TablePathExpression [14-127] [ts_table ALIGN...inute => 1) )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-127] [ALIGN (...minute => 1) )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-125] [MAKE_INTERVAL(minute => 1)]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [99-125] [MAKE_INTERVAL(minute => 1)]
+                FunctionCall [99-125] [MAKE_INTERVAL(minute => 1)]
+                  PathExpression [99-112] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [99-112] [MAKE_INTERVAL]
+                  NamedArgument [113-124] [minute => 1]
+                    Identifier(minute) [113-119] [minute]
+                    IntLiteral(1) [123-124] [1]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM MAKE_INTERVAL(minute  => 1) PRECEDING
+  )
+--
+ALTERNATION GROUP: 1 PERIOD
+--
+QueryStatement [0-109] [SELECT * FROM...1 PERIOD )]
+  Query [0-109] [SELECT * FROM...1 PERIOD )]
+    Select [0-109] [SELECT * FROM...1 PERIOD )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-109] [FROM ts_table...1 PERIOD )]
+        TablePathExpression [14-109] [ts_table ALIGN...1 PERIOD )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-109] [ALIGN (...1 PERIOD )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-107] [1 PERIOD]
+              AlignWithinBoundExpr(PERIOD PRECEDING) [99-107] [1 PERIOD]
+                IntLiteral(1) [99-100] [1]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM 1 PERIOD PRECEDING
+  )
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING
+--
+QueryStatement [0-128] [SELECT * FROM...PRECEDING )]
+  Query [0-128] [SELECT * FROM...PRECEDING )]
+    Select [0-128] [SELECT * FROM...PRECEDING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-128] [FROM ts_table...PRECEDING )]
+        TablePathExpression [14-128] [ts_table ALIGN...PRECEDING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-128] [ALIGN (...PRECEDING )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-126] [INTERVAL 1 MINUTE PRECEDING]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [99-126] [INTERVAL 1 MINUTE PRECEDING]
+                IntervalExpr [99-116] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [108-109] [1]
+                  Identifier(MINUTE) [110-116] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE PRECEDING
+  )
+--
+ALTERNATION GROUP: MAKE_INTERVAL(minute => 1) FOLLOWING
+--
+QueryStatement [0-137] [SELECT * FROM...FOLLOWING )]
+  Query [0-137] [SELECT * FROM...FOLLOWING )]
+    Select [0-137] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-137] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-137] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-137] [ALIGN (...FOLLOWING )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-135] [MAKE_INTERVAL...FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [99-135] [MAKE_INTERVAL...FOLLOWING]
+                FunctionCall [99-125] [MAKE_INTERVAL(minute => 1)]
+                  PathExpression [99-112] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [99-112] [MAKE_INTERVAL]
+                  NamedArgument [113-124] [minute => 1]
+                    Identifier(minute) [113-119] [minute]
+                    IntLiteral(1) [123-124] [1]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO MAKE_INTERVAL(minute  => 1) FOLLOWING
+  )
+--
+ALTERNATION GROUP: 1 PERIOD FOLLOWING
+--
+QueryStatement [0-119] [SELECT * FROM...FOLLOWING )]
+  Query [0-119] [SELECT * FROM...FOLLOWING )]
+    Select [0-119] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-119] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-119] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-119] [ALIGN (...FOLLOWING )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-117] [1 PERIOD FOLLOWING]
+              AlignWithinBoundExpr(PERIOD FOLLOWING) [99-117] [1 PERIOD FOLLOWING]
+                IntLiteral(1) [99-100] [1]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO 1 PERIOD FOLLOWING
+  )
+--
+ALTERNATION GROUP: UNBOUNDED FOLLOWING
+--
+QueryStatement [0-120] [SELECT * FROM...FOLLOWING )]
+  Query [0-120] [SELECT * FROM...FOLLOWING )]
+    Select [0-120] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-120] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-120] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-120] [ALIGN (...FOLLOWING )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-118] [UNBOUNDED FOLLOWING]
+              AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [99-118] [UNBOUNDED FOLLOWING]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO UNBOUNDED FOLLOWING
+  )
+==
+
+# output within clause (FROM or TO bound)
+SELECT * FROM ts_table ALIGN (
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN RANGE {{FROM|TO}} {{INTERVAL 1 MINUTE PRECEDING|INTERVAL 1 MINUTE FOLLOWING|TIMESTAMP('2000-01-01 00:00:00+00')|UNBOUNDED PRECEDING|UNBOUNDED FOLLOWING}}
+)
+--
+ALTERNATION GROUP: FROM,INTERVAL 1 MINUTE PRECEDING
+--
+QueryStatement [0-124] [SELECT * FROM...PRECEDING )]
+  Query [0-124] [SELECT * FROM...PRECEDING )]
+    Select [0-124] [SELECT * FROM...PRECEDING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-124] [FROM ts_table...PRECEDING )]
+        TablePathExpression [14-124] [ts_table ALIGN...PRECEDING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-124] [ALIGN (...PRECEDING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-122] [RANGE FROM...PRECEDING]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [95-122] [INTERVAL 1 MINUTE PRECEDING]
+                IntervalExpr [95-112] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [104-105] [1]
+                  Identifier(MINUTE) [106-112] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE PRECEDING
+  )
+--
+ALTERNATION GROUP: FROM,INTERVAL 1 MINUTE FOLLOWING
+--
+QueryStatement [0-124] [SELECT * FROM...FOLLOWING )]
+  Query [0-124] [SELECT * FROM...FOLLOWING )]
+    Select [0-124] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-124] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-124] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-124] [ALIGN (...FOLLOWING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-122] [RANGE FROM...FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [95-122] [INTERVAL 1 MINUTE FOLLOWING]
+                IntervalExpr [95-112] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [104-105] [1]
+                  Identifier(MINUTE) [106-112] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE FOLLOWING
+  )
+--
+ALTERNATION GROUP: FROM,TIMESTAMP('2000-01-01 00:00:00+00')
+--
+QueryStatement [0-132] [SELECT * FROM...:00+00') )]
+  Query [0-132] [SELECT * FROM...:00+00') )]
+    Select [0-132] [SELECT * FROM...:00+00') )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-132] [FROM ts_table...:00+00') )]
+        TablePathExpression [14-132] [ts_table ALIGN...:00+00') )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-132] [ALIGN (...:00+00') )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-130] [RANGE FROM...00:00+00')]
+              AlignWithinBoundExpr(TIMESTAMP) [95-130] [TIMESTAMP(...00:00+00')]
+                FunctionCall [95-130] [TIMESTAMP(...00:00+00')]
+                  PathExpression [95-104] [TIMESTAMP]
+                    Identifier(TIMESTAMP) [95-104] [TIMESTAMP]
+                  StringLiteral [105-129] ['2000-01-01 00:00:00+00']
+                    StringLiteralComponent('2000-01-01 00:00:00+00') [105-129] ['2000-01-01 00:00:00+00']
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00')
+  )
+--
+ALTERNATION GROUP: FROM,UNBOUNDED PRECEDING
+--
+QueryStatement [0-116] [SELECT * FROM...PRECEDING )]
+  Query [0-116] [SELECT * FROM...PRECEDING )]
+    Select [0-116] [SELECT * FROM...PRECEDING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-116] [FROM ts_table...PRECEDING )]
+        TablePathExpression [14-116] [ts_table ALIGN...PRECEDING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-116] [ALIGN (...PRECEDING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-114] [RANGE FROM UNBOUNDED PRECEDING]
+              AlignWithinBoundExpr(UNBOUNDED PRECEDING) [95-114] [UNBOUNDED PRECEDING]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM UNBOUNDED PRECEDING
+  )
+--
+ALTERNATION GROUP: FROM,UNBOUNDED FOLLOWING
+--
+QueryStatement [0-116] [SELECT * FROM...FOLLOWING )]
+  Query [0-116] [SELECT * FROM...FOLLOWING )]
+    Select [0-116] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-116] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-116] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-116] [ALIGN (...FOLLOWING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-114] [RANGE FROM UNBOUNDED FOLLOWING]
+              AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [95-114] [UNBOUNDED FOLLOWING]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM UNBOUNDED FOLLOWING
+  )
+--
+ALTERNATION GROUP: TO,INTERVAL 1 MINUTE PRECEDING
+--
+QueryStatement [0-122] [SELECT * FROM...PRECEDING )]
+  Query [0-122] [SELECT * FROM...PRECEDING )]
+    Select [0-122] [SELECT * FROM...PRECEDING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-122] [FROM ts_table...PRECEDING )]
+        TablePathExpression [14-122] [ts_table ALIGN...PRECEDING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-122] [ALIGN (...PRECEDING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-120] [RANGE TO INTERVAL...PRECEDING]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [93-120] [INTERVAL 1 MINUTE PRECEDING]
+                IntervalExpr [93-110] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [102-103] [1]
+                  Identifier(MINUTE) [104-110] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO INTERVAL 1 MINUTE PRECEDING
+  )
+--
+ALTERNATION GROUP: TO,INTERVAL 1 MINUTE FOLLOWING
+--
+QueryStatement [0-122] [SELECT * FROM...FOLLOWING )]
+  Query [0-122] [SELECT * FROM...FOLLOWING )]
+    Select [0-122] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-122] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-122] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-122] [ALIGN (...FOLLOWING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-120] [RANGE TO INTERVAL...FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [93-120] [INTERVAL 1 MINUTE FOLLOWING]
+                IntervalExpr [93-110] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [102-103] [1]
+                  Identifier(MINUTE) [104-110] [MINUTE]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO INTERVAL 1 MINUTE FOLLOWING
+  )
+--
+ALTERNATION GROUP: TO,TIMESTAMP('2000-01-01 00:00:00+00')
+--
+QueryStatement [0-130] [SELECT * FROM...:00+00') )]
+  Query [0-130] [SELECT * FROM...:00+00') )]
+    Select [0-130] [SELECT * FROM...:00+00') )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-130] [FROM ts_table...:00+00') )]
+        TablePathExpression [14-130] [ts_table ALIGN...:00+00') )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-130] [ALIGN (...:00+00') )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-128] [RANGE TO TIMESTAM...00:00+00')]
+              AlignWithinBoundExpr(TIMESTAMP) [93-128] [TIMESTAMP(...00:00+00')]
+                FunctionCall [93-128] [TIMESTAMP(...00:00+00')]
+                  PathExpression [93-102] [TIMESTAMP]
+                    Identifier(TIMESTAMP) [93-102] [TIMESTAMP]
+                  StringLiteral [103-127] ['2000-01-01 00:00:00+00']
+                    StringLiteralComponent('2000-01-01 00:00:00+00') [103-127] ['2000-01-01 00:00:00+00']
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO TIMESTAMP('2000-01-01 00:00:00+00')
+  )
+--
+ALTERNATION GROUP: TO,UNBOUNDED PRECEDING
+--
+QueryStatement [0-114] [SELECT * FROM...PRECEDING )]
+  Query [0-114] [SELECT * FROM...PRECEDING )]
+    Select [0-114] [SELECT * FROM...PRECEDING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-114] [FROM ts_table...PRECEDING )]
+        TablePathExpression [14-114] [ts_table ALIGN...PRECEDING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-114] [ALIGN (...PRECEDING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-112] [RANGE TO UNBOUNDED PRECEDING]
+              AlignWithinBoundExpr(UNBOUNDED PRECEDING) [93-112] [UNBOUNDED PRECEDING]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO UNBOUNDED PRECEDING
+  )
+--
+ALTERNATION GROUP: TO,UNBOUNDED FOLLOWING
+--
+QueryStatement [0-114] [SELECT * FROM...FOLLOWING )]
+  Query [0-114] [SELECT * FROM...FOLLOWING )]
+    Select [0-114] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-114] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-114] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-114] [ALIGN (...FOLLOWING )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-112] [RANGE TO UNBOUNDED FOLLOWING]
+              AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [93-112] [UNBOUNDED FOLLOWING]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO UNBOUNDED FOLLOWING
+  )
+==
+
+# output within clause (FROM and TO bound)
+SELECT * FROM ts_table ALIGN (
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN RANGE FROM {{INTERVAL 1 MINUTE PRECEDING|2 PERIOD PRECEDING}} TO {{MAKE_INTERVAL(minute => 10) FOLLOWING|1 PERIOD FOLLOWING}}
+  PARTITION BY k as kv
+)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING,MAKE_INTERVAL(minute => 10) FOLLOWING
+--
+QueryStatement [0-188] [SELECT * FROM...k as kv )]
+  Query [0-188] [SELECT * FROM...k as kv )]
+    Select [0-188] [SELECT * FROM...k as kv )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-188] [FROM ts_table...k as kv )]
+        TablePathExpression [14-188] [ts_table ALIGN...k as kv )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-188] [ALIGN (...k as kv )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-163] [RANGE FROM...FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [95-122] [INTERVAL 1 MINUTE PRECEDING]
+                IntervalExpr [95-112] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [104-105] [1]
+                  Identifier(MINUTE) [106-112] [MINUTE]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [126-163] [MAKE_INTERVAL...FOLLOWING]
+                FunctionCall [126-153] [MAKE_INTERVAL(minute => 10)]
+                  PathExpression [126-139] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [126-139] [MAKE_INTERVAL]
+                  NamedArgument [140-152] [minute => 10]
+                    Identifier(minute) [140-146] [minute]
+                    IntLiteral(10) [150-152] [10]
+            PartitionByWithOptAlias [166-186] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [179-186] [k as kv]
+                PathExpression [179-180] [k]
+                  Identifier(k) [179-180] [k]
+                Alias [181-186] [as kv]
+                  Identifier(kv) [184-186] [kv]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE PRECEDING TO MAKE_INTERVAL(minute  => 10) FOLLOWING
+    PARTITION BY k AS kv
+  )
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING,1 PERIOD FOLLOWING
+--
+QueryStatement [0-169] [SELECT * FROM...k as kv )]
+  Query [0-169] [SELECT * FROM...k as kv )]
+    Select [0-169] [SELECT * FROM...k as kv )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-169] [FROM ts_table...k as kv )]
+        TablePathExpression [14-169] [ts_table ALIGN...k as kv )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-169] [ALIGN (...k as kv )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-144] [RANGE FROM...FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [95-122] [INTERVAL 1 MINUTE PRECEDING]
+                IntervalExpr [95-112] [INTERVAL 1 MINUTE]
+                  IntLiteral(1) [104-105] [1]
+                  Identifier(MINUTE) [106-112] [MINUTE]
+              AlignWithinBoundExpr(PERIOD FOLLOWING) [126-144] [1 PERIOD FOLLOWING]
+                IntLiteral(1) [126-127] [1]
+            PartitionByWithOptAlias [147-167] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [160-167] [k as kv]
+                PathExpression [160-161] [k]
+                  Identifier(k) [160-161] [k]
+                Alias [162-167] [as kv]
+                  Identifier(kv) [165-167] [kv]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE PRECEDING TO 1 PERIOD FOLLOWING
+    PARTITION BY k AS kv
+  )
+--
+ALTERNATION GROUP: 2 PERIOD PRECEDING,MAKE_INTERVAL(minute => 10) FOLLOWING
+--
+QueryStatement [0-179] [SELECT * FROM...k as kv )]
+  Query [0-179] [SELECT * FROM...k as kv )]
+    Select [0-179] [SELECT * FROM...k as kv )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-179] [FROM ts_table...k as kv )]
+        TablePathExpression [14-179] [ts_table ALIGN...k as kv )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-179] [ALIGN (...k as kv )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-154] [RANGE FROM...FOLLOWING]
+              AlignWithinBoundExpr(PERIOD PRECEDING) [95-113] [2 PERIOD PRECEDING]
+                IntLiteral(2) [95-96] [2]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [117-154] [MAKE_INTERVAL...FOLLOWING]
+                FunctionCall [117-144] [MAKE_INTERVAL(minute => 10)]
+                  PathExpression [117-130] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [117-130] [MAKE_INTERVAL]
+                  NamedArgument [131-143] [minute => 10]
+                    Identifier(minute) [131-137] [minute]
+                    IntLiteral(10) [141-143] [10]
+            PartitionByWithOptAlias [157-177] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [170-177] [k as kv]
+                PathExpression [170-171] [k]
+                  Identifier(k) [170-171] [k]
+                Alias [172-177] [as kv]
+                  Identifier(kv) [175-177] [kv]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM 2 PERIOD PRECEDING TO MAKE_INTERVAL(minute  => 10) FOLLOWING
+    PARTITION BY k AS kv
+  )
+--
+ALTERNATION GROUP: 2 PERIOD PRECEDING,1 PERIOD FOLLOWING
+--
+QueryStatement [0-160] [SELECT * FROM...k as kv )]
+  Query [0-160] [SELECT * FROM...k as kv )]
+    Select [0-160] [SELECT * FROM...k as kv )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-160] [FROM ts_table...k as kv )]
+        TablePathExpression [14-160] [ts_table ALIGN...k as kv )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-160] [ALIGN (...k as kv )]
+            FunctionCall [40-67] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [40-53] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [40-53] [MAKE_INTERVAL]
+              NamedArgument [54-66] [minute => 10]
+                Identifier(minute) [54-60] [minute]
+                IntLiteral(10) [64-66] [10]
+            AlignWithinClause [84-135] [RANGE FROM...FOLLOWING]
+              AlignWithinBoundExpr(PERIOD PRECEDING) [95-113] [2 PERIOD PRECEDING]
+                IntLiteral(2) [95-96] [2]
+              AlignWithinBoundExpr(PERIOD FOLLOWING) [117-135] [1 PERIOD FOLLOWING]
+                IntLiteral(1) [117-118] [1]
+            PartitionByWithOptAlias [138-158] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [151-158] [k as kv]
+                PathExpression [151-152] [k]
+                  Identifier(k) [151-152] [k]
+                Alias [153-158] [as kv]
+                  Identifier(kv) [156-158] [kv]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM 2 PERIOD PRECEDING TO 1 PERIOD FOLLOWING
+    PARTITION BY k AS kv
+  )
+==
+
+# partition clause
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MINUTE
+  PARTITION BY pk1 {{| AS m| AS m, pk2 AS n|, pk2 AS n}}
+  METRICS SUM(value) WITHIN () AS sm
+)
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-131] [SELECT * FROM...() AS sm )]
+  Query [0-131] [SELECT * FROM...() AS sm )]
+    Select [0-131] [SELECT * FROM...() AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-131] [FROM ts_table...() AS sm )]
+        TablePathExpression [14-131] [ts_table ALIGN...() AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-131] [ALIGN (...() AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            PartitionByWithOptAlias [75-91] [PARTITION BY pk1]
+              ExpressionWithOptAlias [88-91] [pk1]
+                PathExpression [88-91] [pk1]
+                  Identifier(pk1) [88-91] [pk1]
+            MetricsClause [95-129] [METRICS SUM...WITHIN () AS sm]
+              ExpressionWithAlias [103-129] [SUM(value) WITHIN () AS sm]
+                EstimatorFunctionCall [103-123] [SUM(value) WITHIN ()]
+                  FunctionCall [103-113] [SUM(value)]
+                    PathExpression [103-106] [SUM]
+                      Identifier(SUM) [103-106] [SUM]
+                    PathExpression [107-112] [value]
+                      Identifier(value) [107-112] [value]
+                  AlignWithinClause [114-123] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [122-122] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [122-122] []
+                Alias [124-129] [AS sm]
+                  Identifier(sm) [127-129] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    PARTITION BY pk1
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP:  AS m
+--
+QueryStatement [0-136] [SELECT * FROM...() AS sm )]
+  Query [0-136] [SELECT * FROM...() AS sm )]
+    Select [0-136] [SELECT * FROM...() AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-136] [FROM ts_table...() AS sm )]
+        TablePathExpression [14-136] [ts_table ALIGN...() AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-136] [ALIGN (...() AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            PartitionByWithOptAlias [75-97] [PARTITION BY pk1  AS m]
+              ExpressionWithOptAlias [88-97] [pk1  AS m]
+                PathExpression [88-91] [pk1]
+                  Identifier(pk1) [88-91] [pk1]
+                Alias [93-97] [AS m]
+                  Identifier(m) [96-97] [m]
+            MetricsClause [100-134] [METRICS SUM...WITHIN () AS sm]
+              ExpressionWithAlias [108-134] [SUM(value) WITHIN () AS sm]
+                EstimatorFunctionCall [108-128] [SUM(value) WITHIN ()]
+                  FunctionCall [108-118] [SUM(value)]
+                    PathExpression [108-111] [SUM]
+                      Identifier(SUM) [108-111] [SUM]
+                    PathExpression [112-117] [value]
+                      Identifier(value) [112-117] [value]
+                  AlignWithinClause [119-128] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [127-127] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [127-127] []
+                Alias [129-134] [AS sm]
+                  Identifier(sm) [132-134] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    PARTITION BY pk1 AS m
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP:  AS m, pk2 AS n
+--
+QueryStatement [0-146] [SELECT * FROM...() AS sm )]
+  Query [0-146] [SELECT * FROM...() AS sm )]
+    Select [0-146] [SELECT * FROM...() AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-146] [FROM ts_table...() AS sm )]
+        TablePathExpression [14-146] [ts_table ALIGN...() AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-146] [ALIGN (...() AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            PartitionByWithOptAlias [75-107] [PARTITION..., pk2 AS n]
+              ExpressionWithOptAlias [88-97] [pk1  AS m]
+                PathExpression [88-91] [pk1]
+                  Identifier(pk1) [88-91] [pk1]
+                Alias [93-97] [AS m]
+                  Identifier(m) [96-97] [m]
+              ExpressionWithOptAlias [99-107] [pk2 AS n]
+                PathExpression [99-102] [pk2]
+                  Identifier(pk2) [99-102] [pk2]
+                Alias [103-107] [AS n]
+                  Identifier(n) [106-107] [n]
+            MetricsClause [110-144] [METRICS SUM...WITHIN () AS sm]
+              ExpressionWithAlias [118-144] [SUM(value) WITHIN () AS sm]
+                EstimatorFunctionCall [118-138] [SUM(value) WITHIN ()]
+                  FunctionCall [118-128] [SUM(value)]
+                    PathExpression [118-121] [SUM]
+                      Identifier(SUM) [118-121] [SUM]
+                    PathExpression [122-127] [value]
+                      Identifier(value) [122-127] [value]
+                  AlignWithinClause [129-138] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [137-137] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [137-137] []
+                Alias [139-144] [AS sm]
+                  Identifier(sm) [142-144] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    PARTITION BY pk1 AS m, pk2 AS n
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: , pk2 AS n
+--
+QueryStatement [0-141] [SELECT * FROM...() AS sm )]
+  Query [0-141] [SELECT * FROM...() AS sm )]
+    Select [0-141] [SELECT * FROM...() AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-141] [FROM ts_table...() AS sm )]
+        TablePathExpression [14-141] [ts_table ALIGN...() AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-141] [ALIGN (...() AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            PartitionByWithOptAlias [75-102] [PARTITION BY pk1 , pk2 AS n]
+              ExpressionWithOptAlias [88-91] [pk1]
+                PathExpression [88-91] [pk1]
+                  Identifier(pk1) [88-91] [pk1]
+              ExpressionWithOptAlias [94-102] [pk2 AS n]
+                PathExpression [94-97] [pk2]
+                  Identifier(pk2) [94-97] [pk2]
+                Alias [98-102] [AS n]
+                  Identifier(n) [101-102] [n]
+            MetricsClause [105-139] [METRICS SUM...WITHIN () AS sm]
+              ExpressionWithAlias [113-139] [SUM(value) WITHIN () AS sm]
+                EstimatorFunctionCall [113-133] [SUM(value) WITHIN ()]
+                  FunctionCall [113-123] [SUM(value)]
+                    PathExpression [113-116] [SUM]
+                      Identifier(SUM) [113-116] [SUM]
+                    PathExpression [117-122] [value]
+                      Identifier(value) [117-122] [value]
+                  AlignWithinClause [124-133] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [132-132] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [132-132] []
+                Alias [134-139] [AS sm]
+                  Identifier(sm) [137-139] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    PARTITION BY pk1, pk2 AS n
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+==
+
+# estimator function within bound (relative bound)
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MINUTE
+  METRICS SUM(value) WITHIN ({{INTERVAL 1 MINUTE|MAKE_INTERVAL(minute => 10)|1 PERIOD|INTERVAL 1 MINUTE FOLLOWING|MAKE_INTERVAL(minute => 10) PRECEDING|1 PERIOD PRECEDING|UNBOUNDED PRECEDING}}) AS sm
+)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE
+--
+QueryStatement [0-128] [SELECT * FROM...INUTE) AS sm )]
+  Query [0-128] [SELECT * FROM...INUTE) AS sm )]
+    Select [0-128] [SELECT * FROM...INUTE) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-128] [FROM ts_table...INUTE) AS sm )]
+        TablePathExpression [14-128] [ts_table ALIGN...NUTE) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-128] [ALIGN (...MINUTE) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-126] [METRICS SUM...MINUTE) AS sm]
+              ExpressionWithAlias [83-126] [SUM(value)...MINUTE) AS sm]
+                EstimatorFunctionCall [83-120] [SUM(value)...1 MINUTE)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-120] [WITHIN (INTERVAL 1 MINUTE)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [102-119] [INTERVAL 1 MINUTE]
+                      IntervalExpr [102-119] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [111-112] [1]
+                        Identifier(MINUTE) [113-119] [MINUTE]
+                Alias [121-126] [AS sm]
+                  Identifier(sm) [124-126] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 1 MINUTE PRECEDING) AS sm)
+--
+ALTERNATION GROUP: MAKE_INTERVAL(minute => 10)
+--
+QueryStatement [0-138] [SELECT * FROM...)) AS sm )]
+  Query [0-138] [SELECT * FROM...)) AS sm )]
+    Select [0-138] [SELECT * FROM...)) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-138] [FROM ts_table...)) AS sm )]
+        TablePathExpression [14-138] [ts_table ALIGN...)) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-138] [ALIGN (...)) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-136] [METRICS SUM...10)) AS sm]
+              ExpressionWithAlias [83-136] [SUM(value)...10)) AS sm]
+                EstimatorFunctionCall [83-130] [SUM(value)...minute => 10))]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-130] [WITHIN (MAKE_INTE...te => 10))]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [102-129] [MAKE_INTERVAL(minute => 10)]
+                      FunctionCall [102-129] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [102-115] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [102-115] [MAKE_INTERVAL]
+                        NamedArgument [116-128] [minute => 10]
+                          Identifier(minute) [116-122] [minute]
+                          IntLiteral(10) [126-128] [10]
+                Alias [131-136] [AS sm]
+                  Identifier(sm) [134-136] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM MAKE_INTERVAL(minute  => 10) PRECEDING) AS sm)
+--
+ALTERNATION GROUP: 1 PERIOD
+--
+QueryStatement [0-119] [SELECT * FROM...ERIOD) AS sm )]
+  Query [0-119] [SELECT * FROM...ERIOD) AS sm )]
+    Select [0-119] [SELECT * FROM...ERIOD) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-119] [FROM ts_table...ERIOD) AS sm )]
+        TablePathExpression [14-119] [ts_table ALIGN...RIOD) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-119] [ALIGN (...PERIOD) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-117] [METRICS SUM...PERIOD) AS sm]
+              ExpressionWithAlias [83-117] [SUM(value)...PERIOD) AS sm]
+                EstimatorFunctionCall [83-111] [SUM(value) WITHIN (1 PERIOD)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-111] [WITHIN (1 PERIOD)]
+                    AlignWithinBoundExpr(PERIOD PRECEDING) [102-110] [1 PERIOD]
+                      IntLiteral(1) [102-103] [1]
+                Alias [112-117] [AS sm]
+                  Identifier(sm) [115-117] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM 1 PERIOD PRECEDING) AS sm)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE FOLLOWING
+--
+QueryStatement [0-138] [SELECT * FROM...OWING) AS sm )]
+  Query [0-138] [SELECT * FROM...OWING) AS sm )]
+    Select [0-138] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-138] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-138] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-138] [ALIGN (...FOLLOWING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-136] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [83-136] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [83-130] [SUM(value)...FOLLOWING)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-130] [WITHIN (INTERVAL...FOLLOWING)]
+                    AlignWithinBoundExpr(INTERVAL FOLLOWING) [102-129] [INTERVAL 1 MINUTE FOLLOWING]
+                      IntervalExpr [102-119] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [111-112] [1]
+                        Identifier(MINUTE) [113-119] [MINUTE]
+                Alias [131-136] [AS sm]
+                  Identifier(sm) [134-136] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE TO INTERVAL 1 MINUTE FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: MAKE_INTERVAL(minute => 10) PRECEDING
+--
+QueryStatement [0-148] [SELECT * FROM...EDING) AS sm )]
+  Query [0-148] [SELECT * FROM...EDING) AS sm )]
+    Select [0-148] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-148] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-148] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-148] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-146] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [83-146] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [83-140] [SUM(value)...PRECEDING)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-140] [WITHIN (MAKE_INTE...PRECEDING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [102-139] [MAKE_INTERVAL...PRECEDING]
+                      FunctionCall [102-129] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [102-115] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [102-115] [MAKE_INTERVAL]
+                        NamedArgument [116-128] [minute => 10]
+                          Identifier(minute) [116-122] [minute]
+                          IntLiteral(10) [126-128] [10]
+                Alias [141-146] [AS sm]
+                  Identifier(sm) [144-146] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM MAKE_INTERVAL(minute  => 10) PRECEDING) AS sm)
+--
+ALTERNATION GROUP: 1 PERIOD PRECEDING
+--
+QueryStatement [0-129] [SELECT * FROM...EDING) AS sm )]
+  Query [0-129] [SELECT * FROM...EDING) AS sm )]
+    Select [0-129] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-129] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-129] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-129] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-127] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [83-127] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [83-121] [SUM(value)...PRECEDING)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-121] [WITHIN (1 PERIOD PRECEDING)]
+                    AlignWithinBoundExpr(PERIOD PRECEDING) [102-120] [1 PERIOD PRECEDING]
+                      IntLiteral(1) [102-103] [1]
+                Alias [122-127] [AS sm]
+                  Identifier(sm) [125-127] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM 1 PERIOD PRECEDING) AS sm)
+--
+ALTERNATION GROUP: UNBOUNDED PRECEDING
+--
+QueryStatement [0-130] [SELECT * FROM...EDING) AS sm )]
+  Query [0-130] [SELECT * FROM...EDING) AS sm )]
+    Select [0-130] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-130] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-130] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-130] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-128] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [83-128] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [83-122] [SUM(value)...PRECEDING)]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-122] [WITHIN (UNBOUNDED PRECEDING)]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [102-121] [UNBOUNDED PRECEDING]
+                Alias [123-128] [AS sm]
+                  Identifier(sm) [126-128] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING) AS sm)
+==
+
+# estimator function within bound (FROM or TO bound)
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MIN
+  METRICS SUM(value) WITHIN (RANGE {{FROM|TO}} {{INTERVAL 1 MINUTE PRECEDING|MAKE_INTERVAL(minute => 10) PRECEDING|1 PERIOD PRECEDING}}) AS sm
+)
+--
+ALTERNATION GROUP: FROM,INTERVAL 1 MINUTE PRECEDING
+--
+QueryStatement [0-146] [SELECT * FROM...EDING) AS sm )]
+  Query [0-146] [SELECT * FROM...EDING) AS sm )]
+    Select [0-146] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-146] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-146] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-146] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-144] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-144] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-138] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-138] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [110-137] [INTERVAL 1 MINUTE PRECEDING]
+                      IntervalExpr [110-127] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [119-120] [1]
+                        Identifier(MINUTE) [121-127] [MINUTE]
+                Alias [139-144] [AS sm]
+                  Identifier(sm) [142-144] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 1 MINUTE PRECEDING) AS sm)
+--
+ALTERNATION GROUP: FROM,MAKE_INTERVAL(minute => 10) PRECEDING
+--
+QueryStatement [0-156] [SELECT * FROM...EDING) AS sm )]
+  Query [0-156] [SELECT * FROM...EDING) AS sm )]
+    Select [0-156] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-156] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-156] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-156] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-154] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-154] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-148] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-148] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [110-147] [MAKE_INTERVAL...PRECEDING]
+                      FunctionCall [110-137] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [110-123] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [110-123] [MAKE_INTERVAL]
+                        NamedArgument [124-136] [minute => 10]
+                          Identifier(minute) [124-130] [minute]
+                          IntLiteral(10) [134-136] [10]
+                Alias [149-154] [AS sm]
+                  Identifier(sm) [152-154] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE FROM MAKE_INTERVAL(minute  => 10) PRECEDING) AS sm)
+--
+ALTERNATION GROUP: FROM,1 PERIOD PRECEDING
+--
+QueryStatement [0-137] [SELECT * FROM...EDING) AS sm )]
+  Query [0-137] [SELECT * FROM...EDING) AS sm )]
+    Select [0-137] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-137] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-137] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-137] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-135] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-135] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-129] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-129] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(PERIOD PRECEDING) [110-128] [1 PERIOD PRECEDING]
+                      IntLiteral(1) [110-111] [1]
+                Alias [130-135] [AS sm]
+                  Identifier(sm) [133-135] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE FROM 1 PERIOD PRECEDING) AS sm)
+--
+ALTERNATION GROUP: TO,INTERVAL 1 MINUTE PRECEDING
+--
+QueryStatement [0-144] [SELECT * FROM...EDING) AS sm )]
+  Query [0-144] [SELECT * FROM...EDING) AS sm )]
+    Select [0-144] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-144] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-144] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-144] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-142] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-142] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-136] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-136] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [108-135] [INTERVAL 1 MINUTE PRECEDING]
+                      IntervalExpr [108-125] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [117-118] [1]
+                        Identifier(MINUTE) [119-125] [MINUTE]
+                Alias [137-142] [AS sm]
+                  Identifier(sm) [140-142] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE TO INTERVAL 1 MINUTE PRECEDING) AS sm)
+--
+ALTERNATION GROUP: TO,MAKE_INTERVAL(minute => 10) PRECEDING
+--
+QueryStatement [0-154] [SELECT * FROM...EDING) AS sm )]
+  Query [0-154] [SELECT * FROM...EDING) AS sm )]
+    Select [0-154] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-154] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-154] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-154] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-152] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-152] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-146] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-146] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [108-145] [MAKE_INTERVAL...PRECEDING]
+                      FunctionCall [108-135] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [108-121] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [108-121] [MAKE_INTERVAL]
+                        NamedArgument [122-134] [minute => 10]
+                          Identifier(minute) [122-128] [minute]
+                          IntLiteral(10) [132-134] [10]
+                Alias [147-152] [AS sm]
+                  Identifier(sm) [150-152] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE TO MAKE_INTERVAL(minute  => 10) PRECEDING) AS sm)
+--
+ALTERNATION GROUP: TO,1 PERIOD PRECEDING
+--
+QueryStatement [0-135] [SELECT * FROM...EDING) AS sm )]
+  Query [0-135] [SELECT * FROM...EDING) AS sm )]
+    Select [0-135] [SELECT * FROM...EDING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-135] [FROM ts_table...EDING) AS sm )]
+        TablePathExpression [14-135] [ts_table ALIGN...DING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-135] [ALIGN (...PRECEDING) AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-69] [INTERVAL 1 MIN]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MIN) [66-69] [MIN]
+            MetricsClause [72-133] [METRICS SUM...PRECEDING) AS sm]
+              ExpressionWithAlias [80-133] [SUM(value)...PRECEDING) AS sm]
+                EstimatorFunctionCall [80-127] [SUM(value)...PRECEDING)]
+                  FunctionCall [80-90] [SUM(value)]
+                    PathExpression [80-83] [SUM]
+                      Identifier(SUM) [80-83] [SUM]
+                    PathExpression [84-89] [value]
+                      Identifier(value) [84-89] [value]
+                  AlignWithinClause [91-127] [WITHIN (RANGE...PRECEDING)]
+                    AlignWithinBoundExpr(PERIOD PRECEDING) [108-126] [1 PERIOD PRECEDING]
+                      IntLiteral(1) [108-109] [1]
+                Alias [128-133] [AS sm]
+                  Identifier(sm) [131-133] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MIN
+    METRICS SUM(value) WITHIN (RANGE TO 1 PERIOD PRECEDING) AS sm)
+==
+
+# estimator function within bound (FROM and TO bound)
+SELECT * FROM ts_table ALIGN (
+  PERIOD INTERVAL 1 MIN
+  PARTITION BY k as kv
+  METRICS SUM(value) WITHIN (RANGE FROM {{INTERVAL 1 MINUTE PRECEDING|UNBOUNDED PRECEDING|TIMESTAMP('2000-01-01 00:00:00+00')}} TO {{MAKE_INTERVAL(minute => 10) FOLLOWING|UNBOUNDED FOLLOWING|TIMESTAMP('2021-01-01 00:00:00+00')}}) AS sm
+)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING,MAKE_INTERVAL(minute => 10) FOLLOWING
+--
+QueryStatement [0-195] [SELECT * FROM...OWING) AS sm )]
+  Query [0-195] [SELECT * FROM...OWING) AS sm )]
+    Select [0-195] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-195] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-195] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-195] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-193] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-193] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-187] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-187] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [118-145] [INTERVAL 1 MINUTE PRECEDING]
+                      IntervalExpr [118-135] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [127-128] [1]
+                        Identifier(MINUTE) [129-135] [MINUTE]
+                    AlignWithinBoundExpr(INTERVAL FOLLOWING) [149-186] [MAKE_INTERVAL...FOLLOWING]
+                      FunctionCall [149-176] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [149-162] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [149-162] [MAKE_INTERVAL]
+                        NamedArgument [163-175] [minute => 10]
+                          Identifier(minute) [163-169] [minute]
+                          IntLiteral(10) [173-175] [10]
+                Alias [188-193] [AS sm]
+                  Identifier(sm) [191-193] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 1 MINUTE PRECEDING TO MAKE_INTERVAL(minute  => 10) FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING,UNBOUNDED FOLLOWING
+--
+QueryStatement [0-177] [SELECT * FROM...OWING) AS sm )]
+  Query [0-177] [SELECT * FROM...OWING) AS sm )]
+    Select [0-177] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-177] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-177] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-177] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-175] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-175] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-169] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-169] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [118-145] [INTERVAL 1 MINUTE PRECEDING]
+                      IntervalExpr [118-135] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [127-128] [1]
+                        Identifier(MINUTE) [129-135] [MINUTE]
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [149-168] [UNBOUNDED FOLLOWING]
+                Alias [170-175] [AS sm]
+                  Identifier(sm) [173-175] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 1 MINUTE PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE PRECEDING,TIMESTAMP('2021-01-01 00:00:00+00')
+--
+QueryStatement [0-193] [SELECT * FROM...)) AS sm )]
+  Query [0-193] [SELECT * FROM...)) AS sm )]
+    Select [0-193] [SELECT * FROM...)) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-193] [FROM ts_table...)) AS sm )]
+        TablePathExpression [14-193] [ts_table ALIGN...)) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-193] [ALIGN (...)) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-191] [METRICS SUM...00')) AS sm]
+              ExpressionWithAlias [88-191] [SUM(value)...00')) AS sm]
+                EstimatorFunctionCall [88-185] [SUM(value)...00:00+00'))]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-185] [WITHIN (RANGE...00:00+00'))]
+                    AlignWithinBoundExpr(INTERVAL PRECEDING) [118-145] [INTERVAL 1 MINUTE PRECEDING]
+                      IntervalExpr [118-135] [INTERVAL 1 MINUTE]
+                        IntLiteral(1) [127-128] [1]
+                        Identifier(MINUTE) [129-135] [MINUTE]
+                    AlignWithinBoundExpr(TIMESTAMP) [149-184] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [149-184] [TIMESTAMP(...00:00+00')]
+                        PathExpression [149-158] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [149-158] [TIMESTAMP]
+                        StringLiteral [159-183] ['2021-01-01 00:00:00+00']
+                          StringLiteralComponent('2021-01-01 00:00:00+00') [159-183] ['2021-01-01 00:00:00+00']
+                Alias [186-191] [AS sm]
+                  Identifier(sm) [189-191] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM INTERVAL 1 MINUTE PRECEDING TO TIMESTAMP('2021-01-01 00:00:00+00')) AS sm)
+--
+ALTERNATION GROUP: UNBOUNDED PRECEDING,MAKE_INTERVAL(minute => 10) FOLLOWING
+--
+QueryStatement [0-187] [SELECT * FROM...OWING) AS sm )]
+  Query [0-187] [SELECT * FROM...OWING) AS sm )]
+    Select [0-187] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-187] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-187] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-187] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-185] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-185] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-179] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-179] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [118-137] [UNBOUNDED PRECEDING]
+                    AlignWithinBoundExpr(INTERVAL FOLLOWING) [141-178] [MAKE_INTERVAL...FOLLOWING]
+                      FunctionCall [141-168] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [141-154] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [141-154] [MAKE_INTERVAL]
+                        NamedArgument [155-167] [minute => 10]
+                          Identifier(minute) [155-161] [minute]
+                          IntLiteral(10) [165-167] [10]
+                Alias [180-185] [AS sm]
+                  Identifier(sm) [183-185] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO MAKE_INTERVAL(minute  => 10) FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: UNBOUNDED PRECEDING,UNBOUNDED FOLLOWING
+--
+QueryStatement [0-169] [SELECT * FROM...OWING) AS sm )]
+  Query [0-169] [SELECT * FROM...OWING) AS sm )]
+    Select [0-169] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-169] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-169] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-169] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-167] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-167] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-161] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-161] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [118-137] [UNBOUNDED PRECEDING]
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [141-160] [UNBOUNDED FOLLOWING]
+                Alias [162-167] [AS sm]
+                  Identifier(sm) [165-167] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: UNBOUNDED PRECEDING,TIMESTAMP('2021-01-01 00:00:00+00')
+--
+QueryStatement [0-185] [SELECT * FROM...)) AS sm )]
+  Query [0-185] [SELECT * FROM...)) AS sm )]
+    Select [0-185] [SELECT * FROM...)) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-185] [FROM ts_table...)) AS sm )]
+        TablePathExpression [14-185] [ts_table ALIGN...)) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-185] [ALIGN (...)) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-183] [METRICS SUM...00')) AS sm]
+              ExpressionWithAlias [88-183] [SUM(value)...00')) AS sm]
+                EstimatorFunctionCall [88-177] [SUM(value)...00:00+00'))]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-177] [WITHIN (RANGE...00:00+00'))]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [118-137] [UNBOUNDED PRECEDING]
+                    AlignWithinBoundExpr(TIMESTAMP) [141-176] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [141-176] [TIMESTAMP(...00:00+00')]
+                        PathExpression [141-150] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [141-150] [TIMESTAMP]
+                        StringLiteral [151-175] ['2021-01-01 00:00:00+00']
+                          StringLiteralComponent('2021-01-01 00:00:00+00') [151-175] ['2021-01-01 00:00:00+00']
+                Alias [178-183] [AS sm]
+                  Identifier(sm) [181-183] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO TIMESTAMP('2021-01-01 00:00:00+00')) AS sm)
+--
+ALTERNATION GROUP: TIMESTAMP('2000-01-01 00:00:00+00'),MAKE_INTERVAL(minute => 10) FOLLOWING
+--
+QueryStatement [0-203] [SELECT * FROM...OWING) AS sm )]
+  Query [0-203] [SELECT * FROM...OWING) AS sm )]
+    Select [0-203] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-203] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-203] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-203] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-201] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-201] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-195] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-195] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(TIMESTAMP) [118-153] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [118-153] [TIMESTAMP(...00:00+00')]
+                        PathExpression [118-127] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [118-127] [TIMESTAMP]
+                        StringLiteral [128-152] ['2000-01-01 00:00:00+00']
+                          StringLiteralComponent('2000-01-01 00:00:00+00') [128-152] ['2000-01-01 00:00:00+00']
+                    AlignWithinBoundExpr(INTERVAL FOLLOWING) [157-194] [MAKE_INTERVAL...FOLLOWING]
+                      FunctionCall [157-184] [MAKE_INTERVAL(minute => 10)]
+                        PathExpression [157-170] [MAKE_INTERVAL]
+                          Identifier(MAKE_INTERVAL) [157-170] [MAKE_INTERVAL]
+                        NamedArgument [171-183] [minute => 10]
+                          Identifier(minute) [171-177] [minute]
+                          IntLiteral(10) [181-183] [10]
+                Alias [196-201] [AS sm]
+                  Identifier(sm) [199-201] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00') TO MAKE_INTERVAL(minute  => 10) FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: TIMESTAMP('2000-01-01 00:00:00+00'),UNBOUNDED FOLLOWING
+--
+QueryStatement [0-185] [SELECT * FROM...OWING) AS sm )]
+  Query [0-185] [SELECT * FROM...OWING) AS sm )]
+    Select [0-185] [SELECT * FROM...OWING) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-185] [FROM ts_table...OWING) AS sm )]
+        TablePathExpression [14-185] [ts_table ALIGN...WING) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-185] [ALIGN (...FOLLOWING) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-183] [METRICS SUM...FOLLOWING) AS sm]
+              ExpressionWithAlias [88-183] [SUM(value)...FOLLOWING) AS sm]
+                EstimatorFunctionCall [88-177] [SUM(value)...FOLLOWING)]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-177] [WITHIN (RANGE...FOLLOWING)]
+                    AlignWithinBoundExpr(TIMESTAMP) [118-153] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [118-153] [TIMESTAMP(...00:00+00')]
+                        PathExpression [118-127] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [118-127] [TIMESTAMP]
+                        StringLiteral [128-152] ['2000-01-01 00:00:00+00']
+                          StringLiteralComponent('2000-01-01 00:00:00+00') [128-152] ['2000-01-01 00:00:00+00']
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [157-176] [UNBOUNDED FOLLOWING]
+                Alias [178-183] [AS sm]
+                  Identifier(sm) [181-183] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00') TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP: TIMESTAMP('2000-01-01 00:00:00+00'),TIMESTAMP('2021-01-01 00:00:00+00')
+--
+QueryStatement [0-201] [SELECT * FROM...)) AS sm )]
+  Query [0-201] [SELECT * FROM...)) AS sm )]
+    Select [0-201] [SELECT * FROM...)) AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-201] [FROM ts_table...)) AS sm )]
+        TablePathExpression [14-201] [ts_table ALIGN...)) AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-201] [ALIGN (...)) AS sm )]
+            IntervalExpr [40-54] [INTERVAL 1 MIN]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MIN) [51-54] [MIN]
+            PartitionByWithOptAlias [57-77] [PARTITION BY k as kv]
+              ExpressionWithOptAlias [70-77] [k as kv]
+                PathExpression [70-71] [k]
+                  Identifier(k) [70-71] [k]
+                Alias [72-77] [as kv]
+                  Identifier(kv) [75-77] [kv]
+            MetricsClause [80-199] [METRICS SUM...00')) AS sm]
+              ExpressionWithAlias [88-199] [SUM(value)...00')) AS sm]
+                EstimatorFunctionCall [88-193] [SUM(value)...00:00+00'))]
+                  FunctionCall [88-98] [SUM(value)]
+                    PathExpression [88-91] [SUM]
+                      Identifier(SUM) [88-91] [SUM]
+                    PathExpression [92-97] [value]
+                      Identifier(value) [92-97] [value]
+                  AlignWithinClause [99-193] [WITHIN (RANGE...00:00+00'))]
+                    AlignWithinBoundExpr(TIMESTAMP) [118-153] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [118-153] [TIMESTAMP(...00:00+00')]
+                        PathExpression [118-127] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [118-127] [TIMESTAMP]
+                        StringLiteral [128-152] ['2000-01-01 00:00:00+00']
+                          StringLiteralComponent('2000-01-01 00:00:00+00') [128-152] ['2000-01-01 00:00:00+00']
+                    AlignWithinBoundExpr(TIMESTAMP) [157-192] [TIMESTAMP(...00:00+00')]
+                      FunctionCall [157-192] [TIMESTAMP(...00:00+00')]
+                        PathExpression [157-166] [TIMESTAMP]
+                          Identifier(TIMESTAMP) [157-166] [TIMESTAMP]
+                        StringLiteral [167-191] ['2021-01-01 00:00:00+00']
+                          StringLiteralComponent('2021-01-01 00:00:00+00') [167-191] ['2021-01-01 00:00:00+00']
+                Alias [194-199] [AS sm]
+                  Identifier(sm) [197-199] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MIN
+    PARTITION BY k AS kv
+    METRICS SUM(value) WITHIN (RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00') TO TIMESTAMP('2021-01-01 00:00:00+00')) AS sm)
+==
+
+# metrics clause
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MINUTE
+  METRICS SUM(value) WITHIN () {{ AS sm| AS sm, SUM(value) WITHIN () + 1 AS sn| - SUM(key) WITHIN () AS diff}}
+)
+--
+ALTERNATION GROUP:  AS sm
+--
+QueryStatement [0-112] [SELECT * FROM...)  AS sm )]
+  Query [0-112] [SELECT * FROM...)  AS sm )]
+    Select [0-112] [SELECT * FROM...)  AS sm )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-112] [FROM ts_table...)  AS sm )]
+        TablePathExpression [14-112] [ts_table ALIGN...)  AS sm )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-112] [ALIGN (...)  AS sm )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-110] [METRICS SUM...()  AS sm]
+              ExpressionWithAlias [83-110] [SUM(value) WITHIN ()  AS sm]
+                EstimatorFunctionCall [83-103] [SUM(value) WITHIN ()]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-103] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [102-102] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [102-102] []
+                Alias [105-110] [AS sm]
+                  Identifier(sm) [108-110] [sm]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+--
+ALTERNATION GROUP:  AS sm, SUM(value) WITHIN () + 1 AS sn
+--
+QueryStatement [0-144] [SELECT * FROM...1 AS sn )]
+  Query [0-144] [SELECT * FROM...1 AS sn )]
+    Select [0-144] [SELECT * FROM...1 AS sn )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-144] [FROM ts_table...1 AS sn )]
+        TablePathExpression [14-144] [ts_table ALIGN...1 AS sn )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-144] [ALIGN (...1 AS sn )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-142] [METRICS SUM...+ 1 AS sn]
+              ExpressionWithAlias [83-110] [SUM(value) WITHIN ()  AS sm]
+                EstimatorFunctionCall [83-103] [SUM(value) WITHIN ()]
+                  FunctionCall [83-93] [SUM(value)]
+                    PathExpression [83-86] [SUM]
+                      Identifier(SUM) [83-86] [SUM]
+                    PathExpression [87-92] [value]
+                      Identifier(value) [87-92] [value]
+                  AlignWithinClause [94-103] [WITHIN ()]
+                    AlignWithinBoundExpr(UNBOUNDED PRECEDING) [102-102] []
+                    AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [102-102] []
+                Alias [105-110] [AS sm]
+                  Identifier(sm) [108-110] [sm]
+              ExpressionWithAlias [112-142] [SUM(value) WITHIN () + 1 AS sn]
+                BinaryExpression(+) [112-136] [SUM(value) WITHIN () + 1]
+                  EstimatorFunctionCall [112-132] [SUM(value) WITHIN ()]
+                    FunctionCall [112-122] [SUM(value)]
+                      PathExpression [112-115] [SUM]
+                        Identifier(SUM) [112-115] [SUM]
+                      PathExpression [116-121] [value]
+                        Identifier(value) [116-121] [value]
+                    AlignWithinClause [123-132] [WITHIN ()]
+                      AlignWithinBoundExpr(UNBOUNDED PRECEDING) [131-131] []
+                      AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [131-131] []
+                  IntLiteral(1) [135-136] [1]
+                Alias [137-142] [AS sn]
+                  Identifier(sn) [140-142] [sn]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm,
+      SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) +
+      1 AS sn)
+--
+ALTERNATION GROUP:  - SUM(key) WITHIN () AS diff
+--
+QueryStatement [0-135] [SELECT * FROM...AS diff )]
+  Query [0-135] [SELECT * FROM...AS diff )]
+    Select [0-135] [SELECT * FROM...AS diff )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-135] [FROM ts_table...AS diff )]
+        TablePathExpression [14-135] [ts_table ALIGN...AS diff )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-135] [ALIGN (...AS diff )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+            MetricsClause [75-133] [METRICS SUM...() AS diff]
+              ExpressionWithAlias [83-133] [SUM(value)...() AS diff]
+                BinaryExpression(-) [83-125] [SUM(value)...WITHIN ()]
+                  EstimatorFunctionCall [83-103] [SUM(value) WITHIN ()]
+                    FunctionCall [83-93] [SUM(value)]
+                      PathExpression [83-86] [SUM]
+                        Identifier(SUM) [83-86] [SUM]
+                      PathExpression [87-92] [value]
+                        Identifier(value) [87-92] [value]
+                    AlignWithinClause [94-103] [WITHIN ()]
+                      AlignWithinBoundExpr(UNBOUNDED PRECEDING) [102-102] []
+                      AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [102-102] []
+                  EstimatorFunctionCall [107-125] [SUM(key) WITHIN ()]
+                    FunctionCall [107-115] [SUM(key)]
+                      PathExpression [107-110] [SUM]
+                        Identifier(SUM) [107-110] [SUM]
+                      PathExpression [111-114] [key]
+                        Identifier(key) [111-114] [key]
+                    AlignWithinClause [116-125] [WITHIN ()]
+                      AlignWithinBoundExpr(UNBOUNDED PRECEDING) [124-124] []
+                      AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [124-124] []
+                Alias [126-133] [AS diff]
+                  Identifier(diff) [129-133] [diff]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+    METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) - SUM(key) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS diff)
+==
+
+# match recognize with align
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MINUTE
+) MATCH_RECOGNIZE(
+  ORDER BY key, value
+  MEASURES SUM(key) AS m
+  PATTERN ( a | bc )
+  DEFINE
+    a AS key >= 5,
+    b AS key <= 6,
+    c AS key >= 7
+)
+--
+QueryStatement [0-226] [SELECT * FROM...key >= 7 )]
+  Query [0-226] [SELECT * FROM...key >= 7 )]
+    Select [0-226] [SELECT * FROM...key >= 7 )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-226] [FROM ts_table...key >= 7 )]
+        TablePathExpression [14-226] [ts_table ALIGN...key >= 7 )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-74] [ALIGN (...1 MINUTE )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [64-65] [1]
+              Identifier(MINUTE) [66-72] [MINUTE]
+          MatchRecognizeClause [75-226] [MATCH_RECOGNIZE...key >= 7 )]
+            OrderBy [94-113] [ORDER BY key, value]
+              OrderingExpression(ASC) [103-106] [key]
+                PathExpression [103-106] [key]
+                  Identifier(key) [103-106] [key]
+              OrderingExpression(ASC) [108-113] [value]
+                PathExpression [108-113] [value]
+                  Identifier(value) [108-113] [value]
+            SelectList [125-138] [SUM(key) AS m]
+              SelectColumn [125-138] [SUM(key) AS m]
+                FunctionCall [125-133] [SUM(key)]
+                  PathExpression [125-128] [SUM]
+                    Identifier(SUM) [125-128] [SUM]
+                  PathExpression [129-132] [key]
+                    Identifier(key) [129-132] [key]
+                Alias [134-138] [AS m]
+                  Identifier(m) [137-138] [m]
+            RowPatternOperation [151-157] [a | bc]
+              RowPatternVariable [151-152] [a]
+                Identifier(a) [151-152] [a]
+              RowPatternVariable [155-157] [bc]
+                Identifier(bc) [155-157] [bc]
+            SelectList [173-224] [a AS key >...AS key >= 7]
+              SelectColumn [173-186] [a AS key >= 5]
+                BinaryExpression(>=) [178-186] [key >= 5]
+                  PathExpression [178-181] [key]
+                    Identifier(key) [178-181] [key]
+                  IntLiteral(5) [185-186] [5]
+                Alias [173-177] [a AS]
+                  Identifier(a) [173-174] [a]
+              SelectColumn [192-205] [b AS key <= 6]
+                BinaryExpression(<=) [197-205] [key <= 6]
+                  PathExpression [197-200] [key]
+                    Identifier(key) [197-200] [key]
+                  IntLiteral(6) [204-205] [6]
+                Alias [192-196] [b AS]
+                  Identifier(b) [192-193] [b]
+              SelectColumn [211-224] [c AS key >= 7]
+                BinaryExpression(>=) [216-224] [key >= 7]
+                  PathExpression [216-219] [key]
+                    Identifier(key) [216-219] [key]
+                  IntLiteral(7) [223-224] [7]
+                Alias [211-215] [c AS]
+                  Identifier(c) [211-212] [c]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD INTERVAL 1 MINUTE
+  )
+  MATCH_RECOGNIZE(
+    ORDER BY key, value
+    MEASURES
+      SUM(key) AS m
+    PATTERN (a | bc)
+    DEFINE
+      a AS key >= 5,
+      b AS key <= 6,
+      c AS key >= 7
+  )
+==
+
+# period clause is required
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+)
+--
+ERROR: Syntax error: Expected keyword PERIOD but got ")" [at 3:1]
+)
+^
+==
+
+# alias is required for estimator expressions
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD INTERVAL 1 MINUTE
+  METRICS SUM(key) WITHIN (), AVG(value) WITHIN ()
+)
+--
+ERROR: Syntax error: Unexpected "," [at 4:29]
+  METRICS SUM(key) WITHIN (), AVG(value) WITHIN ()
+                            ^
+==
+
+# In FROM interval_expr TO end_bound, interval_expr should be followed by PRECEDING/FOLLOWING
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE TO {{INTERVAL 1 MINUTE|MAKE_INTERVAL(minute => 10)|1 PERIOD|TIMESTAMP('2000-01-01 00:00:00+00')|UNBOUNDED}} FOLLOWING
+)
+
+--
+ALTERNATION GROUP: INTERVAL 1 MINUTE
+--
+ERROR: Syntax error: Unexpected keyword INTERVAL [at 4:49]
+  OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE TO INTERVAL 1 MINUTE FOLLOWING
+                                                ^
+--
+ALTERNATION GROUP: MAKE_INTERVAL(minute => 10)
+--
+ERROR: Syntax error: Function call cannot be applied to this expression. Function calls require a path, e.g. a.b.c() [at 4:62]
+...WITHIN RANGE FROM INTERVAL 1 MINUTE TO MAKE_INTERVAL(minute => 10) FOLLOWING
+                                                       ^
+--
+ALTERNATION GROUP: 1 PERIOD
+--
+ERROR: Syntax error: Unexpected integer literal "1" [at 4:49]
+  OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE TO 1 PERIOD FOLLOWING
+                                                ^
+--
+ALTERNATION GROUP: TIMESTAMP('2000-01-01 00:00:00+00')
+--
+ERROR: Syntax error: Function call cannot be applied to this expression. Function calls require a path, e.g. a.b.c() [at 4:58]
+...WITHIN RANGE FROM INTERVAL 1 MINUTE TO TIMESTAMP('2000-01-01 00:00:00+00')...
+                                                   ^
+--
+ALTERNATION GROUP: UNBOUNDED
+--
+ERROR: Syntax error: Unexpected keyword UNBOUNDED [at 4:49]
+  OUTPUT WITHIN RANGE FROM INTERVAL 1 MINUTE TO UNBOUNDED FOLLOWING
+                                                ^
+==
+
+# PERIOD / UNBOUNDED should be followed by PRECEDING/FOLLOWING
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN RANGE {{FROM|TO}} {{1 PERIOD|UNBOUNDED}}
+)
+--
+ERROR: Syntax error: Expected keyword FOLLOWING or keyword PRECEDING but got ")" [at 5:1]
+)
+^
+==
+
+# FROM/TO interval_expr not followed by PRECEDING/FOLLOWING is parsed as TIMESTAMP bound
+SELECT * FROM ts_table ALIGN (
+  TIMESTAMP ts
+  PERIOD MAKE_INTERVAL(minute => 10)
+  OUTPUT WITHIN RANGE {{FROM|TO}} {{INTERVAL 1 MIN|MAKE_INTERVAL(minute => 10)}}
+)
+--
+ALTERNATION GROUP: FROM,INTERVAL 1 MIN
+--
+QueryStatement [0-126] [SELECT * FROM...TERVAL 1 MIN )]
+  Query [0-126] [SELECT * FROM...TERVAL 1 MIN )]
+    Select [0-126] [SELECT * FROM...TERVAL 1 MIN )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-126] [FROM ts_table...TERVAL 1 MIN )]
+        TablePathExpression [14-126] [ts_table ALIGN...ERVAL 1 MIN )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-126] [ALIGN (...INTERVAL 1 MIN )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-124] [RANGE FROM INTERVAL 1 MIN]
+              AlignWithinBoundExpr(TIMESTAMP) [110-124] [INTERVAL 1 MIN]
+                IntervalExpr [110-124] [INTERVAL 1 MIN]
+                  IntLiteral(1) [119-120] [1]
+                  Identifier(MIN) [121-124] [MIN]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM INTERVAL 1 MIN
+  )
+--
+ALTERNATION GROUP: FROM,MAKE_INTERVAL(minute => 10)
+--
+QueryStatement [0-139] [SELECT * FROM...inute => 10) )]
+  Query [0-139] [SELECT * FROM...inute => 10) )]
+    Select [0-139] [SELECT * FROM...inute => 10) )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-139] [FROM ts_table...inute => 10) )]
+        TablePathExpression [14-139] [ts_table ALIGN...nute => 10) )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-139] [ALIGN (...minute => 10) )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-137] [RANGE FROM...minute => 10)]
+              AlignWithinBoundExpr(TIMESTAMP) [110-137] [MAKE_INTERVAL(minute => 10)]
+                FunctionCall [110-137] [MAKE_INTERVAL(minute => 10)]
+                  PathExpression [110-123] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [110-123] [MAKE_INTERVAL]
+                  NamedArgument [124-136] [minute => 10]
+                    Identifier(minute) [124-130] [minute]
+                    IntLiteral(10) [134-136] [10]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE FROM MAKE_INTERVAL(minute  => 10)
+  )
+--
+ALTERNATION GROUP: TO,INTERVAL 1 MIN
+--
+QueryStatement [0-124] [SELECT * FROM...TERVAL 1 MIN )]
+  Query [0-124] [SELECT * FROM...TERVAL 1 MIN )]
+    Select [0-124] [SELECT * FROM...TERVAL 1 MIN )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-124] [FROM ts_table...TERVAL 1 MIN )]
+        TablePathExpression [14-124] [ts_table ALIGN...ERVAL 1 MIN )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-124] [ALIGN (...INTERVAL 1 MIN )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-122] [RANGE TO INTERVAL 1 MIN]
+              AlignWithinBoundExpr(TIMESTAMP) [108-122] [INTERVAL 1 MIN]
+                IntervalExpr [108-122] [INTERVAL 1 MIN]
+                  IntLiteral(1) [117-118] [1]
+                  Identifier(MIN) [119-122] [MIN]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO INTERVAL 1 MIN
+  )
+--
+ALTERNATION GROUP: TO,MAKE_INTERVAL(minute => 10)
+--
+QueryStatement [0-137] [SELECT * FROM...inute => 10) )]
+  Query [0-137] [SELECT * FROM...inute => 10) )]
+    Select [0-137] [SELECT * FROM...inute => 10) )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-137] [FROM ts_table...inute => 10) )]
+        TablePathExpression [14-137] [ts_table ALIGN...nute => 10) )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-137] [ALIGN (...minute => 10) )]
+            ExpressionWithOptAlias [43-45] [ts]
+              PathExpression [43-45] [ts]
+                Identifier(ts) [43-45] [ts]
+            FunctionCall [55-82] [MAKE_INTERVAL(minute => 10)]
+              PathExpression [55-68] [MAKE_INTERVAL]
+                Identifier(MAKE_INTERVAL) [55-68] [MAKE_INTERVAL]
+              NamedArgument [69-81] [minute => 10]
+                Identifier(minute) [69-75] [minute]
+                IntLiteral(10) [79-81] [10]
+            AlignWithinClause [99-135] [RANGE TO MAKE_INT...ute => 10)]
+              AlignWithinBoundExpr(TIMESTAMP) [108-135] [MAKE_INTERVAL(minute => 10)]
+                FunctionCall [108-135] [MAKE_INTERVAL(minute => 10)]
+                  PathExpression [108-121] [MAKE_INTERVAL]
+                    Identifier(MAKE_INTERVAL) [108-121] [MAKE_INTERVAL]
+                  NamedArgument [122-134] [minute => 10]
+                    Identifier(minute) [122-128] [minute]
+                    IntLiteral(10) [132-134] [10]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    TIMESTAMP ts
+    PERIOD MAKE_INTERVAL(minute  => 10)
+    OUTPUT WITHIN RANGE TO MAKE_INTERVAL(minute  => 10)
+  )
+==
+
+# positional argument are not duplicated by unparser
+SELECT * FROM ts_table ALIGN (
+  PERIOD INTERVAL 1 MINUTE
+  OUTPUT WITHIN ?
+)
+--
+QueryStatement [0-77] [SELECT * FROM...WITHIN ? )]
+  Query [0-77] [SELECT * FROM...WITHIN ? )]
+    Select [0-77] [SELECT * FROM...WITHIN ? )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-77] [FROM ts_table...WITHIN ? )]
+        TablePathExpression [14-77] [ts_table ALIGN...WITHIN ? )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-77] [ALIGN (...WITHIN ? )]
+            IntervalExpr [40-57] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MINUTE) [51-57] [MINUTE]
+            AlignWithinClause [74-75] [?]
+              AlignWithinBoundExpr(INTERVAL PRECEDING) [74-75] [?]
+                ParameterExpr(1) [74-75] [?]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MINUTE
+    OUTPUT WITHIN RANGE FROM ? PRECEDING
+  )
+==
+
+# positional argument are not duplicated by unparser
+SELECT * FROM ts_table ALIGN (
+  PERIOD INTERVAL 1 MINUTE
+  OUTPUT WITHIN ? FOLLOWING
+)
+--
+QueryStatement [0-87] [SELECT * FROM...FOLLOWING )]
+  Query [0-87] [SELECT * FROM...FOLLOWING )]
+    Select [0-87] [SELECT * FROM...FOLLOWING )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-87] [FROM ts_table...FOLLOWING )]
+        TablePathExpression [14-87] [ts_table ALIGN...FOLLOWING )]
+          PathExpression [14-22] [ts_table]
+            Identifier(ts_table) [14-22] [ts_table]
+          AlignOperator [23-87] [ALIGN (...FOLLOWING )]
+            IntervalExpr [40-57] [INTERVAL 1 MINUTE]
+              IntLiteral(1) [49-50] [1]
+              Identifier(MINUTE) [51-57] [MINUTE]
+            AlignWithinClause [74-85] [? FOLLOWING]
+              AlignWithinBoundExpr(INTERVAL FOLLOWING) [74-85] [? FOLLOWING]
+                ParameterExpr(1) [74-75] [?]
+--
+SELECT
+  *
+FROM
+  ts_table ALIGN (
+    PERIOD INTERVAL 1 MINUTE
+    OUTPUT WITHIN RANGE TO ? FOLLOWING
+  )
+==
+
+SELECT * FROM ts_table ALIGN (
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN
+  OUTPUT WITHIN 50 PERIOD
+)
+--
+ERROR: Syntax error: Expected ")" or keyword METRICS or keyword OUTPUT or keyword PARTITION but got keyword WITHIN [at 4:10]
+  OUTPUT WITHIN 50 PERIOD
+         ^
+

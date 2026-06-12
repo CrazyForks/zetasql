@@ -229,7 +229,11 @@ class Catalog {
   // TODO: Pass <path> by value, like for FindConstant(). Same below.
   virtual absl::Status FindTable(const absl::Span<const std::string>& path,
                                  const Table** table,
-                                 const FindOptions& options = FindOptions());
+                                 const FindOptions& options);
+  absl::Status FindTable(absl::Span<const std::string> path,
+                         const Table** table) {
+    return FindTable(path, table, FindOptions());
+  }
 
   // Variant of FindTable() that allows for trailing field references in
   // <path>.
@@ -249,7 +253,11 @@ class Catalog {
 
   virtual absl::Status FindModel(const absl::Span<const std::string>& path,
                                  const Model** model,
-                                 const FindOptions& options = FindOptions());
+                                 const FindOptions& options);
+  absl::Status FindModel(absl::Span<const std::string> path,
+                         const Model** model) {
+    return FindModel(path, model, FindOptions());
+  }
 
   virtual absl::Status FindConnection(const absl::Span<const std::string>& path,
                                       const Connection** connection,
@@ -261,16 +269,27 @@ class Catalog {
 
   virtual absl::Status FindFunction(const absl::Span<const std::string>& path,
                                     const Function** function,
-                                    const FindOptions& options = FindOptions());
+                                    const FindOptions& options);
+  absl::Status FindFunction(absl::Span<const std::string> path,
+                            const Function** function) {
+    return FindFunction(path, function, FindOptions());
+  }
 
   virtual absl::Status FindTableValuedFunction(
       const absl::Span<const std::string>& path,
-      const TableValuedFunction** function,
-      const FindOptions& options = FindOptions());
+      const TableValuedFunction** function, const FindOptions& options);
+  absl::Status FindTableValuedFunction(absl::Span<const std::string> path,
+                                       const TableValuedFunction** function) {
+    return FindTableValuedFunction(path, function, FindOptions());
+  }
 
-  virtual absl::Status FindProcedure(
-      const absl::Span<const std::string>& path, const Procedure** procedure,
-      const FindOptions& options = FindOptions());
+  virtual absl::Status FindProcedure(const absl::Span<const std::string>& path,
+                                     const Procedure** procedure,
+                                     const FindOptions& options);
+  absl::Status FindProcedure(absl::Span<const std::string> path,
+                             const Procedure** procedure) {
+    return FindProcedure(path, procedure, FindOptions());
+  }
 
   // FindType has some additional conventions for protocol buffer type names:
   // We allow protocol buffer type names to be written either as a single
@@ -293,8 +312,10 @@ class Catalog {
   // proto identifier (including if it contains dots).
   // See ConvertPathToProtoName below.
   virtual absl::Status FindType(const absl::Span<const std::string>& path,
-                                const Type** type,
-                                const FindOptions& options = FindOptions());
+                                const Type** type, const FindOptions& options);
+  absl::Status FindType(absl::Span<const std::string> path, const Type** type) {
+    return FindType(path, type, FindOptions());
+  }
 
   // Unlike the other FindX methods, FindConstant is not virtual. Subclasses may
   // override FindConstantWithPathPrefix instead. It resolves a constant even
@@ -322,7 +343,13 @@ class Catalog {
   // lookup behavior.
   virtual absl::Status FindConstantWithPathPrefix(
       absl::Span<const std::string> path, int* num_names_consumed,
-      const Constant** constant, const FindOptions& options = FindOptions());
+      const Constant** constant, const FindOptions& options);
+  absl::Status FindConstantWithPathPrefix(absl::Span<const std::string> path,
+                                          int* num_names_consumed,
+                                          const Constant** constant) {
+    return FindConstantWithPathPrefix(path, num_names_consumed, constant,
+                                      FindOptions());
+  }
 
   absl::Status FindPropertyGraph(absl::Span<const std::string> path,
                                  const PropertyGraph*& property_graph) {
@@ -461,10 +488,16 @@ class Catalog {
   // These are normally overridden in subclasses.  The default implementations
   // always return not found, for Catalogs with no objects of that type.
   virtual absl::Status GetTable(const std::string& name, const Table** table,
-                                const FindOptions& options = FindOptions());
+                                const FindOptions& options);
+  absl::Status GetTable(const std::string& name, const Table** table) {
+    return GetTable(name, table, FindOptions());
+  }
 
   virtual absl::Status GetModel(const std::string& name, const Model** model,
-                                const FindOptions& options = FindOptions());
+                                const FindOptions& options);
+  absl::Status GetModel(const std::string& name, const Model** model) {
+    return GetModel(name, model, FindOptions());
+  }
 
   virtual absl::Status GetConnection(const std::string& name,
                                      const Connection** connection,
@@ -476,33 +509,53 @@ class Catalog {
 
   virtual absl::Status GetFunction(const std::string& name,
                                    const Function** function,
-                                   const FindOptions& options = FindOptions());
+                                   const FindOptions& options);
+  absl::Status GetFunction(const std::string& name, const Function** function) {
+    return GetFunction(name, function, FindOptions());
+  }
 
   virtual absl::Status GetTableValuedFunction(
       const std::string& full_name, const TableValuedFunction** function,
-      const FindOptions& options = FindOptions());
+      const FindOptions& options);
+  absl::Status GetTableValuedFunction(const std::string& full_name,
+                                      const TableValuedFunction** function) {
+    return GetTableValuedFunction(full_name, function, FindOptions());
+  }
 
   virtual absl::Status GetProcedure(const std::string& full_name,
                                     const Procedure** procedure,
-                                    const FindOptions& options = FindOptions());
+                                    const FindOptions& options);
+  absl::Status GetProcedure(const std::string& full_name,
+                            const Procedure** procedure) {
+    return GetProcedure(full_name, procedure, FindOptions());
+  }
 
   virtual absl::Status GetType(const std::string& name, const Type** type,
-                               const FindOptions& options = FindOptions());
+                               const FindOptions& options);
+  absl::Status GetType(const std::string& name, const Type** type) {
+    return GetType(name, type, FindOptions());
+  }
 
   virtual absl::Status GetCatalog(const std::string& name, Catalog** catalog,
-                                  const FindOptions& options = FindOptions());
+                                  const FindOptions& options);
+  absl::Status GetCatalog(const std::string& name, Catalog** catalog) {
+    return GetCatalog(name, catalog, FindOptions());
+  }
 
   virtual absl::Status GetConstant(const std::string& name,
                                    const Constant** constant,
-                                   const FindOptions& options = FindOptions());
-  absl::Status GetPropertyGraph(absl::string_view name,
-                                const PropertyGraph*& property_graph) {
-    return GetPropertyGraph(name, property_graph, FindOptions());
+                                   const FindOptions& options);
+  absl::Status GetConstant(const std::string& name, const Constant** constant) {
+    return GetConstant(name, constant, FindOptions());
   }
 
   virtual absl::Status GetPropertyGraph(absl::string_view name,
                                         const PropertyGraph*& property_graph,
                                         const FindOptions& options);
+  absl::Status GetPropertyGraph(absl::string_view name,
+                                const PropertyGraph*& property_graph) {
+    return GetPropertyGraph(name, property_graph, FindOptions());
+  }
 
   // Helper functions for getting canonical versions of NOT_FOUND error
   // messages.
@@ -977,6 +1030,9 @@ class Table {
   // "Columns X and Y cannot be read from T at the same time because ...".
   // Or it can be used when reading column X might affect the reported type of
   // column Y.
+  //
+  // This is *experimental* and should not be used in production yet.
+  // See RowType::GetTableScanContext for some caveats.
   using LazyColumnsTableScanContext = std::any;
 
   // Look up Columns lazily.  This can be used instead of NumColumns and
@@ -997,7 +1053,11 @@ class Table {
   // TODO In development, do not use yet.
   virtual absl::StatusOr<std::vector<const Column*>> ListLazyColumns(
       LazyColumnsTableScanContext* context,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) const;
+      const Catalog::FindOptions& options) const;
+  absl::StatusOr<std::vector<const Column*>> ListLazyColumns(
+      LazyColumnsTableScanContext* context) const {
+    return ListLazyColumns(context, Catalog::FindOptions());
+  }
 
   // Look up Columns lazily.  This can be used instead of FindColumnByName
   // and will work for all Tables, including those with non-default
@@ -1028,14 +1088,24 @@ class Table {
   virtual absl::StatusOr<FindLazyColumnsResult> FindLazyColumns(
       const absl::Span<const std::string>& column_names,
       LazyColumnsTableScanContext* context,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) const;
+      const Catalog::FindOptions& options) const;
+  absl::StatusOr<FindLazyColumnsResult> FindLazyColumns(
+      absl::Span<const std::string> column_names,
+      LazyColumnsTableScanContext* context) const {
+    return FindLazyColumns(column_names, context, Catalog::FindOptions());
+  }
 
   // Helper to call FindLazyColumns for a single column.
   // For not-found cases, this can return a nullptr or a NotFound error.
   // NotFound errors can include a customized error message.
   absl::StatusOr<const Column*> FindLazyColumn(
       absl::string_view column_name, LazyColumnsTableScanContext* context,
-      const Catalog::FindOptions& options = Catalog::FindOptions()) const;
+      const Catalog::FindOptions& options) const;
+  absl::StatusOr<const Column*> FindLazyColumn(
+      absl::string_view column_name,
+      LazyColumnsTableScanContext* context) const {
+    return FindLazyColumn(column_name, context, Catalog::FindOptions());
+  }
 };
 
 // A Model object visible in a GoogleSQL query.

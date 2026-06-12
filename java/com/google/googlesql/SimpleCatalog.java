@@ -269,6 +269,13 @@ public class SimpleCatalog extends Catalog {
     }
 
     for (Entry<String, Function> function : customFunctions.entrySet()) {
+      // If a function has an alias (e.g., "substring" is an alias for "substr"), both the function
+      // and the alias are registered in the catalog.  We should not serialize the alias or
+      // otherwise, we will have duplicates in the serialized catalog proto.
+      String aliasName = function.getValue().getOptions().getAliasName();
+      if (!aliasName.isEmpty() && Ascii.equalsIgnoreCase(function.getKey(), aliasName)) {
+        continue;
+      }
       builder.addCustomFunction(function.getValue().serialize(fileDescriptorSetsBuilder));
     }
 

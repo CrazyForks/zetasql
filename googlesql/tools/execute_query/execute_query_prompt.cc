@@ -29,6 +29,7 @@
 #include "googlesql/tools/execute_query/execute_query.pb.h"
 #include "googlesql/tools/execute_query/execute_query_tool.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"

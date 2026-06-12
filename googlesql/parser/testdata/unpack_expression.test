@@ -1,0 +1,422 @@
+[default language_features=MAXIMUM]
+[default mode=expression]
+
+**COLUMNS([])
+
+--
+UnpackExpression [0-13] [**COLUMNS([])]
+  ColumnListSpec [2-13] [COLUMNS([])]
+    ArrayConstructor [10-12] [[]]
+--
+** (COLUMNS(ARRAY[]))
+==
+
+**(COLUMNS([]))
+
+--
+UnpackExpression [0-15] [**(COLUMNS([]))]
+  ColumnListSpec [3-14] [COLUMNS([])]
+    ArrayConstructor [11-13] [[]]
+--
+** (COLUMNS(ARRAY[]))
+==
+
+**COLUMNS(['a', 'b'])
+
+--
+UnpackExpression [0-21] [**COLUMNS(['a', 'b'])]
+  ColumnListSpec [2-21] [COLUMNS(['a', 'b'])]
+    ArrayConstructor [10-20] [['a', 'b']]
+      StringLiteral [11-14] ['a']
+        StringLiteralComponent('a') [11-14] ['a']
+      StringLiteral [16-19] ['b']
+        StringLiteralComponent('b') [16-19] ['b']
+--
+** (COLUMNS(ARRAY['a', 'b']))
+==
+
+**(COLUMNS(['a', 'b']))
+
+--
+UnpackExpression [0-23] [**(COLUMNS(['a', 'b']))]
+  ColumnListSpec [3-22] [COLUMNS(['a', 'b'])]
+    ArrayConstructor [11-21] [['a', 'b']]
+      StringLiteral [12-15] ['a']
+        StringLiteralComponent('a') [12-15] ['a']
+      StringLiteral [17-20] ['b']
+        StringLiteralComponent('b') [17-20] ['b']
+--
+** (COLUMNS(ARRAY['a', 'b']))
+==
+
+**cols
+
+--
+UnpackExpression [0-6] [**cols]
+  PathExpression [2-6] [cols]
+    Identifier(cols) [2-6] [cols]
+--
+** (cols)
+==
+
+**(cols)
+
+--
+UnpackExpression [0-8] [**(cols)]
+  PathExpression [3-7] [cols]
+    Identifier(cols) [3-7] [cols]
+--
+** (cols)
+==
+
+**module.name.cols
+
+--
+UnpackExpression [0-18] [**module.name.cols]
+  PathExpression [2-18] [module.name.cols]
+    Identifier(module) [2-8] [module]
+    Identifier(name) [9-13] [name]
+    Identifier(cols) [14-18] [cols]
+--
+** (module.name.cols)
+==
+
+**(module.name.cols)
+
+--
+UnpackExpression [0-20] [**(module.name.cols)]
+  PathExpression [3-19] [module.name.cols]
+    Identifier(module) [3-9] [module]
+    Identifier(name) [10-14] [name]
+    Identifier(cols) [15-19] [cols]
+--
+** (module.name.cols)
+==
+
+**module.name.cols[a]
+
+--
+UnpackExpression [0-21] [**module.name.cols[a]]
+  ArrayElement [2-21] [module.name.cols[a]]
+    PathExpression [2-18] [module.name.cols]
+      Identifier(module) [2-8] [module]
+      Identifier(name) [9-13] [name]
+      Identifier(cols) [14-18] [cols]
+    Location [18-19] [[]
+    PathExpression [19-20] [a]
+      Identifier(a) [19-20] [a]
+--
+** (module.name.cols[a])
+==
+
+**(module.name.cols[a])
+
+--
+UnpackExpression [0-23] [**(module.name.cols[a])]
+  ArrayElement [3-22] [module.name.cols[a]]
+    PathExpression [3-19] [module.name.cols]
+      Identifier(module) [3-9] [module]
+      Identifier(name) [10-14] [name]
+      Identifier(cols) [15-19] [cols]
+    Location [19-20] [[]
+    PathExpression [20-21] [a]
+      Identifier(a) [20-21] [a]
+--
+** (module.name.cols[a])
+==
+
+**module.name.*
+
+--
+ERROR: Syntax error: Unexpected "*" [at 1:15]
+**module.name.*
+              ^
+==
+
+(**module.name.*)
+
+--
+ERROR: Syntax error: Unexpected "*" [at 1:16]
+(**module.name.*)
+               ^
+==
+
+**`cols`
+
+--
+UnpackExpression [0-8] [**`cols`]
+  PathExpression [2-8] [`cols`]
+    Identifier(cols) [2-8] [`cols`]
+--
+** (cols)
+==
+
+**(`cols`)
+
+--
+UnpackExpression [0-10] [**(`cols`)]
+  PathExpression [3-9] [`cols`]
+    Identifier(cols) [3-9] [`cols`]
+--
+** (cols)
+==
+
+**x[a]
+
+--
+UnpackExpression [0-6] [**x[a]]
+  ArrayElement [2-6] [x[a]]
+    PathExpression [2-3] [x]
+      Identifier(x) [2-3] [x]
+    Location [3-4] [[]
+    PathExpression [4-5] [a]
+      Identifier(a) [4-5] [a]
+--
+** (x[a])
+==
+
+**(x[a])
+--
+UnpackExpression [0-8] [**(x[a])]
+  ArrayElement [3-7] [x[a]]
+    PathExpression [3-4] [x]
+      Identifier(x) [3-4] [x]
+    Location [4-5] [[]
+    PathExpression [5-6] [a]
+      Identifier(a) [5-6] [a]
+
+--
+** (x[a])
+==
+
+**(-cols)
+
+--
+UnpackExpression [0-9] [**(-cols)]
+  UnaryExpression(-) [3-8] [-cols]
+    PathExpression [4-8] [cols]
+      Identifier(cols) [4-8] [cols]
+--
+** (-cols)
+==
+
+**(cols+1)
+
+--
+UnpackExpression [0-10] [**(cols+1)]
+  BinaryExpression(+) [3-9] [cols+1]
+    PathExpression [3-7] [cols]
+      Identifier(cols) [3-7] [cols]
+    IntLiteral(1) [8-9] [1]
+--
+** (cols + 1)
+==
+
+**(**cols)
+
+--
+UnpackExpression [0-10] [**(**cols)]
+  UnpackExpression [3-9] [**cols]
+    PathExpression [5-9] [cols]
+      Identifier(cols) [5-9] [cols]
+--
+** ** (cols)
+==
+
+[mode=statement]
+SELECT a.* *b
+
+--
+ERROR: Syntax error: Expected end of input but got "*" [at 1:12]
+SELECT a.* *b
+           ^
+==
+
+[mode=statement]
+SELECT **a.*
+
+--
+ERROR: Syntax error: Unexpected "*" [at 1:12]
+SELECT **a.*
+           ^
+==
+
+[mode=statement]
+SELECT **a.b.*
+
+--
+ERROR: Syntax error: Unexpected "*" [at 1:14]
+SELECT **a.b.*
+             ^
+==
+
+[mode=statement]
+SELECT a.**b
+
+--
+ERROR: Syntax error: Unexpected "**" [at 1:10]
+SELECT a.**b
+         ^
+==
+
+[mode=statement]
+SELECT **a[0]
+
+--
+QueryStatement [0-13] [SELECT **a[0]]
+  Query [0-13] [SELECT **a[0]]
+    Select [0-13] [SELECT **a[0]]
+      SelectList [7-13] [**a[0]]
+        SelectColumn [7-13] [**a[0]]
+          UnpackExpression [7-13] [**a[0]]
+            ArrayElement [9-13] [a[0]]
+              PathExpression [9-10] [a]
+                Identifier(a) [9-10] [a]
+              Location [10-11] [[]
+              IntLiteral(0) [11-12] [0]
+--
+SELECT
+  ** (a[0])
+==
+
+[mode=statement]
+SELECT **(a[0])
+
+--
+QueryStatement [0-15] [SELECT **(a[0])]
+  Query [0-15] [SELECT **(a[0])]
+    Select [0-15] [SELECT **(a[0])]
+      SelectList [7-15] [**(a[0])]
+        SelectColumn [7-15] [**(a[0])]
+          UnpackExpression [7-15] [**(a[0])]
+            ArrayElement [10-14] [a[0]]
+              PathExpression [10-11] [a]
+                Identifier(a) [10-11] [a]
+              Location [11-12] [[]
+              IntLiteral(0) [12-13] [0]
+--
+SELECT
+  ** (a[0])
+==
+
+[mode=statement]
+SELECT **a.b
+
+--
+QueryStatement [0-12] [SELECT **a.b]
+  Query [0-12] [SELECT **a.b]
+    Select [0-12] [SELECT **a.b]
+      SelectList [7-12] [**a.b]
+        SelectColumn [7-12] [**a.b]
+          UnpackExpression [7-12] [**a.b]
+            PathExpression [9-12] [a.b]
+              Identifier(a) [9-10] [a]
+              Identifier(b) [11-12] [b]
+--
+SELECT
+  ** (a.b)
+==
+
+[mode=statement]
+SELECT **(a.b)
+
+--
+QueryStatement [0-14] [SELECT **(a.b)]
+  Query [0-14] [SELECT **(a.b)]
+    Select [0-14] [SELECT **(a.b)]
+      SelectList [7-14] [**(a.b)]
+        SelectColumn [7-14] [**(a.b)]
+          UnpackExpression [7-14] [**(a.b)]
+            PathExpression [10-13] [a.b]
+              Identifier(a) [10-11] [a]
+              Identifier(b) [12-13] [b]
+--
+SELECT
+  ** (a.b)
+==
+
+[mode=statement]
+SELECT **a * b
+
+--
+QueryStatement [0-14] [SELECT **a * b]
+  Query [0-14] [SELECT **a * b]
+    Select [0-14] [SELECT **a * b]
+      SelectList [7-14] [**a * b]
+        SelectColumn [7-14] [**a * b]
+          BinaryExpression(*) [7-14] [**a * b]
+            UnpackExpression [7-10] [**a]
+              PathExpression [9-10] [a]
+                Identifier(a) [9-10] [a]
+            PathExpression [13-14] [b]
+              Identifier(b) [13-14] [b]
+--
+SELECT
+  ** (a) * b
+==
+
+[mode=statement]
+SELECT a.**[0]
+--
+ERROR: Syntax error: Unexpected "**" [at 1:10]
+SELECT a.**[0]
+         ^
+==
+
+[mode=statement]
+SELECT a.**.*
+--
+ERROR: Syntax error: Unexpected "**" [at 1:10]
+SELECT a.**.*
+         ^
+==
+
+[mode=statement]
+SELECT **a + b
+--
+QueryStatement [0-14] [SELECT **a + b]
+  Query [0-14] [SELECT **a + b]
+    Select [0-14] [SELECT **a + b]
+      SelectList [7-14] [**a + b]
+        SelectColumn [7-14] [**a + b]
+          BinaryExpression(+) [7-14] [**a + b]
+            UnpackExpression [7-10] [**a]
+              PathExpression [9-10] [a]
+                Identifier(a) [9-10] [a]
+            PathExpression [13-14] [b]
+              Identifier(b) [13-14] [b]
+--
+SELECT
+  ** (a) + b
+
+==
+
+[mode=statement]
+SELECT * FROM Foo(t, COLUMNS(['a', **cols]))
+--
+QueryStatement [0-44] [SELECT * FROM...**cols]))]
+  Query [0-44] [SELECT * FROM...**cols]))]
+    Select [0-44] [SELECT * FROM...**cols]))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-44] [FROM Foo(t...**cols]))]
+        TVF [14-44] [Foo(t, COLUMNS(['a', **cols]))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-19] [t]
+            PathExpression [18-19] [t]
+              Identifier(t) [18-19] [t]
+          TVFArgument [21-43] [COLUMNS(['a', **cols])]
+            ColumnListSpec [21-43] [COLUMNS(['a', **cols])]
+              ArrayConstructor [29-42] [['a', **cols]]
+                StringLiteral [30-33] ['a']
+                  StringLiteralComponent('a') [30-33] ['a']
+                UnpackExpression [35-41] [**cols]
+                  PathExpression [37-41] [cols]
+                    Identifier(cols) [37-41] [cols]
+--
+SELECT
+  *
+FROM
+  Foo(t, COLUMNS(ARRAY['a', ** (cols)]))

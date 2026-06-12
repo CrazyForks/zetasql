@@ -17,7 +17,6 @@
 
 package com.google.googlesql;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.googlesql.GoogleSQLOptions.ProductMode;
 import com.google.googlesql.GoogleSQLType.ArrayTypeProto;
@@ -25,10 +24,7 @@ import com.google.googlesql.GoogleSQLType.TypeKind;
 import com.google.googlesql.GoogleSQLType.TypeProto;
 import java.util.Objects;
 
-/**
- * An array type.
- * Arrays of arrays are not supported.
- */
+/** An array type. */
 public class ArrayType extends Type {
   static boolean equalsImpl(ArrayType type1, ArrayType type2, boolean equivalent) {
     return type1.elementType.equalsInternal(type2.elementType, equivalent);
@@ -39,7 +35,6 @@ public class ArrayType extends Type {
   /** Private constructor, instances must be created with {@link TypeFactory} */
   ArrayType(Type elementType) {
     super(TypeKind.TYPE_ARRAY);
-    Preconditions.checkArgument(elementType.getKind() != TypeKind.TYPE_ARRAY);
     this.elementType = elementType;
   }
 

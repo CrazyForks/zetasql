@@ -34,6 +34,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -48,7 +49,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -208,8 +208,8 @@ static bool CUnescapeInternal(absl::string_view source,
         if (error) {
           *error = is_raw_literal
                        ? "Raw literals cannot end with odd number of \\"
-                       : is_bytes_literal ? "Bytes literal cannot end with \\"
-                                          : "String literal cannot end with \\";
+                   : is_bytes_literal ? "Bytes literal cannot end with \\"
+                                      : "String literal cannot end with \\";
         }
         if (error_offset) *error_offset = source.size();
         return false;
@@ -229,20 +229,47 @@ static bool CUnescapeInternal(absl::string_view source,
       }
 
       switch (*p) {
-        case 'a':  *d++ = '\a';  break;
-        case 'b':  *d++ = '\b';  break;
-        case 'f':  *d++ = '\f';  break;
-        case 'n':  *d++ = '\n';  break;
-        case 'r':  *d++ = '\r';  break;
-        case 't':  *d++ = '\t';  break;
-        case 'v':  *d++ = '\v';  break;
-        case '\\': *d++ = '\\';  break;
-        case '?':  *d++ = '\?';  break;  // \?  Who knew?
-        case '\'': *d++ = '\'';  break;
-        case '"':  *d++ = '\"';  break;
-        case '`':  *d++ = '`';  break;
+        case 'a':
+          *d++ = '\a';
+          break;
+        case 'b':
+          *d++ = '\b';
+          break;
+        case 'f':
+          *d++ = '\f';
+          break;
+        case 'n':
+          *d++ = '\n';
+          break;
+        case 'r':
+          *d++ = '\r';
+          break;
+        case 't':
+          *d++ = '\t';
+          break;
+        case 'v':
+          *d++ = '\v';
+          break;
+        case '\\':
+          *d++ = '\\';
+          break;
+        case '?':
+          *d++ = '\?';
+          break;  // \?  Who knew?
+        case '\'':
+          *d++ = '\'';
+          break;
+        case '"':
+          *d++ = '\"';
+          break;
+        case '`':
+          *d++ = '`';
+          break;
 
-        case '0': case '1': case '2': case '3': {
+        case '0':
+        case '1':
+        case '2':
+        case '3': {
           // Octal escape '\ddd': requires exactly 3 octal digits.  Note that
           // the highest valid escape sequence is '\377'.
           // For string literals, octal and hex escape sequences are interpreted
@@ -286,7 +313,8 @@ static bool CUnescapeInternal(absl::string_view source,
           }
           break;
         }
-        case 'x': case 'X': {
+        case 'x':
+        case 'X': {
           // Hex escape '\xhh': requires exactly 2 hex digits.
           // For string literals, octal and hex escape sequences are
           // interpreted as unicode code points, and the related UTF8-encoded
@@ -461,7 +489,7 @@ static bool CUnescapeInternal(absl::string_view source,
           return false;
         }
       }
-      p++;                                 // read past letter we escaped
+      p++;  // read past letter we escaped
     }
   }
   *dest_len = d - dest;
@@ -515,10 +543,26 @@ static std::string CEscapeInternal(absl::string_view src, bool utf8_safe,
     unsigned char c = static_cast<unsigned char>(sc);
     bool is_hex_escape = false;
     switch (c) {
-      case '\n': dest.append("\\" "n"); break;
-      case '\r': dest.append("\\" "r"); break;
-      case '\t': dest.append("\\" "t"); break;
-      case '\\': dest.append("\\" "\\"); break;
+      case '\n':
+        dest.append(
+            "\\"
+            "n");
+        break;
+      case '\r':
+        dest.append(
+            "\\"
+            "r");
+        break;
+      case '\t':
+        dest.append(
+            "\\"
+            "t");
+        break;
+      case '\\':
+        dest.append(
+            "\\"
+            "\\");
+        break;
 
       case '\'':
       case '\"':
@@ -537,7 +581,9 @@ static std::string CEscapeInternal(absl::string_view src, bool utf8_safe,
         if ((!utf8_safe || c < 0x80) &&
             (!absl::ascii_isprint(c) ||
              (last_hex_escape && absl::ascii_isxdigit(c)))) {
-          dest.append("\\" "x");
+          dest.append(
+              "\\"
+              "x");
           dest.push_back(hex_char[c / 16]);
           dest.push_back(hex_char[c % 16]);
           is_hex_escape = true;
@@ -672,10 +718,9 @@ absl::Status ParseStringLiteral(absl::string_view str, std::string* out,
   const absl::string_view quotes = copy_str.substr(0, quotes_length);
   copy_str = absl::ClippedSubstr(copy_str, quotes_length);
   std::string local_error_string;
-  if (!CUnescapeInternal(copy_str,
-                         quotes /* closing_str */, is_raw_string_literal,
-                         false /* is_bytes_literal */, out, &local_error_string,
-                         error_offset)) {
+  if (!CUnescapeInternal(copy_str, quotes /* closing_str */,
+                         is_raw_string_literal, false /* is_bytes_literal */,
+                         out, &local_error_string, error_offset)) {
     // Correct the error offset for what we stripped off from the start.
     if (error_offset) *error_offset += copy_str.data() - str.data();
     if (error_string) *error_string = local_error_string;
@@ -717,10 +762,9 @@ absl::Status ParseBytesLiteral(absl::string_view str, std::string* out,
   // Includes the closing quotes.
   copy_str = absl::ClippedSubstr(copy_str, quotes_length);
   std::string local_error_string;
-  if (!CUnescapeInternal(copy_str,
-                         quotes /* closing_str */, is_raw_bytes_literal,
-                         true /* is_bytes_literal */, out, &local_error_string,
-                         error_offset)) {
+  if (!CUnescapeInternal(copy_str, quotes /* closing_str */,
+                         is_raw_bytes_literal, true /* is_bytes_literal */, out,
+                         &local_error_string, error_offset)) {
     // Correct the error offset for what we stripped off from the start.
     if (error_offset) *error_offset += copy_str.data() - str.data();
     if (error_string) *error_string = local_error_string;
@@ -1073,7 +1117,7 @@ absl::Status ParseIdentifierPath(absl::string_view str,
   if (language_options.LanguageFeatureEnabled(FEATURE_ALLOW_SLASH_PATHS) &&
       !temp_out.empty() && !is_quoted) {
     absl::string_view first_seg = temp_out[0];
-    std::vector<std::string> slash_path = absl::StrSplit(first_seg, '/');
+    std::vector<absl::string_view> slash_path = absl::StrSplit(first_seg, '/');
     if (slash_path.size() > 1 &&
         absl::c_any_of(slash_path, &IsReservedKeyword)) {
       return MakeSqlError() << "Slashed path contains a reserved keyword'";

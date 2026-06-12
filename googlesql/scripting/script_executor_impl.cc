@@ -28,7 +28,6 @@
 #include <variant>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/errors.h"
 #include "googlesql/common/status_payload_utils.h"
 #include "googlesql/parser/ast_node_kind.h"
@@ -41,7 +40,6 @@
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/cast.h"
 #include "googlesql/public/coercer.h"
-#include "googlesql/public/error_helpers.h"
 #include "googlesql/public/evaluator.h"
 #include "googlesql/public/evaluator_table_iterator.h"
 #include "googlesql/public/function_signature.h"
@@ -63,8 +61,11 @@
 #include "googlesql/scripting/stack_frame.h"
 #include "googlesql/scripting/type_aliases.h"
 #include "absl/container/flat_hash_set.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -75,9 +76,9 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -1759,6 +1760,13 @@ absl::Status ScriptExecutorImpl::ExecuteDynamicStatement() {
       /*result_type=*/FunctionArgumentType(
           SignatureArgumentKind::ARG_TYPE_VOID),
       /*arguments=*/{}, /*context_ptr=*/nullptr);
+  GOOGLESQL_RET_CHECK(sql_value.is_valid() && sql_value.type() != nullptr &&
+            sql_value.type()->IsString())
+      << "EXECUTE IMMEDIATE sql string must be a string value, but found: "
+      << (!sql_value.is_valid() ? "invalid value"
+                                : (sql_value.type() == nullptr
+                                       ? "null type"
+                                       : sql_value.type()->DebugString()));
   // This value only exists within this function call, do not pass references to
   // it to other objects. Instead use ProcedureDefinition which creates an owned
   // copy.
@@ -2255,7 +2263,7 @@ std::string ScriptExecutorImpl::VariablesDebugString() const {
   std::string intent = "  ";
 
   // Display variables in alphabetical order so that tests which rely upon the
-  // result of this function are determanistic.
+  // result of this function are deterministic.
   std::vector<std::pair<IdString, Value>> sorted_variables(
       GetCurrentVariables().begin(), GetCurrentVariables().end());
   std::sort(sorted_variables.begin(), sorted_variables.end(),

@@ -113,7 +113,7 @@ constexpr uint128 min128<uint128>() {
 }
 
 // Cannot use multiprecision_int_impl::SafeAbs because
-// std::make_unsigned_t<int128> doesn't compile in googlesql oss.
+// std::make_unsigned_t<int128> doesn't compile in googlesql.
 inline uint128 SafeAbs(int128 x) {
   return x < 0 ? -static_cast<uint128>(x) : x;
 }

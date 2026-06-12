@@ -7849,6 +7849,12 @@ SELECT SAFE_TO_JSON([
  +------------*/
 ```
 
+**Caveats**
+
+The output of `SAFE_TO_JSON` may change over time: If JSON support is added to a
+formerly unsupported type, then `SAFE_TO_JSON` starts producing the type's JSON
+representation instead of `null`.
+
 [json-encodings]: #json_encodings
 
 ## `STRING` 
@@ -8084,6 +8090,42 @@ FROM T1 AS t;
  +------------------------------*/
 ```
 
+In the following example, each graph node called `src` is converted into a
+JSON object:
+
+```googlesql
+GRAPH FinGraph
+MATCH (src:Account {id: 7})-[t1:Transfers]->(dst:Account)
+RETURN TO_JSON(src) AS json_array
+
+/*--------------------------------------------------------------------+
+ | json_array                                                         |
+ +--------------------------------------------------------------------+
+ | {                                                                  |
+ |   "identifier":"rhYAAAANAAAApgAAAAAAAAAApgcAAAAAAAAA",             |
+ |   "kind":"node",                                                   |
+ |   "labels":["Account"],                                            |
+ |   "properties":{                                                   |
+ |     "create_time":"2020-01-10T06:22:20.222Z",                      |
+ |     "id":7,                                                        |
+ |     "is_blocked":false,                                            |
+ |     "nick_name":"Vacation Fund"                                    |
+ |   }                                                                |
+ | }                                                                  |
+ | {                                                                  |
+ |   "identifier":"rhYAAAANAAAApgAAAAAAAAAApgcAAAAAAAAA",             |
+ |   "kind":"node",                                                   |
+ |   "labels":["Account"],                                            |
+ |   "properties":{                                                   |
+ |     "create_time":"2020-01-10T06:22:20.222Z",                      |
+ |     "id":7,                                                        |
+ |     "is_blocked":false,                                            |
+ |     "nick_name":"Vacation Fund"                                    |
+ |   }                                                                |
+ | }                                                                  |
+ +--------------------------------------------------------------------*/
+```
+
 [json-encodings]: #json_encodings
 
 ## `TO_JSON_STRING`
@@ -8099,7 +8141,9 @@ Converts a SQL value to a JSON-formatted `STRING` value.
 Arguments:
 
 +   `value`: A SQL value. You can review the GoogleSQL data types that
-    this function supports and their JSON encodings [here][json-encodings].
+    this function supports and their JSON encodings in the
+    [JSON encodings][json-encodings] section. If the value is `NULL`, a `null`
+    string is returned.
 +   `pretty_print`: Optional boolean parameter. If `pretty_print` is `true`, the
     returned value is formatted for easy readability. If `pretty_print` is
     `NULL`, the function returns `NULL`, regardless of the `value` argument.
@@ -8998,6 +9042,7 @@ The following SQL to JSON encodings are supported:
     <tr>
       <td>GRAPH_ELEMENT</td>
       <td>
+        <p>(<code>TO_JSON</code> only)</p>
         <p>object</p>
         <p>
           The object can contain zero or more key-value pairs.

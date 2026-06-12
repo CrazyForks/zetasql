@@ -31,13 +31,27 @@ message PerModuleOptions {
     // The UDF server is from the udf_server_address set in the module's
     // OPTIONS. This is the default mode.
     SERVER_ADDRESS_FROM_MODULE = 1;
-    // The UDF servers will be provided or selected based on setup of the system
-    // launching queries. For example, it may be running UDF servers including
-    // in some MPM release, or servers built from source code by the user.
+    // The UDF servers will be provided or selected based on the setup of the
+    // system launching queries. For example, it may be running UDF servers
+    // included in an MPM release, or servers built from source code by the
+    // user. The exact mechanism is automatically selected by the system. To
+    // override the selection, use CALLER_PROVIDED_COPROCESSOR,
+    // CALLER_PROVIDED_UDFP, or CALLER_PROVIDED_INPROCESS.
     CALLER_PROVIDED = 2;
     // There is no default source for this UDF server. An explicit
     // udf_server_address must be provided.
     MANUAL = 3;
+    // The UDF servers will be provided by the caller as coprocessors. Suitable
+    // for UDF servers that can run together with the query engine workers. Not
+    // supported by all engines.
+    CALLER_PROVIDED_COPROCESSOR = 4;
+    // The UDF servers will be provided by the caller as UDFP. Suitable for UDFs
+    // that require loading large amounts of data, such as ML models.
+    CALLER_PROVIDED_UDFP = 5;
+    // The UDF servers will be provided by the caller as in-process functions.
+    // Suitable for native high performance UDFs, or UDFs in some embeddable
+    // languages, such as Python and Lua. Not supported by all engines.
+    CALLER_PROVIDED_INPROCESS = 6;
   }
   // The address of the UDF server that the serves functions in the GoogleSQL
   // module. This takes precedence over the default set in

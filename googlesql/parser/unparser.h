@@ -23,6 +23,7 @@
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parse_tree_visitor.h"
+#include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 
@@ -221,6 +222,8 @@ class Unparser : public ParseTreeVisitor {
                                    void* data) override;
   void visitASTCreateApproxViewStatement(
       const ASTCreateApproxViewStatement* node, void* data) override;
+  void visitASTCreateLiveTableStatement(const ASTCreateLiveTableStatement* node,
+                                        void* data) override;
   void visitASTCreateMaterializedViewStatement(
       const ASTCreateMaterializedViewStatement* node, void* data) override;
   void visitASTColumnWithOptions(const ASTColumnWithOptions* node,
@@ -312,6 +315,8 @@ class Unparser : public ParseTreeVisitor {
                                         void* data) override;
   void visitASTDropVectorIndexStatement(const ASTDropVectorIndexStatement* node,
                                         void* data) override;
+  void visitASTDropAiIndexStatement(const ASTDropAiIndexStatement* node,
+                                    void* data) override;
   void visitASTRenameStatement(const ASTRenameStatement* node,
                                void* data) override;
   void visitASTImportStatement(const ASTImportStatement* node,
@@ -346,10 +351,13 @@ class Unparser : public ParseTreeVisitor {
   void visitASTPipeCall(const ASTPipeCall* node, void* data) override;
   void visitASTPipeWindow(const ASTPipeWindow* node, void* data) override;
   void visitASTPipeDistinct(const ASTPipeDistinct* node, void* data) override;
+  void visitASTPipeFinish(const ASTPipeFinish* node, void* data) override;
   void visitASTPipeTablesample(const ASTPipeTablesample* node,
                                void* data) override;
   void visitASTPipeMatchRecognize(const ASTPipeMatchRecognize* node,
                                   void* data) override;
+  void visitASTPipeAlignOperator(const ASTPipeAlignOperator* node,
+                                 void* data) override;
   void visitASTPipeAs(const ASTPipeAs* node, void* data) override;
   void visitASTPipeDescribe(const ASTPipeDescribe* node, void* data) override;
   void visitASTPipeStaticDescribe(const ASTPipeStaticDescribe* node,
@@ -371,6 +379,18 @@ class Unparser : public ParseTreeVisitor {
   void visitASTPipeCreateTable(const ASTPipeCreateTable* node,
                                void* data) override;
   void visitASTPipeInsert(const ASTPipeInsert* node, void* data) override;
+  void visitASTAlignWithinBoundExpr(const ASTAlignWithinBoundExpr* node,
+                                    void* data) override;
+  void visitASTAlignWithinClause(const ASTAlignWithinClause* node,
+                                 void* data) override;
+  void visitASTEstimatorFunctionCall(const ASTEstimatorFunctionCall* node,
+                                     void* data) override;
+  void visitASTPartitionByWithOptAlias(const ASTPartitionByWithOptAlias* node,
+                                       void* data) override;
+  void visitASTMetricsClause(const ASTMetricsClause* node, void* data) override;
+  void visitASTAlignOriginExpression(const ASTAlignOriginExpression* node,
+                                     void* data) override;
+  void visitASTAlignOperator(const ASTAlignOperator* node, void* data) override;
   void visitASTMatchRecognizeClause(const ASTMatchRecognizeClause* node,
                                     void* data) override;
   void visitASTAfterMatchSkipClause(const ASTAfterMatchSkipClause* node,
@@ -414,6 +434,8 @@ class Unparser : public ParseTreeVisitor {
   void visitASTTransformClause(const ASTTransformClause* node,
                                void* data) override;
   void visitASTWithOffset(const ASTWithOffset* node, void* data) override;
+  void visitASTWithTimestamp(const ASTWithTimestamp* node, void* data) override;
+  void visitASTTemporalAt(const ASTTemporalAt* node, void* data) override;
   void visitASTUnnestExpression(const ASTUnnestExpression* node,
                                 void* data) override;
   void visitASTUnnestExpressionWithOptAliasAndOffset(
@@ -423,6 +445,7 @@ class Unparser : public ParseTreeVisitor {
                                 void* data) override;
   void visitASTTablePathExpression(const ASTTablePathExpression* node,
                                    void* data) override;
+  void visitASTGroupRows(const ASTGroupRows* node, void* data) override;
   void visitASTForSystemTime(const ASTForSystemTime* node, void* data) override;
   void visitASTTableSubquery(const ASTTableSubquery* node, void* data) override;
   void visitASTJoin(const ASTJoin* node, void* data) override;
@@ -448,6 +471,15 @@ class Unparser : public ParseTreeVisitor {
   void visitASTIdentityColumnMinValue(const ASTIdentityColumnMinValue* node,
                                       void* data) override;
   void visitASTGqlMatch(const ASTGqlMatch* node, void* data) override;
+  void visitASTGqlInsert(const ASTGqlInsert* node, void* data) override;
+  void visitASTGraphInsertPathPattern(const ASTGraphInsertPathPattern* node,
+                                      void* data) override;
+  void visitASTGraphInsertElementPatternFiller(
+      const ASTGraphInsertElementPatternFiller* node, void* data) override;
+  void visitASTGraphInsertNodePattern(const ASTGraphInsertNodePattern* node,
+                                      void* data) override;
+  void visitASTGraphInsertEdgePattern(const ASTGraphInsertEdgePattern* node,
+                                      void* data) override;
   void visitASTGqlQuery(const ASTGqlQuery* node, void* data) override;
   void visitASTGqlGraphPatternQuery(const ASTGqlGraphPatternQuery* node,
                                     void* data) override;
@@ -482,6 +514,9 @@ class Unparser : public ParseTreeVisitor {
                                      void* data) override;
   void visitASTGraphElementTable(const ASTGraphElementTable* node,
                                  void* data) override;
+
+  void visitASTGraphInlinedEdgeDefinition(
+      const ASTGraphInlinedEdgeDefinition* node, void* data) override;
   void visitASTGraphDerivedPropertyList(const ASTGraphDerivedPropertyList* node,
                                         void* data) override;
   void visitASTGraphDerivedProperty(const ASTGraphDerivedProperty* node,
@@ -568,13 +603,15 @@ class Unparser : public ParseTreeVisitor {
       const ASTBracedConstructorFieldValue* node, void* data) override;
   void visitASTBracedConstructorField(const ASTBracedConstructorField* node,
                                       void* data) override;
+  void visitASTBracedConstructorExtendedExpr(
+      const ASTBracedConstructorExtendedExpr* node, void* data) override;
   void visitASTBracedConstructor(const ASTBracedConstructor* node,
                                  void* data) override;
   void visitASTBracedNewConstructor(const ASTBracedNewConstructor* node,
                                     void* data) override;
   void visitASTStructBracedConstructor(const ASTStructBracedConstructor* node,
                                        void* data) override;
-  void visitASTExtendedPathExpression(const ASTExtendedPathExpression* node,
+  void visitASTTypedBracedConstructor(const ASTTypedBracedConstructor* node,
                                       void* data) override;
   void visitASTUpdateConstructor(const ASTUpdateConstructor* node,
                                  void* data) override;
@@ -631,6 +668,8 @@ class Unparser : public ParseTreeVisitor {
                               void* data) override;
   void visitASTPathExpressionList(const ASTPathExpressionList* node,
                                   void* data) override;
+  void visitASTExpressionList(const ASTExpressionList* node,
+                              void* data) override;
   void visitASTParameterExpr(const ASTParameterExpr* node, void* data) override;
   void visitASTSystemVariableExpr(const ASTSystemVariableExpr* node,
                                   void* data) override;
@@ -668,6 +707,8 @@ class Unparser : public ParseTreeVisitor {
       const ASTQuantifiedComparisonExpression* node, void* data) override;
   void visitASTIndexAllColumns(const ASTIndexAllColumns* node,
                                void* data) override;
+  void visitASTIndexAutoColumns(const ASTIndexAutoColumns* node,
+                                void* data) override;
   void visitASTIndexItemList(const ASTIndexItemList* node, void* data) override;
   void visitASTIndexStoringExpressionList(
       const ASTIndexStoringExpressionList* node, void* data) override;
@@ -873,8 +914,6 @@ class Unparser : public ParseTreeVisitor {
       const ASTAlterConstraintSetOptionsAction* node, void* data) override;
   void visitASTAddColumnAction(const ASTAddColumnAction* node,
                                void* data) override;
-  void visitASTAddColumnIdentifierAction(
-      const ASTAddColumnIdentifierAction* node, void* data) override;
   void visitASTGrantToClause(const ASTGrantToClause* node, void* data) override;
   void visitASTRestrictToClause(const ASTRestrictToClause* node,
                                 void* data) override;
@@ -1018,6 +1057,10 @@ class Unparser : public ParseTreeVisitor {
 
   void visitASTPipeRecursiveUnion(const ASTPipeRecursiveUnion* node,
                                   void* data) override;
+  void visitASTUnpackExpression(const ASTUnpackExpression* node,
+                                void* data) override;
+  void visitASTColumnListSpec(const ASTColumnListSpec* node,
+                              void* data) override;
   void visitASTCreateSequenceStatement(const ASTCreateSequenceStatement* node,
                                        void* data) override;
   void visitASTAlterSequenceStatement(const ASTAlterSequenceStatement* node,
@@ -1037,6 +1080,10 @@ class Unparser : public ParseTreeVisitor {
   void visitASTRunStatement(const ASTRunStatement* node, void* data) override;
 
  protected:
+  void UnparseFunctionArguments(
+      const ASTFunctionCall* node,
+      absl::Span<const ASTExpression* const> arguments, void* data);
+
   // Set break_line to true if you want to print each child on a separate line.
   // NOLINTNEXTLINE(google-default-arguments)
   virtual void UnparseChildrenWithSeparator(const ASTNode* node, void* data,
@@ -1090,6 +1137,8 @@ class Unparser : public ParseTreeVisitor {
   void VisitASTDropIndexStatement(const ASTDropIndexStatement* node,
                                   void* data);
   void VisitASTGqlCallBase(const ASTGqlCallBase* node, void* data);
+  void VisitASTGraphInsertElementPattern(
+      const ASTGraphInsertElementPattern* node, void* data);
 };
 
 }  // namespace parser

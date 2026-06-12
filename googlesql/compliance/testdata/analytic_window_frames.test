@@ -2566,18 +2566,18 @@ ARRAY<STRUCT<row_id INT64,
              start_boundary INT64,
              end_boundary INT64>>
 [unknown order:
-  {3, nan, 3, 4},
   {4, nan, 3, 4},
-  {7, 10.5, NULL, NULL},
+  {3, nan, 3, 4},
   {8, 10.5, NULL, NULL},
+  {7, 10.5, NULL, NULL},
   {9, 10.5, NULL, NULL},
-  {10, 12.5, NULL, NULL},
   {11, 12.5, NULL, NULL},
+  {10, 12.5, NULL, NULL},
   {12, 13.5, NULL, NULL},
   {13, 14, NULL, NULL},
   {14, 15, NULL, NULL},
-  {15, inf, 15, 16},
-  {16, inf, 15, 16}
+  {16, inf, 15, 16},
+  {15, inf, 15, 16}
 ]
 ==
 
@@ -2597,18 +2597,18 @@ ARRAY<STRUCT<row_id INT64,
              double_val DOUBLE,
              start_boundary INT64,
              end_boundary INT64>>
-[unknown order:{3, nan, 3, 4},
-               {4, nan, 3, 4},
-               {7, 10.5, 10, 16},
+[unknown order:{4, nan, 3, 4},
+               {3, nan, 3, 4},
                {8, 10.5, 10, 16},
+               {7, 10.5, 10, 16},
                {9, 10.5, 10, 16},
-               {10, 12.5, 14, 16},
                {11, 12.5, 14, 16},
+               {10, 12.5, 14, 16},
                {12, 13.5, 15, 16},
                {13, 14, 15, 16},
                {14, 15, 15, 16},
-               {15, inf, 15, 16},
-               {16, inf, 15, 16}]
+               {16, inf, 15, 16},
+               {15, inf, 15, 16}]
 ==
 
 [name=range_window_inf_offset_5]
@@ -2627,18 +2627,18 @@ ARRAY<STRUCT<row_id INT64,
              double_val DOUBLE,
              start_boundary INT64,
              end_boundary INT64>>
-[unknown order:{15, inf, 16, 15},
-               {16, inf, 16, 15},
+[unknown order:{16, inf, 16, 15},
+               {15, inf, 16, 15},
                {14, 15, 16, 14},
                {13, 14, 16, 13},
                {12, 13.5, 16, 12},
-               {10, 12.5, 16, 10},
                {11, 12.5, 16, 10},
-               {7, 10.5, 16, 7},
+               {10, 12.5, 16, 10},
                {8, 10.5, 16, 7},
+               {7, 10.5, 16, 7},
                {9, 10.5, 16, 7},
-               {3, nan, 4, 3},
-               {4, nan, 4, 3}]
+               {4, nan, 4, 3},
+               {3, nan, 4, 3}]
 ==
 
 [name=range_window_inf_offset_6]
@@ -2658,18 +2658,18 @@ ARRAY<STRUCT<row_id INT64,
              start_boundary INT64,
              end_boundary INT64>>
 [unknown order:
-  {15, inf, 16, 15},
   {16, inf, 16, 15},
+  {15, inf, 16, 15},
   {14, 15, NULL, NULL},
   {13, 14, NULL, NULL},
   {12, 13.5, NULL, NULL},
-  {10, 12.5, NULL, NULL},
   {11, 12.5, NULL, NULL},
-  {7, 10.5, NULL, NULL},
+  {10, 12.5, NULL, NULL},
   {8, 10.5, NULL, NULL},
+  {7, 10.5, NULL, NULL},
   {9, 10.5, NULL, NULL},
-  {3, nan, 4, 3},
-  {4, nan, 4, 3}
+  {4, nan, 4, 3},
+  {3, nan, 4, 3}
 ]
 ==
 
@@ -2720,12 +2720,12 @@ ARRAY<STRUCT<row_id INT64,
              double_val DOUBLE,
              start_boundary INT64,
              end_boundary INT64>>
-[unknown order:{3, nan, 3, 4},
-               {4, nan, 3, 4},
-               {5, -inf, 5, 6},
+[unknown order:{4, nan, 3, 4},
+               {3, nan, 3, 4},
                {6, -inf, 5, 6},
-               {8, 10.5, 5, 9},
+               {5, -inf, 5, 6},
                {9, 10.5, 5, 9},
+               {8, 10.5, 5, 9},
                {7, 10.5, 5, 9},
                {11, 12.5, 5, 11},
                {10, 12.5, 5, 11},
@@ -2751,12 +2751,12 @@ ARRAY<STRUCT<row_id INT64,
              start_boundary INT64,
              end_boundary INT64>>
 [unknown order:
-  {3, nan, 3, 4},
   {4, nan, 3, 4},
-  {5, -inf, 5, 6},
+  {3, nan, 3, 4},
   {6, -inf, 5, 6},
-  {8, 10.5, NULL, NULL},
+  {5, -inf, 5, 6},
   {9, 10.5, NULL, NULL},
+  {8, 10.5, NULL, NULL},
   {7, 10.5, NULL, NULL},
   {11, 12.5, NULL, NULL},
   {10, 12.5, NULL, NULL},
@@ -2848,13 +2848,13 @@ ARRAY<STRUCT<row_id INT64,
   {12, 13.5, NULL, NULL},
   {11, 12.5, NULL, NULL},
   {10, 12.5, NULL, NULL},
-  {8, 10.5, NULL, NULL},
   {9, 10.5, NULL, NULL},
+  {8, 10.5, NULL, NULL},
   {7, 10.5, NULL, NULL},
-  {5, -inf, 6, 5},
   {6, -inf, 6, 5},
-  {3, nan, 4, 3},
-  {4, nan, 4, 3}
+  {5, -inf, 6, 5},
+  {4, nan, 4, 3},
+  {3, nan, 4, 3}
 ]
 ==
 
@@ -2879,13 +2879,13 @@ ARRAY<STRUCT<row_id INT64,
                {12, 13.5, 9, 5},
                {11, 12.5, 9, 5},
                {10, 12.5, 9, 5},
-               {8, 10.5, 6, 5},
                {9, 10.5, 6, 5},
+               {8, 10.5, 6, 5},
                {7, 10.5, 6, 5},
-               {5, -inf, 6, 5},
                {6, -inf, 6, 5},
-               {3, nan, 4, 3},
-               {4, nan, 4, 3}]
+               {5, -inf, 6, 5},
+               {4, nan, 4, 3},
+               {3, nan, 4, 3}]
 ==
 
 # Multiple order keys.

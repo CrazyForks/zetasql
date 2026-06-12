@@ -35,11 +35,11 @@
 #include "googlesql/resolved_ast/resolved_collation.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -92,6 +92,9 @@ absl::Status CollationAnnotation::RejectsCollationOnFunctionArguments(
       }
     } else if (function_call.generic_argument_list(i)->expr() != nullptr) {
       arg_i = function_call.generic_argument_list(i)->expr();
+    } else if (function_call.generic_argument_list(i)->inline_lambda() !=
+               nullptr) {
+      arg_i = function_call.generic_argument_list(i)->inline_lambda()->body();
     } else {
       continue;
     }

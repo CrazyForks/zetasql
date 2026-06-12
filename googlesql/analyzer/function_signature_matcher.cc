@@ -26,6 +26,7 @@
 
 #include "googlesql/analyzer/lambda_util.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/common/measure_utils.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/public/coercer.h"
@@ -51,6 +52,7 @@
 #include "absl/base/attributes.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -59,7 +61,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -81,9 +82,10 @@ class FunctionSignatureMatcher {
   // If <allow_argument_coercion> is TRUE then function arguments can be
   // coerced to the required signature type(s), otherwise they must be an
   // exact match.
-  FunctionSignatureMatcher(const LanguageOptions& language_options,
-                           const Coercer& coercer, bool allow_argument_coercion,
-                           TypeFactory* type_factory);
+  FunctionSignatureMatcher(
+      const LanguageOptions& language_options, const Coercer& coercer,
+      bool allow_argument_coercion, TypeFactory* type_factory,
+      LookupGeneratedFunctionCallback lookup_generated_function_callback);
   FunctionSignatureMatcher(const FunctionSignatureMatcher&) = delete;
   FunctionSignatureMatcher& operator=(const FunctionSignatureMatcher&) = delete;
 
@@ -132,6 +134,7 @@ class FunctionSignatureMatcher {
   const Coercer& coercer_;           // Not owned.
   const bool allow_argument_coercion_;
   TypeFactory* type_factory_;  // Not owned.
+  LookupGeneratedFunctionCallback lookup_generated_function_callback_;
 
   // Represents the argument types corresponding to a SignatureArgumentKind.
   // There are three possibilities:
@@ -371,11 +374,14 @@ class FunctionSignatureMatcher {
 
 FunctionSignatureMatcher::FunctionSignatureMatcher(
     const LanguageOptions& language_options, const Coercer& coercer,
-    bool allow_argument_coercion, TypeFactory* type_factory)
+    bool allow_argument_coercion, TypeFactory* type_factory,
+    LookupGeneratedFunctionCallback lookup_generated_function_callback)
     : language_(language_options),
       coercer_(coercer),
       allow_argument_coercion_(allow_argument_coercion),
-      type_factory_(type_factory) {}
+      type_factory_(type_factory),
+      lookup_generated_function_callback_(
+          std::move(lookup_generated_function_callback)) {}
 
 std::string
 FunctionSignatureMatcher::SignatureArgumentKindTypeSet::DebugString() const {
@@ -843,7 +849,62 @@ FunctionSignatureMatcher::CheckResolveLambdaTypeAndCollectTemplatedArguments(
     std::vector<FunctionArgumentOverride>* arg_overrides) const {
   GOOGLESQL_RETURN_IF_NOT_ENOUGH_STACK(kStackSpaceErrorMessage);
   GOOGLESQL_RET_CHECK(arg_overrides);
-  GOOGLESQL_RET_CHECK(arg_ast_node->Is<ASTLambda>());
+  GOOGLESQL_RET_CHECK(arg_ast_node->Is<ASTLambda>() ||
+            arg_ast_node->Is<ASTPathExpression>());
+  // If the argument is a path expression (e.g. a function reference passed
+  // as an argument), we extract the signature from the referenced function
+  // to populate the templated argument map.
+  if (arg_ast_node->Is<ASTPathExpression>()) {
+    const ASTPathExpression* path_expr =
+        arg_ast_node->GetAsOrDie<ASTPathExpression>();
+    IdString first_name = path_expr->first_name()->GetAsIdString();
+    const Function* proxy_function = nullptr;
+    if (lookup_generated_function_callback_) {
+      proxy_function = lookup_generated_function_callback_(first_name);
+    }
+    if (proxy_function == nullptr) {
+      SET_MISMATCH_ERROR_WITH_INDEX(
+          absl::StrFormat("No proxy function found for lambda argument: %s",
+                          first_name.ToString()));
+      return false;
+    }
+    GOOGLESQL_RET_CHECK_GT(proxy_function->NumSignatures(), 0);
+    const FunctionSignature& sig = *proxy_function->GetSignature(0);
+    const FunctionArgumentType::ArgumentTypeLambda& arg_type_lambda =
+        signature_argument.lambda();
+    const FunctionArgumentTypeList& sig_arg_types =
+        arg_type_lambda.argument_types();
+
+    if (sig.arguments().size() != sig_arg_types.size()) {
+      SET_MISMATCH_ERROR_WITH_INDEX(
+          absl::StrFormat("function reference requires %d arguments but %d "
+                          "is expected by signature",
+                          sig.arguments().size(), sig_arg_types.size()));
+      return false;
+    }
+
+    for (int i = 0; i < sig.arguments().size(); ++i) {
+      InputArgumentType arg_type(sig.argument(i).type());
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          bool result,
+          CheckSingleInputArgumentTypeAndCollectTemplatedArgument(
+              -1, nullptr, arg_type, sig_arg_types[i], resolve_lambda_callback,
+              templated_argument_map, signature_match_result, nullptr));
+      if (!result) return false;
+    }
+
+    if (arg_type_lambda.body_type().IsTemplated()) {
+      InputArgumentType body_arg_type(sig.result_type().type());
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          bool result,
+          CheckSingleInputArgumentTypeAndCollectTemplatedArgument(
+              -1, nullptr, body_arg_type, arg_type_lambda.body_type(),
+              resolve_lambda_callback, templated_argument_map,
+              signature_match_result, nullptr));
+      if (!result) return false;
+    }
+    return true;
+  }
 
   // Get lambda argument names from AST
   const ASTLambda* ast_lambda = arg_ast_node->GetAs<ASTLambda>();
@@ -1186,6 +1247,14 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     GOOGLESQL_RET_CHECK(input_argument.is_sequence());
   } else if (signature_argument.kind() == ARG_TYPE_ARBITRARY) {
     // Arbitrary kind arguments match any input argument type.
+  } else if (signature_argument.kind() == ARG_TYPE_STRING_ANY &&
+             !coercer_.CoercesTo(input_argument, types::StringType(),
+                                 /*is_explicit=*/false,
+                                 signature_match_result)) {
+    SET_MISMATCH_ERROR_WITH_INDEX(
+        absl::StrFormat("Unable to coerce type %s to expected type STRING",
+                        ShortTypeName(input_argument.type())));
+    return false;
   } else if (signature_argument.IsLambda()) {
     GOOGLESQL_RET_CHECK(arg_overrides)
         << "Resolved lambdas need to be put into arg_overrides";
@@ -1435,6 +1504,10 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
   return true;
 }
 
+static bool IsContainerTypeWithMeasures(const Type* type) {
+  return !type->IsMeasureType() && IsOrContainsMeasure(type);
+}
+
 NOINLINE_PREVENT_HUGE_STACK_FRAMES
 absl::StatusOr<bool> FunctionSignatureMatcher::
     CheckSingleInputArgumentTypeAndCollectTemplatedArgumentGraph(
@@ -1486,8 +1559,11 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
           // ARG_MEASURE_TYPE_ANY_1.
           (signature_argument.kind() != ARG_MEASURE_TYPE_ANY_1 &&
            input_type != nullptr && input_type->IsMeasureType()) ||
+          // Disallow container types that contain measures as any kind of
+          // function argument.
+          (input_type != nullptr && IsContainerTypeWithMeasures(input_type)) ||
           // Disallow ROW types as any kind of function argument.
-          (input_type != nullptr && input_type->IsRow())) {
+          (input_type != nullptr && input_type->IsRowOrTable())) {
         SET_MISMATCH_ERROR_WITH_INDEX(absl::StrFormat(
             "expected %s, found %s: which is not allowed for %s arguments",
             signature_argument.UserFacingName(language_.product_mode(),
@@ -1794,7 +1870,8 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
       // ANY_K is handled before ARRAY_ANY_K.
       GOOGLESQL_RET_CHECK_NE(element_type, nullptr);
 
-      if ((*element_type)->IsArray()) {
+      if ((*element_type)->IsArray() &&
+          !language_.LanguageFeatureEnabled(FEATURE_ARRAY_OF_ARRAY)) {
         // Arrays of arrays are not supported.
         return absl::InvalidArgumentError(absl::StrFormat(
             "%s is inferred to be array of array, which is not supported",
@@ -1802,8 +1879,8 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
       }
 
       const Type* new_array_type;
-      GOOGLESQL_RETURN_IF_ERROR(
-          type_factory_->MakeArrayType(*element_type, &new_array_type));
+      GOOGLESQL_ASSIGN_OR_RETURN(new_array_type,
+                       type_factory_->MakeArrayType(*element_type, language_));
 
       // Check that typed input arguments can implicitly coerce to
       // 'new_array_type'
@@ -1961,7 +2038,9 @@ absl::StatusOr<bool> FunctionSignatureMatcher::SignatureMatches(
       const Type** arg_related_type =
           googlesql_base::FindOrNull(resolved_templated_arguments, kind.second);
       if (arg_related_type != nullptr) {
-        if ((*arg_type)->IsArray()) {
+        if (!(*arg_related_type)->IsArray()) {
+          ABSL_DCHECK((*arg_type)->IsArray())
+              << "arg_type: " << (*arg_type)->DebugString();
           GOOGLESQL_RET_CHECK(
               (*arg_type)->AsArray()->element_type()->Equals(*arg_related_type))
               << "arg_type: " << (*arg_type)->DebugString()
@@ -2080,6 +2159,7 @@ absl::StatusOr<bool> FunctionSignatureMatchesWithStatus(
     const FunctionSignature& signature, bool allow_argument_coercion,
     TypeFactory* type_factory,
     const ResolveLambdaCallback* resolve_lambda_callback,
+    LookupGeneratedFunctionCallback lookup_generated_function_callback,
     std::unique_ptr<FunctionSignature>* concrete_result_signature,
     SignatureMatchResult* signature_match_result,
     std::vector<ArgIndexEntry>* arg_index_mapping,
@@ -2087,11 +2167,32 @@ absl::StatusOr<bool> FunctionSignatureMatchesWithStatus(
   GOOGLESQL_RETURN_IF_NOT_ENOUGH_STACK(kStackSpaceErrorMessage);
 
   FunctionSignatureMatcher signature_matcher(
-      language_options, coercer, allow_argument_coercion, type_factory);
+      language_options, coercer, allow_argument_coercion, type_factory,
+      std::move(lookup_generated_function_callback));
   return signature_matcher.SignatureMatches(
       arg_ast_nodes, input_arguments, signature, resolve_lambda_callback,
       concrete_result_signature, signature_match_result, arg_index_mapping,
       arg_overrides);
+}
+
+// This wrapper is provided for backward compatibility with existing callers
+// (e.g., spandex) that do not yet provide a LookupGeneratedFunctionCallback.
+absl::StatusOr<bool> FunctionSignatureMatchesWithStatus(
+    const LanguageOptions& language_options, const Coercer& coercer,
+    const std::vector<const ASTNode*>& arg_ast_nodes,
+    absl::Span<const InputArgumentType> input_arguments,
+    const FunctionSignature& signature, bool allow_argument_coercion,
+    TypeFactory* type_factory,
+    const ResolveLambdaCallback* resolve_lambda_callback,
+    std::unique_ptr<FunctionSignature>* concrete_result_signature,
+    SignatureMatchResult* signature_match_result,
+    std::vector<ArgIndexEntry>* arg_index_mapping,
+    std::vector<FunctionArgumentOverride>* arg_overrides) {
+  return FunctionSignatureMatchesWithStatus(
+      language_options, coercer, arg_ast_nodes, input_arguments, signature,
+      allow_argument_coercion, type_factory, resolve_lambda_callback,
+      /*lookup_generated_function_callback=*/nullptr, concrete_result_signature,
+      signature_match_result, arg_index_mapping, arg_overrides);
 }
 
 }  // namespace googlesql

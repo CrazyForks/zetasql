@@ -26,6 +26,8 @@
 #include "googlesql/parser/tm_token.h"
 #include "googlesql/base/case.h"
 #include "absl/container/flat_hash_map.h"
+#include "googlesql/base/check.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 

@@ -18,6 +18,7 @@
 package com.google.googlesql.resolvedast;
 
 import com.google.common.base.Preconditions;
+import com.google.googlesql.AnnotationMap;
 import com.google.googlesql.Type;
 import java.io.Serializable;
 import java.util.List;
@@ -44,13 +45,15 @@ public final class ResolvedColumn implements Serializable {
   private final String tableName;
   private final String name;
   private final Type type;
-  // TODO: add annotationMap field after adding full implementation of AnnotationMap.
+  private final AnnotationMap annotationMap;
 
-  public ResolvedColumn(long id, String tableName, String name, Type type) {
+  public ResolvedColumn(
+      long id, String tableName, String name, Type type, AnnotationMap annotationMap) {
     this.id = id;
     this.tableName = Preconditions.checkNotNull(tableName);
     this.name = Preconditions.checkNotNull(name);
     this.type = Preconditions.checkNotNull(type);
+    this.annotationMap = annotationMap;
   }
 
   public long getId() {
@@ -69,8 +72,16 @@ public final class ResolvedColumn implements Serializable {
     return type;
   }
 
+  public AnnotationMap getAnnotationMap() {
+    return annotationMap;
+  }
+
   public String debugString() {
-    return tableName + "." + name + "#" + id;
+    String result = tableName + "." + name + "#" + id;
+    if (annotationMap != null && !annotationMap.isEmpty()) {
+      result += annotationMap.debugString();
+    }
+    return result;
   }
 
   public String shortDebugString() {
@@ -133,13 +144,9 @@ public final class ResolvedColumn implements Serializable {
   /** To provide parity with resolved_column.h, equality is defined using columnId only. */
   @Override
   public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
     if (o instanceof ResolvedColumn) {
       ResolvedColumn other = (ResolvedColumn) o;
-        return Objects.equals(this.id, other.id);
+      return (this.id == other.id);
     }
     return false;
   }

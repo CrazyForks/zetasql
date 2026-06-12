@@ -13,11 +13,11 @@ query engines may implement a subset of features, giving errors for unsupported
 features. GoogleSQL's compliance test suite can be used to validate query engine
 implementations are correct and consistent.
 
-GoogleSQL implements the GoogleSQL language, which is used across several of
+This repo implements the GoogleSQL language, which is used across several of
 Google's SQL products, both publicly and internally, including BigQuery,
 Spanner, F1, BigTable, Dremel, Procella, and others.
 
-GoogleSQL and GoogleSQL have been described in these publications:
+GoogleSQL has been described in these publications:
 
 *   (CDMS 2022) [GoogleSQL: A SQL Language as a Component](https://cdmsworkshop.github.io/2022/Slides/Fri_C2.5_DavidWilhite.pptx)
     (Slides)

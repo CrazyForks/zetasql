@@ -134,11 +134,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -174,6 +174,8 @@ class NestedList {
     std::move(*this).flatten(flattened);
     return flattened;
   }
+
+  const ElementType& back() const { return elements_.back(); }
 
  private:
   explicit NestedList(std::vector<ElementType>&& elements)
@@ -237,6 +239,13 @@ class GeneralizedQueryStmtRewriteVisitor : public ResolvedASTRewriteVisitor {
   absl::StatusOr<std::unique_ptr<const ResolvedNode>>
   PostVisitResolvedPipeForkScan(
       std::unique_ptr<const ResolvedPipeForkScan> node) override;
+
+  absl::Status PreVisitResolvedFinishScan(
+      const ResolvedFinishScan& node) override;
+
+  absl::StatusOr<std::unique_ptr<const ResolvedNode>>
+  PostVisitResolvedFinishScan(
+      std::unique_ptr<const ResolvedFinishScan> scan) override;
 
   absl::StatusOr<std::unique_ptr<const ResolvedNode>>
   PostVisitResolvedSubpipelineInputScan(
@@ -602,10 +611,20 @@ absl::Status GeneralizedQueryStmtRewriteVisitor::CollectStatementsForTeeOrFork(
   for (auto& subpipeline : builder.release_subpipeline_list()) {
     // Side statements come before the main output of the subpipeline.
     all_statements.push_back(collected_statements.pop_front());
+    const auto& element = all_statements.back();
 
     auto subpipeline_builder = ToBuilder(std::move(subpipeline));
     if (subpipeline_builder.output_schema() == nullptr) {
-      // This subpipeline does not have any main outputs.
+      // This subpipeline has no main outputs. It MUST have produced at least
+      // one side statement (the main output statement of a terminal operator).
+      // If it didn't, it means the terminal operator was ignored.
+      if (std::holds_alternative<StatementList>(element)) {
+        const auto& list = std::get<StatementList>(element);
+        GOOGLESQL_RET_CHECK(!list.empty())
+            << "Subpipeline has no main output and produced no side "
+               "statements: "
+            << subpipeline_builder.subpipeline()->DebugString();
+      }
       continue;
     }
 
@@ -660,6 +679,26 @@ GeneralizedQueryStmtRewriteVisitor::PostVisitResolvedPipeForkScan(
   std::string query_name = subpipeline_context_stack_.top().with_query_name;
   GOOGLESQL_RETURN_IF_ERROR(CollectStatementsForTeeOrFork(query_name, std::move(node)));
   subpipeline_context_stack_.pop();
+  return fake_scan();
+}
+
+absl::Status GeneralizedQueryStmtRewriteVisitor::PreVisitResolvedFinishScan(
+    const ResolvedFinishScan& node) {
+  statement_list_stack_.emplace();
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedNode>>
+GeneralizedQueryStmtRewriteVisitor::PostVisitResolvedFinishScan(
+    std::unique_ptr<const ResolvedFinishScan> scan) {
+  auto scan_builder = ToBuilder(std::move(scan));
+  GOOGLESQL_ASSIGN_OR_RETURN(auto finish_scan, std::move(scan_builder).Build());
+
+  // Create a ResolvedTerminalQueryStmt containing the FinishScan.
+  current_statement_list().push_back(
+      MakeResolvedTerminalQueryStmt(std::move(finish_scan)));
+
+  GOOGLESQL_RETURN_IF_ERROR(PopAndAddToPreviousStatementList());
   return fake_scan();
 }
 

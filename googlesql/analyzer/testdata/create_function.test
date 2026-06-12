@@ -1133,7 +1133,7 @@ create function fn( a int32, b string 'und:ci' ) returns string
 create function myfunc(x FUNCTION<()->INT64>) as (false);
 --
 
-ERROR: FUNCTION type not supported [at 1:26]
+ERROR: Function-typed arguments in UDFs are not supported [at 1:26]
 create function myfunc(x FUNCTION<()->INT64>) as (false);
                          ^
 ==
@@ -1258,3 +1258,104 @@ CREATE FUNCTION InvalidMultiLevelAggInUdfIsInvalid(x STRING) AS (
 ERROR: GROUP BY in arguments is not supported on scalar functions [at 2:12]
   CONCAT(x GROUP BY x)
            ^
+==
+
+[default language_features=MAXIMUM]
+# ANY STRING arguments
+create function fn(s ANY STRING) returns STRING
+{{LANGUAGE CPP AS "cout blah;"|AS ("a")}}
+--
+ALTERNATION GROUP: LANGUAGE CPP AS "cout blah;"
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[s], signature=(ANY STRING s) -> STRING, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP: AS ("a")
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[s], signature=(ANY STRING s) -> STRING, language="SQL", code='"a"')
+==
+
+# ANY STRING arguments not allowed in return types
+create function fn(x ANY TYPE) returns ANY STRING
+{{LANGUAGE CPP AS "cout blah;"|AS ("a")}}
+--
+ERROR: Syntax error: Templated types are not allowed in the RETURNS clause [at 1:40]
+create function fn(x ANY TYPE) returns ANY STRING
+                                       ^
+==
+
+# ANY STRING not allowed inside other types
+create function fn(x ARRAY<ANY STRING>) returns STRING
+{{LANGUAGE CPP AS "cout blah;"|AS ("a")}}
+--
+ERROR: Syntax error: Unexpected keyword ANY [at 1:28]
+create function fn(x ARRAY<ANY STRING>) returns STRING
+                           ^
+==
+
+# Multiple arguments of ANY STRING, the body refers to those args
+create function f(x any string, y any string) returns bool
+{{LANGUAGE CPP AS "cout blah;"|AS (x < y)}};
+--
+ALTERNATION GROUP: LANGUAGE CPP AS "cout blah;"
+--
+CreateFunctionStmt(name_path=f, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, ANY STRING y) -> BOOL, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP: AS (x < y)
+--
+CreateFunctionStmt(name_path=f, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, ANY STRING y) -> BOOL, language="SQL", code="x < y")
+==
+
+# Optional argument with default value
+create function f(x any string DEFAULT "abc") returns STRING
+{{LANGUAGE CPP AS "cout blah;"|AS (x)}};
+--
+ALTERNATION GROUP: LANGUAGE CPP AS "cout blah;"
+--
+CreateFunctionStmt(name_path=f, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[x], signature=(optional ANY STRING {default_value: "abc"} x) -> STRING, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP: AS (x)
+--
+CreateFunctionStmt(name_path=f, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[x], signature=(optional ANY STRING {default_value: "abc"} x) -> STRING, language="SQL", code="x")
+==
+
+# UDA: NOT AGGREGATE ANY STRING argument. Also test optionality with default value.
+create aggregate function fn(x any string, y any string {{| DEFAULT "abc"}} NOT AGGREGATE) returns bool
+{{LANGUAGE CPP AS "cout blah;"|AS (MAX(x) < y)}};
+--
+
+ALTERNATION GROUP: LANGUAGE CPP AS "cout blah;"
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, ANY STRING {is_not_aggregate: true} y) -> BOOL, is_aggregate=TRUE, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP: AS (MAX(x) < y)
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, ANY STRING {is_not_aggregate: true} y) -> BOOL, is_aggregate=TRUE, language="SQL", code="MAX(x) < y")
+--
+ALTERNATION GROUP:  DEFAULT "abc",LANGUAGE CPP AS "cout blah;"
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, optional ANY STRING {default_value: "abc", is_not_aggregate: true} y) -> BOOL, is_aggregate=TRUE, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP:  DEFAULT "abc",AS (MAX(x) < y)
+--
+CreateFunctionStmt(name_path=fn, has_explicit_return_type=TRUE, return_type=BOOL, argument_name_list=[x, y], signature=(ANY STRING x, optional ANY STRING {default_value: "abc", is_not_aggregate: true} y) -> BOOL, is_aggregate=TRUE, language="SQL", code="MAX(x) < y")
+==
+
+# TVF with a scalar ANY STRING argument, also has a default value.
+create table function tvf(t ANY TABLE, x ANY STRING {{| DEFAULT "abc"}}) returns TABLE<a STRING>
+{{LANGUAGE CPP AS "cout blah;"|AS (SELECT * FROM t WHERE col = x)}};
+--
+ALTERNATION GROUP: LANGUAGE CPP AS "cout blah;"
+--
+CreateTableFunctionStmt(name_path=tvf, argument_name_list=[t, x], signature=(ANY TABLE t, ANY STRING x) -> TABLE<a STRING>, has_explicit_return_schema=TRUE, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP: AS (SELECT * FROM t WHERE col = x)
+--
+CreateTableFunctionStmt(name_path=tvf, argument_name_list=[t, x], signature=(ANY TABLE t, ANY STRING x) -> TABLE<a STRING>, has_explicit_return_schema=TRUE, language="SQL", code="SELECT * FROM t WHERE col = x")
+--
+ALTERNATION GROUP:  DEFAULT "abc",LANGUAGE CPP AS "cout blah;"
+--
+CreateTableFunctionStmt(name_path=tvf, argument_name_list=[t, x], signature=(ANY TABLE t, optional ANY STRING {default_value: "abc"} x) -> TABLE<a STRING>, has_explicit_return_schema=TRUE, language="CPP", code="cout blah;")
+--
+ALTERNATION GROUP:  DEFAULT "abc",AS (SELECT * FROM t WHERE col = x)
+--
+CreateTableFunctionStmt(name_path=tvf, argument_name_list=[t, x], signature=(ANY TABLE t, optional ANY STRING {default_value: "abc"} x) -> TABLE<a STRING>, has_explicit_return_schema=TRUE, language="SQL", code="SELECT * FROM t WHERE col = x")

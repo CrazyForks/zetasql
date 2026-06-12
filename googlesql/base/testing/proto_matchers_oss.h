@@ -17,12 +17,15 @@
 #ifndef THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_TESTING_PROTO_MATCHERS_OSS_H_
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_TESTING_PROTO_MATCHERS_OSS_H_
 
+#include <string>
 #include "googlesql/base/logging.h"
-#include "google/protobuf/text_format.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "googlesql/base/check.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/message.h"
+#include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace googlesql {
 namespace proto_matchers_internal {

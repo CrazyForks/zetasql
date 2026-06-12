@@ -46,6 +46,11 @@ message ComplianceTestCaseLabels {
   optional KnownErrorMode test_error_mode = 3;
   repeated string compliance_labels = 4;
 
+  // If the test failed and the engine returned an error, this will be its
+  // error message. If evaluation was skipped this contains a message explaining
+  // why. This field is to aid debugging and is populated in a best effort way.
+  optional string actual_error_reason = 10;
+
   // This field was added for debugging the compliance reporting tool. We see
   // duplicate test names, and this should help us learn if the tests in
   // are duplicates in the same shard or across different shards.

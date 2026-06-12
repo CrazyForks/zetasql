@@ -53,6 +53,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "googlesql/base/arena.h"
 #include "googlesql/base/logging.h"

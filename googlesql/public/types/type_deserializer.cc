@@ -26,6 +26,7 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/array_type.h"
+#include "googlesql/public/types/declarative_type.h"
 #include "googlesql/public/types/enum_type.h"
 #include "googlesql/public/types/extended_type.h"
 #include "googlesql/public/types/map_type.h"
@@ -34,13 +35,15 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/text_format.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -126,6 +129,99 @@ TypeDeserializer::DeserializeGraphElementType(
   return graph_element_type;
 }
 
+static absl::StatusOr<DeclarativeTypeDescriptor::AllowCoercionMode>
+DeserializeCoercionMode(
+    const DeclarativeTypeProto::AllowCoercionMode& coercion_mode) {
+  switch (coercion_mode) {
+    case DeclarativeTypeProto::ALLOW_COERCION_MODE_NO_COERCION:
+      return DeclarativeTypeDescriptor::AllowCoercionMode::kNoCoercion;
+      break;
+    case DeclarativeTypeProto::ALLOW_COERCION_MODE_EXPLICIT_ONLY:
+      return DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly;
+      break;
+    case DeclarativeTypeProto::ALLOW_COERCION_MODE_ALLOW_ALL_COERCION:
+      return DeclarativeTypeDescriptor::AllowCoercionMode::kAllowAllCoercion;
+      break;
+    case DeclarativeTypeProto::ALLOW_COERCION_MODE_UNSPECIFIED:
+      return MakeSqlError() << "Invalid AllowCoercionMode: " << coercion_mode;
+  }
+}
+
+absl::StatusOr<DeclarativeTypeDescriptor>
+TypeDeserializer::DeserializeDeclarativeTypeDescriptor(
+    const DeclarativeTypeProto& type_proto) const {
+  LanguageOptions::LanguageFeatureSet required_language_features;
+  for (int feature : type_proto.additional_required_language_features()) {
+    if (!LanguageFeature_IsValid(feature)) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Invalid LanguageFeature: ", feature));
+    }
+    required_language_features.insert(static_cast<LanguageFeature>(feature));
+  }
+
+  TypeId type_id = {
+      .name_space = std::string(type_proto.type_id().name_space()),
+      .local_id = std::string(type_proto.type_id().local_id()),
+      .counter = type_proto.type_id().counter()};
+  // Deserialize the backing type. It is always required, but validation happens
+  // when trying to create the type in the TypeFactory.
+  const Type* backing_type = nullptr;
+  if (type_proto.has_backing_type()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(backing_type, Deserialize(type_proto.backing_type()));
+  }
+
+  // Coercion modes
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      DeclarativeTypeDescriptor::AllowCoercionMode coercion_from_backing_type,
+      DeserializeCoercionMode(type_proto.coercion_from_backing_type()),
+      _ << "while deserializing the coercion mode from backing type");
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      DeclarativeTypeDescriptor::AllowCoercionMode coercion_to_backing_type,
+      DeserializeCoercionMode(type_proto.coercion_to_backing_type()),
+      _ << "while deserializing the coercion mode to backing type");
+
+  // ReturningStrategy
+  DeclarativeTypeDescriptor::ReturningStrategy returning_strategy;
+  switch (type_proto.returning_strategy()) {
+    case DeclarativeTypeProto::RETURNING_DELEGATED:
+      returning_strategy = DeclarativeTypeDescriptor::ReturningDelegated{};
+      break;
+    case DeclarativeTypeProto::RETURNING_DISALLOWED:
+      returning_strategy = DeclarativeTypeDescriptor::ReturningDisallowed{};
+      break;
+    case DeclarativeTypeProto::RETURNING_UNSPECIFIED:
+      return MakeSqlError() << "Invalid ReturningStrategy: "
+                            << type_proto.returning_strategy();
+  }
+
+  // EqualityStrategy
+  DeclarativeTypeDescriptor::EqualityStrategy equality_strategy;
+  switch (type_proto.equality_strategy()) {
+    case DeclarativeTypeProto::EQUALITY_DELEGATED:
+      equality_strategy = DeclarativeTypeDescriptor::EqualityDelegated{};
+      break;
+    case DeclarativeTypeProto::EQUALITY_DISALLOWED:
+      equality_strategy = DeclarativeTypeDescriptor::EqualityDisallowed{};
+      break;
+    case DeclarativeTypeProto::EQUALITY_UNSPECIFIED:
+      return MakeSqlError()
+             << "Invalid EqualityStrategy: " << type_proto.equality_strategy();
+  }
+
+  return DeclarativeTypeDescriptor()
+      .set_type_id(type_id)
+      .set_display_name(type_proto.display_name())
+      .set_backing_type(backing_type)
+      .set_coercion_from_backing_type(coercion_from_backing_type)
+      .set_coercion_to_backing_type(coercion_to_backing_type)
+      .set_returning_strategy(std::move(returning_strategy))
+      .set_equality_strategy(std::move(equality_strategy))
+      .set_additional_required_language_features(
+          std::move(required_language_features));
+}
+
+// TODO: Deserialize should take LanguageOptions and error if
+// the serialized type is not supported.
 absl::StatusOr<const Type*> TypeDeserializer::Deserialize(
     const TypeProto& type_proto) const {
   GOOGLESQL_RET_CHECK_NE(type_factory_, nullptr);
@@ -139,9 +235,8 @@ absl::StatusOr<const Type*> TypeDeserializer::Deserialize(
     case TYPE_ARRAY: {
       GOOGLESQL_ASSIGN_OR_RETURN(const Type* element_type,
                        Deserialize(type_proto.array_type().element_type()));
-      const ArrayType* array_type;
-      GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeArrayType(element_type, &array_type));
-      return array_type;
+      return type_factory_->MakeArrayType(element_type,
+                                          /*allow_array_of_array=*/true);
     }
 
     case TYPE_STRUCT: {
@@ -291,6 +386,12 @@ absl::StatusOr<const Type*> TypeDeserializer::Deserialize(
       GOOGLESQL_ASSIGN_OR_RETURN(const Type* result_type,
                        Deserialize(type_proto.measure_type().result_type()));
       return type_factory_->MakeMeasureType(result_type);
+    }
+    case TYPE_DECLARATIVE: {
+      GOOGLESQL_ASSIGN_OR_RETURN(auto descriptor, DeserializeDeclarativeTypeDescriptor(
+                                            type_proto.declarative_type()));
+
+      return type_factory_->MakeDeclarativeType(std::move(descriptor));
     }
     default:
       return ::googlesql_base::UnimplementedErrorBuilder()

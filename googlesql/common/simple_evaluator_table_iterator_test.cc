@@ -28,9 +28,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "googlesql/base/status_macros.h"
 #include "googlesql/base/clock.h"
 
 namespace googlesql {

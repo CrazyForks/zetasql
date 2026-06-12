@@ -33,9 +33,9 @@
 #include "absl/hash/hash.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -77,12 +77,6 @@ absl::StatusOr<std::string> MeasureType::TypeNameWithModifiers(
           mode, use_external_float32));
 
   return absl::StrCat("MEASURE<", result_type_name, ">");
-}
-
-std::string MeasureType::CapitalizedName() const {
-  ABSL_CHECK_EQ(kind(), TYPE_MEASURE);  // Crash OK
-  return absl::StrCat("Measure<", AsMeasure()->result_type()->CapitalizedName(),
-                      ">");
 }
 
 bool MeasureType::SupportsOrdering(const LanguageOptions& language_options,
@@ -216,6 +210,11 @@ std::string MeasureType::FormatValueContent(
 
 void MeasureType::ClearValueContent(const ValueContent& value) const {
   value.GetAs<internal::ValueContentMeasureRef*>()->Unref();
+}
+
+uint64_t MeasureType::GetValueContentExternallyAllocatedByteSize(
+    const ValueContent& value) const {
+  return value.GetAs<internal::ValueContentMeasureRef*>()->physical_byte_size();
 }
 
 void MeasureType::CopyValueContent(const ValueContent& from,

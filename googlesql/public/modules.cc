@@ -57,6 +57,7 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -68,7 +69,6 @@
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -715,8 +715,15 @@ absl::Status ModuleCatalog::MaybeUpdateCatalogFromCreateProcedureStatement(
     procedure_status = status_and_scope.status;
   }
 
-  // Procedures must effectively have `allowed_references = 'GLOBAL'`.
-  if (resolution_scope != ResolutionScope::kGlobal) {
+  bool is_remote_procedure =
+      create_procedure_ast->language() != nullptr &&
+      googlesql_base::CaseEqual(
+          create_procedure_ast->language()->GetAsStringView(), "REMOTE");
+
+  // SQL procedures must have an effective `allowed_references` value of
+  // 'GLOBAL'. Remote procedures do not have this restriction and can have any
+  // effective `allowed_references` value.
+  if (!is_remote_procedure && resolution_scope != ResolutionScope::kGlobal) {
     absl::Status status = MakeAndRegisterStatementError(
         "Procedures defined inside modules must have an effective "
         "'allowed_references' value of 'GLOBAL', set via OPTIONS on the CREATE "
@@ -1319,8 +1326,9 @@ absl::Status ModuleCatalog::FindTable(const absl::Span<const std::string>& path,
   // from views.
   return FindObject<Table, LazyResolutionView>(
       path, table,
-      absl::bind_front(&MultiCatalog::FindTable, public_catalog_.get(), path,
-                       table),
+      [this, &path, &table](const FindOptions& options) {
+        return public_catalog_->FindTable(path, table, options);
+      },
       options);
 }
 
@@ -1334,8 +1342,9 @@ absl::Status ModuleCatalog::FindFunction(
   }
   return FindObject<Function, LazyResolutionFunction>(
       path, function,
-      absl::bind_front(&MultiCatalog::FindFunction, public_catalog_.get(), path,
-                       function),
+      [this, &path, &function](const FindOptions& options) {
+        return public_catalog_->FindFunction(path, function, options);
+      },
       options);
 }
 
@@ -1349,8 +1358,10 @@ absl::Status ModuleCatalog::FindTableValuedFunction(
   }
   return FindObject<TableValuedFunction, LazyResolutionTableFunction>(
       path, function,
-      absl::bind_front(&MultiCatalog::FindTableValuedFunction,
-                       public_catalog_.get(), path, function),
+      [this, &path, &function](const FindOptions& options) {
+        return public_catalog_->FindTableValuedFunction(path, function,
+                                                        options);
+      },
       options);
 }
 
@@ -1394,9 +1405,11 @@ absl::Status ModuleCatalog::FindConstantWithPathPrefix(
   const absl::Status find_object_status =
       FindObject<Constant, LazyResolutionConstant>(
           path, &local_constant,
-          absl::bind_front(&MultiCatalog::FindConstantWithPathPrefix,
-                           public_catalog_.get(), path, num_names_consumed,
-                           &local_constant),
+          [this, &path, &num_names_consumed,
+           &local_constant](const FindOptions& options) {
+            return public_catalog_->FindConstantWithPathPrefix(
+                path, num_names_consumed, &local_constant, options);
+          },
           options);
   GOOGLESQL_RETURN_IF_ERROR(find_object_status);
 
@@ -1437,6 +1450,28 @@ absl::Status ModuleCatalog::FindConstantWithPathPrefix(
     *constant = sql_constant;
   }
   return sql_constant->evaluation_result().status();
+}
+
+absl::Status ModuleCatalog::FindPrivateProcedure(
+    absl::Span<const std::string> path, const Procedure** procedure,
+    const FindOptions& options) {
+  if (!internal_catalogs_initialized_) {
+    return ProcedureNotFoundError(path);
+  }
+  ModuleCatalog::LocalCycleDetector local_cycle_detector(options);
+
+  // Instead of creating private_catalog_ for every module, just iterate through
+  // the two private catalogs to save memory.
+  for (Catalog* catalog :
+       {private_builtin_catalog_.get(), private_global_catalog_.get()}) {
+    const absl::Status status = catalog->FindProcedure(
+        path, procedure,
+        CopyOptionsAndSetCycleDetector(options, local_cycle_detector.get()));
+    if (!absl::IsNotFound(status)) {
+      return status;
+    }
+  }
+  return ProcedureNotFoundError(path);
 }
 
 bool ModuleCatalog::HasFunctions() const {
@@ -1493,8 +1528,17 @@ bool ModuleCatalog::HasTypes() const {
           !type_import_catalog_->types().empty());
 }
 
-bool ModuleCatalog::HasImportedModule(const std::string& alias) const {
+bool ModuleCatalog::HasImportedModule(absl::string_view alias) const {
   return googlesql_base::ContainsKey(imported_modules_by_alias_, alias);
+}
+
+ModuleCatalog* ModuleCatalog::GetModuleCatalogForAlias(
+    absl::string_view alias) const {
+  auto it = imported_modules_by_alias_.find(alias);
+  if (it == imported_modules_by_alias_.end()) {
+    return nullptr;
+  }
+  return it->second.module_catalog;
 }
 
 bool ModuleCatalog::HasGlobalScopeObjects() const {
@@ -1504,7 +1548,15 @@ bool ModuleCatalog::HasGlobalScopeObjects() const {
   return (!public_global_catalog_->functions().empty() ||
           !private_global_catalog_->functions().empty() ||
           !public_global_catalog_->table_valued_functions().empty() ||
-          !private_global_catalog_->table_valued_functions().empty());
+          !private_global_catalog_->table_valued_functions().empty() ||
+          !public_global_catalog_->views().empty() ||
+          !private_global_catalog_->views().empty() ||
+          !public_global_catalog_->procedures().empty() ||
+          !private_global_catalog_->procedures().empty());
+}
+
+bool ModuleCatalog::HasGlobalScopeCatalog() const {
+  return global_scope_catalog_ != nullptr;
 }
 
 std::string ModuleCatalog::DebugString(bool include_module_contents) const {
@@ -1709,7 +1761,9 @@ std::string ModuleCatalog::TypesDebugString() const {
 }
 
 static void StatusFormatter(std::string* out, const absl::Status& status) {
-  absl::StrAppend(out, status.ToString());
+  absl::Status stripped_status = status;
+  stripped_status.ErasePayload(kErrorMessageModeUrl);
+  absl::StrAppend(out, stripped_status.ToString());
 }
 
 static void ErrorMessageFormatter(std::string* out,
@@ -2029,6 +2083,17 @@ void ModuleCatalog::AppendModuleErrorsImpl(
         absl::Status updated_status = MaybeUpdateErrorFromPayload(
             analyzer_options_.error_message_options(), module_contents_,
             tvf_entry.second->resolution_status());
+        errors->push_back(updated_status);
+      }
+    }
+    OrderedLazyResolutionViewMap ordered_view_map;
+    GetOrderedPublicAndPrivateViewMap(/*include_global_scope_objects=*/true,
+                                      &ordered_view_map);
+    for (const auto& view_entry : ordered_view_map) {
+      if (!view_entry.second->resolution_status().ok()) {
+        absl::Status updated_status = MaybeUpdateErrorFromPayload(
+            analyzer_options_.error_message_options(), module_contents_,
+            view_entry.second->resolution_status());
         errors->push_back(updated_status);
       }
     }

@@ -16,7 +16,7 @@ IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_e;
 -- evaluation errors
 IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_f;
 -- non-existing module
-IMPORT MODULE foo;
+IMPORT MODULE googlesql.foo;
 
 -- Valid
 CREATE PUBLIC FUNCTION foo(a INT64) AS (a);

@@ -736,7 +736,7 @@ SET struct_value.array_value[OFFSET(0)] = 100,
     struct_value.array_value[OFFSET(0)] = 200
 WHERE primary_key <= 2
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<INT64>
 ==
 
 [name=update_null_array_struct_with_set]
@@ -972,7 +972,7 @@ SET array_value[OFFSET(0)].value1 = 1000,
     array_value[OFFSET(0)].value1 = 2000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<STRUCT<value1 INT64, value2 INT64>>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<STRUCT<value1 INT64, value2 INT64>>
 ==
 
 # TODO: Ideally the spec would allow this. See the comments for
@@ -984,7 +984,7 @@ SET array_value[OFFSET(0)].value1 = 1000,
     array_value[OFFSET(0)].value2 = 2000
 WHERE primary_key != 3
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<STRUCT<value1 INT64, value2 INT64>>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<STRUCT<value1 INT64, value2 INT64>>
 ==
 
 [name=update_null_element_in_array_of_structs_with_set]

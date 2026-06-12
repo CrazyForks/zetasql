@@ -39,6 +39,18 @@ message ResolvedSubqueryExprEnums {
     LIKE_ALL = 5;
     NOT_LIKE_ANY = 6;
     NOT_LIKE_ALL = 7;
+    EQ_ANY = 8;
+    EQ_ALL = 9;
+    NE_ANY = 10;
+    NE_ALL = 11;
+    LT_ANY = 12;
+    LT_ALL = 13;
+    LE_ANY = 14;
+    LE_ALL = 15;
+    GT_ANY = 16;
+    GT_ALL = 17;
+    GE_ANY = 18;
+    GE_ALL = 19;
   }
 }
 
@@ -370,6 +382,7 @@ message ResolvedDropIndexStmtEnums {
     INDEX_DEFAULT = 0;
     INDEX_SEARCH = 1;
     INDEX_VECTOR = 2;
+    INDEX_AI = 3;
   }
 }
 
@@ -378,6 +391,7 @@ message ResolvedOptionEnums {
     DEFAULT_ASSIGN = 0;  // "="
     ADD_ASSIGN = 1;      // "+="
     SUB_ASSIGN = 2;      // "-="
+    FROM = 3;            // "FROM"
   }
 }
 

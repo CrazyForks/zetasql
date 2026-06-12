@@ -65,6 +65,10 @@ public interface DebugPrintableNode {
       this.nodes = ImmutableList.of();
     }
 
+    public String getName() {
+      return name;
+    }
+
     public boolean hasNodes() {
       return !nodes.isEmpty();
     }

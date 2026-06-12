@@ -33,12 +33,13 @@
 #include "googlesql/reference_impl/function.h"
 #include "googlesql/reference_impl/tuple.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "googlesql/base/source_location.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 namespace {

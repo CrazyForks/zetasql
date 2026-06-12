@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "googlesql/public/collator.h"
 #include "googlesql/reference_impl/common.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -80,15 +81,17 @@ class TupleComparator {
   absl::Span<const KeyArg* const> keys() const { return keys_; }
 
  private:
+  using CollatorPtrList = std::vector<const GoogleSqlCollator*>;
+
   TupleComparator(absl::Span<const KeyArg* const> keys,
                   absl::Span<const int> slots_for_keys,
                   absl::Span<const int> extra_sort_key_slots,
-                  std::shared_ptr<const CollatorList> collators)
+                  std::shared_ptr<const CollatorPtrList> collators)
       : keys_(keys.begin(), keys.end()),
         slots_for_keys_(slots_for_keys.begin(), slots_for_keys.end()),
         extra_sort_key_slots_(extra_sort_key_slots.begin(),
                               extra_sort_key_slots.end()),
-        collators_(collators) {}
+        collators_(std::move(collators)) {}
 
   // `compare_floating_point_approximately`, `has_approximate_comparison`, and
   // `collator_caused_equality` are used in `IsUniquelyOrdered` only. See
@@ -111,7 +114,7 @@ class TupleComparator {
   // NOTE: If any element of <collators_> is nullptr, then the strings are
   // compared based on their UTF-8 encoding.
   // We use std::shared_ptr<const ...> to allow the comparator to be copied.
-  const std::shared_ptr<const CollatorList> collators_;
+  const std::shared_ptr<const CollatorPtrList> collators_;
 };
 
 }  // namespace googlesql

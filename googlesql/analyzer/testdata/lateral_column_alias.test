@@ -3354,3 +3354,92 @@ SELECT a2 AS a0new, concat(a0new, 'a') AS x FROM test  GROUP BY 2
 # Script variable.
 # Value tables?
 # PIVOT/M_R?
+
+==
+
+SELECT (SELECT AS STRUCT x, x.a, SUM(y) FROM t.y GROUP BY x) FROM (SELECT (SELECT AS STRUCT 1 AS a, 'a' AS b) AS x, [2] AS y) t
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#13 AS `$col1` [STRUCT<x STRUCT<a INT64, b STRING>, a INT64, INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#13]
+    +-expr_list=
+    | +-$col1#13 :=
+    |   +-SubqueryExpr
+    |     +-type=STRUCT<x STRUCT<a INT64, b STRING>, a INT64, INT64>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=STRUCT<a INT64, b STRING>, column=t.x#4)
+    |     | +-ColumnRef(type=ARRAY<INT64>, column=t.y#5)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$make_struct.$struct#12]
+    |         +-expr_list=
+    |         | +-$struct#12 :=
+    |         |   +-MakeStruct
+    |         |     +-type=STRUCT<x STRUCT<a INT64, b STRING>, a INT64, INT64>
+    |         |     +-field_list=
+    |         |       +-ColumnRef(type=STRUCT<a INT64, b STRING>, column=$groupby.x#10)
+    |         |       +-ColumnRef(type=INT64, column=$expr_subquery.a#11)
+    |         |       +-ColumnRef(type=INT64, column=$aggregate.$agg1#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$groupby.x#10, $expr_subquery.a#11, $aggregate.$agg1#8]
+    |             +-expr_list=
+    |             | +-a#11 :=
+    |             |   +-GetStructField
+    |             |     +-type=INT64
+    |             |     +-expr=
+    |             |     | +-ColumnRef(type=STRUCT<a INT64, b STRING>, column=$groupby.x#10)
+    |             |     +-field_idx=0
+    |             +-input_scan=
+    |               +-AggregateScan
+    |                 +-column_list=[$groupby.x#10, $aggregate.$agg1#8]
+    |                 +-input_scan=
+    |                 | +-ProjectScan
+    |                 |   +-column_list=[$array.y#6, $expr_subquery.x#7]
+    |                 |   +-expr_list=
+    |                 |   | +-x#7 := ColumnRef(type=STRUCT<a INT64, b STRING>, column=t.x#4, is_correlated=TRUE)
+    |                 |   +-input_scan=
+    |                 |     +-ArrayScan
+    |                 |       +-column_list=[$array.y#6]
+    |                 |       +-array_expr_list=
+    |                 |       | +-ColumnRef(type=ARRAY<INT64>, column=t.y#5, is_correlated=TRUE)
+    |                 |       +-element_column_list=[$array.y#6]
+    |                 +-group_by_list=
+    |                 | +-x#10 := ColumnRef(type=STRUCT<a INT64, b STRING>, column=$expr_subquery.x#7)
+    |                 +-aggregate_list=
+    |                   +-$agg1#8 :=
+    |                     +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+    |                       +-ColumnRef(type=INT64, column=$array.y#6)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=t.[x#4, y#5]
+        +-expr_list=
+        | +-x#4 :=
+        | | +-SubqueryExpr
+        | |   +-type=STRUCT<a INT64, b STRING>
+        | |   +-subquery_type=SCALAR
+        | |   +-subquery=
+        | |     +-ProjectScan
+        | |       +-column_list=[$make_struct.$struct#3]
+        | |       +-expr_list=
+        | |       | +-$struct#3 :=
+        | |       |   +-MakeStruct
+        | |       |     +-type=STRUCT<a INT64, b STRING>
+        | |       |     +-field_list=
+        | |       |       +-ColumnRef(type=INT64, column=$expr_subquery.a#1)
+        | |       |       +-ColumnRef(type=STRING, column=$expr_subquery.b#2)
+        | |       +-input_scan=
+        | |         +-ProjectScan
+        | |           +-column_list=$expr_subquery.[a#1, b#2]
+        | |           +-expr_list=
+        | |           | +-a#1 := Literal(type=INT64, value=1)
+        | |           | +-b#2 := Literal(type=STRING, value="a")
+        | |           +-input_scan=
+        | |             +-SingleRowScan
+        | +-y#5 := Literal(type=ARRAY<INT64>, value=[2])
+        +-input_scan=
+          +-SingleRowScan

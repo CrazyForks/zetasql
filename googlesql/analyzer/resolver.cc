@@ -92,6 +92,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -100,19 +101,34 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "googlesql/base/ret_check.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
+
+absl::StatusOr<int64_t> GetDefaultTimestampPrecision(
+    const AnalyzerOptions& analyzer_options) {
+  if
+  (analyzer_options.language().LanguageFeatureEnabled(FEATURE_TIMESTAMP_PICOS))
+  {
+    return 12;
+  } else if
+  (analyzer_options.language().LanguageFeatureEnabled(FEATURE_TIMESTAMP_NANOS))
+  {
+    return 9;
+  } else {
+    return 6;
+  }
+}
 
 const std::map<int, Resolver::SpecialArgumentType>* const
     Resolver::kEmptyArgumentOptionMap =
         new std::map<int, Resolver::SpecialArgumentType>();
 
 Resolver::Resolver(Catalog* catalog, TypeFactory* type_factory,
-                   const AnalyzerOptions* analyzer_options)
+                   const AnalyzerOptions* analyzer_options,
+                   AnalyzerOutputProperties& analyzer_output_properties)
     : catalog_(catalog),
       type_factory_(type_factory),
       analyzer_options_(*analyzer_options),
@@ -120,6 +136,7 @@ Resolver::Resolver(Catalog* catalog, TypeFactory* type_factory,
       empty_name_list_(new NameList),
       empty_name_scope_(new NameScope(*empty_name_list_)),
       id_string_pool_(analyzer_options_.id_string_pool().get()),
+      analyzer_output_properties_(analyzer_output_properties),
       warning_sink_(/*consider_location=*/false) {
   function_resolver_ =
       std::make_unique<FunctionResolver>(catalog, type_factory, this);
@@ -191,10 +208,12 @@ IdString Resolver::MakeIdString(absl::string_view str) const {
 }
 
 std::unique_ptr<const ResolvedLiteral> Resolver::MakeResolvedLiteral(
-    const ASTNode* ast_location, const Value& value,
-    bool set_has_explicit_type) const {
+    const ASTNode* ast_location, const Value& value, bool set_has_explicit_type,
+    bool preserve_in_literal_remover) const {
   auto resolved_literal = googlesql::MakeResolvedLiteral(value.type(), value,
                                                          set_has_explicit_type);
+  resolved_literal->set_preserve_in_literal_remover(
+      preserve_in_literal_remover);
   MaybeRecordParseLocation(ast_location, resolved_literal.get());
   return resolved_literal;
 }
@@ -332,13 +351,37 @@ absl::Status Resolver::ResolveStandaloneExpr(
   return absl::OkStatus();
 }
 
-absl::Status Resolver::ResolveStandaloneExprAndAssignToType(
-    absl::string_view sql, const ASTExpression* ast_expr,
-    AnnotatedType target_type,
-    std::unique_ptr<const ResolvedExpr>* resolved_expr_out) {
-  GOOGLESQL_RETURN_IF_ERROR(ResolveStandaloneExpr(sql, ast_expr, resolved_expr_out));
-  return CoerceExprToType(ast_expr, target_type, Resolver::kImplicitAssignment,
-                          resolved_expr_out);
+absl::Status Resolver::GenerateLambdaProxyFunctions(
+    const FunctionArgumentInfo* arg_info) {
+  const bool feature_enabled =
+      language().LanguageFeatureEnabled(FEATURE_UDF_LAMBDA_ARGUMENTS);
+
+  for (const auto* arg_details : arg_info->GetArgumentDetails()) {
+    if (arg_details->arg_type.IsLambda()) {
+      GOOGLESQL_RET_CHECK(feature_enabled)
+          << "Found lambda arg when FEATURE_UDF_LAMBDA_ARGUMENTS is not "
+             "enabled";
+      FunctionArgumentType body_type =
+          arg_details->arg_type.lambda().body_type();
+      // Set num_occurrences to 1 to ensure the signature is concrete,
+      // which is required by the validator for FunctionTypedParameter.
+      body_type.set_num_occurrences(1);
+      FunctionArgumentTypeList arg_types =
+          arg_details->arg_type.lambda().argument_types();
+      for (auto& arg : arg_types) {
+        arg.set_num_occurrences(1);
+      }
+      std::vector<FunctionSignature> signatures;
+      signatures.push_back(FunctionSignature(std::move(body_type),
+                                             std::move(arg_types),
+                                             /*context_id=*/-1));
+      // Create a proxy function to represent the function-typed parameter.
+      auto generated_function = std::make_unique<FunctionTypedParameter>(
+          arg_details->name.ToString(), std::move(signatures));
+      generated_functions_.push_back(std::move(generated_function));
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Resolver::ResolveExprWithFunctionArguments(
@@ -356,6 +399,27 @@ absl::Status Resolver::ResolveExprWithFunctionArguments(
                                FunctionArgumentType(resolved_arg->type()),
                                resolved_arg->type_annotation_map()));
   }
+  return ResolveExprWithFunctionArguments(sql, ast_expr, std::move(arg_info),
+                                          expr_resolution_info, output);
+}
+
+absl::Status Resolver::ResolveExprWithFunctionArguments(
+    absl::string_view sql, const ASTExpression* ast_expr,
+    std::unique_ptr<FunctionArgumentInfo> arg_info,
+    ExprResolutionInfo* expr_resolution_info,
+    std::unique_ptr<const ResolvedExpr>* output) {
+  RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
+  Reset(sql);
+  GOOGLESQL_RET_CHECK(arg_info != nullptr);
+
+  // Pre-generate proxy functions (FunctionTypedParameter) for all lambda
+  // parameters of the UDF inside the child resolver's context. This ensures
+  // that transitive propagation references to these parameters (e.g.,
+  // array_transform(arr, p)) can successfully locate their proxy signatures in
+  // generated_functions_ during child resolution, even if the parameter is not
+  // directly invoked first.
+  GOOGLESQL_RETURN_IF_ERROR(GenerateLambdaProxyFunctions(arg_info.get()));
+
   auto scoped_reset = SetArgumentInfo(arg_info.get());
   disallowing_query_parameters_with_error_ =
       "Query parameters cannot be used inside SQL function bodies";
@@ -933,7 +997,7 @@ absl::Status Resolver::ResolveHintOrOptionAndAppend(
           arg_t, target_t, first_char_upper_case_option_name,
           HintName(qualifier, name));
     };
-    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(ast_value, expected_type,
+    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(ast_value, expected_type, TypeModifiers(),
                                      kImplicitCoercion, make_error_msg,
                                      &resolved_expr));
   }
@@ -1016,12 +1080,12 @@ static bool IsValueColumn(const Column& column, const Table& table) {
 
 // Returns whether the given `column_name` is a non-pseudo field of the value
 // column of the given `table`. `table` must be a value table.
-static bool IsValueColumnField(const Table& table,
-                               const std::string& column_name) {
-  Type::HasFieldResult has_field_result =
-      table.GetColumn(0)->GetType()->HasField(column_name);
-  return has_field_result == Type::HAS_FIELD ||
-         has_field_result == Type::HAS_AMBIGUOUS_FIELD;
+static absl::StatusOr<bool> IsValueColumnField(const Table& table,
+                                               absl::string_view column_name) {
+  GOOGLESQL_ASSIGN_OR_RETURN(Type::FindFieldResult find_result,
+                   table.GetColumn(0)->GetType()->FindField(column_name));
+  return find_result.has_field == Type::HAS_FIELD ||
+         find_result.has_field == Type::HAS_AMBIGUOUS_FIELD;
 }
 
 absl::Status Resolver::ResolveTableAndColumnInfoAndAppend(
@@ -1052,7 +1116,9 @@ absl::Status Resolver::ResolveTableAndColumnInfoAndAppend(
     const Column* column = table->FindColumnByName(column_name.ToString());
     if (table->IsValueTable() &&
         (column == nullptr || IsValueColumn(*column, *table))) {
-      if (IsValueColumnField(*table, column_name.ToString())) {
+      GOOGLESQL_ASSIGN_OR_RETURN(bool is_value_column_field,
+                       IsValueColumnField(*table, column_name.ToString()));
+      if (is_value_column_field) {
         // Give a more descriptive error message for the common mistake of
         // listing fields of the value column.
         return MakeSqlErrorAt(table_and_column_info)
@@ -1120,6 +1186,45 @@ absl::Status Resolver::ResolveOptionsList(
     absl::flat_hash_set<std::string> specified_options;
     for (const ASTOptionsEntry* options_entry :
          options_list->options_entries()) {
+      if (options_entry->assignment_op() == ASTOptionsEntry::FROM) {
+        if (!language().LanguageFeatureEnabled(FEATURE_OPTIONS_FROM_STRUCT)) {
+          return MakeSqlErrorAt(options_entry)
+                 << "OPTIONS (FROM <struct_expression>) is not supported";
+        }
+        std::unique_ptr<const ResolvedExpr> resolved_expr;
+        if (options_entry->value()->node_kind() == AST_BRACED_CONSTRUCTOR) {
+          GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
+              FEATURE_BRACED_PROTO_CONSTRUCTORS));
+          auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
+              /*query_resolution_info=*/nullptr, empty_name_scope_.get(),
+              ExprResolutionInfoOptions{
+                  .clause_name = "OPTIONS FROM expression",
+              });
+          expr_resolution_info->grouping_context =
+              ExprGroupingContext::kPreGrouping;
+          GOOGLESQL_RETURN_IF_ERROR(ResolveBracedConstructorForStruct(
+              options_entry->value()->GetAsOrDie<ASTBracedConstructor>(),
+              /*is_bare_struct=*/true,
+              /*expression_location_node=*/options_entry->value(),
+              /*ast_struct_type=*/nullptr,
+              /*inferred_type=*/nullptr, expr_resolution_info.get(),
+              &resolved_expr));
+        } else {
+          GOOGLESQL_RETURN_IF_ERROR(
+              ResolveScalarExpr(options_entry->value(), empty_name_scope_.get(),
+                                "OPTIONS FROM expression", &resolved_expr));
+        }
+        if (!resolved_expr->type()->IsStruct()) {
+          return MakeSqlErrorAt(options_entry->value())
+                 << "OPTIONS FROM expression must be a STRUCT, but has type "
+                 << resolved_expr->type()->ShortTypeName(product_mode());
+        }
+        auto resolved_option = MakeResolvedOption(
+            /*qualifier=*/"", /*name=*/"", std::move(resolved_expr));
+        resolved_option->set_assignment_op(ResolvedOption::FROM);
+        resolved_options->push_back(std::move(resolved_option));
+        continue;
+      }
       if (!language().LanguageFeatureEnabled(
               FEATURE_ENABLE_ALTER_ARRAY_OPTIONS)) {
         switch (options_entry->assignment_op()) {
@@ -1512,12 +1617,13 @@ absl::Status Resolver::ResolveArrayType(
       ResolveType(array_type->element_type(), resolve_type_modifier_options,
                   &resolved_element_type, &resolved_element_type_modifiers));
 
-  if (resolved_element_type->IsArray()) {
+  if (resolved_element_type->IsArray() &&
+      !language().LanguageFeatureEnabled(FEATURE_ARRAY_OF_ARRAY)) {
     return MakeSqlErrorAt(array_type) << "Arrays of arrays are not supported";
   }
 
-  GOOGLESQL_RETURN_IF_ERROR(
-      type_factory_->MakeArrayType(resolved_element_type, resolved_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(*resolved_type, type_factory_->MakeArrayType(
+                                       resolved_element_type, language()));
 
   TypeParameters resolved_element_type_params =
       resolved_element_type_modifiers.release_type_parameters();
@@ -1961,9 +2067,35 @@ absl::Status Resolver::MaybeResolveCollationForFunctionCallBase(
 absl::Status Resolver::MaybeResolveCollationForSubqueryExpr(
     const ASTNode* error_location, ResolvedSubqueryExpr* subquery_expr) {
   GOOGLESQL_RET_CHECK_NE(subquery_expr, nullptr);
-  if (!language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT) ||
-      subquery_expr->subquery_type() != ResolvedSubqueryExpr::IN) {
+  if (!language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT)) {
     return absl::OkStatus();
+  }
+
+  // SCALAR, ARRAY, and EXISTS subqueries do not use in_collation.
+  // Only subqueries where the LHS expression is compared to elements
+  // produced by the RHS subquery need to resolve a common collation
+  // and pass it to the engine via in_collation.
+  switch (subquery_expr->subquery_type()) {
+    case ResolvedSubqueryExpr::IN:
+    case ResolvedSubqueryExpr::LIKE_ANY:
+    case ResolvedSubqueryExpr::LIKE_ALL:
+    case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+    case ResolvedSubqueryExpr::NOT_LIKE_ALL:
+    case ResolvedSubqueryExpr::EQ_ANY:
+    case ResolvedSubqueryExpr::EQ_ALL:
+    case ResolvedSubqueryExpr::NE_ANY:
+    case ResolvedSubqueryExpr::NE_ALL:
+    case ResolvedSubqueryExpr::LT_ANY:
+    case ResolvedSubqueryExpr::LT_ALL:
+    case ResolvedSubqueryExpr::LE_ANY:
+    case ResolvedSubqueryExpr::LE_ALL:
+    case ResolvedSubqueryExpr::GT_ANY:
+    case ResolvedSubqueryExpr::GT_ALL:
+    case ResolvedSubqueryExpr::GE_ANY:
+    case ResolvedSubqueryExpr::GE_ALL:
+      break;
+    default:
+      return absl::OkStatus();
   }
   const ResolvedScan* subquery_scan = subquery_expr->subquery();
   GOOGLESQL_RET_CHECK_NE(subquery_scan, nullptr);
@@ -1985,10 +2117,13 @@ absl::Status Resolver::MaybeResolveCollationForSubqueryExpr(
     if (status.code() == absl::StatusCode::kInternal) {
       return status;
     }
+    std::string operator_name =
+        subquery_expr->subquery_type() == ResolvedSubqueryExpr::IN ? "IN"
+                                                                   : "LIKE";
     return MakeSqlErrorAt(error_location) << absl::Substitute(
-               "$0. Collation for IN operator is different on input expr ($1) "
-               "and subquery column ($2)",
-               status.message(),
+               "$0. Collation for $1 operator is different on input expr ($2) "
+               "and subquery column ($3)",
+               status.message(), operator_name,
                in_expr_annotation_map->DebugString(
                    CollationAnnotation::GetId()),
                subquery_annotation_map->DebugString(

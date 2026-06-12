@@ -1,0 +1,234 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+select {{|x,}} **cols {{|,y}}
+from Foo;
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-24] [select  **cols  from Foo]
+  Query [0-24] [select  **cols  from Foo]
+    Select [0-24] [select  **cols  from Foo]
+      SelectList [8-14] [**cols]
+        SelectColumn [8-14] [**cols]
+          UnpackExpression [8-14] [**cols]
+            PathExpression [10-14] [cols]
+              Identifier(cols) [10-14] [cols]
+      FromClause [16-24] [from Foo]
+        TablePathExpression [21-24] [Foo]
+          PathExpression [21-24] [Foo]
+            Identifier(Foo) [21-24] [Foo]
+
+--
+SELECT
+  ** (cols)
+FROM
+  Foo
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-26] [select  **cols ,y from Foo]
+  Query [0-26] [select  **cols ,y from Foo]
+    Select [0-26] [select  **cols ,y from Foo]
+      SelectList [8-17] [**cols ,y]
+        SelectColumn [8-14] [**cols]
+          UnpackExpression [8-14] [**cols]
+            PathExpression [10-14] [cols]
+              Identifier(cols) [10-14] [cols]
+        SelectColumn [16-17] [y]
+          PathExpression [16-17] [y]
+            Identifier(y) [16-17] [y]
+      FromClause [18-26] [from Foo]
+        TablePathExpression [23-26] [Foo]
+          PathExpression [23-26] [Foo]
+            Identifier(Foo) [23-26] [Foo]
+--
+SELECT
+  ** (cols),
+  y
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-26] [select x, **cols  from Foo]
+  Query [0-26] [select x, **cols  from Foo]
+    Select [0-26] [select x, **cols  from Foo]
+      SelectList [7-16] [x, **cols]
+        SelectColumn [7-8] [x]
+          PathExpression [7-8] [x]
+            Identifier(x) [7-8] [x]
+        SelectColumn [10-16] [**cols]
+          UnpackExpression [10-16] [**cols]
+            PathExpression [12-16] [cols]
+              Identifier(cols) [12-16] [cols]
+      FromClause [18-26] [from Foo]
+        TablePathExpression [23-26] [Foo]
+          PathExpression [23-26] [Foo]
+            Identifier(Foo) [23-26] [Foo]
+--
+SELECT
+  x,
+  ** (cols)
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-28] [select x, **cols ,y from Foo]
+  Query [0-28] [select x, **cols ,y from Foo]
+    Select [0-28] [select x, **cols ,y from Foo]
+      SelectList [7-19] [x, **cols ,y]
+        SelectColumn [7-8] [x]
+          PathExpression [7-8] [x]
+            Identifier(x) [7-8] [x]
+        SelectColumn [10-16] [**cols]
+          UnpackExpression [10-16] [**cols]
+            PathExpression [12-16] [cols]
+              Identifier(cols) [12-16] [cols]
+        SelectColumn [18-19] [y]
+          PathExpression [18-19] [y]
+            Identifier(y) [18-19] [y]
+      FromClause [20-28] [from Foo]
+        TablePathExpression [25-28] [Foo]
+          PathExpression [25-28] [Foo]
+            Identifier(Foo) [25-28] [Foo]
+--
+SELECT
+  x,
+  ** (cols),
+  y
+FROM
+  Foo
+==
+
+from Foo
+|> select {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-26] [from Foo |> select  **cols]
+  Query [0-26] [from Foo |> select  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-26] [|> select  **cols]
+      Select [12-26] [select  **cols]
+        SelectList [20-26] [**cols]
+          SelectColumn [20-26] [**cols]
+            UnpackExpression [20-26] [**cols]
+              PathExpression [22-26] [cols]
+                Identifier(cols) [22-26] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-29] [from Foo |> select  **cols ,y]
+  Query [0-29] [from Foo |> select  **cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-29] [|> select  **cols ,y]
+      Select [12-29] [select  **cols ,y]
+        SelectList [20-29] [**cols ,y]
+          SelectColumn [20-26] [**cols]
+            UnpackExpression [20-26] [**cols]
+              PathExpression [22-26] [cols]
+                Identifier(cols) [22-26] [cols]
+          SelectColumn [28-29] [y]
+            PathExpression [28-29] [y]
+              Identifier(y) [28-29] [y]
+--
+FROM
+  Foo
+|> SELECT
+     ** (cols),
+     y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-28] [from Foo |> select x, **cols]
+  Query [0-28] [from Foo |> select x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-28] [|> select x, **cols]
+      Select [12-28] [select x, **cols]
+        SelectList [19-28] [x, **cols]
+          SelectColumn [19-20] [x]
+            PathExpression [19-20] [x]
+              Identifier(x) [19-20] [x]
+          SelectColumn [22-28] [**cols]
+            UnpackExpression [22-28] [**cols]
+              PathExpression [24-28] [cols]
+                Identifier(cols) [24-28] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     x,
+     ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-31] [from Foo |...**cols ,y]
+  Query [0-31] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-31] [|> select x, **cols ,y]
+      Select [12-31] [select x, **cols ,y]
+        SelectList [19-31] [x, **cols ,y]
+          SelectColumn [19-20] [x]
+            PathExpression [19-20] [x]
+              Identifier(x) [19-20] [x]
+          SelectColumn [22-28] [**cols]
+            UnpackExpression [22-28] [**cols]
+              PathExpression [24-28] [cols]
+                Identifier(cols) [24-28] [cols]
+          SelectColumn [30-31] [y]
+            PathExpression [30-31] [y]
+              Identifier(y) [30-31] [y]
+--
+FROM
+  Foo
+|> SELECT
+     x,
+     ** (cols),
+     y
+
+==
+
+SELECT **cols as c FROM Foo
+--
+QueryStatement [0-27] [SELECT **cols as c FROM Foo]
+  Query [0-27] [SELECT **cols as c FROM Foo]
+    Select [0-27] [SELECT **cols as c FROM Foo]
+      SelectList [7-18] [**cols as c]
+        SelectColumn [7-18] [**cols as c]
+          UnpackExpression [7-13] [**cols]
+            PathExpression [9-13] [cols]
+              Identifier(cols) [9-13] [cols]
+          Alias [14-18] [as c]
+            Identifier(c) [17-18] [c]
+      FromClause [19-27] [FROM Foo]
+        TablePathExpression [24-27] [Foo]
+          PathExpression [24-27] [Foo]
+            Identifier(Foo) [24-27] [Foo]
+--
+SELECT
+  ** (cols) AS c
+FROM
+  Foo

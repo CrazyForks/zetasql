@@ -17,6 +17,8 @@
 #include "googlesql/base/clock.h"
 
 #include "googlesql/base/logging.h"
+#include "absl/base/thread_annotations.h"
+#include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -48,7 +50,7 @@ Clock* Clock::RealClock() {
 SimulatedClock::SimulatedClock(absl::Time t) : now_(t) {}
 
 absl::Time SimulatedClock::TimeNow() {
-  absl::ReaderMutexLock l(&lock_);
+  absl::ReaderMutexLock l(lock_);
   return now_;
 }
 
@@ -63,9 +65,9 @@ void SimulatedClock::AdvanceTime(absl::Duration d)
 
 template <class T>
 void SimulatedClock::UpdateTime(const T& now_updater) {
-  lock_.Lock();
+  lock_.lock();
   now_updater();  // reset now_
-  lock_.Unlock();
+  lock_.unlock();
 }
 
 }  // namespace googlesql_base

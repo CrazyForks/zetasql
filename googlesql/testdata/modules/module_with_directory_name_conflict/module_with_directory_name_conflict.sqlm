@@ -1,0 +1,12 @@
+# This module takes part in a test where conflicting/overlapping module
+# names are present.  Specifically, this module file should be ignored
+# where the module is imported with form "IMPORT a.b.c" and this file
+# is effectively "a/b/c/c.sqlm", while there is another module file
+# at "a/b/c.sqlm" that the IMPORT resolves to.
+
+MODULE module_with_directory_name_conflict_nested;
+
+CREATE PUBLIC FUNCTION function_nested(a STRING)
+AS (
+  a
+);

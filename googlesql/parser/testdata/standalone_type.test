@@ -60,7 +60,7 @@ struct
 
 struct<
 --
-ERROR: Syntax error: Expected ">" but got end of type [at 1:8]
+ERROR: Syntax error: Unexpected end of type [at 1:8]
 struct<
        ^
 ==

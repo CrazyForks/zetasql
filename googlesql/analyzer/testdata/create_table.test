@@ -794,9 +794,18 @@ create table t1 (
   c1 MAP<STRING(5), INT64>
 )
 --
-ERROR: Type parameters are not supported on MAP key [at 3:10]
-  c1 MAP<STRING(5), INT64>
-         ^
+CreateTableStmt
++-name_path=t1
++-column_definition_list=
+  +-ColumnDefinition
+    +-name="c1"
+    +-type=MAP<STRING, INT64>
+    +-annotations=
+    | +-ColumnAnnotations
+    |   +-child_list=
+    |     +-ColumnAnnotations(type_parameters=(max_length=5))
+    |     +-ColumnAnnotations
+    +-column=t1.c1#1
 ==
 
 [language_features=MAXIMUM,+MAP_TYPE,+CREATE_TABLE_FIELD_ANNOTATIONS,+PARAMETERIZED_TYPES]
@@ -805,9 +814,22 @@ create table t1 (
   c2 MAP<STRING, STRUCT<a ARRAY<STRING(10)>>>
 )
 --
-ERROR: Type parameters are not supported on MAP value [at 3:18]
-  c2 MAP<STRING, STRUCT<a ARRAY<STRING(10)>>>
-                 ^
+CreateTableStmt
++-name_path=t1
++-column_definition_list=
+  +-ColumnDefinition
+    +-name="c2"
+    +-type=MAP<STRING, STRUCT<a ARRAY<STRING>>>
+    +-annotations=
+    | +-ColumnAnnotations
+    |   +-child_list=
+    |     +-ColumnAnnotations
+    |     +-ColumnAnnotations
+    |       +-child_list=
+    |         +-ColumnAnnotations
+    |           +-child_list=
+    |             +-ColumnAnnotations(type_parameters=(max_length=10))
+    +-column=t1.c2#1
 ==
 
 [language_features=MAXIMUM,+MAP_TYPE,+PARAMETERIZED_TYPES,+CREATE_TABLE_NOT_NULL,+CREATE_TABLE_FIELD_ANNOTATIONS]
@@ -816,9 +838,18 @@ create table t1 (
   c1 MAP<STRING(5) NOT NULL, STRING(10)>
 )
 --
-ERROR: Type parameters are not supported on MAP key [at 3:10]
-  c1 MAP<STRING(5) NOT NULL, STRING(10)>
-         ^
+CreateTableStmt
++-name_path=t1
++-column_definition_list=
+  +-ColumnDefinition
+    +-name="c1"
+    +-type=MAP<STRING, STRING>
+    +-annotations=
+    | +-ColumnAnnotations
+    |   +-child_list=
+    |     +-ColumnAnnotations(not_null=TRUE, type_parameters=(max_length=5))
+    |     +-ColumnAnnotations(type_parameters=(max_length=10))
+    +-column=t1.c1#1
 ==
 
 [language_features=MAXIMUM,+RANGE_TYPE,+MAP_TYPE,+CREATE_TABLE_NOT_NULL,+CREATE_TABLE_FIELD_ANNOTATIONS]
@@ -859,9 +890,26 @@ CREATE TABLE t1 (
   col MAP<ARRAY<RANGE<TIMESTAMP>>, MAP<STRUCT<a STRING(55) NOT NULL>, TIMESTAMP OPTIONS(k='v')> NOT NULL>
 )
 --
-ERROR: Type parameters are not supported on MAP key [at 3:40]
-  col MAP<ARRAY<RANGE<TIMESTAMP>>, MAP<STRUCT<a STRING(55) NOT NULL>, TIMESTA...
-                                       ^
+CreateTableStmt
++-name_path=t1
++-column_definition_list=
+  +-ColumnDefinition
+    +-name="col"
+    +-type=MAP<ARRAY<RANGE<TIMESTAMP>>, MAP<STRUCT<a STRING>, TIMESTAMP>>
+    +-annotations=
+    | +-ColumnAnnotations
+    |   +-child_list=
+    |     +-ColumnAnnotations
+    |     +-ColumnAnnotations
+    |       +-not_null=TRUE
+    |       +-child_list=
+    |         +-ColumnAnnotations
+    |         | +-child_list=
+    |         |   +-ColumnAnnotations(not_null=TRUE, type_parameters=(max_length=55))
+    |         +-ColumnAnnotations
+    |           +-option_list=
+    |             +-k := Literal(type=STRING, value="v")
+    +-column=t1.col#1
 ==
 
 [language_features=MAXIMUM,+MAP_TYPE,+CREATE_TABLE_FIELD_ANNOTATIONS,+CREATE_TABLE_NOT_NULL,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
@@ -5896,3 +5944,44 @@ create table T (a int64) options (a=1,a=2)
 ERROR: Duplicate option specified for 'a' [at 1:39]
 create table T (a int64) options (a=1,a=2)
                                       ^
+==
+
+# CREATE TABLE with missing column type
+create table t1 (a, b string);
+--
+ERROR: Column must have a type [at 1:19]
+create table t1 (a, b string);
+                  ^
+
+==
+
+create table t (a OPTIONS (x=1));
+--
+ERROR: Column must have a type [at 1:18]
+create table t (a OPTIONS (x=1));
+                 ^
+
+==
+
+# HIDDEN will parse as the attribute, not the type name.
+create table t1 (a HIDDEN);
+--
+ERROR: Column must have a type [at 1:19]
+create table t1 (a HIDDEN);
+                  ^
+==
+
+# OPTIONS will parse as the keyword, not the type name.
+create table t1 (a OPTIONS({{|a=}}10));
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: Syntax error: Expected ")" but got integer literal "10" [at 1:28]
+create table t1 (a OPTIONS(10));
+                           ^
+--
+ALTERNATION GROUP: a=
+--
+ERROR: Column must have a type [at 1:19]
+create table t1 (a OPTIONS(a=10));
+                  ^

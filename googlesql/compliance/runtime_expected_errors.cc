@@ -810,8 +810,12 @@ std::unique_ptr<MatcherCollection<absl::Status>> RuntimeExpectedErrorMatcher(
       "Collation is not allowed on input array to FLATTEN (.+)"));
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kInvalidArgument,
-      "Collation conflict: \"(.+)\" vs. \"(.+)\". Collation for IN operator is "
-      "different on input expr (.+) and subquery column (.+)"));
+      "Collation conflict: \"(.+)\" vs. \"(.+)\". Collation for IN operator "
+      "is different on input expr (.+) and subquery column (.+)"));
+  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
+      absl::StatusCode::kInvalidArgument,
+      "Collation conflict: \"(.+)\" vs. \"(.+)\". Collation for LIKE operator "
+      "is different on input expr (.+) and subquery column (.+)"));
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kInvalidArgument,
       "Collation is not allowed on argument (.+) (.+)"));
@@ -874,6 +878,9 @@ std::unique_ptr<MatcherCollection<absl::Status>> RuntimeExpectedErrorMatcher(
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kOutOfRange,
       "JSON number: .+ cannot be converted to (FLOAT|FLOAT32)"));
+  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
+      absl::StatusCode::kOutOfRange,
+      "(Infinity|NaN) is not a valid JSON number"));
   // TODO PARSE_JSON sometimes is generated with invalid string
   // inputs.
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
@@ -926,14 +933,8 @@ std::unique_ptr<MatcherCollection<absl::Status>> RuntimeExpectedErrorMatcher(
       "Invalid bytes value size for UUID, expected 16 bytes, but got .* "
       "bytes."));
 
-  std::vector<std::unique_ptr<MatcherBase<absl::Status>>> uuid_error_matchers;
-  uuid_error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kOutOfRange, "Invalid input: '"));
-  uuid_error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
       absl::StatusCode::kOutOfRange, "UUID cannot "));
-  error_matchers.emplace_back(std::make_unique<MatcherCollection<absl::Status>>(
-      "UUID error matcher", std::move(uuid_error_matchers),
-      /*is_conjunction=*/true));
 
   error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
       absl::StatusCode::kOutOfRange,

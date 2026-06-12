@@ -1,0 +1,5 @@
+MODULE named_constant_conflict_with_module_alias_after;
+
+CREATE PUBLIC CONSTANT named_constant = 1;
+
+IMPORT MODULE googlesql.testdata.modules.named_constant;

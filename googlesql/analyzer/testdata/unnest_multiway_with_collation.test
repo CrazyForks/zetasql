@@ -52,17 +52,17 @@ QueryStmt
         | |   +-type=STRING
         | |   +-type_annotation_map={Collation:"und:ci"}
         | |   +-expr=
-        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         | |   +-field_idx=0
         | +-$unnest2#2 :=
         |   +-GetStructField
         |     +-type=INT64
         |     +-expr=
-        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         |     +-field_idx=1
         +-input_scan=
           +-ArrayScan
-            +-column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            +-column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
             +-array_expr_list=
             | +-WithExpr
             |   +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
@@ -101,23 +101,7 @@ QueryStmt
             |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
             |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
             |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-            |   | +-strict_check#8 :=
-            |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-            |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-            |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-            |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
-            |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-            |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-            |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-            |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-            |   | |   +-Literal(type=INT64, value=NULL)
-            |   | +-result_len#9 :=
+            |   | +-result_len#8 :=
             |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
             |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
             |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
@@ -129,75 +113,90 @@ QueryStmt
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
             |   +-expr=
-            |     +-SubqueryExpr
-            |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
             |       +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
-            |       +-subquery_type=ARRAY
-            |       +-parameter_list=
-            |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
-            |       | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
-            |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#9)
-            |       +-subquery=
-            |         +-ProjectScan
-            |           +-column_list=[$make_struct.$struct#15<{Collation:"und:ci"},_,_>]
-            |           +-is_ordered=TRUE
-            |           +-expr_list=
-            |           | +-$struct#15 :=
-            |           |   +-MakeStruct
-            |           |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
-            |           |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
-            |           |     +-field_list=
-            |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#10{Collation:"und:ci"})
-            |           |       +-ColumnRef(type=INT64, column=$array.arr1#12)
-            |           |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |           +-input_scan=
-            |             +-OrderByScan
-            |               +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               +-is_ordered=TRUE
-            |               +-input_scan=
-            |               | +-FilterScan
-            |               |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   +-input_scan=
-            |               |   | +-ProjectScan
-            |               |   |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   |   +-expr_list=
-            |               |   |   | +-offset#14 :=
-            |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   |   +-input_scan=
-            |               |   |     +-JoinScan
-            |               |   |       +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13]
-            |               |   |       +-join_type=FULL
-            |               |   |       +-left_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr0#10{Collation:"und:ci"}]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#11)
-            |               |   |       +-right_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr1#12, $array_offset.offset#13]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr1#12]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#13)
-            |               |   |       +-join_expr=
-            |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   +-filter_expr=
-            |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-            |               |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#9, is_correlated=TRUE)
-            |               +-order_by_item_list=
-            |                 +-OrderByItem
-            |                   +-column_ref=
-            |                     +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            +-element_column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+            |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+            |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
+            |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+            |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+            |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
+            |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+            |       +-SubqueryExpr
+            |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |         +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
+            |         +-subquery_type=ARRAY
+            |         +-parameter_list=
+            |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
+            |         | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
+            |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#8)
+            |         +-subquery=
+            |           +-ProjectScan
+            |             +-column_list=[$make_struct.$struct#14<{Collation:"und:ci"},_,_>]
+            |             +-is_ordered=TRUE
+            |             +-expr_list=
+            |             | +-$struct#14 :=
+            |             |   +-MakeStruct
+            |             |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
+            |             |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
+            |             |     +-field_list=
+            |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#9{Collation:"und:ci"})
+            |             |       +-ColumnRef(type=INT64, column=$array.arr1#11)
+            |             |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |             +-input_scan=
+            |               +-OrderByScan
+            |                 +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 +-is_ordered=TRUE
+            |                 +-input_scan=
+            |                 | +-FilterScan
+            |                 |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   +-input_scan=
+            |                 |   | +-ProjectScan
+            |                 |   |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   |   +-expr_list=
+            |                 |   |   | +-offset#13 :=
+            |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   |   +-input_scan=
+            |                 |   |     +-JoinScan
+            |                 |   |       +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12]
+            |                 |   |       +-join_type=FULL
+            |                 |   |       +-left_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr0#9{Collation:"und:ci"}]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#10)
+            |                 |   |       +-right_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr1#11, $array_offset.offset#12]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr1#11]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#12)
+            |                 |   |       +-join_expr=
+            |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   +-filter_expr=
+            |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+            |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#8, is_correlated=TRUE)
+            |                 +-order_by_item_list=
+            |                   +-OrderByItem
+            |                     +-column_ref=
+            |                       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            +-element_column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
 --
 ALTERNATION GROUP: "TRUNCATE"
 --
@@ -245,17 +244,17 @@ QueryStmt
         | |   +-type=STRING
         | |   +-type_annotation_map={Collation:"und:ci"}
         | |   +-expr=
-        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         | |   +-field_idx=0
         | +-$unnest2#2 :=
         |   +-GetStructField
         |     +-type=INT64
         |     +-expr=
-        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         |     +-field_idx=1
         +-input_scan=
           +-ArrayScan
-            +-column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            +-column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
             +-array_expr_list=
             | +-WithExpr
             |   +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
@@ -294,23 +293,7 @@ QueryStmt
             |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
             |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
             |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=TRUNCATE)
-            |   | +-strict_check#8 :=
-            |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-            |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-            |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-            |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
-            |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-            |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-            |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-            |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-            |   | |   +-Literal(type=INT64, value=NULL)
-            |   | +-result_len#9 :=
+            |   | +-result_len#8 :=
             |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
             |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
             |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
@@ -322,75 +305,90 @@ QueryStmt
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
             |   +-expr=
-            |     +-SubqueryExpr
-            |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
             |       +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
-            |       +-subquery_type=ARRAY
-            |       +-parameter_list=
-            |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
-            |       | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
-            |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#9)
-            |       +-subquery=
-            |         +-ProjectScan
-            |           +-column_list=[$make_struct.$struct#15<{Collation:"und:ci"},_,_>]
-            |           +-is_ordered=TRUE
-            |           +-expr_list=
-            |           | +-$struct#15 :=
-            |           |   +-MakeStruct
-            |           |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
-            |           |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
-            |           |     +-field_list=
-            |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#10{Collation:"und:ci"})
-            |           |       +-ColumnRef(type=INT64, column=$array.arr1#12)
-            |           |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |           +-input_scan=
-            |             +-OrderByScan
-            |               +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               +-is_ordered=TRUE
-            |               +-input_scan=
-            |               | +-FilterScan
-            |               |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   +-input_scan=
-            |               |   | +-ProjectScan
-            |               |   |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   |   +-expr_list=
-            |               |   |   | +-offset#14 :=
-            |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   |   +-input_scan=
-            |               |   |     +-JoinScan
-            |               |   |       +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13]
-            |               |   |       +-join_type=FULL
-            |               |   |       +-left_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr0#10{Collation:"und:ci"}]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#11)
-            |               |   |       +-right_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr1#12, $array_offset.offset#13]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr1#12]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#13)
-            |               |   |       +-join_expr=
-            |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   +-filter_expr=
-            |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-            |               |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#9, is_correlated=TRUE)
-            |               +-order_by_item_list=
-            |                 +-OrderByItem
-            |                   +-column_ref=
-            |                     +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            +-element_column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+            |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+            |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
+            |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+            |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+            |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
+            |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+            |       +-SubqueryExpr
+            |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |         +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
+            |         +-subquery_type=ARRAY
+            |         +-parameter_list=
+            |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
+            |         | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
+            |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#8)
+            |         +-subquery=
+            |           +-ProjectScan
+            |             +-column_list=[$make_struct.$struct#14<{Collation:"und:ci"},_,_>]
+            |             +-is_ordered=TRUE
+            |             +-expr_list=
+            |             | +-$struct#14 :=
+            |             |   +-MakeStruct
+            |             |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
+            |             |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
+            |             |     +-field_list=
+            |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#9{Collation:"und:ci"})
+            |             |       +-ColumnRef(type=INT64, column=$array.arr1#11)
+            |             |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |             +-input_scan=
+            |               +-OrderByScan
+            |                 +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 +-is_ordered=TRUE
+            |                 +-input_scan=
+            |                 | +-FilterScan
+            |                 |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   +-input_scan=
+            |                 |   | +-ProjectScan
+            |                 |   |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   |   +-expr_list=
+            |                 |   |   | +-offset#13 :=
+            |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   |   +-input_scan=
+            |                 |   |     +-JoinScan
+            |                 |   |       +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12]
+            |                 |   |       +-join_type=FULL
+            |                 |   |       +-left_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr0#9{Collation:"und:ci"}]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#10)
+            |                 |   |       +-right_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr1#11, $array_offset.offset#12]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr1#11]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#12)
+            |                 |   |       +-join_expr=
+            |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   +-filter_expr=
+            |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+            |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#8, is_correlated=TRUE)
+            |                 +-order_by_item_list=
+            |                   +-OrderByItem
+            |                     +-column_ref=
+            |                       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            +-element_column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
 --
 ALTERNATION GROUP: "PAD"
 --
@@ -438,17 +436,17 @@ QueryStmt
         | |   +-type=STRING
         | |   +-type_annotation_map={Collation:"und:ci"}
         | |   +-expr=
-        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         | |   +-field_idx=0
         | +-$unnest2#2 :=
         |   +-GetStructField
         |     +-type=INT64
         |     +-expr=
-        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},_,_>)
+        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>, type_annotation_map=<{Collation:"und:ci"},_,_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},_,_>)
         |     +-field_idx=1
         +-input_scan=
           +-ArrayScan
-            +-column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            +-column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
             +-array_expr_list=
             | +-WithExpr
             |   +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
@@ -487,23 +485,7 @@ QueryStmt
             |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
             |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
             |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
-            |   | +-strict_check#8 :=
-            |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-            |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-            |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-            |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
-            |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-            |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-            |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-            |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-            |   | |   +-Literal(type=INT64, value=NULL)
-            |   | +-result_len#9 :=
+            |   | +-result_len#8 :=
             |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
             |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
             |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
@@ -515,75 +497,90 @@ QueryStmt
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
             |   +-expr=
-            |     +-SubqueryExpr
-            |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
             |       +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
-            |       +-subquery_type=ARRAY
-            |       +-parameter_list=
-            |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
-            |       | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
-            |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#9)
-            |       +-subquery=
-            |         +-ProjectScan
-            |           +-column_list=[$make_struct.$struct#15<{Collation:"und:ci"},_,_>]
-            |           +-is_ordered=TRUE
-            |           +-expr_list=
-            |           | +-$struct#15 :=
-            |           |   +-MakeStruct
-            |           |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
-            |           |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
-            |           |     +-field_list=
-            |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#10{Collation:"und:ci"})
-            |           |       +-ColumnRef(type=INT64, column=$array.arr1#12)
-            |           |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |           +-input_scan=
-            |             +-OrderByScan
-            |               +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               +-is_ordered=TRUE
-            |               +-input_scan=
-            |               | +-FilterScan
-            |               |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   +-input_scan=
-            |               |   | +-ProjectScan
-            |               |   |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13, $full_join.offset#14]
-            |               |   |   +-expr_list=
-            |               |   |   | +-offset#14 :=
-            |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   |   +-input_scan=
-            |               |   |     +-JoinScan
-            |               |   |       +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12, $array_offset.offset#13]
-            |               |   |       +-join_type=FULL
-            |               |   |       +-left_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr0#10{Collation:"und:ci"}]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#11)
-            |               |   |       +-right_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr1#12, $array_offset.offset#13]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr1#12]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#13)
-            |               |   |       +-join_expr=
-            |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   +-filter_expr=
-            |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-            |               |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#9, is_correlated=TRUE)
-            |               +-order_by_item_list=
-            |                 +-OrderByItem
-            |                   +-column_ref=
-            |                     +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            +-element_column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},_,_>]
+            |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+            |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+            |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
+            |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+            |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+            |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>)
+            |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+            |       +-SubqueryExpr
+            |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 INT64, offset INT64>>
+            |         +-type_annotation_map=<<{Collation:"und:ci"},_,_>>
+            |         +-subquery_type=ARRAY
+            |         +-parameter_list=
+            |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
+            |         | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5)
+            |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#8)
+            |         +-subquery=
+            |           +-ProjectScan
+            |             +-column_list=[$make_struct.$struct#14<{Collation:"und:ci"},_,_>]
+            |             +-is_ordered=TRUE
+            |             +-expr_list=
+            |             | +-$struct#14 :=
+            |             |   +-MakeStruct
+            |             |     +-type=STRUCT<arr0 STRING, arr1 INT64, offset INT64>
+            |             |     +-type_annotation_map=<{Collation:"und:ci"},_,_>
+            |             |     +-field_list=
+            |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#9{Collation:"und:ci"})
+            |             |       +-ColumnRef(type=INT64, column=$array.arr1#11)
+            |             |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |             +-input_scan=
+            |               +-OrderByScan
+            |                 +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 +-is_ordered=TRUE
+            |                 +-input_scan=
+            |                 | +-FilterScan
+            |                 |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   +-input_scan=
+            |                 |   | +-ProjectScan
+            |                 |   |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   |   +-expr_list=
+            |                 |   |   | +-offset#13 :=
+            |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   |   +-input_scan=
+            |                 |   |     +-JoinScan
+            |                 |   |       +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11, $array_offset.offset#12]
+            |                 |   |       +-join_type=FULL
+            |                 |   |       +-left_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr0#9{Collation:"und:ci"}]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#10)
+            |                 |   |       +-right_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr1#11, $array_offset.offset#12]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<INT64>, column=$with_expr.arr1#5, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr1#11]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#12)
+            |                 |   |       +-join_expr=
+            |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   +-filter_expr=
+            |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+            |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#8, is_correlated=TRUE)
+            |                 +-order_by_item_list=
+            |                   +-OrderByItem
+            |                     +-column_ref=
+            |                       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            +-element_column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},_,_>]
 ==
 
 # Zipping 2 literal arrays, with different collations in different arrays
@@ -645,18 +642,18 @@ QueryStmt
         | |   +-type=STRING
         | |   +-type_annotation_map={Collation:"und:ci"}
         | |   +-expr=
-        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},{Collation:"und:binary"},_>)
+        | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},{Collation:"und:binary"},_>)
         | |   +-field_idx=0
         | +-$unnest2#2 :=
         |   +-GetStructField
         |     +-type=STRING
         |     +-type_annotation_map={Collation:"und:binary"}
         |     +-expr=
-        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#16<{Collation:"und:ci"},{Collation:"und:binary"},_>)
+        |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#15<{Collation:"und:ci"},{Collation:"und:binary"},_>)
         |     +-field_idx=1
         +-input_scan=
           +-ArrayScan
-            +-column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+            +-column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},{Collation:"und:binary"},_>]
             +-array_expr_list=
             | +-WithExpr
             |   +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
@@ -705,23 +702,7 @@ QueryStmt
             |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
             |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
             |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
-            |   | +-strict_check#8 :=
-            |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-            |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-            |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-            |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
-            |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-            |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-            |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
-            |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
-            |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-            |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-            |   | |   +-Literal(type=INT64, value=NULL)
-            |   | +-result_len#9 :=
+            |   | +-result_len#8 :=
             |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
             |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
             |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
@@ -733,75 +714,90 @@ QueryStmt
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
             |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
             |   +-expr=
-            |     +-SubqueryExpr
-            |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+            |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
             |       +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:binary"},_>>
-            |       +-subquery_type=ARRAY
-            |       +-parameter_list=
-            |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
-            |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:binary"}>, column=$with_expr.arr1#5<{Collation:"und:binary"}>)
-            |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#9)
-            |       +-subquery=
-            |         +-ProjectScan
-            |           +-column_list=[$make_struct.$struct#15<{Collation:"und:ci"},{Collation:"und:binary"},_>]
-            |           +-is_ordered=TRUE
-            |           +-expr_list=
-            |           | +-$struct#15 :=
-            |           |   +-MakeStruct
-            |           |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
-            |           |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>
-            |           |     +-field_list=
-            |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#10{Collation:"und:ci"})
-            |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:binary"}, column=$array.arr1#12{Collation:"und:binary"})
-            |           |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |           +-input_scan=
-            |             +-OrderByScan
-            |               +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12{Collation:"und:binary"}, $array_offset.offset#13, $full_join.offset#14]
-            |               +-is_ordered=TRUE
-            |               +-input_scan=
-            |               | +-FilterScan
-            |               |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12{Collation:"und:binary"}, $array_offset.offset#13, $full_join.offset#14]
-            |               |   +-input_scan=
-            |               |   | +-ProjectScan
-            |               |   |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12{Collation:"und:binary"}, $array_offset.offset#13, $full_join.offset#14]
-            |               |   |   +-expr_list=
-            |               |   |   | +-offset#14 :=
-            |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   |   +-input_scan=
-            |               |   |     +-JoinScan
-            |               |   |       +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11, $array.arr1#12{Collation:"und:binary"}, $array_offset.offset#13]
-            |               |   |       +-join_type=FULL
-            |               |   |       +-left_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr0#10{Collation:"und:ci"}, $array_offset.offset#11]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr0#10{Collation:"und:ci"}]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#11)
-            |               |   |       +-right_scan=
-            |               |   |       | +-ArrayScan
-            |               |   |       |   +-column_list=[$array.arr1#12{Collation:"und:binary"}, $array_offset.offset#13]
-            |               |   |       |   +-array_expr_list=
-            |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#5<{Collation:"und:binary"}>, is_correlated=TRUE)
-            |               |   |       |   +-element_column_list=[$array.arr1#12{Collation:"und:binary"}]
-            |               |   |       |   +-array_offset_column=
-            |               |   |       |     +-ColumnHolder(column=$array_offset.offset#13)
-            |               |   |       +-join_expr=
-            |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#11)
-            |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-            |               |   +-filter_expr=
-            |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-            |               |       +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#9, is_correlated=TRUE)
-            |               +-order_by_item_list=
-            |                 +-OrderByItem
-            |                   +-column_ref=
-            |                     +-ColumnRef(type=INT64, column=$full_join.offset#14)
-            +-element_column_list=[$array.$with_expr_element#16<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+            |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+            |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+            |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#7)
+            |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+            |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+            |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#4)
+            |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#6)
+            |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
+            |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+            |       +-SubqueryExpr
+            |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+            |         +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:binary"},_>>
+            |         +-subquery_type=ARRAY
+            |         +-parameter_list=
+            |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#3<{Collation:"und:ci"}>)
+            |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:binary"}>, column=$with_expr.arr1#5<{Collation:"und:binary"}>)
+            |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#8)
+            |         +-subquery=
+            |           +-ProjectScan
+            |             +-column_list=[$make_struct.$struct#14<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+            |             +-is_ordered=TRUE
+            |             +-expr_list=
+            |             | +-$struct#14 :=
+            |             |   +-MakeStruct
+            |             |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
+            |             |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>
+            |             |     +-field_list=
+            |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#9{Collation:"und:ci"})
+            |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:binary"}, column=$array.arr1#11{Collation:"und:binary"})
+            |             |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |             +-input_scan=
+            |               +-OrderByScan
+            |                 +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11{Collation:"und:binary"}, $array_offset.offset#12, $full_join.offset#13]
+            |                 +-is_ordered=TRUE
+            |                 +-input_scan=
+            |                 | +-FilterScan
+            |                 |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11{Collation:"und:binary"}, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   +-input_scan=
+            |                 |   | +-ProjectScan
+            |                 |   |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11{Collation:"und:binary"}, $array_offset.offset#12, $full_join.offset#13]
+            |                 |   |   +-expr_list=
+            |                 |   |   | +-offset#13 :=
+            |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   |   +-input_scan=
+            |                 |   |     +-JoinScan
+            |                 |   |       +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10, $array.arr1#11{Collation:"und:binary"}, $array_offset.offset#12]
+            |                 |   |       +-join_type=FULL
+            |                 |   |       +-left_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr0#9{Collation:"und:ci"}, $array_offset.offset#10]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#3<{Collation:"und:ci"}>, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr0#9{Collation:"und:ci"}]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#10)
+            |                 |   |       +-right_scan=
+            |                 |   |       | +-ArrayScan
+            |                 |   |       |   +-column_list=[$array.arr1#11{Collation:"und:binary"}, $array_offset.offset#12]
+            |                 |   |       |   +-array_expr_list=
+            |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#5<{Collation:"und:binary"}>, is_correlated=TRUE)
+            |                 |   |       |   +-element_column_list=[$array.arr1#11{Collation:"und:binary"}]
+            |                 |   |       |   +-array_offset_column=
+            |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#12)
+            |                 |   |       +-join_expr=
+            |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+            |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+            |                 |   +-filter_expr=
+            |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+            |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#8, is_correlated=TRUE)
+            |                 +-order_by_item_list=
+            |                   +-OrderByItem
+            |                     +-column_ref=
+            |                       +-ColumnRef(type=INT64, column=$full_join.offset#13)
+            +-element_column_list=[$array.$with_expr_element#15<{Collation:"und:ci"},{Collation:"und:binary"},_>]
 ==
 
 # Zipping 2 path expression arrays, with the same collation
@@ -894,18 +890,18 @@ QueryStmt
             | |   +-type=STRING
             | |   +-type_annotation_map={Collation:"und:ci"}
             | |   +-expr=
-            | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>, column=$array.$with_expr_element#18<{Collation:"und:ci"},{Collation:"und:ci"},_>)
+            | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>, column=$array.$with_expr_element#17<{Collation:"und:ci"},{Collation:"und:ci"},_>)
             | |   +-field_idx=0
             | +-arr2#4 :=
             |   +-GetStructField
             |     +-type=STRING
             |     +-type_annotation_map={Collation:"und:ci"}
             |     +-expr=
-            |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>, column=$array.$with_expr_element#18<{Collation:"und:ci"},{Collation:"und:ci"},_>)
+            |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>, column=$array.$with_expr_element#17<{Collation:"und:ci"},{Collation:"und:ci"},_>)
             |     +-field_idx=1
             +-input_scan=
               +-ArrayScan
-                +-column_list=[t.xs#2<{Collation:"und:ci"}>, $array.$with_expr_element#18<{Collation:"und:ci"},{Collation:"und:ci"},_>]
+                +-column_list=[t.xs#2<{Collation:"und:ci"}>, $array.$with_expr_element#17<{Collation:"und:ci"},{Collation:"und:ci"},_>]
                 +-input_scan=
                 | +-WithRefScan(column_list=[t.xs#2<{Collation:"und:ci"}>], with_query_name="t")
                 +-array_expr_list=
@@ -936,23 +932,7 @@ QueryStmt
                 |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
                 |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
                 |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
-                |   | +-strict_check#10 :=
-                |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-                |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-                |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-                |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#9)
-                |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-                |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-                |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-                |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#6)
-                |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#8)
-                |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-                |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#6)
-                |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#8)
-                |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-                |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-                |   | |   +-Literal(type=INT64, value=NULL)
-                |   | +-result_len#11 :=
+                |   | +-result_len#10 :=
                 |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
                 |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
                 |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#9)
@@ -964,75 +944,90 @@ QueryStmt
                 |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#6)
                 |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#8)
                 |   +-expr=
-                |     +-SubqueryExpr
-                |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+                |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
                 |       +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:ci"},_>>
-                |       +-subquery_type=ARRAY
-                |       +-parameter_list=
-                |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#5<{Collation:"und:ci"}>)
-                |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr1#7<{Collation:"und:ci"}>)
-                |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#11)
-                |       +-subquery=
-                |         +-ProjectScan
-                |           +-column_list=[$make_struct.$struct#17<{Collation:"und:ci"},{Collation:"und:ci"},_>]
-                |           +-is_ordered=TRUE
-                |           +-expr_list=
-                |           | +-$struct#17 :=
-                |           |   +-MakeStruct
-                |           |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
-                |           |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>
-                |           |     +-field_list=
-                |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#12{Collation:"und:ci"})
-                |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr1#14{Collation:"und:ci"})
-                |           |       +-ColumnRef(type=INT64, column=$full_join.offset#16)
-                |           +-input_scan=
-                |             +-OrderByScan
-                |               +-column_list=[$array.arr0#12{Collation:"und:ci"}, $array_offset.offset#13, $array.arr1#14{Collation:"und:ci"}, $array_offset.offset#15, $full_join.offset#16]
-                |               +-is_ordered=TRUE
-                |               +-input_scan=
-                |               | +-FilterScan
-                |               |   +-column_list=[$array.arr0#12{Collation:"und:ci"}, $array_offset.offset#13, $array.arr1#14{Collation:"und:ci"}, $array_offset.offset#15, $full_join.offset#16]
-                |               |   +-input_scan=
-                |               |   | +-ProjectScan
-                |               |   |   +-column_list=[$array.arr0#12{Collation:"und:ci"}, $array_offset.offset#13, $array.arr1#14{Collation:"und:ci"}, $array_offset.offset#15, $full_join.offset#16]
-                |               |   |   +-expr_list=
-                |               |   |   | +-offset#16 :=
-                |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-                |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-                |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#15)
-                |               |   |   +-input_scan=
-                |               |   |     +-JoinScan
-                |               |   |       +-column_list=[$array.arr0#12{Collation:"und:ci"}, $array_offset.offset#13, $array.arr1#14{Collation:"und:ci"}, $array_offset.offset#15]
-                |               |   |       +-join_type=FULL
-                |               |   |       +-left_scan=
-                |               |   |       | +-ArrayScan
-                |               |   |       |   +-column_list=[$array.arr0#12{Collation:"und:ci"}, $array_offset.offset#13]
-                |               |   |       |   +-array_expr_list=
-                |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#5<{Collation:"und:ci"}>, is_correlated=TRUE)
-                |               |   |       |   +-element_column_list=[$array.arr0#12{Collation:"und:ci"}]
-                |               |   |       |   +-array_offset_column=
-                |               |   |       |     +-ColumnHolder(column=$array_offset.offset#13)
-                |               |   |       +-right_scan=
-                |               |   |       | +-ArrayScan
-                |               |   |       |   +-column_list=[$array.arr1#14{Collation:"und:ci"}, $array_offset.offset#15]
-                |               |   |       |   +-array_expr_list=
-                |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#7<{Collation:"und:ci"}>, is_correlated=TRUE)
-                |               |   |       |   +-element_column_list=[$array.arr1#14{Collation:"und:ci"}]
-                |               |   |       |   +-array_offset_column=
-                |               |   |       |     +-ColumnHolder(column=$array_offset.offset#15)
-                |               |   |       +-join_expr=
-                |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-                |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
-                |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#15)
-                |               |   +-filter_expr=
-                |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-                |               |       +-ColumnRef(type=INT64, column=$full_join.offset#16)
-                |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#11, is_correlated=TRUE)
-                |               +-order_by_item_list=
-                |                 +-OrderByItem
-                |                   +-column_ref=
-                |                     +-ColumnRef(type=INT64, column=$full_join.offset#16)
-                +-element_column_list=[$array.$with_expr_element#18<{Collation:"und:ci"},{Collation:"und:ci"},_>]
+                |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+                |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+                |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#9)
+                |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+                |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+                |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+                |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#6)
+                |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#8)
+                |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+                |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#6)
+                |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#8)
+                |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
+                |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+                |       +-SubqueryExpr
+                |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+                |         +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:ci"},_>>
+                |         +-subquery_type=ARRAY
+                |         +-parameter_list=
+                |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#5<{Collation:"und:ci"}>)
+                |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr1#7<{Collation:"und:ci"}>)
+                |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#10)
+                |         +-subquery=
+                |           +-ProjectScan
+                |             +-column_list=[$make_struct.$struct#16<{Collation:"und:ci"},{Collation:"und:ci"},_>]
+                |             +-is_ordered=TRUE
+                |             +-expr_list=
+                |             | +-$struct#16 :=
+                |             |   +-MakeStruct
+                |             |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
+                |             |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:ci"},_>
+                |             |     +-field_list=
+                |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#11{Collation:"und:ci"})
+                |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr1#13{Collation:"und:ci"})
+                |             |       +-ColumnRef(type=INT64, column=$full_join.offset#15)
+                |             +-input_scan=
+                |               +-OrderByScan
+                |                 +-column_list=[$array.arr0#11{Collation:"und:ci"}, $array_offset.offset#12, $array.arr1#13{Collation:"und:ci"}, $array_offset.offset#14, $full_join.offset#15]
+                |                 +-is_ordered=TRUE
+                |                 +-input_scan=
+                |                 | +-FilterScan
+                |                 |   +-column_list=[$array.arr0#11{Collation:"und:ci"}, $array_offset.offset#12, $array.arr1#13{Collation:"und:ci"}, $array_offset.offset#14, $full_join.offset#15]
+                |                 |   +-input_scan=
+                |                 |   | +-ProjectScan
+                |                 |   |   +-column_list=[$array.arr0#11{Collation:"und:ci"}, $array_offset.offset#12, $array.arr1#13{Collation:"und:ci"}, $array_offset.offset#14, $full_join.offset#15]
+                |                 |   |   +-expr_list=
+                |                 |   |   | +-offset#15 :=
+                |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+                |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+                |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#14)
+                |                 |   |   +-input_scan=
+                |                 |   |     +-JoinScan
+                |                 |   |       +-column_list=[$array.arr0#11{Collation:"und:ci"}, $array_offset.offset#12, $array.arr1#13{Collation:"und:ci"}, $array_offset.offset#14]
+                |                 |   |       +-join_type=FULL
+                |                 |   |       +-left_scan=
+                |                 |   |       | +-ArrayScan
+                |                 |   |       |   +-column_list=[$array.arr0#11{Collation:"und:ci"}, $array_offset.offset#12]
+                |                 |   |       |   +-array_expr_list=
+                |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#5<{Collation:"und:ci"}>, is_correlated=TRUE)
+                |                 |   |       |   +-element_column_list=[$array.arr0#11{Collation:"und:ci"}]
+                |                 |   |       |   +-array_offset_column=
+                |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#12)
+                |                 |   |       +-right_scan=
+                |                 |   |       | +-ArrayScan
+                |                 |   |       |   +-column_list=[$array.arr1#13{Collation:"und:ci"}, $array_offset.offset#14]
+                |                 |   |       |   +-array_expr_list=
+                |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#7<{Collation:"und:ci"}>, is_correlated=TRUE)
+                |                 |   |       |   +-element_column_list=[$array.arr1#13{Collation:"und:ci"}]
+                |                 |   |       |   +-array_offset_column=
+                |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#14)
+                |                 |   |       +-join_expr=
+                |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+                |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#14)
+                |                 |   +-filter_expr=
+                |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+                |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#15)
+                |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#10, is_correlated=TRUE)
+                |                 +-order_by_item_list=
+                |                   +-OrderByItem
+                |                     +-column_ref=
+                |                       +-ColumnRef(type=INT64, column=$full_join.offset#15)
+                +-element_column_list=[$array.$with_expr_element#17<{Collation:"und:ci"},{Collation:"und:ci"},_>]
 ==
 
 # Zipping 2 path expression arrays, with different collations in different arrays
@@ -1153,18 +1148,18 @@ QueryStmt
             | |   +-type=STRING
             | |   +-type_annotation_map={Collation:"und:ci"}
             | |   +-expr=
-            | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#20<{Collation:"und:ci"},{Collation:"und:binary"},_>)
+            | |   | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#19<{Collation:"und:ci"},{Collation:"und:binary"},_>)
             | |   +-field_idx=0
             | +-arr2#6 :=
             |   +-GetStructField
             |     +-type=STRING
             |     +-type_annotation_map={Collation:"und:binary"}
             |     +-expr=
-            |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#20<{Collation:"und:ci"},{Collation:"und:binary"},_>)
+            |     | +-ColumnRef(type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>, type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>, column=$array.$with_expr_element#19<{Collation:"und:ci"},{Collation:"und:binary"},_>)
             |     +-field_idx=1
             +-input_scan=
               +-ArrayScan
-                +-column_list=[t.arr1#3<{Collation:"und:ci"}>, t.arr2#4<{Collation:"und:binary"}>, $array.$with_expr_element#20<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+                +-column_list=[t.arr1#3<{Collation:"und:ci"}>, t.arr2#4<{Collation:"und:binary"}>, $array.$with_expr_element#19<{Collation:"und:ci"},{Collation:"und:binary"},_>]
                 +-input_scan=
                 | +-WithRefScan(column_list=t.[arr1#3, arr2#4], with_query_name="t")
                 +-array_expr_list=
@@ -1195,23 +1190,7 @@ QueryStmt
                 |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> ENUM<ARRAY_ZIP_MODE>)
                 |   | |   | +-Literal(type=STRING, value="UNNEST does not allow NULL mode argument")
                 |   | |   +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
-                |   | +-strict_check#12 :=
-                |   | | +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
-                |   | |   +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
-                |   | |   | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
-                |   | |   | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#11)
-                |   | |   | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
-                |   | |   | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
-                |   | |   |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
-                |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#8)
-                |   | |   |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#10)
-                |   | |   |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
-                |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#8)
-                |   | |   |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#10)
-                |   | |   +-FunctionCall(GoogleSQL:error(STRING) -> INT64)
-                |   | |   | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
-                |   | |   +-Literal(type=INT64, value=NULL)
-                |   | +-result_len#13 :=
+                |   | +-result_len#12 :=
                 |   |   +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
                 |   |     +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
                 |   |     | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#11)
@@ -1223,74 +1202,89 @@ QueryStmt
                 |   |       +-ColumnRef(type=INT64, column=$with_expr.arr0_len#8)
                 |   |       +-ColumnRef(type=INT64, column=$with_expr.arr1_len#10)
                 |   +-expr=
-                |     +-SubqueryExpr
-                |       +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+                |     +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>, ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
                 |       +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:binary"},_>>
-                |       +-subquery_type=ARRAY
-                |       +-parameter_list=
-                |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#7<{Collation:"und:ci"}>)
-                |       | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:binary"}>, column=$with_expr.arr1#9<{Collation:"und:binary"}>)
-                |       | +-ColumnRef(type=INT64, column=$with_expr.result_len#13)
-                |       +-subquery=
-                |         +-ProjectScan
-                |           +-column_list=[$make_struct.$struct#19<{Collation:"und:ci"},{Collation:"und:binary"},_>]
-                |           +-is_ordered=TRUE
-                |           +-expr_list=
-                |           | +-$struct#19 :=
-                |           |   +-MakeStruct
-                |           |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
-                |           |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>
-                |           |     +-field_list=
-                |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#14{Collation:"und:ci"})
-                |           |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:binary"}, column=$array.arr1#16{Collation:"und:binary"})
-                |           |       +-ColumnRef(type=INT64, column=$full_join.offset#18)
-                |           +-input_scan=
-                |             +-OrderByScan
-                |               +-column_list=[$array.arr0#14{Collation:"und:ci"}, $array_offset.offset#15, $array.arr1#16{Collation:"und:binary"}, $array_offset.offset#17, $full_join.offset#18]
-                |               +-is_ordered=TRUE
-                |               +-input_scan=
-                |               | +-FilterScan
-                |               |   +-column_list=[$array.arr0#14{Collation:"und:ci"}, $array_offset.offset#15, $array.arr1#16{Collation:"und:binary"}, $array_offset.offset#17, $full_join.offset#18]
-                |               |   +-input_scan=
-                |               |   | +-ProjectScan
-                |               |   |   +-column_list=[$array.arr0#14{Collation:"und:ci"}, $array_offset.offset#15, $array.arr1#16{Collation:"und:binary"}, $array_offset.offset#17, $full_join.offset#18]
-                |               |   |   +-expr_list=
-                |               |   |   | +-offset#18 :=
-                |               |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
-                |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#15)
-                |               |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#17)
-                |               |   |   +-input_scan=
-                |               |   |     +-JoinScan
-                |               |   |       +-column_list=[$array.arr0#14{Collation:"und:ci"}, $array_offset.offset#15, $array.arr1#16{Collation:"und:binary"}, $array_offset.offset#17]
-                |               |   |       +-join_type=FULL
-                |               |   |       +-left_scan=
-                |               |   |       | +-ArrayScan
-                |               |   |       |   +-column_list=[$array.arr0#14{Collation:"und:ci"}, $array_offset.offset#15]
-                |               |   |       |   +-array_expr_list=
-                |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#7<{Collation:"und:ci"}>, is_correlated=TRUE)
-                |               |   |       |   +-element_column_list=[$array.arr0#14{Collation:"und:ci"}]
-                |               |   |       |   +-array_offset_column=
-                |               |   |       |     +-ColumnHolder(column=$array_offset.offset#15)
-                |               |   |       +-right_scan=
-                |               |   |       | +-ArrayScan
-                |               |   |       |   +-column_list=[$array.arr1#16{Collation:"und:binary"}, $array_offset.offset#17]
-                |               |   |       |   +-array_expr_list=
-                |               |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#9<{Collation:"und:binary"}>, is_correlated=TRUE)
-                |               |   |       |   +-element_column_list=[$array.arr1#16{Collation:"und:binary"}]
-                |               |   |       |   +-array_offset_column=
-                |               |   |       |     +-ColumnHolder(column=$array_offset.offset#17)
-                |               |   |       +-join_expr=
-                |               |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
-                |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#15)
-                |               |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#17)
-                |               |   +-filter_expr=
-                |               |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
-                |               |       +-ColumnRef(type=INT64, column=$full_join.offset#18)
-                |               |       +-ColumnRef(type=INT64, column=$with_expr.result_len#13, is_correlated=TRUE)
-                |               +-order_by_item_list=
-                |                 +-OrderByItem
-                |                   +-column_ref=
-                |                     +-ColumnRef(type=INT64, column=$full_join.offset#18)
-                +-element_column_list=[$array.$with_expr_element#20<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+                |       +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+                |       | +-FunctionCall(GoogleSQL:$equal(ENUM<ARRAY_ZIP_MODE>, ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+                |       | | +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$with_expr.mode#11)
+                |       | | +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+                |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+                |       |   +-FunctionCall(GoogleSQL:least(repeated(2) INT64) -> INT64)
+                |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr0_len#8)
+                |       |   | +-ColumnRef(type=INT64, column=$with_expr.arr1_len#10)
+                |       |   +-FunctionCall(GoogleSQL:greatest(repeated(2) INT64) -> INT64)
+                |       |     +-ColumnRef(type=INT64, column=$with_expr.arr0_len#8)
+                |       |     +-ColumnRef(type=INT64, column=$with_expr.arr1_len#10)
+                |       +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>)
+                |       | +-Literal(type=STRING, value="Unnested arrays under STRICT mode must have equal lengths")
+                |       +-SubqueryExpr
+                |         +-type=ARRAY<STRUCT<arr0 STRING, arr1 STRING, offset INT64>>
+                |         +-type_annotation_map=<<{Collation:"und:ci"},{Collation:"und:binary"},_>>
+                |         +-subquery_type=ARRAY
+                |         +-parameter_list=
+                |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$with_expr.arr0#7<{Collation:"und:ci"}>)
+                |         | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:binary"}>, column=$with_expr.arr1#9<{Collation:"und:binary"}>)
+                |         | +-ColumnRef(type=INT64, column=$with_expr.result_len#12)
+                |         +-subquery=
+                |           +-ProjectScan
+                |             +-column_list=[$make_struct.$struct#18<{Collation:"und:ci"},{Collation:"und:binary"},_>]
+                |             +-is_ordered=TRUE
+                |             +-expr_list=
+                |             | +-$struct#18 :=
+                |             |   +-MakeStruct
+                |             |     +-type=STRUCT<arr0 STRING, arr1 STRING, offset INT64>
+                |             |     +-type_annotation_map=<{Collation:"und:ci"},{Collation:"und:binary"},_>
+                |             |     +-field_list=
+                |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.arr0#13{Collation:"und:ci"})
+                |             |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:binary"}, column=$array.arr1#15{Collation:"und:binary"})
+                |             |       +-ColumnRef(type=INT64, column=$full_join.offset#17)
+                |             +-input_scan=
+                |               +-OrderByScan
+                |                 +-column_list=[$array.arr0#13{Collation:"und:ci"}, $array_offset.offset#14, $array.arr1#15{Collation:"und:binary"}, $array_offset.offset#16, $full_join.offset#17]
+                |                 +-is_ordered=TRUE
+                |                 +-input_scan=
+                |                 | +-FilterScan
+                |                 |   +-column_list=[$array.arr0#13{Collation:"und:ci"}, $array_offset.offset#14, $array.arr1#15{Collation:"und:binary"}, $array_offset.offset#16, $full_join.offset#17]
+                |                 |   +-input_scan=
+                |                 |   | +-ProjectScan
+                |                 |   |   +-column_list=[$array.arr0#13{Collation:"und:ci"}, $array_offset.offset#14, $array.arr1#15{Collation:"und:binary"}, $array_offset.offset#16, $full_join.offset#17]
+                |                 |   |   +-expr_list=
+                |                 |   |   | +-offset#17 :=
+                |                 |   |   |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+                |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#14)
+                |                 |   |   |     +-ColumnRef(type=INT64, column=$array_offset.offset#16)
+                |                 |   |   +-input_scan=
+                |                 |   |     +-JoinScan
+                |                 |   |       +-column_list=[$array.arr0#13{Collation:"und:ci"}, $array_offset.offset#14, $array.arr1#15{Collation:"und:binary"}, $array_offset.offset#16]
+                |                 |   |       +-join_type=FULL
+                |                 |   |       +-left_scan=
+                |                 |   |       | +-ArrayScan
+                |                 |   |       |   +-column_list=[$array.arr0#13{Collation:"und:ci"}, $array_offset.offset#14]
+                |                 |   |       |   +-array_expr_list=
+                |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr0#7<{Collation:"und:ci"}>, is_correlated=TRUE)
+                |                 |   |       |   +-element_column_list=[$array.arr0#13{Collation:"und:ci"}]
+                |                 |   |       |   +-array_offset_column=
+                |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#14)
+                |                 |   |       +-right_scan=
+                |                 |   |       | +-ArrayScan
+                |                 |   |       |   +-column_list=[$array.arr1#15{Collation:"und:binary"}, $array_offset.offset#16]
+                |                 |   |       |   +-array_expr_list=
+                |                 |   |       |   | +-ColumnRef(type=ARRAY<STRING>, column=$with_expr.arr1#9<{Collation:"und:binary"}>, is_correlated=TRUE)
+                |                 |   |       |   +-element_column_list=[$array.arr1#15{Collation:"und:binary"}]
+                |                 |   |       |   +-array_offset_column=
+                |                 |   |       |     +-ColumnHolder(column=$array_offset.offset#16)
+                |                 |   |       +-join_expr=
+                |                 |   |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#14)
+                |                 |   |           +-ColumnRef(type=INT64, column=$array_offset.offset#16)
+                |                 |   +-filter_expr=
+                |                 |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+                |                 |       +-ColumnRef(type=INT64, column=$full_join.offset#17)
+                |                 |       +-ColumnRef(type=INT64, column=$with_expr.result_len#12, is_correlated=TRUE)
+                |                 +-order_by_item_list=
+                |                   +-OrderByItem
+                |                     +-column_ref=
+                |                       +-ColumnRef(type=INT64, column=$full_join.offset#17)
+                +-element_column_list=[$array.$with_expr_element#19<{Collation:"und:ci"},{Collation:"und:binary"},_>]
 ==
 

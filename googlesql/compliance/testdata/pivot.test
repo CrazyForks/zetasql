@@ -117,9 +117,10 @@ ARRAY<STRUCT<row_id INT64, x DOUBLE, y DOUBLE>>[
 
 [name=pivot_sum]
 SELECT * FROM (SELECT x, y, z FROM t1)
-  PIVOT(SUM(z - 1000) FOR y IN (100, 101, 103, NULL));
+  PIVOT(SUM(z - 1000) FOR y IN (100, 101, 103, NULL))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[unknown order:
+ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[known order:
   {1, 10, 3, NULL, NULL},
   {2, 0, 1, NULL, 4}
 ]
@@ -127,9 +128,10 @@ ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[unknown o
 
 [name=pivot_count_star]
 SELECT * FROM (SELECT x, y, z FROM t1)
-  PIVOT(COUNT(*) FOR y IN (100, 101, 103, NULL));
+  PIVOT(COUNT(*) FOR y IN (100, 101, 103, NULL))
+ORDER BY x, z;
 --
-ARRAY<STRUCT<x INT64, z INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[unknown order:
+ARRAY<STRUCT<x INT64, z INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[known order:
   {1, 1000, 2, 1, 0, 0},
   {1, 1001, 1, 1, 0, 0},
   {1, 1002, 1, 1, 0, 0},
@@ -140,30 +142,32 @@ ARRAY<STRUCT<x INT64, z INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[
   {2, 1001, 0, 1, 0, 0},
   {2, 1002, 0, 0, 0, 2}
 ]
-
 ==
 
 [name=pivot_count]
 SELECT * FROM (SELECT x, y, z FROM t1)
-  PIVOT(COUNT(z) FOR y IN (100));
+  PIVOT(COUNT(z) FOR y IN (100))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _100 INT64>>[unknown order:{1, 6}, {2, 1}]
+ARRAY<STRUCT<x INT64, _100 INT64>>[known order:{1, 6}, {2, 1}]
 ==
 
 [name=pivot_count_distinct]
 SELECT * FROM (SELECT x, y, z FROM t1)
-  PIVOT(COUNT(DISTINCT z) FOR y IN (100));
+  PIVOT(COUNT(DISTINCT z) FOR y IN (100))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _100 INT64>>[unknown order:{1, 5}, {2, 1}]
+ARRAY<STRUCT<x INT64, _100 INT64>>[known order:{1, 5}, {2, 1}]
 ==
 
 [required_features=PIVOT,NULL_HANDLING_MODIFIER_IN_AGGREGATE,ORDER_BY_IN_AGGREGATE]
 [name=pivot_array_agg_ignore_nulls]
 SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(ARRAY_AGG(z IGNORE NULLS ORDER BY MOD(z, 3) ASC, z DESC)
-  FOR y IN (100, 101 AS y_101, 103, NULL AS y_null));
+  FOR y IN (100, 101 AS y_101, 103, NULL AS y_null))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _100 ARRAY<>, y_101 ARRAY<>, _103 ARRAY<>, y_null ARRAY<>>>[unknown order:
+ARRAY<STRUCT<x INT64, _100 ARRAY<>, y_101 ARRAY<>, _103 ARRAY<>, y_null ARRAY<>>>[known order:
   {
     1,
     ARRAY<INT64>[unknown order:1002, 1003, 1000, 1000, 1004, 1001],
@@ -187,7 +191,8 @@ SELECT * FROM (SELECT x, y, z FROM t1)
     BIT_AND(z - 1000) AS pivot_bit_and,
     BIT_OR(z - 1000) AS pivot_bit_or,
     BIT_XOR(z - 1000) AS pivot_bit_xor
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -207,7 +212,7 @@ ARRAY<STRUCT<
         pivot_bit_or_yyNULLyy INT64,
         pivot_bit_xor_yyNULLyy INT64
       >>
-[unknown order:
+[known order:
   {1, 0, 7, 4, 0, 3, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
   {2, 0, 0, 0, 1, 1, 1, NULL, NULL, NULL, 2, 2, 0, 2, 2, 0}
 ]
@@ -218,7 +223,8 @@ SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(
     COUNT(z - 1000) AS pivot_count,
     COUNTIF(z < 1002) AS pivot_countif
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -233,7 +239,7 @@ ARRAY<STRUCT<
         pivot_count_yyNULLyy INT64,
         pivot_countif_yyNULLyy INT64
       >>
-[unknown order:
+[known order:
   {1, 6, 3, 3, 2, 0, 0, 0, 0, 0, 0},
   {2, 1, 1, 1, 1, 0, 0, 2, 0, 2, 0}
 ]
@@ -244,7 +250,8 @@ SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(
     SUM(z - 1000) AS pivot_sum,
     AVG(z - 1000) AS pivot_avg
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -259,7 +266,7 @@ ARRAY<STRUCT<
         pivot_sum_yyNULLyy INT64,
         pivot_avg_yyNULLyy DOUBLE
       >>
-[unknown order:
+[known order:
   {1, 10, 1.6666666666666667, 3, 1, NULL, NULL, NULL, NULL, NULL, NULL},
   {2, 0, 0, 1, 1, NULL, NULL, 4, 2, 4, 2}
 ]
@@ -270,7 +277,8 @@ SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(
     LOGICAL_AND(z < 1002) AS pivot_logical_or,
     LOGICAL_OR(z < 1002) AS logical_or
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -285,7 +293,7 @@ ARRAY<STRUCT<
         pivot_logical_or_yyNULLyy BOOL,
         logical_or_yyNULLyy BOOL
       >>
-[unknown order:
+[known order:
   {1, false, true, false, true, NULL, NULL, NULL, NULL, NULL, NULL},
   {2, true, true, true, true, NULL, NULL, false, false, false, false}
 ]
@@ -296,7 +304,8 @@ SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(
     MIN(z - 1000) AS pivot_min,
     MAX(z - 1000) AS pivot_max
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -311,7 +320,7 @@ ARRAY<STRUCT<
         pivot_min_yyNULLyy INT64,
         pivot_max_yyNULLyy INT64
       >>
-[unknown order:
+[known order:
   {1, 0, 4, 0, 2, NULL, NULL, NULL, NULL, NULL, NULL},
   {2, 0, 0, 1, 1, NULL, NULL, 2, 2, 2, 2}
 ]
@@ -332,7 +341,8 @@ ARRAY<STRUCT<DOUBLE>>[{0}]
 SELECT * FROM (SELECT rowid, x, y, z FROM t1)
   PIVOT(
     STRING_AGG(CAST(z AS STRING), '-' ORDER BY rowid) AS pivot_concat
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -342,15 +352,15 @@ ARRAY<STRUCT<
         pivot_concat_NULL STRING,
         pivot_concat_yyNULLyy STRING
       >>
-[unknown order:{
-                 1,
-                 "1000-1000-1001-1002-1003-1004",
-                 "1000-1001-1002",
-                 NULL,
-                 NULL,
-                 NULL
-               },
-               {2, "1000", "1001", NULL, "1002-1002", "1002-1002"}]
+[known order:{
+               1,
+               "1000-1000-1001-1002-1003-1004",
+               "1000-1001-1002",
+               NULL,
+               NULL,
+               NULL
+             },
+             {2, "1000", "1001", NULL, "1002-1002", "1002-1002"}]
 ==
 
 [required_features=PIVOT,ORDER_BY_IN_AGGREGATE]
@@ -358,7 +368,8 @@ ARRAY<STRUCT<
 SELECT * FROM (SELECT x, y, z FROM t1)
   PIVOT(
     STRING_AGG(CONCAT(CAST(z AS STRING), '_') ORDER BY z) AS pivot_concat
-    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy));
+    FOR y IN (100, 101, 103 AS yy103yy, NULL, NULL AS yyNULLyy))
+ORDER BY x;
 --
 ARRAY<STRUCT<
         x INT64,
@@ -368,15 +379,15 @@ ARRAY<STRUCT<
         pivot_concat_NULL STRING,
         pivot_concat_yyNULLyy STRING
       >>
-[unknown order:{
-                 1,
-                 "1000_,1000_,1001_,1002_,1003_,1004_",
-                 "1000_,1001_,1002_",
-                 NULL,
-                 NULL,
-                 NULL
-               },
-               {2, "1000_", "1001_", NULL, "1002_,1002_", "1002_,1002_"}]
+[known order:{
+               1,
+               "1000_,1000_,1001_,1002_,1003_,1004_",
+               "1000_,1001_,1002_",
+               NULL,
+               NULL,
+               NULL
+             },
+             {2, "1000_", "1001_", NULL, "1002_,1002_", "1002_,1002_"}]
 
 NOTE: Reference implementation reports non-determinism.
 ==
@@ -481,9 +492,10 @@ ARRAY<STRUCT<a_23_a_33 INT64>>[{0}]
 SELECT * FROM (
   (SELECT x, y, z FROM t1) UNION ALL (SELECT x, y, z FROM t1))
   PIVOT(ARRAY_AGG(y)
-  FOR z IN (1000, 1001 AS z_1001, 1002, NULL AS z_null));
+  FOR z IN (1000, 1001 AS z_1001, 1002, NULL AS z_null))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _1000 ARRAY<>, z_1001 ARRAY<>, _1002 ARRAY<>, z_null ARRAY<>>>[unknown order:
+ARRAY<STRUCT<x INT64, _1000 ARRAY<>, z_1001 ARRAY<>, _1002 ARRAY<>, z_null ARRAY<>>>[known order:
   {
     1,
     ARRAY<INT64>[unknown order:101, 101, 100, 100, 100, 100],
@@ -524,9 +536,10 @@ ARRAY<STRUCT<cs_yx_true DOUBLE,
 [name=pivot_query_parameters]
 [parameters=1000 as p]
 SELECT * FROM (SELECT x, y, z FROM t1)
-  PIVOT(SUM(z - @p) FOR y IN (100, 101, 103, NULL));
+  PIVOT(SUM(z - @p) FOR y IN (100, 101, 103, NULL))
+ORDER BY x;
 --
-ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[unknown order:
+ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[known order:
   {1, 10, 3, NULL, NULL},
   {2, 0, 1, NULL, 4}
 ]
@@ -537,9 +550,10 @@ ARRAY<STRUCT<x INT64, _100 INT64, _101 INT64, _103 INT64, NULL INT64>>[unknown o
 SELECT * FROM t1
   PIVOT(
     SUM((SELECT SUM(y) FROM t1))
-    FOR x IN (0,1));
+    FOR x IN (0,1))
+ORDER BY rowid;
 --
-ARRAY<STRUCT<rowid INT64, y INT64, z INT64, _0 INT64, _1 INT64>>[unknown order:
+ARRAY<STRUCT<rowid INT64, y INT64, z INT64, _0 INT64, _1 INT64>>[known order:
   {1, 100, 1000, NULL, 1410},
   {2, 100, 1000, NULL, 1410},
   {3, 100, 1001, NULL, 1410},
@@ -602,15 +616,16 @@ SELECT
   any_x_500 IS NULL,
   any_x_null = 2
 FROM (SELECT x, y, z FROM t1)
-  PIVOT(ANY_VALUE(x) AS any_x FOR y IN (100, 500, NULL AS `null`));
+  PIVOT(ANY_VALUE(x) AS any_x FOR y IN (100, 500, NULL AS `null`))
+ORDER BY z;
 --
-ARRAY<STRUCT<z INT64, BOOL, BOOL, BOOL>>[unknown order:
-  {1000, true, true, NULL},
-  {1002, true, true, true},
-  {1004, true, true, NULL},
+ARRAY<STRUCT<z INT64, BOOL, BOOL, BOOL>>[known order:
   {NULL, NULL, true, NULL},
+  {1000, true, true, NULL},
   {1001, true, true, NULL},
-  {1003, true, true, NULL}
+  {1002, true, true, true},
+  {1003, true, true, NULL},
+  {1004, true, true, NULL}
 ]
 
 NOTE: Reference implementation reports non-determinism.
@@ -637,15 +652,16 @@ SELECT
   any_x_500 IS NULL,
   any_x_null[OFFSET(0)] = 2
 FROM (SELECT [x] AS x, y, z FROM t1)
-  PIVOT(ANY_VALUE(x) AS any_x FOR y IN (100, 500, NULL AS `null`));
+  PIVOT(ANY_VALUE(x) AS any_x FOR y IN (100, 500, NULL AS `null`))
+ORDER BY z;
 --
-ARRAY<STRUCT<z INT64, BOOL, BOOL, BOOL>>[unknown order:
-  {1000, true, true, NULL},
-  {1002, true, true, true},
-  {1004, true, true, NULL},
+ARRAY<STRUCT<z INT64, BOOL, BOOL, BOOL>>[known order:
   {NULL, NULL, true, NULL},
+  {1000, true, true, NULL},
   {1001, true, true, NULL},
-  {1003, true, true, NULL}
+  {1002, true, true, true},
+  {1003, true, true, NULL},
+  {1004, true, true, NULL}
 ]
 
 NOTE: Reference implementation reports non-determinism.
@@ -730,10 +746,11 @@ ARRAY<STRUCT<_1 STRING>>[{"a"}]
 [exclude_in_sql_builder_pipe_sql_equivalence_tests]
 SELECT *
 FROM (SELECT t1.x AS a, t1.x AS b, t1.x AS c FROM t1) AS sub
-PIVOT(COUNT(*) FOR a IN (1, 2, 3));
+PIVOT(COUNT(*) FOR a IN (1, 2, 3))
+ORDER BY b, c;
 
 --
-ARRAY<STRUCT<b INT64, c INT64, _1 INT64, _2 INT64, _3 INT64>>[unknown order:
+ARRAY<STRUCT<b INT64, c INT64, _1 INT64, _2 INT64, _3 INT64>>[known order:
   {1, 1, 9, 0, 0},
   {2, 2, 0, 7, 0}
 ]
@@ -769,9 +786,10 @@ FROM
       SUM(sales)
         FOR
           quarter IN (QUARTER1, QUARTER2, QUARTER3, QUARTER4)
-    );
+    )
+ORDER BY product, year;
 --
-ARRAY<STRUCT<product STRING, year INT64, Q1 INT64, Q2 INT64, Q3 INT64, Q4 INT64>>[unknown order:
+ARRAY<STRUCT<product STRING, year INT64, Q1 INT64, Q2 INT64, Q3 INT64, Q4 INT64>>[known order:
   {"Apple", 2020, 77, 0, NULL, NULL},
   {"Apple", 2021, 1, NULL, NULL, NULL},
   {"Kale", 2020, 74, NULL, 45, 3},
@@ -794,13 +812,24 @@ SELECT *
 FROM
   Items
     PIVOT(
-     SUM(value) FOR other_category IN (C10, C20, CNULL));
+     SUM(value) FOR other_category IN (C10, C20, CNULL))
+ORDER BY name;
 --
-ARRAY<STRUCT<name STRING, category INT64, _10 INT64, _20 INT64, NULL INT64>>[unknown order:
+ARRAY<STRUCT<name STRING, category INT64, _10 INT64, _20 INT64, NULL INT64>>[known order:
   {"A", 10, NULL, NULL, 100},
   {"B", 20, NULL, 150, NULL},
   {"C", NULL, NULL, NULL, NULL}
 ]
+==
+
+[name=pivot_nan]
+SELECT * FROM (
+  SELECT CAST('NaN' AS FLOAT64) as x, 1 as y UNION ALL
+  SELECT CAST('NaN' AS FLOAT64) as x, 2 as y UNION ALL
+  SELECT 1.0 as x, 11 as y
+) PIVOT(SUM(y) FOR x IN (CAST('NaN' AS FLOAT64) AS nan, 1.0 AS one));
+--
+ARRAY<STRUCT<nan INT64, one INT64>>[{3, 11}]
 ==
 
 [required_features=PIVOT,ANALYSIS_CONSTANT_PIVOT_COLUMN,GROUP_BY_STRUCT]
@@ -812,11 +841,56 @@ WITH KeyValue AS (
 SELECT * FROM KeyValue
 PIVOT(COUNT(Key) FOR Key IN (
   ITEM1, ITEM2 AS item2
-));
+))
+ORDER BY Value;
 --
 ARRAY<STRUCT<
         Value STRING,
         value_10_value2_20 INT64,
         item2 INT64
       >>
-[unknown order:{"ItemType1", 1, 0}, {"ItemType2", 0, 0}]
+[known order:{"ItemType1", 1, 0}, {"ItemType2", 0, 0}]
+==
+
+[required_features=PIVOT,ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
+[name=pivot_with_collation_on_implicit_group_by_columns]
+WITH t AS (
+  SELECT collate('a', 'und:ci') AS A, 1 AS b, 1 AS c UNION ALL
+  SELECT collate('A', 'und:ci') AS A, 1 AS b, 1 AS c
+)
+SELECT
+  UPPER(A), one
+FROM (
+  SELECT *
+  FROM t PIVOT(
+  sum(b) FOR c IN (1 AS one)
+  )
+)
+--
+ARRAY<STRUCT<STRING, one INT64>>[{"A", 2}]
+==
+
+[required_features=PIVOT,ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
+[name=pivot_with_collation_on_aggregate_argument]
+WITH t AS (
+  SELECT COLLATE('a', 'und:ci') AS val, 1 AS b UNION ALL
+  SELECT COLLATE('A', 'und:ci') AS val, 1 AS b
+)
+SELECT *
+FROM t
+PIVOT(count(distinct val) FOR b IN (1));
+--
+ARRAY<STRUCT<_1 INT64>>[{1}]
+==
+
+[required_features=PIVOT,ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
+[name=pivot_with_collation_on_for_expression]
+WITH t AS (
+  SELECT 1 AS val, COLLATE('a', 'und:ci') AS target UNION ALL
+  SELECT 1 AS val, COLLATE('A', 'und:ci') AS target
+)
+SELECT *
+FROM t
+PIVOT(sum(val) FOR target IN ('a'));
+--
+ARRAY<STRUCT<a INT64>>[{2}]

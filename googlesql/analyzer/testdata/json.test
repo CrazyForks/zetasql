@@ -860,6 +860,146 @@ SELECT SAFE_TO_JSON(1, unsupported_fields=>"IGNORE");
        ^
 ==
 
+[language_features=MAXIMUM,+JSON_TYPE]
+SELECT {{TO_JSON|SAFE_TO_JSON|TO_JSON_STRING}}(NULL)
+--
+ALTERNATION GROUP: TO_JSON
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:to_json(INT64, optional(1) BOOL stringify_wide_numbers) -> JSON)
+    |     +-Literal(type=INT64, value=NULL)
+    |     +-Literal(type=BOOL, value=false)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: SAFE_TO_JSON
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:safe_to_json(INT64) -> JSON)
+    |     +-Literal(type=INT64, value=NULL)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: TO_JSON_STRING
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:to_json_string(INT64, optional(0) BOOL) -> STRING)
+    |     +-Literal(type=INT64, value=NULL)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+JSON_TYPE,+MAP_TYPE]
+# Calling TO_JSON on a type without JSON conversion defined results in analysis error.
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]));
+--
+ERROR: Unsupported argument to TO_JSON: MAP<STRING, INT64> does not support conversion to JSON [at 2:8]
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]));
+       ^
+==
+
+[language_features=NONE,+JSON_TYPE,+MAP_TYPE,+NAMED_ARGUMENTS,+TO_JSON_UNSUPPORTED_FIELDS]
+# Even with unsupported_fields set, this is still an analysis error.
+# See b/483763571 for details and rationale.
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]), unsupported_fields=>{{'ERROR'|'IGNORE'|'PLACEHOLDER'}});
+--
+ALTERNATION GROUP: 'ERROR'
+--
+ERROR: Could not cast literal "ERROR" to type UNSUPPORTED_FIELDS [at 3:44]
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]), unsupported_fields=>'ERROR');
+                                           ^
+--
+ALTERNATION GROUP: 'IGNORE'
+--
+ERROR: Unsupported argument to TO_JSON: MAP<STRING, INT64> does not support conversion to JSON [at 3:8]
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]), unsupported_fields=>'IGNORE');
+       ^
+--
+ALTERNATION GROUP: 'PLACEHOLDER'
+--
+ERROR: Unsupported argument to TO_JSON: MAP<STRING, INT64> does not support conversion to JSON [at 3:8]
+SELECT TO_JSON(MAP_FROM_ARRAY([('a', 1)]), unsupported_fields=>'PLACEHOLDER');
+       ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE,+MAP_TYPE]
+# A supported type which contains a MAP element is not supported in TO_JSON or TO_JSON_STRING.
+SELECT {{TO_JSON|TO_JSON_STRING}}(
+  [STRUCT("other-field",
+    MAP_FROM_ARRAY([
+      ('a', MAP_FROM_ARRAY([('b', 1)]))
+    ])
+  )]);
+--
+ALTERNATION GROUP: TO_JSON
+--
+ERROR: Unsupported argument to TO_JSON: MAP<STRING, MAP<STRING, INT64>> does not support conversion to JSON [at 2:8]
+SELECT TO_JSON(
+       ^
+--
+ALTERNATION GROUP: TO_JSON_STRING
+--
+ERROR: Unsupported argument to TO_JSON_STRING: MAP<STRING, MAP<STRING, INT64>> does not support conversion to JSON [at 2:8]
+SELECT TO_JSON_STRING(
+       ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE,+MAP_TYPE]
+# SAFE_TO_JSON allows unsupported types.
+SELECT SAFE_TO_JSON(
+  [STRUCT("other-field",
+    MAP_FROM_ARRAY([
+      ('a', MAP_FROM_ARRAY([('b', 1)]))
+    ])
+  )]);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:safe_to_json(ARRAY<STRUCT<STRING, MAP<STRING, MAP<STRING, INT64>>>>) -> JSON)
+    |     +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRUCT<STRING, MAP<STRING, MAP<STRING, INT64>>>) -> ARRAY<STRUCT<STRING, MAP<STRING, MAP<STRING, INT64>>>>)
+    |       +-MakeStruct
+    |         +-type=STRUCT<STRING, MAP<STRING, MAP<STRING, INT64>>>
+    |         +-field_list=
+    |           +-Literal(type=STRING, value="other-field")
+    |           +-FunctionCall(GoogleSQL:map_from_array(ARRAY<STRUCT<STRING, MAP<STRING, INT64>>>) -> MAP<STRING, MAP<STRING, INT64>>)
+    |             +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRUCT<STRING, MAP<STRING, INT64>>) -> ARRAY<STRUCT<STRING, MAP<STRING, INT64>>>)
+    |               +-MakeStruct
+    |                 +-type=STRUCT<STRING, MAP<STRING, INT64>>
+    |                 +-field_list=
+    |                   +-Literal(type=STRING, value="a")
+    |                   +-FunctionCall(GoogleSQL:map_from_array(ARRAY<STRUCT<STRING, INT64>>) -> MAP<STRING, INT64>)
+    |                     +-Literal(type=ARRAY<STRUCT<STRING, INT64>>, value=[{"b", 1}])
+    +-input_scan=
+      +-SingleRowScan
+==
+
 # Test JSON_FLATTEN function.
 [language_features=NONE,+JSON_TYPE,+JSON_FLATTEN_FUNCTION]
 SELECT JSON_FLATTEN(JSON '[[[1, 2], 3], 4]');
@@ -974,507 +1114,3 @@ SELECT JSON '1' = JSON '1';
 ERROR: Equality is not defined for arguments of type JSON [at 1:8]
 SELECT JSON '1' = JSON '1';
        ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '1' = JSON '1';
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT JSON '1' < JSON '1';
---
-ERROR: Less than is not defined for arguments of type JSON [at 1:8]
-SELECT JSON '1' < JSON '1';
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '1' < JSON '1';
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-
-SELECT JSON '1' = JSON '1', JSON '1' < JSON '1.0', JSON '1' != JSON '1.0',
-       JSON '1' > JSON '1.0', JSON '1' <= JSON '1.0', JSON '1' >= JSON '1.0';
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-| +-$query.$col2#2 AS `$col2` [BOOL]
-| +-$query.$col3#3 AS `$col3` [BOOL]
-| +-$query.$col4#4 AS `$col4` [BOOL]
-| +-$query.$col5#5 AS `$col5` [BOOL]
-| +-$query.$col6#6 AS `$col6` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4, $col5#5, $col6#6]
-    +-expr_list=
-    | +-$col1#1 :=
-    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | +-$col2#2 :=
-    | | +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
-    | +-$col3#3 :=
-    | | +-FunctionCall(GoogleSQL:$not_equal(JSON, JSON) -> BOOL)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
-    | +-$col4#4 :=
-    | | +-FunctionCall(GoogleSQL:$greater(JSON, JSON) -> BOOL)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
-    | +-$col5#5 :=
-    | | +-FunctionCall(GoogleSQL:$less_or_equal(JSON, JSON) -> BOOL)
-    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
-    | +-$col6#6 :=
-    |   +-FunctionCall(GoogleSQL:$greater_or_equal(JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '1' + JSON '1';
---
-ERROR: No matching signature for operator +
-  Argument types: JSON, JSON
-  Signature: INT64 + INT64
-    Argument 1: Unable to coerce type JSON to expected type INT64
-  Signature: UINT64 + UINT64
-    Argument 1: Unable to coerce type JSON to expected type UINT64
-  Signature: DOUBLE + DOUBLE
-    Argument 1: Unable to coerce type JSON to expected type DOUBLE [at 1:8]
-SELECT JSON '1' + JSON '1';
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
---
-ERROR: BETWEEN is not defined for arguments of type JSON [at 1:17]
-SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
-                ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
---
-ERROR: IN is not defined for arguments of type JSON [at 1:17]
-SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
-                ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$in(JSON, repeated(3) JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
---
-ERROR: Cannot execute IN subquery with uncomparable types JSON and JSON [at 1:8]
-SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#2 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#2]
-    +-expr_list=
-    | +-$col1#2 :=
-    |   +-SubqueryExpr
-    |     +-type=BOOL
-    |     +-subquery_type=IN
-    |     +-in_expr=
-    |     | +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
-    |     +-subquery=
-    |       +-ProjectScan
-    |         +-column_list=[JSONTable.json_col#1]
-    |         +-input_scan=
-    |           +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE,+IS_DISTINCT]
-SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
---
-ERROR: Grouping is not defined for arguments of type JSON [at 1:8]
-SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+IS_DISTINCT,+JSON_TYPE_COMPARISON]
-SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$is_not_distinct_from(JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    +-input_scan=
-      +-SingleRowScan
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
---
-ERROR: MIN is not defined for arguments of type JSON [at 1:8]
-SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
---
-QueryStmt
-+-output_column_list=
-| +-$aggregate.$agg1#2 AS `$col1` [JSON]
-| +-$aggregate.$agg2#3 AS `$col2` [JSON]
-+-query=
-  +-ProjectScan
-    +-column_list=$aggregate.[$agg1#2, $agg2#3]
-    +-input_scan=
-      +-AggregateScan
-        +-column_list=$aggregate.[$agg1#2, $agg2#3]
-        +-input_scan=
-        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-        +-aggregate_list=
-          +-$agg1#2 :=
-          | +-AggregateFunctionCall(GoogleSQL:min(JSON) -> JSON)
-          |   +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-          +-$agg2#3 :=
-            +-AggregateFunctionCall(GoogleSQL:max(JSON) -> JSON)
-              +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-[allow_undeclared_parameters]
-SELECT JSON '1' = @p;
---
-ERROR: Equality is not defined for arguments of type JSON [at 1:8]
-SELECT JSON '1' = @p;
-       ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-[allow_undeclared_parameters]
-SELECT JSON '1' = @p;
---
-QueryStmt
-+-output_column_list=
-| +-$query.$col1#1 AS `$col1` [BOOL]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.$col1#1]
-    +-expr_list=
-    | +-$col1#1 :=
-    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
-    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
-    |     +-Parameter(parse_location=18-20, type=JSON, name="p")
-    +-input_scan=
-      +-SingleRowScan
-[UNDECLARED_PARAMETERS]
-p: JSON
-
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT json_col FROM JSONTable ORDER BY json_col;
---
-ERROR: ORDER BY does not support expressions of type JSON [at 1:41]
-SELECT json_col FROM JSONTable ORDER BY json_col;
-                                        ^
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT json_col FROM JSONTable ORDER BY json_col;
---
-QueryStmt
-+-output_column_list=
-| +-JSONTable.json_col#1 AS json_col [JSON]
-+-query=
-  +-OrderByScan
-    +-column_list=[JSONTable.json_col#1]
-    +-is_ordered=TRUE
-    +-input_scan=
-    | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-    +-order_by_item_list=
-      +-OrderByItem
-        +-column_ref=
-          +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-==
-
-[language_features=NONE,+JSON_TYPE]
-SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
---
-ERROR: Grouping by expressions of type JSON is not allowed [at 1:51]
-SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
-                                                  ^
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
---
-QueryStmt
-+-output_column_list=
-| +-$groupby.json_col#3 AS json_col [JSON]
-| +-$aggregate.$agg1#2 AS `$col2` [INT64]
-+-query=
-  +-ProjectScan
-    +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
-    +-input_scan=
-      +-AggregateScan
-        +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
-        +-input_scan=
-        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-        +-group_by_list=
-        | +-json_col#3 := ColumnRef(type=JSON, column=JSONTable.json_col#1)
-        +-aggregate_list=
-          +-$agg1#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
-
-==
-
-[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
-SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col ORDER BY json_col;
---
-QueryStmt
-+-output_column_list=
-| +-$groupby.json_col#3 AS json_col [JSON]
-| +-$aggregate.$agg1#2 AS `$col2` [INT64]
-+-query=
-  +-OrderByScan
-    +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
-    +-is_ordered=TRUE
-    +-input_scan=
-    | +-AggregateScan
-    |   +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
-    |   +-input_scan=
-    |   | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-    |   +-group_by_list=
-    |   | +-json_col#3 := ColumnRef(type=JSON, column=JSONTable.json_col#1)
-    |   +-aggregate_list=
-    |     +-$agg1#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
-    +-order_by_item_list=
-      +-OrderByItem
-        +-column_ref=
-          +-ColumnRef(type=JSON, column=$groupby.json_col#3)
-==
-
-[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS]
-select afn_agg() over (partition by json_col) from JSONTable;
---
-ERROR: Partitioning by expressions of type JSON is not allowed [at 1:37]
-select afn_agg() over (partition by json_col) from JSONTable;
-                                    ^
-==
-
-[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
-select afn_agg() over (partition by json_col) from JSONTable;
---
-QueryStmt
-+-output_column_list=
-| +-$analytic.$analytic1#3 AS `$col1` [INT64]
-+-query=
-  +-ProjectScan
-    +-column_list=[$analytic.$analytic1#3]
-    +-input_scan=
-      +-AnalyticScan
-        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
-        +-input_scan=
-        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-        +-function_group_list=
-          +-AnalyticFunctionGroup
-            +-partition_by=
-            | +-WindowPartitioning
-            |   +-partition_by_list=
-            |     +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-            +-analytic_function_list=
-              +-$analytic1#3 :=
-                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
-                  +-window_frame=
-                    +-WindowFrame(frame_unit=ROWS)
-                      +-start_expr=
-                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
-                      +-end_expr=
-                        +-WindowFrameExpr(boundary_type=UNBOUNDED FOLLOWING)
-==
-
-
-[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS]
-select afn_agg() over (order by json_col) from JSONTable;
---
-ERROR: Ordering by expressions of type JSON is not allowed [at 1:33]
-select afn_agg() over (order by json_col) from JSONTable;
-                                ^
-==
-
-[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
-select afn_agg() over (order by json_col) from JSONTable;
---
-QueryStmt
-+-output_column_list=
-| +-$analytic.$analytic1#3 AS `$col1` [INT64]
-+-query=
-  +-ProjectScan
-    +-column_list=[$analytic.$analytic1#3]
-    +-input_scan=
-      +-AnalyticScan
-        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
-        +-input_scan=
-        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-        +-function_group_list=
-          +-AnalyticFunctionGroup
-            +-order_by=
-            | +-WindowOrdering
-            |   +-order_by_item_list=
-            |     +-OrderByItem
-            |       +-column_ref=
-            |         +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-            +-analytic_function_list=
-              +-$analytic1#3 :=
-                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
-                  +-window_frame=
-                    +-WindowFrame(frame_unit=RANGE)
-                      +-start_expr=
-                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
-                      +-end_expr=
-                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
-==
-
-[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
-select afn_agg() over (partition by json_col order by json_col) from JSONTable;
---
-QueryStmt
-+-output_column_list=
-| +-$analytic.$analytic1#3 AS `$col1` [INT64]
-+-query=
-  +-ProjectScan
-    +-column_list=[$analytic.$analytic1#3]
-    +-input_scan=
-      +-AnalyticScan
-        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
-        +-input_scan=
-        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
-        +-function_group_list=
-          +-AnalyticFunctionGroup
-            +-partition_by=
-            | +-WindowPartitioning
-            |   +-partition_by_list=
-            |     +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-            +-order_by=
-            | +-WindowOrdering
-            |   +-order_by_item_list=
-            |     +-OrderByItem
-            |       +-column_ref=
-            |         +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
-            +-analytic_function_list=
-              +-$analytic1#3 :=
-                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
-                  +-window_frame=
-                    +-WindowFrame(frame_unit=RANGE)
-                      +-start_expr=
-                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
-                      +-end_expr=
-                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
-
-==
-
-
-

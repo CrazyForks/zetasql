@@ -2276,3 +2276,49 @@ ARRAY<STRUCT<ARRAY<>>>[
      {false, NULL, NULL, NULL}
    ]}
 ]
+==
+
+[required_features=ARRAY_ZIP,ARRAY_OF_ARRAY]
+[name=array_zip_with_nested_array]
+SELECT
+  ARRAY_ZIP(arr1, arr2) AS arr_zip,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2
+)
+--
+ARRAY<STRUCT<arr_zip ARRAY<>>>[
+  {ARRAY<STRUCT<arr1 ARRAY<>, arr2 ARRAY<>>>[known order:
+     {
+       ARRAY<INT64>[known order:1, 2],
+       ARRAY<INT64>[known order:5, 6]
+     },
+     {
+       ARRAY<INT64>[known order:3, 4],
+       ARRAY<INT64>[known order:7, 8]
+     }
+   ]}
+]
+==
+
+[required_features=ARRAY_ZIP,INLINE_LAMBDA_ARGUMENT,ARRAY_OF_ARRAY]
+[name=array_zip_with_nested_array_lambdas]
+SELECT
+  ARRAY_ZIP(arr1, arr2, (e1, e2) -> [e1, e2]) AS arr_zip,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2
+)
+--
+ARRAY<STRUCT<arr_zip ARRAY<>>>[
+  {ARRAY<ARRAY<>>[known order:
+     ARRAY<ARRAY<>>[known order:
+       ARRAY<INT64>[known order:1, 2],
+       ARRAY<INT64>[known order:5, 6]
+     ],
+     ARRAY<ARRAY<>>[known order:
+       ARRAY<INT64>[known order:3, 4],
+       ARRAY<INT64>[known order:7, 8]
+     ]
+   ]}
+]

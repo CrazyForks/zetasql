@@ -29,17 +29,17 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
+#include "googlesql/reference_impl/common.h"
 #include "googlesql/reference_impl/evaluation.h"
 #include "googlesql/reference_impl/function.h"
 #include "googlesql/reference_impl/tuple.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -93,18 +93,11 @@ bool EvaluateFunctionWithCollation(FunctionType function,
 
 template <typename OutType, typename FunctionType, class... Args>
 bool InvokeWithCollation(FunctionType function, Value* result,
-                         absl::Status* status, absl::string_view collation_name,
-                         Args... args) {
-  absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> collator_or_status =
-      MakeSqlCollator(collation_name);
-  if (!collator_or_status.ok()) {
-    *status = collator_or_status.status();
-    return false;
-  }
+                         absl::Status* status,
+                         const GoogleSqlCollator& collator, Args... args) {
   OutType out;
   if (!EvaluateFunctionWithCollation<OutType, FunctionType, Args...>(
-          function, *(collator_or_status.value()), std::forward<Args>(args)...,
-          &out, status)) {
+          function, collator, std::forward<Args>(args)..., &out, status)) {
     return false;
   }
 
@@ -115,17 +108,11 @@ bool InvokeWithCollation(FunctionType function, Value* result,
 template <typename FunctionType, class... Args>
 bool InvokeStringWithCollation(FunctionType function, Value* result,
                                absl::Status* status,
-                               absl::string_view collation_name, Args... args) {
-  absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> collator_or_status =
-      MakeSqlCollator(collation_name);
-  if (!collator_or_status.ok()) {
-    *status = collator_or_status.status();
-    return false;
-  }
+                               const GoogleSqlCollator& collator,
+                               Args... args) {
   std::string out;
   if (!EvaluateFunctionWithCollation<std::string, FunctionType, Args...>(
-          function, *(collator_or_status.value()), std::forward<Args>(args)...,
-          &out, status)) {
+          function, collator, std::forward<Args>(args)..., &out, status)) {
     return false;
   }
   *result = Value::String(out);
@@ -139,59 +126,62 @@ bool StringWithCollationFunction::Eval(
     *result = Value::Null(output_type());
     return true;
   }
-  switch (FCT_TYPE_ARITY(kind(), args[0].type_kind(), args.size())) {
+
+  auto collator_or = GetCollatorFromResolvedCollationValue(args[0]);
+  if (!collator_or.ok()) {
+    *status = collator_or.status();
+    return false;
+  }
+
+  switch (FCT_TYPE_ARITY(kind(), TYPE_STRING, args.size())) {
     case FCT_TYPE_ARITY(FunctionKind::kStrposWithCollation, TYPE_STRING, 3):
       return InvokeWithCollation<int64_t>(
           &functions::StrPosOccurrenceUtf8WithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(),
+          **collator_or, args[1].string_value(), args[2].string_value(),
           /*pos=*/1, /*occurrence=*/1);
     case FCT_TYPE_ARITY(FunctionKind::kInstrWithCollation, TYPE_STRING, 3):
       return InvokeWithCollation<int64_t>(
           &functions::StrPosOccurrenceUtf8WithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(),
+          **collator_or, args[1].string_value(), args[2].string_value(),
           /*pos=*/1, /*occurrence=*/1);
     case FCT_TYPE_ARITY(FunctionKind::kInstrWithCollation, TYPE_STRING, 4):
       return InvokeWithCollation<int64_t>(
           &functions::StrPosOccurrenceUtf8WithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(),
+          **collator_or, args[1].string_value(), args[2].string_value(),
           /*pos=*/args[3].int64_value(), /*occurrence=*/1);
     case FCT_TYPE_ARITY(FunctionKind::kInstrWithCollation, TYPE_STRING, 5):
       return InvokeWithCollation<int64_t>(
           &functions::StrPosOccurrenceUtf8WithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(),
+          **collator_or, args[1].string_value(), args[2].string_value(),
           /*pos=*/args[3].int64_value(), /*occurrence=*/args[4].int64_value());
     case FCT_TYPE_ARITY(FunctionKind::kStartsWithWithCollation, TYPE_STRING, 3):
-      return InvokeWithCollation<bool>(&functions::StartsWithUtf8WithCollation,
-                                       result, status, args[0].string_value(),
-                                       args[1].string_value(),
-                                       args[2].string_value());
+      return InvokeWithCollation<bool>(
+          &functions::StartsWithUtf8WithCollation, result, status,
+          **collator_or, args[1].string_value(), args[2].string_value());
     case FCT_TYPE_ARITY(FunctionKind::kEndsWithWithCollation, TYPE_STRING, 3):
-      return InvokeWithCollation<bool>(&functions::EndsWithUtf8WithCollation,
-                                       result, status, args[0].string_value(),
-                                       args[1].string_value(),
-                                       args[2].string_value());
-    case FCT_TYPE_ARITY(FunctionKind::kReplaceWithCollation, TYPE_STRING, 4):
+      return InvokeWithCollation<bool>(
+          &functions::EndsWithUtf8WithCollation, result, status, **collator_or,
+          args[1].string_value(), args[2].string_value());
+    case FCT_TYPE_ARITY(FunctionKind::kReplaceWithCollation, TYPE_STRING, 4): {
       return InvokeStringWithCollation(
-          &functions::ReplaceUtf8WithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(), args[3].string_value());
+          &functions::ReplaceUtf8WithCollation, result, status, **collator_or,
+          args[1].string_value(), args[2].string_value(),
+          args[3].string_value());
+    }
     case FCT_TYPE_ARITY(FunctionKind::kSplitSubstrWithCollation, TYPE_STRING,
-                        4):
+                        4): {
       return InvokeStringWithCollation(
-          &functions::SplitSubstrWithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(), args[3].int64_value(),
+          &functions::SplitSubstrWithCollation, result, status, **collator_or,
+          args[1].string_value(), args[2].string_value(), args[3].int64_value(),
           /*count=*/std::numeric_limits<int64_t>::max());
+    }
     case FCT_TYPE_ARITY(FunctionKind::kSplitSubstrWithCollation, TYPE_STRING,
-                        5):
+                        5): {
       return InvokeStringWithCollation(
-          &functions::SplitSubstrWithCollation, result, status,
-          args[0].string_value(), args[1].string_value(),
-          args[2].string_value(), args[3].int64_value(), args[4].int64_value());
+          &functions::SplitSubstrWithCollation, result, status, **collator_or,
+          args[1].string_value(), args[2].string_value(), args[3].int64_value(),
+          args[4].int64_value());
+    }
   }
   *status = ::googlesql_base::UnimplementedErrorBuilder()
             << "Unsupported string function: " << debug_name();
@@ -208,17 +198,14 @@ absl::StatusOr<Value> SplitWithCollationFunction::Eval(
   std::vector<absl::string_view> parts;
   std::vector<Value> values;
 
-  absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> collator_or_status =
-      MakeSqlCollator(args[0].string_value());
-  if (!collator_or_status.ok()) {
-    return collator_or_status.status();
-  }
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> collator,
+                   GetCollatorFromResolvedCollationValue(args[0]));
+  GOOGLESQL_RET_CHECK(collator != nullptr);
 
   const std::string& delimiter =
       (args.size() == 2) ? "," : args[2].string_value();
-  if (!functions::SplitUtf8WithCollation(*(collator_or_status.value()),
-                                         args[1].string_value(), delimiter,
-                                         &parts, &status)) {
+  if (!functions::SplitUtf8WithCollation(*collator, args[1].string_value(),
+                                         delimiter, &parts, &status)) {
     return status;
   }
 
@@ -235,14 +222,17 @@ absl::StatusOr<Value> CollationKeyFunction::Eval(
     EvaluationContext* context) const {
   GOOGLESQL_RET_CHECK_EQ(args.size(), 2);
   if (HasNulls(args)) {
-    return Value::NullBytes();
+    return Value::Null(output_type());
   }
 
+  // Restore the collation from the serialized cord.
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> collator,
-                   MakeSqlCollator(args[1].string_value()));
-  absl::Cord cord;
-  GOOGLESQL_RETURN_IF_ERROR(collator->GetSortKeyUtf8(args[0].string_value(), &cord));
-  return Value::Bytes(cord.Flatten());
+                   GetCollatorFromResolvedCollationValue(args[1]));
+
+  // Trace the value container, recursively rebuild it, replacing strings with
+  // their collation keys.
+  return ReplaceStringsWithCollationKeys(args[0], output_type(),
+                                         collator.get());
 }
 
 }  // namespace

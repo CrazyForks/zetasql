@@ -38,7 +38,7 @@ class ValueAsTableAdapter {
  public:
   // The input value should outlive the returned adapter.
   static absl::StatusOr<std::unique_ptr<ValueAsTableAdapter>> Create(
-      const Value& value);
+      const Value& value, bool is_value_table = false);
 
   const Table* GetTable() const;
 
@@ -48,7 +48,7 @@ class ValueAsTableAdapter {
   CreateEvaluatorTableIterator() const;
 
  private:
-  explicit ValueAsTableAdapter(const Value& value);
+  explicit ValueAsTableAdapter(const Value& value, bool is_value_table);
 
   const Value& value_;
   std::unique_ptr<SimpleTable> table_;

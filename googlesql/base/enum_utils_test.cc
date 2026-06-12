@@ -15,6 +15,7 @@
 //
 
 #include "googlesql/base/enum_utils.h"
+#include <vector>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "googlesql/base/test_payload.pb.h"

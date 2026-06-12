@@ -1,0 +1,4 @@
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.named_constant;
+--
+CONSTANT foo=String("bar") (STRING)

@@ -436,6 +436,27 @@ class LazyResolutionObject {
                                         TypeFactory* type_factory)
       ABSL_LOCKS_EXCLUDED(resolution_mutex_);
 
+  // Returns the mutex that should be used by the containing class to guard
+  // the resolved object assignment (e.g. function_, view_, etc.)
+  // Since the assignment happens only after resolution is complete, we can
+  // reuse the resolution mutex.
+  absl::Mutex& resolved_object_assignment_mutex()
+      ABSL_LOCK_RETURNED(resolution_mutex_) {
+    return resolution_mutex_;
+  }
+
+  // Sets the fully_initialized_ flag to true. This is called by the containing
+  // class after the resolved object is assigned.
+  void set_fully_initialized()
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(resolution_mutex_) {
+    fully_initialized_ = true;
+  }
+
+  bool is_fully_initialized() const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(resolution_mutex_) {
+    return fully_initialized_;
+  }
+
  private:
   // Guards the class members that are related to lazy statement resolution.
   // This is only held while reading/updating class members, and is not
@@ -485,6 +506,15 @@ class LazyResolutionObject {
   // until resolution is attempted.
   absl::Status status_when_resolution_attempted_
       ABSL_GUARDED_BY(resolution_mutex_);
+
+  // True if the object has been fully initialized, and the resolved object in
+  // the containing class (e.g., function_ in LazyResolutionFunction) has been
+  // assigned.
+  //
+  // Invariants:
+  // - If analyzer_output_ is null, then fully_initialized_ must be false.
+  // - if fully_initialized_ is true, then analyzer_output_ must be non-null.
+  bool fully_initialized_ ABSL_GUARDED_BY(resolution_mutex_) = false;
 };
 
 // TODO: LazyResolution{Function,TableFunction,Constant} have

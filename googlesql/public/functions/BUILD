@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -254,7 +255,7 @@ cc_library(
     deps = [
         ":convert_proto",
         ":format_max_output_width",
-        "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/common:utf_util",
@@ -269,6 +270,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:str_format",
@@ -294,6 +296,7 @@ cc_test(
         "//googlesql/base/testing:status_matchers",
         "//googlesql/compliance:functions_testlib",
         "//googlesql/public:civil_time",
+        "//googlesql/public:language_options",
         "//googlesql/public:value",
         "//googlesql/public/types",
         "//googlesql/testdata:test_schema_cc_proto",
@@ -317,10 +320,8 @@ cc_test(
     srcs = ["string_format_test.cc"],
     deps = [
         ":string_format",
-        "//googlesql/base",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
-        "//googlesql/common/testing:testing_proto_util",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:value",
         "//googlesql/public/types",
@@ -756,6 +757,7 @@ cc_test(
     deps = [
         ":uuid",
         "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base/testing:googlesql_gtest_main",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:mock_distributions",
@@ -771,6 +773,7 @@ cc_test(
         ":normalize_mode_cc_proto",
         ":string",
         "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
         "//googlesql/compliance:functions_testlib",
@@ -810,6 +813,7 @@ cc_library(
         ":string",
         ":util",
         "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/base:strings",
@@ -1302,10 +1306,11 @@ cc_library(
     deps = [
         ":json_format",
         ":unsupported_fields_cc_proto",
-        "//googlesql/base:logging",
+        "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/common:errors",
+        "//googlesql/common:internal_value",
         "//googlesql/common:thread_stack",
         "//googlesql/public:interval_value",
         "//googlesql/public:json_value",
@@ -1360,7 +1365,6 @@ cc_library(
     srcs = ["percentile.cc"],
     hdrs = ["percentile.h"],
     deps = [
-        "//googlesql/base",
         "//googlesql/base:check",
         "//googlesql/base:mathutil",
         "//googlesql/base:ret_check",

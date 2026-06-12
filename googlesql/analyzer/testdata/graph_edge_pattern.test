@@ -91,14 +91,11 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)
       WHERE
         (a_3.personId) = 1]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.accountId AS a_5
     )
@@ -110,14 +107,11 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)
       WHERE
         (a_3.personId) = 1]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.accountId AS a_5
     )
@@ -208,14 +202,11 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS PersonOwnAccount
+      (a_2 IS (% | ! %))
+      -[a_3 IS PersonOwnAccount
       WHERE
         (a_3.personId) = 1]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.accountId AS a_5
     )
@@ -227,14 +218,11 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS PersonOwnAccount
+      (a_2 IS (% | ! %))
+      -[a_3 IS PersonOwnAccount
       WHERE
         (a_3.personId) = 1]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.accountId AS a_5
     )
@@ -319,12 +307,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]-
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]-
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )
@@ -336,12 +321,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]-
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]-
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )
@@ -426,12 +408,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      <-[a_3
-      IS (% | ! %)]-
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      <-[a_3 IS (% | ! %)]-
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )
@@ -443,12 +422,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      <-[a_3
-      IS (% | ! %)]-
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      <-[a_3 IS (% | ! %)]-
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )
@@ -558,14 +534,11 @@ FROM
   GRAPH_TABLE(
     aml_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)
       WHERE
         (a_3.value) = ""]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.value AS a_5
     )
@@ -577,14 +550,11 @@ FROM
   GRAPH_TABLE(
     aml_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)
       WHERE
         (a_3.value) = ""]->
-      (a_4
-      IS (% | ! %))
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.value AS a_5
     )
@@ -665,12 +635,9 @@ FROM
   GRAPH_TABLE(
     aml_composite_key
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS RelatesTo]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS RelatesTo]->
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.value AS a_5
     )
@@ -682,12 +649,9 @@ FROM
   GRAPH_TABLE(
     aml_composite_key
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS RelatesTo]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS RelatesTo]->
+      (a_4 IS (% | ! %))
     COLUMNS(
       a_3.value AS a_5
     )
@@ -763,12 +727,9 @@ FROM
   GRAPH_TABLE(
     aml_composite_key
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS RelatesByValue]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS RelatesByValue]->
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )
@@ -780,12 +741,9 @@ FROM
   GRAPH_TABLE(
     aml_composite_key
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS RelatesByValue]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS RelatesByValue]->
+      (a_4 IS (% | ! %))
     COLUMNS(
       1 AS a_5
     )

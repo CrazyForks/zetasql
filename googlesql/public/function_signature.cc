@@ -37,8 +37,10 @@
 #include "googlesql/public/parse_location.h"
 #include "googlesql/public/strings.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_deserializer.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
 #include "googlesql/base/case.h"
 #include "absl/algorithm/container.h"
@@ -48,6 +50,7 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -60,7 +63,6 @@
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -92,6 +94,7 @@ bool CanHaveDefaultValue(SignatureArgumentKind kind) {
     case ARG_TYPE_ARBITRARY:
     case ARG_RANGE_TYPE_ANY_1:
     case ARG_MAP_TYPE_ANY_1_2:
+    case ARG_TYPE_STRING_ANY:
       return true;
     case ARG_TYPE_RELATION:
     case ARG_TYPE_VOID:
@@ -225,6 +228,7 @@ absl::Status FunctionArgumentTypeOptions::Deserialize(
     const TypeDeserializer& type_deserializer, SignatureArgumentKind arg_kind,
     const Type* arg_type, FunctionArgumentTypeOptions* options) {
   options->set_cardinality(options_proto.cardinality());
+
   options->data_->constness_level = options_proto.constness_level();
 
   // Migration code between constness_level and the deprecated constness flags.
@@ -356,10 +360,16 @@ FunctionArgumentType::Deserialize(const FunctionArgumentTypeProto& proto,
   GOOGLESQL_RETURN_IF_ERROR(FunctionArgumentTypeOptions::Deserialize(
       proto.options(), type_deserializer, proto.kind(), type, &options));
 
+  TypeModifiers type_modifiers;
+  if (proto.has_type_modifiers()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
+                     TypeModifiers::Deserialize(proto.type_modifiers()));
+  }
+
   if (type != nullptr) {
     // <type> can not be nullptr when proto.kind() == ARG_TYPE_FIXED
-    return std::make_unique<FunctionArgumentType>(type, options,
-                                                  proto.num_occurrences());
+    return std::make_unique<FunctionArgumentType>(
+        type, options, proto.num_occurrences(), std::move(type_modifiers));
   }
 
   if (proto.kind() == ARG_TYPE_LAMBDA) {
@@ -382,7 +392,8 @@ FunctionArgumentType::Deserialize(const FunctionArgumentTypeProto& proto,
   }
 
   return std::make_unique<FunctionArgumentType>(proto.kind(), options,
-                                                proto.num_occurrences());
+                                                proto.num_occurrences(),
+                                                std::move(type_modifiers));
 }
 
 absl::Status FunctionArgumentTypeOptions::Serialize(
@@ -392,6 +403,7 @@ absl::Status FunctionArgumentTypeOptions::Serialize(
   if (procedure_argument_mode() != FunctionEnums::NOT_SET) {
     options_proto->set_procedure_argument_mode(procedure_argument_mode());
   }
+
   if (data_->constness_level != ConstnessLevelProto::CONSTNESS_UNSPECIFIED) {
     options_proto->set_constness_level(data_->constness_level);
   }
@@ -504,6 +516,11 @@ absl::Status FunctionArgumentType::Serialize(
   GOOGLESQL_RETURN_IF_ERROR(options().Serialize(type(), proto->mutable_options(),
                                       file_descriptor_set_map));
 
+  if (!type_modifiers().IsEmpty()) {
+    GOOGLESQL_RETURN_IF_ERROR(
+        type_modifiers().Serialize(proto->mutable_type_modifiers()));
+  }
+
   if (IsLambda()) {
     for (const FunctionArgumentType& arg_type : lambda().argument_types()) {
       GOOGLESQL_RETURN_IF_ERROR(arg_type.Serialize(
@@ -552,6 +569,12 @@ std::string FunctionArgumentTypeOptions::OptionsDebugString() const {
   if (data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST) {
     options.push_back("must_be_immutable_constant: true");
   }
+  if (data_->constness_level == ConstnessLevelProto::STABLE_CONST) {
+    options.push_back("must_be_stable_constant: true");
+  }
+  if (data_->constness_level == ConstnessLevelProto::QUERY_CONST) {
+    options.push_back("must_be_query_constant: true");
+  }
   if (data_->constness_level ==
       ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION) {
     options.push_back("must_be_constant_expression: true");
@@ -573,6 +596,8 @@ std::string FunctionArgumentTypeOptions::OptionsDebugString() const {
         "argument_alias_kind: ",
         FunctionEnums::ArgumentAliasKind_Name(data_->argument_alias_kind)));
   }
+  // No need to print type constraints, as those are handled in the printing
+  // of the type itself, e.g. ANY STRING.
   if (options.empty()) {
     return "";
   } else {
@@ -597,6 +622,10 @@ std::string FunctionArgumentTypeOptions::GetSQLDeclaration(
     options.push_back("/*must_be_analysis_constant*/");
   if (data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST)
     options.push_back("/*must_be_immutable_constant*/");
+  if (data_->constness_level == ConstnessLevelProto::STABLE_CONST)
+    options.push_back("/*must_be_stable_constant*/");
+  if (data_->constness_level == ConstnessLevelProto::QUERY_CONST)
+    options.push_back("/*must_be_query_constant*/");
   if (data_->constness_level == ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION)
     options.push_back("/*must_be_constant_expression*/");
 
@@ -683,6 +712,8 @@ std::string FunctionArgumentType::SignatureArgumentKindToString(
       return "<measure<T1>>";
     case ARG_MAP_TYPE_ANY_1_2:
       return "<map<T1, T2>>";
+    case ARG_TYPE_STRING_ANY:
+      return "ANY STRING";
     case __SignatureArgumentKind__switch_must_have_a_default__:
       break;  // Handling this case is only allowed internally.
   }
@@ -712,11 +743,12 @@ FunctionArgumentType::SimpleOptions(ArgumentCardinality cardinality) {
 FunctionArgumentType::FunctionArgumentType(
     SignatureArgumentKind kind, const Type* type,
     std::shared_ptr<const FunctionArgumentTypeOptions> options,
-    int num_occurrences)
+    int num_occurrences, TypeModifiers type_modifiers)
     : kind_(kind),
       num_occurrences_(num_occurrences),
       type_(type),
-      options_(std::move(options)) {
+      options_(std::move(options)),
+      type_modifiers_(std::move(type_modifiers)) {
   ABSL_DCHECK_EQ(kind == ARG_TYPE_FIXED, type != nullptr);
 }
 
@@ -724,45 +756,47 @@ FunctionArgumentType::FunctionArgumentType(SignatureArgumentKind kind,
                                            ArgumentCardinality cardinality,
                                            int num_occurrences)
     : FunctionArgumentType(kind, /*type=*/nullptr, SimpleOptions(cardinality),
-                           num_occurrences) {}
+                           num_occurrences, TypeModifiers()) {}
 
 FunctionArgumentType::FunctionArgumentType(SignatureArgumentKind kind,
                                            FunctionArgumentTypeOptions options,
-                                           int num_occurrences)
+                                           int num_occurrences,
+                                           TypeModifiers type_modifiers)
     : FunctionArgumentType(
           kind, /*type=*/nullptr,
           std::make_shared<FunctionArgumentTypeOptions>(std::move(options)),
-          num_occurrences) {}
+          num_occurrences, std::move(type_modifiers)) {}
 
 FunctionArgumentType::FunctionArgumentType(SignatureArgumentKind kind,
                                            int num_occurrences)
     : FunctionArgumentType(kind, /*type=*/nullptr, SimpleOptions(),
-                           num_occurrences) {}
+                           num_occurrences, TypeModifiers()) {}
 
 FunctionArgumentType::FunctionArgumentType(const Type* type,
                                            ArgumentCardinality cardinality,
                                            int num_occurrences)
     : FunctionArgumentType(ARG_TYPE_FIXED, type, SimpleOptions(cardinality),
-                           num_occurrences) {}
+                           num_occurrences, TypeModifiers()) {}
 
 FunctionArgumentType::FunctionArgumentType(const Type* type,
                                            FunctionArgumentTypeOptions options,
-                                           int num_occurrences)
+                                           int num_occurrences,
+                                           TypeModifiers type_modifiers)
     : FunctionArgumentType(
           ARG_TYPE_FIXED, type,
           std::make_shared<FunctionArgumentTypeOptions>(std::move(options)),
-          num_occurrences) {}
+          num_occurrences, std::move(type_modifiers)) {}
 
 FunctionArgumentType::FunctionArgumentType(const Type* type,
                                            int num_occurrences)
     : FunctionArgumentType(ARG_TYPE_FIXED, type, SimpleOptions(),
-                           num_occurrences) {}
+                           num_occurrences, TypeModifiers()) {}
 
 FunctionArgumentType::FunctionArgumentType(const Type* type,
                                            int num_occurrences,
                                            SignatureArgumentKind original_kind)
     : FunctionArgumentType(ARG_TYPE_FIXED, type, SimpleOptions(),
-                           num_occurrences) {
+                           num_occurrences, TypeModifiers()) {
   ABSL_DCHECK(IsConcrete());
   original_kind_ = original_kind;
 }
@@ -817,7 +851,8 @@ bool FunctionArgumentType::IsScalar() const {
          kind_ == ARG_ENUM_ANY || kind_ == ARG_TYPE_ARBITRARY ||
          kind_ == ARG_TYPE_GRAPH_NODE || kind_ == ARG_TYPE_GRAPH_EDGE ||
          kind_ == ARG_TYPE_GRAPH_ELEMENT || kind_ == ARG_TYPE_GRAPH_PATH ||
-         kind_ == ARG_RANGE_TYPE_ANY_1 || kind_ == ARG_MAP_TYPE_ANY_1_2;
+         kind_ == ARG_RANGE_TYPE_ANY_1 || kind_ == ARG_MAP_TYPE_ANY_1_2 ||
+         kind_ == ARG_TYPE_STRING_ANY;
 }
 
 // Intentionally restrictive for known functional programming functions. If this
@@ -854,10 +889,34 @@ absl::Status FunctionArgumentType::CheckLambdaArgType(
                                                      simple_options_proto))
       << "Only REQUIRED simple options are supported by function-type "
          "arguments";
+
+  GOOGLESQL_RET_CHECK(arg_type.type_modifiers().IsEmpty())
+      << "Lambda argument cannot have type modifiers";
   return absl::OkStatus();
 }
 
 absl::Status FunctionArgumentType::IsValid(ProductMode product_mode) const {
+  if (!type_modifiers().IsEmpty()) {
+    if (kind_ != ARG_TYPE_FIXED) {
+      return MakeSqlError()
+             << "TypeModifiers are only applicable for kind ARG_TYPE_FIXED: "
+             << DebugString();
+    }
+
+    absl::Status status = type_->ValidateResolvedTypeParameters(
+        type_modifiers().type_parameters(), product_mode);
+    if (!status.ok()) {
+      return MakeSqlError() << status.message() << ": " << DebugString();
+    }
+
+    const Collation& collation = type_modifiers().collation();
+    if (!collation.HasCompatibleStructure(type_)) {
+      return MakeSqlError() << "Collation must have compatible structure with "
+                               "the argument type: "
+                            << DebugString();
+    }
+  }
+
   switch (cardinality()) {
     case REPEATED:
       if (IsConcrete()) {
@@ -920,6 +979,8 @@ absl::Status FunctionArgumentType::IsValid(ProductMode product_mode) const {
   }
 
   if (IsLambda()) {
+    // We do not check TypeModifiers on lambda arguments, because their syntax
+    // never allows TypeModifiers.
     if (lambda_ == nullptr) {
       return absl::InternalError(
           "FunctionArgumentType with ARG_TYPE_LAMBDA constructed directly is "
@@ -931,6 +992,14 @@ absl::Status FunctionArgumentType::IsValid(ProductMode product_mode) const {
     }
     GOOGLESQL_RETURN_IF_ERROR(CheckLambdaArgType(lambda().body_type()));
   }
+
+  if (IsRelation() && options_->has_relation_input_schema()) {
+    const TVFRelation& relation = options_->relation_input_schema();
+    for (const auto& column : relation.columns()) {
+      GOOGLESQL_RETURN_IF_ERROR(column.IsValid(PRODUCT_EXTERNAL));
+    }
+  }
+
   return absl::OkStatus();
 }
 
@@ -990,6 +1059,8 @@ std::string FunctionArgumentType::UserFacingName(
         return print_template_details ? "T5" : "ANY";
       case ARG_TYPE_ARBITRARY:
         return "ANY";
+      case ARG_TYPE_STRING_ANY:
+        return "ANY STRING";
       case ARG_TYPE_RELATION:
         return "TABLE";
       case ARG_TYPE_MODEL:
@@ -1089,6 +1160,9 @@ std::string FunctionArgumentType::DebugString(bool verbose) const {
     absl::StrAppend(&result, "ANY TYPE");
   } else {
     absl::StrAppend(&result, SignatureArgumentKindToString(kind_));
+  }
+  if (!type_modifiers().IsEmpty()) {
+    absl::StrAppend(&result, " ", type_modifiers().DebugString());
   }
   if (verbose) {
     absl::StrAppend(&result, options_->OptionsDebugString());

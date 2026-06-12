@@ -4582,21 +4582,500 @@ SELECT * FROM KeyValue MATCH_RECOGNIZE(
          b AS length(value) >= 10
 )
 --
+ALTERNATION GROUP: a
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 6:32]
+                  MEASURES min(a) AS v1, min(b.value) AS v2
+                               ^
+--
+ALTERNATION GROUP: a.value
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 6:32]
+                  MEASURES min(a.value) AS v1, min(b.value) AS v2
+                               ^
+--
+ALTERNATION GROUP: a,a
+--
+ERROR: MIN is not defined for arguments of type STRUCT<Key INT64, Value STRING> [at 6:28]
+                  MEASURES min(a) AS v1, min(b.value) AS v2
+                           ^
+--
+ALTERNATION GROUP: a,a.value
+--
+QueryStmt
++-output_column_list=
+| +-$match_recognize.mx#17 AS mx [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$match_recognize.mx#17]
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$match_recognize.mx#17]
+        +-expr_list=
+        | +-mx#17 := ColumnRef(type=STRING, column=$aggregate.$agg1#16)
+        +-input_scan=
+          +-MatchRecognizeScan
+            +-column_list=[$aggregate.$agg1#16]
+            +-input_scan=
+            | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+            +-analytic_function_group_list=
+            | +-AnalyticFunctionGroup
+            |   +-order_by=
+            |     +-WindowOrdering
+            |       +-order_by_item_list=
+            |         +-OrderByItem
+            |           +-column_ref=
+            |             +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+            +-pattern_variable_definition_list=
+            | +-MatchRecognizeVariableDefinition
+            | | +-name="a"
+            | | +-predicate=
+            | |   +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+            | |     +-FunctionCall(GoogleSQL:length(STRING) -> INT64)
+            | |     | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+            | |     +-Literal(type=INT64, value=10)
+            | +-MatchRecognizeVariableDefinition
+            |   +-name="b"
+            |   +-predicate=
+            |     +-FunctionCall(GoogleSQL:$greater_or_equal(INT64, INT64) -> BOOL)
+            |       +-FunctionCall(GoogleSQL:length(STRING) -> INT64)
+            |       | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+            |       +-Literal(type=INT64, value=10)
+            +-pattern=
+            | +-MatchRecognizePatternOperation
+            |   +-op_type=CONCAT
+            |   +-operand_list=
+            |     +-MatchRecognizePatternVariableRef(name="a")
+            |     +-MatchRecognizePatternVariableRef(name="b")
+            +-after_match_skip_mode=END_OF_MATCH
+            +-measure_group_list=
+            | +-MeasureGroup
+            |   +-aggregate_list=
+            |     +-$agg1#16 :=
+            |       +-AggregateFunctionCall(GoogleSQL:max(STRING) -> STRING)
+            |         +-SubqueryExpr
+            |           +-type=STRING
+            |           +-subquery_type=SCALAR
+            |           +-subquery=
+            |             +-ProjectScan
+            |               +-column_list=[$expr_subquery.$col1#15]
+            |               +-expr_list=
+            |               | +-$col1#15 :=
+            |               |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+            |               |     +-ColumnRef(type=STRING, column=$match_recognize.v1#12)
+            |               |     +-ColumnRef(type=STRING, column=$match_recognize.v2#14)
+            |               +-input_scan=
+            |                 +-ProjectScan
+            |                   +-column_list=$match_recognize.[v1#12, v2#14]
+            |                   +-expr_list=
+            |                   | +-v1#12 := ColumnRef(type=STRING, column=$aggregate.$agg1#11)
+            |                   | +-v2#14 := ColumnRef(type=STRING, column=$aggregate.$agg2#13)
+            |                   +-input_scan=
+            |                     +-MatchRecognizeScan
+            |                       +-column_list=$aggregate.[$agg1#11, $agg2#13]
+            |                       +-input_scan=
+            |                       | +-TableScan(column_list=KeyValue.[Key#6, Value#7], table=KeyValue, column_index_list=[0, 1], alias="a")
+            |                       +-analytic_function_group_list=
+            |                       | +-AnalyticFunctionGroup
+            |                       |   +-order_by=
+            |                       |     +-WindowOrdering
+            |                       |       +-order_by_item_list=
+            |                       |         +-OrderByItem
+            |                       |           +-column_ref=
+            |                       |             +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+            |                       +-pattern_variable_definition_list=
+            |                       | +-MatchRecognizeVariableDefinition
+            |                       |   +-name="b"
+            |                       |   +-predicate=
+            |                       |     +-Literal(type=BOOL, value=true)
+            |                       +-pattern=
+            |                       | +-MatchRecognizePatternVariableRef(name="b")
+            |                       +-after_match_skip_mode=END_OF_MATCH
+            |                       +-measure_group_list=
+            |                       | +-MeasureGroup
+            |                       | | +-aggregate_list=
+            |                       | |   +-$agg1#11 :=
+            |                       | |     +-AggregateFunctionCall(GoogleSQL:min(STRING) -> STRING)
+            |                       | |       +-ColumnRef(type=STRING, column=KeyValue.Value#7)
+            |                       | +-MeasureGroup
+            |                       |   +-pattern_variable_ref=
+            |                       |   | +-MatchRecognizePatternVariableRef(name="b")
+            |                       |   +-aggregate_list=
+            |                       |     +-$agg2#13 :=
+            |                       |       +-AggregateFunctionCall(GoogleSQL:min(STRING) -> STRING)
+            |                       |         +-ColumnRef(type=STRING, column=KeyValue.Value#7)
+            |                       +-match_number_column=$match_recognize.$match_number#8
+            |                       +-match_row_number_column=$match_recognize.$match_row_number#9
+            |                       +-classifier_column=$match_recognize.$classifier#10
+            +-match_number_column=$match_recognize.$match_number#3
+            +-match_row_number_column=$match_recognize.$match_row_number#4
+            +-classifier_column=$match_recognize.$classifier#5
+==
+
+# Nested MR still doesn't allow correlated references to the outer M_R
+# Subquery on MEASURES
+WITH t AS (
+  SELECT 'x' AS col1, 'y' AS col2
+)
+SELECT * FROM t MATCH_RECOGNIZE(
+  ORDER BY col1
+  MEASURES max(
+              (SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+                  ORDER BY {{key|col2}}
+                  MEASURES {{col2|''}} AS v2
+                  PATTERN (b)
+                  DEFINE b AS {{true|col1 IS NOT NULL}}
+                )
+              )
+          ) AS mx
+  PATTERN (a)
+  DEFINE a AS true
+)
+--
+
+ALTERNATION GROUP: key,col2,true
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 9:28]
+                  MEASURES col2 AS v2
+                           ^
+--
 ALTERNATION GROUPS:
-    a
-    a.value
+    key,col2,col1 IS NOT NULL
+    key,'',col1 IS NOT NULL
 --
-ERROR: MATCH_RECOGNIZE clause cannot be nested inside another MATCH_RECOGNIZE clause [at 4:47]
-              (SELECT v1 || v2 FROM KeyValue  MATCH_RECOGNIZE(
-                                              ^
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 11:31]
+                  DEFINE b AS col1 IS NOT NULL
+                              ^
+--
+ALTERNATION GROUP: key,'',true
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 7:23]
+              (SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+                      ^
 --
 ALTERNATION GROUPS:
-    a,a
-    a,a.value
+    col2,col2,true
+    col2,col2,col1 IS NOT NULL
+    col2,'',true
+    col2,'',col1 IS NOT NULL
 --
-ERROR: MATCH_RECOGNIZE clause cannot be nested inside another MATCH_RECOGNIZE clause [at 4:48]
-              (SELECT v1 || v2 FROM KeyValue a MATCH_RECOGNIZE(
-                                               ^
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the MEASURES clause is not allowed [at 8:28]
+                  ORDER BY col2
+                           ^
+==
+
+# Nested MR still doesn't allow correlated references to the outer M_R
+# Subquery on DEFINE
+WITH t AS (
+  SELECT 'x' AS col1, 'y' AS col2
+)
+SELECT * FROM t MATCH_RECOGNIZE(
+  ORDER BY col1
+  MEASURES 1 AS m
+  PATTERN (a)
+  DEFINE a AS (
+    SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+        PARTITION BY {{key|col2}}
+        ORDER BY {{key|col2}}
+        MEASURES {{col2|''}} AS v2
+        PATTERN (b)
+        DEFINE b AS {{true|col1 IS NOT NULL}}
+      )
+    )
+)
+--
+ALTERNATION GROUP: key,key,col2,true
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the DEFINE clause is not allowed [at 12:18]
+        MEASURES col2 AS v2
+                 ^
+--
+ALTERNATION GROUPS:
+    key,key,col2,col1 IS NOT NULL
+    key,key,'',col1 IS NOT NULL
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the DEFINE clause is not allowed [at 14:21]
+        DEFINE b AS col1 IS NOT NULL
+                    ^
+--
+ALTERNATION GROUP: key,key,'',true
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the DEFINE clause is not allowed [at 9:12]
+    SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+           ^
+--
+ALTERNATION GROUPS:
+    key,col2,col2,true
+    key,col2,col2,col1 IS NOT NULL
+    key,col2,'',true
+    key,col2,'',col1 IS NOT NULL
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the DEFINE clause is not allowed [at 11:18]
+        ORDER BY col2
+                 ^
+--
+ALTERNATION GROUPS:
+    col2,key,col2,true
+    col2,key,col2,col1 IS NOT NULL
+    col2,key,'',true
+    col2,key,'',col1 IS NOT NULL
+    col2,col2,col2,true
+    col2,col2,col2,col1 IS NOT NULL
+    col2,col2,'',true
+    col2,col2,'',col1 IS NOT NULL
+--
+ERROR: Correlated access to MATCH_RECOGNIZE columns in the DEFINE clause is not allowed [at 10:22]
+        PARTITION BY col2
+                     ^
+==
+
+# Correlation is allowed on PARTITION BY, however, because it's pre-computed
+# before we even start the M_R operation.
+WITH t AS (
+  SELECT 'x' AS col1, 'y' AS col2
+)
+SELECT * FROM t MATCH_RECOGNIZE(
+  PARTITION BY (
+    (SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+                  ORDER BY col2
+                  MEASURES col2 AS v2
+                  PATTERN (b)
+                  DEFINE b AS col1 IS NOT NULL
+                )
+    )
+  )
+  ORDER BY col1
+  MEASURES 1 AS m
+  PATTERN (a)
+  DEFINE a AS true
+)
+--
+
+QueryStmt
++-output_column_list=
+| +-$partitionby.$partitionbycol1#12 AS `$partition_by_col1` [STRING]
+| +-$match_recognize.m#16 AS m [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$partitionby.$partitionbycol1#12, $match_recognize.m#16]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[col1#1, col2#2]
+    |       +-expr_list=
+    |       | +-col1#1 := Literal(type=STRING, value="x")
+    |       | +-col2#2 := Literal(type=STRING, value="y")
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$partitionby.$partitionbycol1#12, $match_recognize.m#16]
+        +-input_scan=
+          +-ProjectScan
+            +-column_list=[$partitionby.$partitionbycol1#12, $match_recognize.m#16]
+            +-expr_list=
+            | +-m#16 := Literal(type=INT64, value=1)
+            +-input_scan=
+              +-MatchRecognizeScan
+                +-column_list=[$partitionby.$partitionbycol1#12]
+                +-input_scan=
+                | +-ProjectScan
+                |   +-column_list=[t.col1#3, t.col2#4, $partitionby.$partitionbycol1#12]
+                |   +-expr_list=
+                |   | +-$partitionbycol1#12 :=
+                |   |   +-SubqueryExpr
+                |   |     +-type=STRING
+                |   |     +-subquery_type=SCALAR
+                |   |     +-parameter_list=
+                |   |     | +-ColumnRef(type=STRING, column=t.col1#3)
+                |   |     | +-ColumnRef(type=STRING, column=t.col2#4)
+                |   |     +-subquery=
+                |   |       +-ProjectScan
+                |   |         +-column_list=[$expr_subquery.col1#11]
+                |   |         +-expr_list=
+                |   |         | +-col1#11 := ColumnRef(type=STRING, column=t.col1#3, is_correlated=TRUE)
+                |   |         +-input_scan=
+                |   |           +-ProjectScan
+                |   |             +-column_list=[$match_recognize.v2#10]
+                |   |             +-expr_list=
+                |   |             | +-v2#10 := ColumnRef(type=STRING, column=t.col2#4, is_correlated=TRUE)
+                |   |             +-input_scan=
+                |   |               +-MatchRecognizeScan
+                |   |                 +-input_scan=
+                |   |                 | +-TableScan(table=KeyValue)
+                |   |                 +-analytic_function_group_list=
+                |   |                 | +-AnalyticFunctionGroup
+                |   |                 |   +-order_by=
+                |   |                 |     +-WindowOrdering
+                |   |                 |       +-order_by_item_list=
+                |   |                 |         +-OrderByItem
+                |   |                 |           +-column_ref=
+                |   |                 |             +-ColumnRef(type=STRING, column=t.col2#4, is_correlated=TRUE)
+                |   |                 +-pattern_variable_definition_list=
+                |   |                 | +-MatchRecognizeVariableDefinition
+                |   |                 |   +-name="b"
+                |   |                 |   +-predicate=
+                |   |                 |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |   |                 |       +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |   |                 |         +-ColumnRef(type=STRING, column=t.col1#3, is_correlated=TRUE)
+                |   |                 +-pattern=
+                |   |                 | +-MatchRecognizePatternVariableRef(name="b")
+                |   |                 +-after_match_skip_mode=END_OF_MATCH
+                |   |                 +-match_number_column=$match_recognize.$match_number#7
+                |   |                 +-match_row_number_column=$match_recognize.$match_row_number#8
+                |   |                 +-classifier_column=$match_recognize.$classifier#9
+                |   +-input_scan=
+                |     +-WithRefScan(column_list=t.[col1#3, col2#4], with_query_name="t")
+                +-analytic_function_group_list=
+                | +-AnalyticFunctionGroup
+                |   +-partition_by=
+                |   | +-WindowPartitioning
+                |   |   +-partition_by_list=
+                |   |     +-ColumnRef(type=STRING, column=$partitionby.$partitionbycol1#12)
+                |   +-order_by=
+                |     +-WindowOrdering
+                |       +-order_by_item_list=
+                |         +-OrderByItem
+                |           +-column_ref=
+                |             +-ColumnRef(type=STRING, column=t.col1#3)
+                +-pattern_variable_definition_list=
+                | +-MatchRecognizeVariableDefinition
+                |   +-name="a"
+                |   +-predicate=
+                |     +-Literal(type=BOOL, value=true)
+                +-pattern=
+                | +-MatchRecognizePatternVariableRef(name="a")
+                +-after_match_skip_mode=END_OF_MATCH
+                +-match_number_column=$match_recognize.$match_number#13
+                +-match_row_number_column=$match_recognize.$match_row_number#14
+                +-classifier_column=$match_recognize.$classifier#15
+==
+
+# Correlation is allowed on ORDER BY, however, because it's pre-computed
+# before we even start the M_R operation.
+WITH t AS (
+  SELECT 'x' AS col1, 'y' AS col2
+)
+SELECT * FROM t MATCH_RECOGNIZE(
+  PARTITION BY col1
+  ORDER BY (
+    (SELECT col1 FROM KeyValue MATCH_RECOGNIZE(
+                  ORDER BY col2
+                  MEASURES col2 AS v2
+                  PATTERN (b)
+                  DEFINE b AS col1 IS NOT NULL
+                )
+    )
+  )
+  MEASURES 1 AS m
+  PATTERN (a)
+  DEFINE a AS true
+)
+--
+
+QueryStmt
++-output_column_list=
+| +-$partitionby.col1#5 AS col1 [STRING]
+| +-$match_recognize.m#17 AS m [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$partitionby.col1#5, $match_recognize.m#17]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[col1#1, col2#2]
+    |       +-expr_list=
+    |       | +-col1#1 := Literal(type=STRING, value="x")
+    |       | +-col2#2 := Literal(type=STRING, value="y")
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$partitionby.col1#5, $match_recognize.m#17]
+        +-input_scan=
+          +-ProjectScan
+            +-column_list=[$partitionby.col1#5, $match_recognize.m#17]
+            +-expr_list=
+            | +-m#17 := Literal(type=INT64, value=1)
+            +-input_scan=
+              +-MatchRecognizeScan
+                +-column_list=[$partitionby.col1#5]
+                +-input_scan=
+                | +-ProjectScan
+                |   +-column_list=[t.col1#3, t.col2#4, $partitionby.col1#5, $orderby.$orderbycol1#13]
+                |   +-expr_list=
+                |   | +-col1#5 := ColumnRef(type=STRING, column=t.col1#3)
+                |   | +-$orderbycol1#13 :=
+                |   |   +-SubqueryExpr
+                |   |     +-type=STRING
+                |   |     +-subquery_type=SCALAR
+                |   |     +-parameter_list=
+                |   |     | +-ColumnRef(type=STRING, column=t.col1#3)
+                |   |     | +-ColumnRef(type=STRING, column=t.col2#4)
+                |   |     +-subquery=
+                |   |       +-ProjectScan
+                |   |         +-column_list=[$expr_subquery.col1#12]
+                |   |         +-expr_list=
+                |   |         | +-col1#12 := ColumnRef(type=STRING, column=t.col1#3, is_correlated=TRUE)
+                |   |         +-input_scan=
+                |   |           +-ProjectScan
+                |   |             +-column_list=[$match_recognize.v2#11]
+                |   |             +-expr_list=
+                |   |             | +-v2#11 := ColumnRef(type=STRING, column=t.col2#4, is_correlated=TRUE)
+                |   |             +-input_scan=
+                |   |               +-MatchRecognizeScan
+                |   |                 +-input_scan=
+                |   |                 | +-TableScan(table=KeyValue)
+                |   |                 +-analytic_function_group_list=
+                |   |                 | +-AnalyticFunctionGroup
+                |   |                 |   +-order_by=
+                |   |                 |     +-WindowOrdering
+                |   |                 |       +-order_by_item_list=
+                |   |                 |         +-OrderByItem
+                |   |                 |           +-column_ref=
+                |   |                 |             +-ColumnRef(type=STRING, column=t.col2#4, is_correlated=TRUE)
+                |   |                 +-pattern_variable_definition_list=
+                |   |                 | +-MatchRecognizeVariableDefinition
+                |   |                 |   +-name="b"
+                |   |                 |   +-predicate=
+                |   |                 |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |   |                 |       +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |   |                 |         +-ColumnRef(type=STRING, column=t.col1#3, is_correlated=TRUE)
+                |   |                 +-pattern=
+                |   |                 | +-MatchRecognizePatternVariableRef(name="b")
+                |   |                 +-after_match_skip_mode=END_OF_MATCH
+                |   |                 +-match_number_column=$match_recognize.$match_number#8
+                |   |                 +-match_row_number_column=$match_recognize.$match_row_number#9
+                |   |                 +-classifier_column=$match_recognize.$classifier#10
+                |   +-input_scan=
+                |     +-WithRefScan(column_list=t.[col1#3, col2#4], with_query_name="t")
+                +-analytic_function_group_list=
+                | +-AnalyticFunctionGroup
+                |   +-partition_by=
+                |   | +-WindowPartitioning
+                |   |   +-partition_by_list=
+                |   |     +-ColumnRef(type=STRING, column=$partitionby.col1#5)
+                |   +-order_by=
+                |     +-WindowOrdering
+                |       +-order_by_item_list=
+                |         +-OrderByItem
+                |           +-column_ref=
+                |             +-ColumnRef(type=STRING, column=$orderby.$orderbycol1#13)
+                +-pattern_variable_definition_list=
+                | +-MatchRecognizeVariableDefinition
+                |   +-name="a"
+                |   +-predicate=
+                |     +-Literal(type=BOOL, value=true)
+                +-pattern=
+                | +-MatchRecognizePatternVariableRef(name="a")
+                +-after_match_skip_mode=END_OF_MATCH
+                +-match_number_column=$match_recognize.$match_number#14
+                +-match_row_number_column=$match_recognize.$match_row_number#15
+                +-classifier_column=$match_recognize.$classifier#16
 ==
 
 # Pattern variable references cannot be used as value tables

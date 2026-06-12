@@ -1,0 +1,24 @@
+-- This module is used for test case:
+--   googlesql/common/testdata/import_nested_module.module_test
+-- See the test file comments for details about how this module is
+-- related to other modules in that test.
+
+MODULE nested_module_with_import;
+
+IMPORT MODULE googlesql.testdata.modules.doubly_nested_module
+    as doubly_nested;
+
+CREATE PUBLIC FUNCTION nested_fn1(a int64, b int64) as
+  (doubly_nested.fn1(a) + private_fn(b));
+
+CREATE PRIVATE FUNCTION private_fn(b int64) as (b + 1);
+
+CREATE PUBLIC FUNCTION nested_fn2(a int64, b int64) as
+  (doubly_nested.fn1(a) + doubly_nested.fn2(b));
+
+-- Accessing private names from doubly_nested is not valid.
+CREATE PUBLIC FUNCTION invalid_fn1(a int64) as
+  (doubly_nested.private_fn(a));
+
+CREATE PUBLIC FUNCTION nested_fn3(a int64) as (a + 1);
+

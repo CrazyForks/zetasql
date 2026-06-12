@@ -385,7 +385,7 @@ class ValueTest : public ::testing::Test {
   void TestParameterizedValueAfterReleaseOfTypeFactory(
       bool keep_type_alive_while_referenced_from_value);
 
- private:
+ protected:
   TypeFactory type_factory_;
 };
 
@@ -459,7 +459,7 @@ TEST_F(ValueTest, FloatNonNull) {
   TestGetSQL(Value::Float(3.5));
   TestGetSQL(Value::Float(3.0000004));
   TestGetSQL(Value::Float(.0000004));
-  TestGetSQL(Value::Float(-55500000000));
+  TestGetSQL(Value::Float(-55500000000.0f));
   TestGetSQL(Value::Float(-0.000034634643));
   TestGetSQL(Value::Float(1.5e25));
   TestGetSQL(Value::Float(-1.5e25));
@@ -1764,7 +1764,7 @@ absl::Cord BuildDoubleValueProto(double value) {
   google::protobuf::DoubleValue m;
   m.set_value(value);
   absl::Cord bytes;
-  ABSL_CHECK(m.SerializeToCord(&bytes));
+  ABSL_CHECK(m.SerializeToString(&bytes));
   return bytes;
 }
 
@@ -3446,10 +3446,10 @@ TEST(MapPrintingTest, NullAndEmptyMaps) {
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value empty_map, Value::MakeMap(map_type, {}));
 
   EXPECT_EQ(null_map.DebugString(), "NULL");
-  EXPECT_EQ(null_map.DebugString(/*verbose=*/true), "Map<String, Int64>(NULL)");
+  EXPECT_EQ(null_map.DebugString(/*verbose=*/true), "MAP<STRING, INT64>(NULL)");
   EXPECT_EQ(null_map.Format(/*print_top_level_type=*/false), "NULL");
   EXPECT_EQ(null_map.Format(/*print_top_level_type=*/true),
-            "Map<String, Int64>(NULL)");
+            "MAP<STRING, INT64>(NULL)");
   EXPECT_EQ(null_map.GetSQL(PRODUCT_INTERNAL),
             "CAST(NULL AS MAP<STRING, INT64>)");
   EXPECT_EQ(null_map.GetSQL(PRODUCT_EXTERNAL),
@@ -3851,7 +3851,7 @@ TEST_F(ValueTest, Proto) {
   const ProtoType* proto_type = GetTestProtoType();
   googlesql_test::KitchenSinkPB k;
   absl::Cord bytes_2968;
-  ABSL_CHECK(k.SerializePartialToCord(&bytes_2968));
+  ABSL_CHECK(k.SerializePartialToString(&bytes_2968));
   absl::Cord bytes = bytes_2968;
   // Empty proto.
   EXPECT_EQ(0, bytes.size());
@@ -3877,7 +3877,7 @@ TEST_F(ValueTest, Proto) {
   // Non-empty proto.
   k.set_int32_val(3);
   absl::Cord bytes_2996;
-  ABSL_CHECK(k.SerializePartialToCord(&bytes_2996));
+  ABSL_CHECK(k.SerializePartialToString(&bytes_2996));
   bytes = bytes_2996;
   EXPECT_EQ(2, bytes.size());
   Value proto1 = TestGetSQL(Proto(proto_type, bytes));
@@ -3924,7 +3924,7 @@ TEST_F(ValueTest, Proto) {
   // precedence.
   k.set_int32_val(7);
   absl::Cord bytes_3038;
-  ABSL_CHECK(k.SerializePartialToCord(&bytes_3038));
+  ABSL_CHECK(k.SerializePartialToString(&bytes_3038));
   absl::Cord bytes4 = bytes_3038;
   // Now we have two duplicate 3 values followed by a 7.
   bytes.Append(bytes4);
@@ -4041,7 +4041,7 @@ TEST_F(ValueTest, Proto) {
   absl::Cord result_bytes = absl::Cord(result);
   set_value = Value::Proto(proto3_type, result_bytes);
   absl::Cord bytes_3150;
-  ABSL_CHECK(unset_proto3.SerializeToCord(&bytes_3150));
+  ABSL_CHECK(unset_proto3.SerializeToString(&bytes_3150));
   unset_value = Value::Proto(proto3_type, bytes_3150);
   EXPECT_TRUE(set_value.Equals(unset_value));
   TestHashEqual(set_value, unset_value);
@@ -4840,7 +4840,7 @@ TEST_F(ValueTest, FormatArrayOfRanges) {
                        {regular_range, range_unbounded_start, range_null}));
   EXPECT_EQ(array_of_ranges.DebugString(/*verbose=*/true),
             "Array[Range[Date(1970-10-28), Date(1970-10-29)), "
-            "Range[Date(NULL), Date(1970-01-23)), Range<DATE>(NULL)]");
+            "Range[Date(NULL), Date(1970-01-23)), RANGE<DATE>(NULL)]");
   EXPECT_EQ(array_of_ranges.DebugString(),
             R"([[1970-10-28, 1970-10-29), [NULL, 1970-01-23), NULL])");
   EXPECT_EQ(array_of_ranges.Format(), R"(ARRAY<RANGE<DATE>>[
@@ -4880,7 +4880,7 @@ TEST_F(ValueTest, FormatStructOfRanges) {
   EXPECT_EQ(struct_of_ranges.DebugString(/*verbose=*/true),
             "Struct{d:Range[Date(1970-10-28), Date(1970-10-29)), "
             "dt:Range[Datetime(NULL), Datetime(2022-09-13 "
-            "16:37:11.000000001)), t:Range<TIMESTAMP>(NULL)}");
+            "16:37:11.000000001)), t:RANGE<TIMESTAMP>(NULL)}");
   EXPECT_EQ(
       struct_of_ranges.DebugString(),
       R"({d:[1970-10-28, 1970-10-29), dt:[NULL, 2022-09-13 16:37:11.000000001), t:NULL})");
@@ -5121,7 +5121,7 @@ TEST_F(ValueTest, ProtoFormatTest) {
   k.set_int32_val(3);
   // Empty proto.
   absl::Cord bytes_4153;
-  ABSL_CHECK(k.SerializePartialToCord(&bytes_4153));
+  ABSL_CHECK(k.SerializePartialToString(&bytes_4153));
   absl::Cord bytes = bytes_4153;
 
   const ProtoType* proto_type = GetTestProtoType();
@@ -5814,7 +5814,7 @@ TEST_F(ValueTest, Serialize) {
                                              &ks));
 
   absl::Cord bytes;
-  ABSL_CHECK(ks.SerializePartialToCord(&bytes));
+  ABSL_CHECK(ks.SerializePartialToString(&bytes));
   absl::Cord ks_serialized = bytes;
 
   SerializeDeserialize(Null(proto_type));
@@ -6545,7 +6545,7 @@ TEST_P(DeserializeInvalidRangesTest, InvalidRangeValuesFail) {
   ValueProto value_proto;
   absl::StatusOr<Value> status_or_value;
   const InvalidRangeTestCase& param = GetParam();
-  // Convert to std::string. GoogleSQL OSS doesn't like if we pass
+  // Convert to std::string. GoogleSQL doesn't like if we pass
   // absl::string_view into ParseFromString directly.
   const std::string value_text_proto(param.value_text_proto);
   ABSL_QCHECK(google::protobuf::TextFormat::ParseFromString(value_text_proto, &value_proto));

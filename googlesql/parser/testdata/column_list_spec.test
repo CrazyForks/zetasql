@@ -1,0 +1,524 @@
+# Tests for COLUMNS() expression
+[default language_features=NONE]
+
+select 1
+FROM Foo(COLUMNS({{[]|['a', 'b']|ARRAY['a', 'b']|my_array|[x, 'a']|[a, b]}}));
+--
+ALTERNATION GROUP: []
+--
+QueryStatement [0-30] [select 1 FROM Foo(COLUMNS([]))]
+  Query [0-30] [select 1 FROM Foo(COLUMNS([]))]
+    Select [0-30] [select 1 FROM Foo(COLUMNS([]))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-30] [FROM Foo(COLUMNS([]))]
+        TVF [14-30] [Foo(COLUMNS([]))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-29] [COLUMNS([])]
+            ColumnListSpec [18-29] [COLUMNS([])]
+              ArrayConstructor [26-28] [[]]
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(ARRAY[]))
+--
+ALTERNATION GROUP: ['a', 'b']
+--
+QueryStatement [0-38] [select 1 FROM...a', 'b']))]
+  Query [0-38] [select 1 FROM...a', 'b']))]
+    Select [0-38] [select 1 FROM...a', 'b']))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-38] [FROM Foo(COLUMNS(['a', 'b']))]
+        TVF [14-38] [Foo(COLUMNS(['a', 'b']))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-37] [COLUMNS(['a', 'b'])]
+            ColumnListSpec [18-37] [COLUMNS(['a', 'b'])]
+              ArrayConstructor [26-36] [['a', 'b']]
+                StringLiteral [27-30] ['a']
+                  StringLiteralComponent('a') [27-30] ['a']
+                StringLiteral [32-35] ['b']
+                  StringLiteralComponent('b') [32-35] ['b']
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(ARRAY['a', 'b']))
+--
+ALTERNATION GROUP: ARRAY['a', 'b']
+--
+QueryStatement [0-43] [select 1 FROM...a', 'b']))]
+  Query [0-43] [select 1 FROM...a', 'b']))]
+    Select [0-43] [select 1 FROM...a', 'b']))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-43] [FROM Foo(COLUMNS...a', 'b']))]
+        TVF [14-43] [Foo(COLUMNS(ARRAY['a', 'b']))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-42] [COLUMNS(ARRAY['a', 'b'])]
+            ColumnListSpec [18-42] [COLUMNS(ARRAY['a', 'b'])]
+              ArrayConstructor [26-41] [ARRAY['a', 'b']]
+                StringLiteral [32-35] ['a']
+                  StringLiteralComponent('a') [32-35] ['a']
+                StringLiteral [37-40] ['b']
+                  StringLiteralComponent('b') [37-40] ['b']
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(ARRAY['a', 'b']))
+--
+ALTERNATION GROUP: my_array
+--
+QueryStatement [0-36] [select 1 FROM...my_array))]
+  Query [0-36] [select 1 FROM...my_array))]
+    Select [0-36] [select 1 FROM...my_array))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-36] [FROM Foo(COLUMNS(my_array))]
+        TVF [14-36] [Foo(COLUMNS(my_array))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-35] [COLUMNS(my_array)]
+            ColumnListSpec [18-35] [COLUMNS(my_array)]
+              PathExpression [26-34] [my_array]
+                Identifier(my_array) [26-34] [my_array]
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(my_array))
+--
+ALTERNATION GROUP: [x, 'a']
+--
+QueryStatement [0-36] [select 1 FROM...[x, 'a']))]
+  Query [0-36] [select 1 FROM...[x, 'a']))]
+    Select [0-36] [select 1 FROM...[x, 'a']))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-36] [FROM Foo(COLUMNS([x, 'a']))]
+        TVF [14-36] [Foo(COLUMNS([x, 'a']))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-35] [COLUMNS([x, 'a'])]
+            ColumnListSpec [18-35] [COLUMNS([x, 'a'])]
+              ArrayConstructor [26-34] [[x, 'a']]
+                PathExpression [27-28] [x]
+                  Identifier(x) [27-28] [x]
+                StringLiteral [30-33] ['a']
+                  StringLiteralComponent('a') [30-33] ['a']
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(ARRAY[x, 'a']))
+--
+ALTERNATION GROUP: [a, b]
+--
+QueryStatement [0-34] [select 1 FROM...LUMNS([a, b]))]
+  Query [0-34] [select 1 FROM...LUMNS([a, b]))]
+    Select [0-34] [select 1 FROM...LUMNS([a, b]))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-34] [FROM Foo(COLUMNS([a, b]))]
+        TVF [14-34] [Foo(COLUMNS([a, b]))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-33] [COLUMNS([a, b])]
+            ColumnListSpec [18-33] [COLUMNS([a, b])]
+              ArrayConstructor [26-32] [[a, b]]
+                PathExpression [27-28] [a]
+                  Identifier(a) [27-28] [a]
+                PathExpression [30-31] [b]
+                  Identifier(b) [30-31] [b]
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS(ARRAY[a, b]))
+==
+
+select 1 FROM Foo(COLUMNS());
+--
+ERROR: Syntax error: Unexpected ")" [at 1:27]
+select 1 FROM Foo(COLUMNS());
+                          ^
+
+==
+
+select 1 FROM Foo(COLUMNS(a, b));
+--
+ERROR: Syntax error: Expected ")" but got "," [at 1:28]
+select 1 FROM Foo(COLUMNS(a, b));
+                           ^
+==
+
+select 1 FROM Foo(COLUMNS('a'));
+--
+QueryStatement [0-31] [select 1 FROM...COLUMNS('a'))]
+  Query [0-31] [select 1 FROM...COLUMNS('a'))]
+    Select [0-31] [select 1 FROM...COLUMNS('a'))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-31] [FROM Foo(COLUMNS('a'))]
+        TVF [14-31] [Foo(COLUMNS('a'))]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+          TVFArgument [18-30] [COLUMNS('a')]
+            ColumnListSpec [18-30] [COLUMNS('a')]
+              StringLiteral [26-29] ['a']
+                StringLiteralComponent('a') [26-29] ['a']
+--
+SELECT
+  1
+FROM
+  Foo(COLUMNS('a'))
+==
+
+create table function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])|DEFAULT COLUMNS([])}}) AS (
+    SELECT 1 AS b
+);
+--
+ALTERNATION GROUP: <empty>
+--
+CreateTableFunctionStatement [0-77] [create table...SELECT 1 AS b )]
+  FunctionDeclaration [22-52] [myfunc(cols COLUMN_LIST_SPEC )]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-52] [(cols COLUMN_LIST_SPEC )]
+      FunctionParameter [29-50] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+  Query [62-75] [SELECT 1 AS b]
+    Select [62-75] [SELECT 1 AS b]
+      SelectList [69-75] [1 AS b]
+        SelectColumn [69-75] [1 AS b]
+          IntLiteral(1) [69-70] [1]
+          Alias [71-75] [AS b]
+            Identifier(b) [74-75] [b]
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+AS
+  (
+  SELECT
+    1 AS b
+  )
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateTableFunctionStatement [0-104] [create table...SELECT 1 AS b )]
+  FunctionDeclaration [22-79] [myfunc(cols...a', 'b']))]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-79] [(cols COLUMN_LIST...a', 'b']))]
+      FunctionParameter(default_value=(ColumnListSpec)) [29-78] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+        ColumnListSpec [59-78] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [67-77] [['a', 'b']]
+            StringLiteral [68-71] ['a']
+              StringLiteralComponent('a') [68-71] ['a']
+            StringLiteral [73-76] ['b']
+              StringLiteralComponent('b') [73-76] ['b']
+  Query [89-102] [SELECT 1 AS b]
+    Select [89-102] [SELECT 1 AS b]
+      SelectList [96-102] [1 AS b]
+        SelectColumn [96-102] [1 AS b]
+          IntLiteral(1) [96-97] [1]
+          Alias [98-102] [AS b]
+            Identifier(b) [101-102] [b]
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+AS
+  (
+  SELECT
+    1 AS b
+  )
+--
+ALTERNATION GROUP: DEFAULT COLUMNS([])
+--
+CreateTableFunctionStatement [0-96] [create table...SELECT 1 AS b )]
+  FunctionDeclaration [22-71] [myfunc(cols...COLUMNS([]))]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-71] [(cols COLUMN_LIST...LUMNS([]))]
+      FunctionParameter(default_value=(ColumnListSpec)) [29-70] [cols COLUMN_LIST_...OLUMNS([])]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+        ColumnListSpec [59-70] [COLUMNS([])]
+          ArrayConstructor [67-69] [[]]
+  Query [81-94] [SELECT 1 AS b]
+    Select [81-94] [SELECT 1 AS b]
+      SelectList [88-94] [1 AS b]
+        SelectColumn [88-94] [1 AS b]
+          IntLiteral(1) [88-89] [1]
+          Alias [90-94] [AS b]
+            Identifier(b) [93-94] [b]
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY[]))
+AS
+  (
+  SELECT
+    1 AS b
+  )
+
+==
+
+create table function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}} ) LANGUAGE js AS '''1''';
+
+--
+ALTERNATION GROUP: <empty>
+--
+CreateTableFunctionStatement [0-76] [create table...AS '''1''']
+  FunctionDeclaration [22-53] [myfunc(cols...UMN_LIST_SPEC  )]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-53] [(cols COLUMN_LIST_SPEC  )]
+      FunctionParameter [29-50] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+  Identifier(js) [63-65] [js]
+  StringLiteral [69-76] ['''1''']
+    StringLiteralComponent('''1''') [69-76] ['''1''']
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+LANGUAGE js AS '''1'''
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateTableFunctionStatement [0-103] [create table...AS '''1''']
+  FunctionDeclaration [22-80] [myfunc(cols...', 'b']) )]
+    PathExpression [22-28] [myfunc]
+      Identifier(myfunc) [22-28] [myfunc]
+    FunctionParameters [28-80] [(cols COLUMN_LIST...', 'b']) )]
+      FunctionParameter(default_value=(ColumnListSpec)) [29-78] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [29-33] [cols]
+        SimpleType [34-50] [COLUMN_LIST_SPEC]
+          PathExpression [34-50] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [34-50] [COLUMN_LIST_SPEC]
+        ColumnListSpec [59-78] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [67-77] [['a', 'b']]
+            StringLiteral [68-71] ['a']
+              StringLiteralComponent('a') [68-71] ['a']
+            StringLiteral [73-76] ['b']
+              StringLiteralComponent('b') [73-76] ['b']
+  Identifier(js) [90-92] [js]
+  StringLiteral [96-103] ['''1''']
+    StringLiteralComponent('''1''') [96-103] ['''1''']
+--
+CREATE TABLE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+LANGUAGE js AS '''1'''
+==
+
+create function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}} ) AS ( 1 );
+--
+ALTERNATION GROUP: <empty>
+--
+CreateFunctionStatement [0-56] [create function...) AS ( 1 )]
+  FunctionDeclaration [16-47] [myfunc(cols...UMN_LIST_SPEC  )]
+    PathExpression [16-22] [myfunc]
+      Identifier(myfunc) [16-22] [myfunc]
+    FunctionParameters [22-47] [(cols COLUMN_LIST_SPEC  )]
+      FunctionParameter [23-44] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [23-27] [cols]
+        SimpleType [28-44] [COLUMN_LIST_SPEC]
+          PathExpression [28-44] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [28-44] [COLUMN_LIST_SPEC]
+  SqlFunctionBody [51-56] [( 1 )]
+    IntLiteral(1) [53-54] [1]
+--
+CREATE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+AS (
+  1
+)
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateFunctionStatement [0-83] [create function...) AS ( 1 )]
+  FunctionDeclaration [16-74] [myfunc(cols...', 'b']) )]
+    PathExpression [16-22] [myfunc]
+      Identifier(myfunc) [16-22] [myfunc]
+    FunctionParameters [22-74] [(cols COLUMN_LIST...', 'b']) )]
+      FunctionParameter(default_value=(ColumnListSpec)) [23-72] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [23-27] [cols]
+        SimpleType [28-44] [COLUMN_LIST_SPEC]
+          PathExpression [28-44] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [28-44] [COLUMN_LIST_SPEC]
+        ColumnListSpec [53-72] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [61-71] [['a', 'b']]
+            StringLiteral [62-65] ['a']
+              StringLiteralComponent('a') [62-65] ['a']
+            StringLiteral [67-70] ['b']
+              StringLiteralComponent('b') [67-70] ['b']
+  SqlFunctionBody [78-83] [( 1 )]
+    IntLiteral(1) [80-81] [1]
+--
+CREATE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+AS (
+  1
+)
+
+==
+
+create function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}} ) LANGUAGE js AS '''1''';
+
+--
+ALTERNATION GROUP: <empty>
+--
+CreateFunctionStatement [0-70] [create function...AS '''1''']
+  FunctionDeclaration [16-47] [myfunc(cols...UMN_LIST_SPEC  )]
+    PathExpression [16-22] [myfunc]
+      Identifier(myfunc) [16-22] [myfunc]
+    FunctionParameters [22-47] [(cols COLUMN_LIST_SPEC  )]
+      FunctionParameter [23-44] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [23-27] [cols]
+        SimpleType [28-44] [COLUMN_LIST_SPEC]
+          PathExpression [28-44] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [28-44] [COLUMN_LIST_SPEC]
+  Identifier(js) [57-59] [js]
+  StringLiteral [63-70] ['''1''']
+    StringLiteralComponent('''1''') [63-70] ['''1''']
+--
+CREATE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+LANGUAGE js AS '''1'''
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateFunctionStatement [0-97] [create function...AS '''1''']
+  FunctionDeclaration [16-74] [myfunc(cols...', 'b']) )]
+    PathExpression [16-22] [myfunc]
+      Identifier(myfunc) [16-22] [myfunc]
+    FunctionParameters [22-74] [(cols COLUMN_LIST...', 'b']) )]
+      FunctionParameter(default_value=(ColumnListSpec)) [23-72] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [23-27] [cols]
+        SimpleType [28-44] [COLUMN_LIST_SPEC]
+          PathExpression [28-44] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [28-44] [COLUMN_LIST_SPEC]
+        ColumnListSpec [53-72] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [61-71] [['a', 'b']]
+            StringLiteral [62-65] ['a']
+              StringLiteralComponent('a') [62-65] ['a']
+            StringLiteral [67-70] ['b']
+              StringLiteralComponent('b') [67-70] ['b']
+  Identifier(js) [84-86] [js]
+  StringLiteral [90-97] ['''1''']
+    StringLiteralComponent('''1''') [90-97] ['''1''']
+--
+CREATE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+LANGUAGE js AS '''1'''
+==
+
+create aggregate function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}} ) AS ( 1 );
+--
+ALTERNATION GROUP: <empty>
+--
+CreateFunctionStatement(is_aggregate=true) [0-66] [create aggregate...) AS ( 1 )]
+  FunctionDeclaration [26-57] [myfunc(cols...UMN_LIST_SPEC  )]
+    PathExpression [26-32] [myfunc]
+      Identifier(myfunc) [26-32] [myfunc]
+    FunctionParameters [32-57] [(cols COLUMN_LIST_SPEC  )]
+      FunctionParameter [33-54] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [33-37] [cols]
+        SimpleType [38-54] [COLUMN_LIST_SPEC]
+          PathExpression [38-54] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [38-54] [COLUMN_LIST_SPEC]
+  SqlFunctionBody [61-66] [( 1 )]
+    IntLiteral(1) [63-64] [1]
+--
+CREATE AGGREGATE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+AS (
+  1
+)
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateFunctionStatement(is_aggregate=true) [0-93] [create aggregate...) AS ( 1 )]
+  FunctionDeclaration [26-84] [myfunc(cols...', 'b']) )]
+    PathExpression [26-32] [myfunc]
+      Identifier(myfunc) [26-32] [myfunc]
+    FunctionParameters [32-84] [(cols COLUMN_LIST...', 'b']) )]
+      FunctionParameter(default_value=(ColumnListSpec)) [33-82] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [33-37] [cols]
+        SimpleType [38-54] [COLUMN_LIST_SPEC]
+          PathExpression [38-54] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [38-54] [COLUMN_LIST_SPEC]
+        ColumnListSpec [63-82] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [71-81] [['a', 'b']]
+            StringLiteral [72-75] ['a']
+              StringLiteralComponent('a') [72-75] ['a']
+            StringLiteral [77-80] ['b']
+              StringLiteralComponent('b') [77-80] ['b']
+  SqlFunctionBody [88-93] [( 1 )]
+    IntLiteral(1) [90-91] [1]
+--
+CREATE AGGREGATE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+AS (
+  1
+)
+
+==
+
+create aggregate function myfunc(cols COLUMN_LIST_SPEC {{|DEFAULT COLUMNS(['a', 'b'])}} ) LANGUAGE js AS '''1''';
+--
+ALTERNATION GROUP: <empty>
+--
+CreateFunctionStatement(is_aggregate=true) [0-80] [create aggregate...AS '''1''']
+  FunctionDeclaration [26-57] [myfunc(cols...UMN_LIST_SPEC  )]
+    PathExpression [26-32] [myfunc]
+      Identifier(myfunc) [26-32] [myfunc]
+    FunctionParameters [32-57] [(cols COLUMN_LIST_SPEC  )]
+      FunctionParameter [33-54] [cols COLUMN_LIST_SPEC]
+        Identifier(cols) [33-37] [cols]
+        SimpleType [38-54] [COLUMN_LIST_SPEC]
+          PathExpression [38-54] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [38-54] [COLUMN_LIST_SPEC]
+  Identifier(js) [67-69] [js]
+  StringLiteral [73-80] ['''1''']
+    StringLiteralComponent('''1''') [73-80] ['''1''']
+--
+CREATE AGGREGATE FUNCTION myfunc(cols COLUMN_LIST_SPEC)
+LANGUAGE js AS '''1'''
+--
+ALTERNATION GROUP: DEFAULT COLUMNS(['a', 'b'])
+--
+CreateFunctionStatement(is_aggregate=true) [0-107] [create aggregate...AS '''1''']
+  FunctionDeclaration [26-84] [myfunc(cols...', 'b']) )]
+    PathExpression [26-32] [myfunc]
+      Identifier(myfunc) [26-32] [myfunc]
+    FunctionParameters [32-84] [(cols COLUMN_LIST...', 'b']) )]
+      FunctionParameter(default_value=(ColumnListSpec)) [33-82] [cols COLUMN_LIST_...'a', 'b'])]
+        Identifier(cols) [33-37] [cols]
+        SimpleType [38-54] [COLUMN_LIST_SPEC]
+          PathExpression [38-54] [COLUMN_LIST_SPEC]
+            Identifier(COLUMN_LIST_SPEC) [38-54] [COLUMN_LIST_SPEC]
+        ColumnListSpec [63-82] [COLUMNS(['a', 'b'])]
+          ArrayConstructor [71-81] [['a', 'b']]
+            StringLiteral [72-75] ['a']
+              StringLiteralComponent('a') [72-75] ['a']
+            StringLiteral [77-80] ['b']
+              StringLiteralComponent('b') [77-80] ['b']
+  Identifier(js) [94-96] [js]
+  StringLiteral [100-107] ['''1''']
+    StringLiteralComponent('''1''') [100-107] ['''1''']
+--
+CREATE AGGREGATE FUNCTION myfunc(cols COLUMN_LIST_SPEC DEFAULT COLUMNS(ARRAY['a', 'b']))
+LANGUAGE js AS '''1'''

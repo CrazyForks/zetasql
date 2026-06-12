@@ -81,7 +81,11 @@ ERROR: No matching signature for operator = for argument types: STRING, INT64
   Signature: INT64 = UINT64
     Argument 1: Unable to coerce type STRING to expected type INT64
   Signature: UINT64 = INT64
-    Argument 1: Unable to coerce type STRING to expected type UINT64 [at 3:28]
+    Argument 1: Unable to coerce type STRING to expected type UINT64
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type STRING to expected type JSON
+  Signature: JSON = JSON
+    Argument 2: Unable to coerce type INT64 to expected type JSON [at 3:28]
 where KeyValue.key = 5 and value = 7
                            ^
 ==

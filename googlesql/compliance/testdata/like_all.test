@@ -1012,3 +1012,127 @@ SELECT
   collate('Google', 'binary') LIKE ALL ('Goo_le')
 --
 ARRAY<STRUCT<BOOL>>[{true}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_with_collation_ci_on_lhs]
+# Test "LIKE ALL" with a subquery where the LHS has collation.
+SELECT
+  Value,
+  collate(Value, 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['VALUE1', 'valu%']) p),
+  collate(Value, 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['VALUE1', 'xxx']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL},
+  {"Value1", true, false},
+  {"Value2", false, false}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_all_subquery_with_collation_ci_on_lhs]
+# Test "NOT LIKE ALL" with a subquery where the LHS has collation.
+# Logic: NOT (Value LIKE ALL Patterns) -> returns true if any pattern does not match.
+SELECT
+  Value,
+  collate(Value, 'und:ci') NOT LIKE ALL (SELECT p FROM UNNEST(['VALUE1', 'valu%']) p),
+  collate(Value, 'und:ci') NOT LIKE ALL (SELECT p FROM UNNEST(['VALUE1', 'xxx']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL},
+  {"Value1", false, false},
+  {"Value2", false, true}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_with_collation_ci_on_rhs]
+# Test "LIKE ALL" where the collation is introduced inside the subquery.
+SELECT
+  Value,
+  Value LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'VALUE%']) p),
+  Value LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'VALUE2']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL},
+  {"Value1", true, false},
+  {"Value2", false, false}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_all_subquery_with_collation_ci_on_rhs]
+# Test "NOT LIKE ALL" where the collation is introduced inside the subquery.
+SELECT
+  Value,
+  Value NOT LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'VALUE%']) p),
+  Value NOT LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'VALUE2']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL},
+  {"Value1", false, false},
+  {"Value2", false, false}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_with_mixed_collation]
+# Test "LIKE ALL" with collation on both LHS and inside the subquery.
+SELECT
+  collate('Google', 'und:ci') LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['GOOGLE', 'google']) p),
+  collate('Google', 'und:ci') LIKE ALL (SELECT collate(p, 'und:ci') FROM UNNEST(['GOOGLE', 'xxx']) p)
+--
+ARRAY<STRUCT<BOOL, BOOL>>[{true, false}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_with_collation_and_nulls]
+# Test "LIKE ALL" with collation and NULL elements in the subquery.
+SELECT
+  collate('abc', 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['ABC', NULL]) p),
+  collate('abc', 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['XYZ', NULL]) p),
+  collate(NULL, 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['ABC', 'abc']) p)
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{NULL, false, NULL}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_all_subquery_with_collation_and_nulls]
+# Test "NOT LIKE ALL" with collation and NULL elements in the subquery.
+SELECT
+  collate('abc', 'und:ci') NOT LIKE ALL (SELECT p FROM UNNEST(['ABC', NULL]) p),
+  collate('abc', 'und:ci') NOT LIKE ALL (SELECT p FROM UNNEST(['XYZ', NULL]) p),
+  collate('abc', 'und:ci') NOT LIKE ALL (SELECT CAST(NULL AS STRING))
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{false, NULL, NULL}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_collation_underscore_error]
+# Runtime error when '_' wildcard in a subquery pattern and collation is present in the LHS.
+SELECT
+  collate('Google', 'und:ci') LIKE ALL (SELECT p FROM UNNEST(['G__gle']) p)
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_all_subquery_collation_underscore_error]
+# Runtime error when '_' wildcard in a subquery pattern and collation is present in the RHS.
+SELECT
+  'Google' NOT LIKE ALL (SELECT collate('G__gle', 'und:ci'))
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_all_subquery_collation_binary_with_underscore_success]
+# Verifies that binary collation allows '_' in a subquery.
+SELECT
+  collate('Google', 'binary') LIKE ALL (SELECT p FROM UNNEST(['Goo_le', 'G%']) p)
+--
+ARRAY<STRUCT<BOOL>>[{true}]

@@ -939,7 +939,7 @@ supports arguments.
 
 **Example**
 
-```sql
+```googlesql
 CREATE PROCEDURE my_procedure(IN x INT64, OUT y STRING)
 BEGIN
   IF x > 0 THEN

@@ -1,0 +1,43 @@
+-- A module for use in test case:
+--
+--    googlesql/common/testdata/import_proto.module_test
+--
+-- UDFs/TVFs in this module reference names imported from the specified
+-- proto file.
+
+MODULE import_proto_enum;
+
+-- IMPORT PROTO does not support AS or INTO alias.
+
+-- Imports Types into this module's catalog. Note that this import
+-- references types that are in the next import.
+IMPORT PROTO "googlesql/testdata/referencing_schema.proto";
+IMPORT PROTO "googlesql/testdata/referenced_schema.proto";
+
+CREATE PUBLIC FUNCTION TestReferencingPB(a string, b string, c int32)
+AS (NEW googlesql_test.TestReferencingPB(
+        c AS test_enum,
+        CONCAT("int64_key_1: ", a, " int64_key_2: ", b) as kitchen_sink));
+
+CREATE PUBLIC FUNCTION TestReferencedPB(a int64)
+AS (new googlesql_test.TestReferencedPB(a+1 as id));
+
+CREATE PUBLIC FUNCTION TestReferencedEnum()
+AS (CAST(1 AS googlesql_test.TestReferencedEnum));
+
+CREATE PUBLIC FUNCTION TestReferencedEnum_2(a INT32)
+AS (CAST(a AS `googlesql_test.TestReferencedEnum`));
+
+CREATE PUBLIC FUNCTION TestReferencedEnum_3(a STRING)
+AS (CAST(a AS `googlesql_test.TestReferencedEnum`));
+
+CREATE PUBLIC TABLE FUNCTION TestAnotherReferencingPBTable(
+    enum_value googlesql_test.TestReferencedEnum,
+    proto_value googlesql_test.TestReferencedPB)
+AS (SELECT NEW googlesql_test.AnotherReferencingPB(
+        enum_value AS referenced_enum,
+        proto_value as referenced_pb) as another_referencing_pb
+    UNION ALL
+    SELECT NEW googlesql_test.AnotherReferencingPB(
+        0 AS referenced_enum,
+        "" as referenced_pb));

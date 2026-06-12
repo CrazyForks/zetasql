@@ -1,7 +1,5 @@
 [default reserve_graph_table]
 [default required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_CHEAPEST_PATH]
-[load_proto_files=googlesql/testdata/test_schema.proto]
-[load_proto_names=googlesql_test.KitchenSinkPB]
 [prepare_database]
 CREATE TABLE person AS
 (SELECT 1 AS id, "name1" AS name) UNION ALL
@@ -39,55 +37,20 @@ ARRAY<STRUCT<id INT64, from_person_id INT64, to_person_id INT64, since TIMESTAMP
 ==
 [prepare_database]
 CREATE TABLE account AS
-(SELECT 10 AS acct_id, cast('''
-  int64_key_1: 1
-  int64_key_2: 1
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "checking" AS kind
+(SELECT 10 AS acct_id, 1 AS owner_id, "checking" AS kind
 ) UNION ALL
-(SELECT 20 AS acct_id, cast('''
-  int64_key_1: 1
-  int64_key_2: 1
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "savings" AS kind
+(SELECT 20 AS acct_id, 1 AS owner_id, "savings" AS kind
 ) UNION ALL
-(SELECT 30 AS acct_id, cast('''
-  int64_key_1: 2
-  int64_key_2: 2
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "checking" AS kind
+(SELECT 30 AS acct_id, 2 AS owner_id, "checking" AS kind
 )UNION ALL
-(SELECT 40 AS acct_id, cast('''
-  int64_key_1: 2
-  int64_key_2: 2
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "savings" as kind)
+(SELECT 40 AS acct_id, 2 AS owner_id, "savings" as kind)
 --
-ARRAY<STRUCT<
-        acct_id INT64,
-        owner_id PROTO<googlesql_test.KitchenSinkPB>,
-        kind STRING
-      >>
-[{10,
-  {
-    int64_key_1: 1
-    int64_key_2: 1
-  },
-  "checking"},
- {20,
-  {
-    int64_key_1: 1
-    int64_key_2: 1
-  },
-  "savings"},
- {30,
-  {
-    int64_key_1: 2
-    int64_key_2: 2
-  },
-  "checking"},
- {40,
-  {
-    int64_key_1: 2
-    int64_key_2: 2
-  },
-  "savings"}]
+ARRAY<STRUCT<acct_id INT64, owner_id INT64, kind STRING>>[
+  {10, 1, "checking"},
+  {20, 1, "savings"},
+  {30, 2, "checking"},
+  {40, 2, "savings"}
+]
 ==
 
 [prepare_database]
@@ -147,8 +110,7 @@ CREATE PROPERTY GRAPH aml
     Account KEY(acct_id)
     DEFAULT LABEL PROPERTIES(
       1000 + acct_id AS account_id,
-      owner_id AS owner_id_proto,
-      owner_id.int64_key_1 AS owner_id,
+      owner_id,
       kind AS account_kind)
     LABEL HasId PROPERTIES (acct_id AS key_id),
     Person KEY(id)
@@ -178,63 +140,63 @@ CREATE PROPERTY GRAPH aml
 [name=any_cheapest_null_cost]
 graph aml
 match any cheapest -[e:Transfer COST if (1 < 2, NULL, e.amount)]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must not be NULL
 ==
 [name=any_cheapest_nan_cost]
 graph aml
 match any cheapest -[e:Transfer COST cast('nan' as double)]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must not be NaN
 ==
 [name=any_cheapest_inf_cost]
 graph aml
 match any cheapest -[e:Transfer COST cast('inf' as double)]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must not be Inf
 ==
 [name=any_cheapest_neg_inf_cost]
 graph aml
 match any cheapest -[e:Transfer COST cast('-inf' as double)]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must not be Inf
 ==
 [name=any_cheapest_zero_cost]
 graph aml
 match any cheapest -[e:Transfer COST 0]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must be positive
 ==
 [name=any_cheapest_negative_cost]
 graph aml
 match any cheapest -[e:Transfer COST -1 * e.amount]->
-return 1 as output
+return e.amount as output
 --
 ERROR: generic::out_of_range: Graph cost expression must be positive
 ==
 [name=any_cheapest_total_cost_overflow_int64]
 graph aml
 match any cheapest -[e1:Transfer COST 9223372036854775807]->(n)-[e2:Transfer COST 9223372036854775807]->
-return 1 as output
+return e1.amount + e2.amount as output
 --
 ERROR: generic::out_of_range: int64 overflow: 9223372036854775807 + 9223372036854775807
 ==
 [name=any_cheapest_total_cost_overflow_uint64]
 graph aml
 match any cheapest -[e1:Transfer COST 18446744073709551615]->(n)-[e2:Transfer COST 18446744073709551615]->
-return 1 as output
+return e1.amount + e2.amount as output
 --
 ERROR: generic::out_of_range: uint64 overflow: 18446744073709551615 + 18446744073709551615
 ==
 [name=any_cheapest_total_cost_overflow_double]
 graph aml
 match any cheapest -[e1:Transfer COST 1.1e+308]->(n)-[e2:Transfer COST 1.1e+308]->
-return 1 as output
+return e1.amount + e2.amount as output
 --
 ERROR: generic::out_of_range: double overflow: 1.1e+308 + 1.1e+308
 ==
@@ -243,7 +205,7 @@ ERROR: generic::out_of_range: double overflow: 1.1e+308 + 1.1e+308
 graph aml
 match any cheapest -[e1:Transfer COST NUMERIC '99999999999999999999999999999.999999999']->
 (n)-[e2:Transfer COST NUMERIC '99999999999999999999999999999.999999999']->
-return 1 as output
+return e1.amount + e2.amount as output
 --
 ERROR: generic::out_of_range: numeric overflow: 99999999999999999999999999999.999999999 + 99999999999999999999999999999.999999999
 ==
@@ -252,7 +214,7 @@ ERROR: generic::out_of_range: numeric overflow: 99999999999999999999999999999.99
 graph aml
 match any cheapest -[e1:Transfer COST BIGNUMERIC '578960446186580977117854925043439539266.34992332820282019728792003956564819967']->
 (n)-[e2:Transfer COST BIGNUMERIC '578960446186580977117854925043439539266.34992332820282019728792003956564819967']->
-return 1 as output
+return e1.amount + e2.amount as output
 --
 ERROR: generic::out_of_range: BIGNUMERIC overflow: 578960446186580977117854925043439539266.34992332820282019728792003956564819967 + 578960446186580977117854925043439539266.34992332820282019728792003956564819967
 ==
@@ -302,7 +264,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, cid INT64, total_cost DOUBLE>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_without_cheapest]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH]
 graph aml
 match (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -334,7 +296,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, len INT64, total_cost INT64>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_any_cheapest]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH]
 graph aml
 match any cheapest (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -348,7 +310,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, len INT64, total_cost INT64>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_cheapest_k]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT]
 graph aml
 match cheapest 4 (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -375,7 +337,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, len INT64, total_cost INT64>>[unknown order:
 # this case and annotated accordingly, although since the result is not
 # deterministic, it will not be evaluated in engine compliance tests.
 [name=simple_quantified_path_cost_cheapest_k_with_tie]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT]
 graph aml
 match cheapest 3 (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -610,7 +572,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, cid INT64, total_cost DOUBLE>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_without_cheapest_with_path_variable]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_TYPE]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_TYPE]
 graph aml
 match p = (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -642,7 +604,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, len INT64, total_cost INT64>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_any_cheapest_with_path_variable]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_TYPE]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_TYPE]
 graph aml
 match p = any cheapest (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)
@@ -656,7 +618,7 @@ ARRAY<STRUCT<aid INT64, bid INT64, len INT64, total_cost INT64>>[unknown order:
 ]
 ==
 [name=simple_quantified_path_cost_cheapest_k_with_path_variable]
-[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,V_1_3_UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT,SQL_GRAPH_PATH_TYPE]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION,ARRAY_AGGREGATION_FUNCTIONS,UNNEST_AND_FLATTEN_ARRAYS,SQL_GRAPH_CHEAPEST_PATH,SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT,SQL_GRAPH_PATH_TYPE]
 graph aml
 match p = cheapest 4 (a:Account {account_id:1010})-[e IS Transfer WHERE e.amount > 1 COST e.amount]->{1,3}(b:Account)
 let amounts = flatten(e.amount)

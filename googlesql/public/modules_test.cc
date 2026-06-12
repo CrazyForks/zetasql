@@ -184,6 +184,19 @@ class ModuleTest : public ::testing::Test {
     return std::move(fetcher);
   }
 
+  void InitModuleFactoryWithInMemoryModules(
+      const absl::flat_hash_map<std::vector<std::string>, std::string>& modules,
+      ModuleFactoryOptions factory_options = {}) {
+    const std::string source_directory =
+        googlesql_base::JoinPath(::testing::SrcDir(), "_main");
+    auto fetcher = std::make_unique<testing::TestModuleContentsFetcher>(
+        /*descriptor_pool=*/nullptr, source_directory);
+    for (const auto& [module_name, module_contents] : modules) {
+      GOOGLESQL_CHECK_OK(fetcher->AddInMemoryModule(module_name, module_contents));
+    }
+    InitModuleFactory(std::move(fetcher), factory_options);
+  }
+
   void InitModuleFactory(
       std::unique_ptr<ModuleContentsFetcher> module_contents_fetcher,
       ModuleFactoryOptions factory_options = {}) {
@@ -912,7 +925,7 @@ TEST_F(ModuleTest, append_module_errors_test) {
       /*include_nested_module_errors=*/false,
       /*include_catalog_object_errors=*/true);
   std::vector<std::string> expected_top_level_init_errors = {
-      "Module foo not found",
+      "Module googlesql.foo not found",
       "Unsupported statement kind: QueryStatement",
       "Unexpected identifier \"FUNCTINO\"",  // (broken link)
       "Function udf_init_error is invalid",
@@ -1109,6 +1122,72 @@ TEST_F(ModuleTest, module_with_imports_has_imported_modules) {
   EXPECT_FALSE(module_catalog()->HasImportedModule(""));
 }
 
+TEST_F(ModuleTest, GetModuleCatalogForAliasReturnsCatalog) {
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"import_a1_a2_a3"}, "module_alias",
+                                /*module_contents=*/nullptr));
+
+  ModuleCatalog* a1_catalog = module_catalog()->GetModuleCatalogForAlias("a1");
+  ModuleCatalog* a2_catalog = module_catalog()->GetModuleCatalogForAlias("a2");
+  ModuleCatalog* a3_catalog = module_catalog()->GetModuleCatalogForAlias("a3");
+
+  ASSERT_THAT(a1_catalog, NotNull());
+  EXPECT_EQ(a1_catalog->FullName(), "A1");
+  ASSERT_THAT(a2_catalog, NotNull());
+  EXPECT_EQ(a2_catalog->FullName(), "a2");
+  ASSERT_THAT(a3_catalog, NotNull());
+  EXPECT_EQ(a3_catalog->FullName(), "a3");
+}
+
+TEST_F(ModuleTest, GetModuleCatalogForAliasReturnsNullForNonexistentAlias) {
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"import_a1_a2_a3"}, "module_alias",
+                                /*module_contents=*/nullptr));
+
+  EXPECT_THAT(module_catalog()->GetModuleCatalogForAlias("bogus"), IsNull());
+  EXPECT_THAT(module_catalog()->GetModuleCatalogForAlias(""), IsNull());
+}
+
+TEST_F(ModuleTest, ImportSameModuleWithDifferentAliases) {
+  absl::flat_hash_map<std::vector<std::string>, std::string> modules;
+  modules[{"a"}] = "MODULE a;";
+  modules[{"importing_module"}] =
+      R"(MODULE importing_module;
+         IMPORT MODULE a AS a1;
+         IMPORT MODULE a AS a2;)";
+  InitModuleFactoryWithInMemoryModules(modules);
+  ModuleCatalog* module_catalog = nullptr;
+  GOOGLESQL_ASSERT_OK(module_factory()->CreateOrReturnModuleCatalog({"importing_module"},
+                                                          &module_catalog));
+  ASSERT_THAT(module_catalog, NotNull());
+
+  ModuleCatalog* a1_catalog = module_catalog->GetModuleCatalogForAlias("a1");
+  ModuleCatalog* a2_catalog = module_catalog->GetModuleCatalogForAlias("a2");
+
+  ASSERT_THAT(a1_catalog, NotNull());
+  EXPECT_EQ(a1_catalog->FullName(), "a");
+  ASSERT_THAT(a2_catalog, NotNull());
+  EXPECT_EQ(a2_catalog->FullName(), "a");
+}
+
+TEST_F(ModuleTest, ImportDifferentModulesWithSameAlias) {
+  absl::flat_hash_map<std::vector<std::string>, std::string> modules;
+  modules[{"a"}] = "MODULE a;";
+  modules[{"b"}] = "MODULE b;";
+  modules[{"importing_module"}] =
+      R"(MODULE importing_module;
+         IMPORT MODULE a AS my_alias;
+         IMPORT MODULE b AS my_alias;)";
+  InitModuleFactoryWithInMemoryModules(modules);
+  ModuleCatalog* module_catalog = nullptr;
+
+  GOOGLESQL_ASSERT_OK(module_factory()->CreateOrReturnModuleCatalog({"importing_module"},
+                                                          &module_catalog));
+
+  ASSERT_THAT(module_catalog, NotNull());
+  EXPECT_THAT(module_catalog->module_errors(),
+              Contains(StatusIs(absl::StatusCode::kInvalidArgument,
+                                HasSubstr("found duplicate alias my_alias"))));
+}
+
 TEST_F(ModuleTest, has_global_objects) {
   std::string module_contents = R"(
   MODULE x.y;
@@ -1116,6 +1195,8 @@ TEST_F(ModuleTest, has_global_objects) {
   CREATE PRIVATE FUNCTION udf_private() AS (1);
   CREATE PUBLIC TABLE FUNCTION tvf_public() AS (SELECT 1);
   CREATE PRIVATE TABLE FUNCTION tvf_private() AS (SELECT 1);
+  CREATE PUBLIC VIEW view_public AS SELECT 1;
+  CREATE PRIVATE VIEW view_private AS SELECT 1;
   )";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
   EXPECT_FALSE(module_catalog()->HasGlobalScopeObjects());
@@ -1155,6 +1236,72 @@ TEST_F(ModuleTest, has_global_objects) {
   )";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
   EXPECT_TRUE(module_catalog()->HasGlobalScopeObjects());
+
+  module_contents = R"(
+  MODULE x.y;
+  CREATE PUBLIC VIEW view_public
+    OPTIONS (allowed_references="GLOBAL")
+    AS SELECT 1;
+  )";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->HasGlobalScopeObjects());
+
+  module_contents = R"(
+  MODULE x.y;
+  CREATE PRIVATE VIEW view_private
+    OPTIONS (allowed_references="GLOBAL")
+    AS SELECT 1;
+  )";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->HasGlobalScopeObjects());
+
+  module_contents = R"(
+  MODULE x.y;
+  CREATE PUBLIC PROCEDURE proc_public()
+    OPTIONS (allowed_references="GLOBAL")
+    BEGIN END;
+  )";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->HasGlobalScopeObjects());
+
+  module_contents = R"(
+  MODULE x.y;
+  CREATE PRIVATE PROCEDURE proc_private()
+    OPTIONS (allowed_references="GLOBAL")
+    BEGIN END;
+  )";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->HasGlobalScopeObjects());
+}
+
+TEST_F(ModuleTest, HasGlobalScopeCatalogReturnsTrueWithNonNullGlobalCatalog) {
+  // If `ModuleFactory` is created with a non-null global catalog,
+  // `HasGlobalScopeCatalog()` should return true.
+  std::string module_contents = R"(MODULE x.y;)";
+
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"x", "y"}, "module_alias", &module_contents));
+
+  EXPECT_TRUE(module_catalog()->HasGlobalScopeCatalog());
+}
+
+TEST_F(ModuleTest, HasGlobalScopeCatalogReturnsFalseWithNullGlobalCatalog) {
+  // If `ModuleFactory` is created with a null global catalog,
+  // `HasGlobalScopeCatalog()` should return false.
+  std::string module_contents = R"(MODULE x.y;)";
+  const std::vector<std::string> module_name = {"x", "y"};
+  auto module_factory_with_null_global_catalog =
+      std::make_unique<ModuleFactory>(
+          analyzer_options(), ModuleFactoryOptions{},
+          GetModuleContentsFetcher(module_name, &module_contents),
+          builtin_function_catalog(), /*global_catalog=*/nullptr,
+          type_factory());
+  ModuleCatalog* module_catalog = nullptr;
+
+  GOOGLESQL_ASSERT_OK(
+      module_factory_with_null_global_catalog->CreateOrReturnModuleCatalog(
+          module_name, &module_catalog));
+
+  EXPECT_FALSE(module_catalog->HasGlobalScopeCatalog());
 }
 
 TEST_F(ModuleTest, named_constant_is_added_to_catalog) {
@@ -1719,6 +1866,54 @@ TEST_F(ModuleTest, ViewsInModulesLanguageFeatureEnabled) {
   EXPECT_EQ(sql_view->sql_security(), SQLView::kSecurityInvoker);
 }
 
+TEST_F(ModuleTest, ViewsInModulesLanguageFeatureDisabled) {
+  DisableLanguageFeature(FEATURE_VIEWS_IN_MODULES);
+  const std::string module_contents = R"(MODULE m;
+  CREATE PUBLIC VIEW foo AS select 1 as bar, 2 as baz)";
+
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->module_errors().empty());
+
+  // Error is surfaced only when the view is referenced.
+  const Table* view;
+  absl::Status status = module_catalog()->FindTable({"foo"}, &view);
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("View foo is invalid")));
+  EXPECT_THAT(internal::StatusToString(status),
+              HasSubstr("CREATE VIEW statements are not supported in modules"));
+}
+
+TEST_F(ModuleTest, AppendModuleErrorsIncludesViewErrors) {
+  const std::string module_contents = R"(MODULE m;
+    CREATE PUBLIC VIEW v1 AS SELECT * FROM non_existent_table;
+    CREATE VIEW v2 as Select 1 a, 2 b;
+  )";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
+
+  std::vector<absl::Status> errors;
+  // Before resolution, only the syntactic error in View v2 is returned. CREATE
+  // statement for View v1 is valid and there is no error while creating the
+  // lazy object.
+  module_catalog()->AppendModuleErrors(/*include_nested_module_errors=*/false,
+                                       /*include_catalog_object_errors=*/true,
+                                       &errors);
+  EXPECT_THAT(errors[0], StatusIs(absl::StatusCode::kInvalidArgument,
+                                  HasSubstr("View v2 is invalid")));
+
+  // View v1 fails resolution. After resolution, errors in both v1 and v2 should
+  // be present.
+  module_catalog()->ResolveAllStatements();
+  errors.clear();
+  module_catalog()->AppendModuleErrors(/*include_nested_module_errors=*/false,
+                                       /*include_catalog_object_errors=*/true,
+                                       &errors);
+  EXPECT_THAT(errors.size(), 2);
+  EXPECT_THAT(errors[0], StatusIs(absl::StatusCode::kInvalidArgument,
+                                  HasSubstr("View v1 is invalid")));
+  EXPECT_THAT(errors[1], StatusIs(absl::StatusCode::kInvalidArgument,
+                                  HasSubstr("View v2 is invalid")));
+}
+
 TEST_F(ModuleTest, ProceduresInModulesLanguageFeatureEnabled) {
   const std::string module_contents =
       R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc(INOUT x INT64, y STRING) OPTIONS(allowed_references='GLOBAL') BEGIN END;)";
@@ -1804,21 +1999,49 @@ TEST_F(ModuleTest, ProcedureWithResolutionErrorIsRejected) {
   EXPECT_THAT(procedure, IsNull());
 }
 
-TEST_F(ModuleTest, ViewsInModulesLanguageFeatureDisabled) {
-  DisableLanguageFeature(FEATURE_VIEWS_IN_MODULES);
-  const std::string module_contents = R"(MODULE m;
-  CREATE PUBLIC VIEW foo AS select 1 as bar, 2 as baz)";
-
+TEST_F(ModuleTest, FindPrivateProcedureSuccess) {
+  const std::string module_contents =
+      R"(MODULE m; CREATE PRIVATE PROCEDURE my_proc() OPTIONS(allowed_references='GLOBAL') BEGIN END;)";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
   EXPECT_TRUE(module_catalog()->module_errors().empty());
+  const Procedure* procedure;
 
-  // Error is surfaced only when the view is referenced.
-  const Table* view;
-  absl::Status status = module_catalog()->FindTable({"foo"}, &view);
-  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("View foo is invalid")));
-  EXPECT_THAT(internal::StatusToString(status),
-              HasSubstr("CREATE VIEW statements are not supported in modules"));
+  absl::Status status =
+      module_catalog()->FindPrivateProcedure({"my_proc"}, &procedure);
+
+  ASSERT_THAT(procedure, NotNull());
+  EXPECT_EQ(procedure->Name(), "my_proc");
+  ASSERT_EQ(procedure->signature().arguments().size(), 0);
+}
+
+TEST_F(ModuleTest, FindPrivateProcedureUnableToFindPublicProcedure) {
+  const std::string module_contents =
+      R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc() OPTIONS(allowed_references='GLOBAL') BEGIN END;)";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->module_errors().empty());
+  const Procedure* procedure;
+
+  absl::Status status =
+      module_catalog()->FindPrivateProcedure({"my_proc"}, &procedure);
+
+  EXPECT_THAT(status,
+              StatusIs(absl::StatusCode::kNotFound,
+                       "Procedure not found: my_proc not found in catalog m"));
+}
+
+TEST_F(ModuleTest, FindPrivateProcedureWithNonExistentProcedure) {
+  const std::string module_contents = R"(MODULE m;)";
+  GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
+  EXPECT_TRUE(module_catalog()->module_errors().empty());
+  const Procedure* procedure;
+
+  absl::Status status =
+      module_catalog()->FindPrivateProcedure({"non_existent"}, &procedure);
+
+  EXPECT_THAT(
+      status,
+      StatusIs(absl::StatusCode::kNotFound,
+               "Procedure not found: non_existent not found in catalog m"));
 }
 
 TEST_F(ModuleTest, ProceduresInModulesLanguageFeatureDisabled) {
@@ -1841,7 +2064,7 @@ TEST_F(ModuleTest, ProceduresInModulesLanguageFeatureDisabled) {
 
 TEST_F(ModuleTest, ProcedureWithLanguageRemoteIsSupported) {
   const std::string module_contents =
-      R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc() OPTIONS(allowed_references='GLOBAL') LANGUAGE REMOTE;)";
+      R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc() LANGUAGE REMOTE;)";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
   EXPECT_TRUE(module_catalog()->module_errors().empty());
   const Procedure* procedure;
@@ -1853,7 +2076,7 @@ TEST_F(ModuleTest, ProcedureWithLanguageRemoteIsSupported) {
 
 TEST_F(ModuleTest, ProcedureWithUnsupportedLanguage) {
   const std::string module_contents =
-      R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc() OPTIONS(allowed_references='GLOBAL') LANGUAGE js;)";
+      R"(MODULE m; CREATE PUBLIC PROCEDURE my_proc() LANGUAGE js;)";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "module_alias", &module_contents));
   EXPECT_THAT(module_catalog()->module_errors(), IsEmpty());
   const Procedure* procedure;
@@ -1997,7 +2220,7 @@ Select * from foo;
 )";
   GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "alias", &module_contents));
 
-  // TODO: Fix GoogleSQL OSS error location output.
+  // TODO: Fix GoogleSQL error location output.
   const std::string unsupported_statement_error =
       "INVALID_ARGUMENT: Unsupported statement kind: QueryStatement "
       "[type.googleapis.com/googlesql.ErrorLocation='\\x08\\x08\\x10\\x01\\x1a"

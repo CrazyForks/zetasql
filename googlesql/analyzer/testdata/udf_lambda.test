@@ -1,0 +1,944 @@
+# Language feature not set.
+
+CREATE FUNCTION f_lang_feature_unset(p FUNCTION<INT64 -> BOOL>) AS (p(1));
+--
+ERROR: Function-typed arguments in UDFs are not supported [at 1:40]
+CREATE FUNCTION f_lang_feature_unset(p FUNCTION<INT64 -> BOOL>) AS (p(1));
+                                       ^
+==
+
+#####
+## Define functions with different types of lambda parameters.
+#####
+
+[default language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+WITH_EXPRESSION]
+
+[prepare_database=udf_db]
+
+# Create a function in udf_db.
+CREATE FUNCTION my_filter(p FUNCTION<INT64 -> BOOL>) AS (p(1));
+--
+CreateFunctionStmt
++-name_path=my_filter
++-return_type=BOOL
++-argument_name_list=[p]
++-signature=(FUNCTION<INT64->BOOL> p) -> BOOL
++-language="SQL"
++-code="p(1)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(INT64) -> BOOL)
+    +-Literal(type=INT64, value=1)
+==
+
+[prepare_database=udf_db]
+
+# Multiple function-typed parameters.
+create function f_multi_lambda_arg(p1 FUNCTION<INT64 -> INT64>, p2 FUNCTION<INT64 -> INT64>, x INT64) AS (p1(p2(x)));
+--
+CreateFunctionStmt
++-name_path=f_multi_lambda_arg
++-return_type=INT64
++-argument_name_list=[p1, p2, x]
++-signature=(FUNCTION<INT64->INT64> p1, FUNCTION<INT64->INT64> p2, INT64 x) -> INT64
++-language="SQL"
++-code="p1(p2(x))"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p1(INT64) -> INT64)
+    +-FunctionCall(FUNCTION_TYPED_PARAMETER:p2(INT64) -> INT64)
+      +-ArgumentRef(type=INT64, name="x")
+==
+
+[prepare_database=udf_db]
+
+# Function-typed parameter with multiple arguments.
+create function f_lambda_multi_arg(p FUNCTION<(INT64, INT64) -> INT64>, x INT64, y INT64) AS (p(x, y));
+--
+CreateFunctionStmt
++-name_path=f_lambda_multi_arg
++-return_type=INT64
++-argument_name_list=[p, x, y]
++-signature=(FUNCTION<(INT64, INT64)->INT64> p, INT64 x, INT64 y) -> INT64
++-language="SQL"
++-code="p(x, y)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(INT64, INT64) -> INT64)
+    +-ArgumentRef(type=INT64, name="x")
+    +-ArgumentRef(type=INT64, name="y")
+==
+
+[prepare_database=udf_db]
+
+# Function-typed parameter with no arguments.
+create function zero_lambda_arg(p FUNCTION<() -> INT64>) AS (p());
+--
+CreateFunctionStmt
++-name_path=zero_lambda_arg
++-return_type=INT64
++-argument_name_list=[p]
++-signature=(FUNCTION<()->INT64> p) -> INT64
++-language="SQL"
++-code="p()"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p() -> INT64)
+==
+
+[prepare_database=udf_db]
+
+# Create a function that calls a lambda parameter multiple times.
+create function call_twice(f FUNCTION<INT64 -> INT64>, x INT64) AS (f(f(x)));
+--
+CreateFunctionStmt
++-name_path=call_twice
++-return_type=INT64
++-argument_name_list=[f, x]
++-signature=(FUNCTION<INT64->INT64> f, INT64 x) -> INT64
++-language="SQL"
++-code="f(f(x))"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:f(INT64) -> INT64)
+    +-FunctionCall(FUNCTION_TYPED_PARAMETER:f(INT64) -> INT64)
+      +-ArgumentRef(type=INT64, name="x")
+==
+
+#####
+## Query that calls different variations of functions that take lambda parameters.
+#####
+
+[use_database=udf_db]
+
+SELECT my_filter(x-> x > 5),
+       f_multi_lambda_arg(x->x+10, x->x+20, 100),
+       f_lambda_multi_arg((x, y) -> 10*x + 5, 3, 4),
+       zero_lambda_arg(()->3),
+       call_twice(x -> x*3, 4);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#7 AS `$col1` [BOOL]
+| +-$query.$col2#8 AS `$col2` [INT64]
+| +-$query.$col3#9 AS `$col3` [INT64]
+| +-$query.$col4#10 AS `$col4` [INT64]
+| +-$query.$col5#11 AS `$col5` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#7, $col2#8, $col3#9, $col4#10, $col5#11]
+    +-expr_list=
+    | +-$col1#7 :=
+    | | +-FunctionCall(Lazy_resolution_function:my_filter(FUNCTION<INT64->BOOL> p) -> BOOL)
+    | |   +-FunctionArgument
+    | |     +-inline_lambda=
+    | |       +-InlineLambda
+    | |         +-argument_list=[$lambda_arg.x#1]
+    | |         +-body=
+    | |           +-FunctionCall(GoogleSQL:$greater(INT64, INT64) -> BOOL)
+    | |             +-ColumnRef(type=INT64, column=$lambda_arg.x#1)
+    | |             +-Literal(type=INT64, value=5)
+    | +-$col2#8 :=
+    | | +-FunctionCall(Lazy_resolution_function:f_multi_lambda_arg(FUNCTION<INT64->INT64> p1, FUNCTION<INT64->INT64> p2, INT64 x) -> INT64)
+    | |   +-FunctionArgument
+    | |   | +-inline_lambda=
+    | |   |   +-InlineLambda
+    | |   |     +-argument_list=[$lambda_arg.x#2]
+    | |   |     +-body=
+    | |   |       +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    | |   |         +-ColumnRef(type=INT64, column=$lambda_arg.x#2)
+    | |   |         +-Literal(type=INT64, value=10)
+    | |   +-FunctionArgument
+    | |   | +-inline_lambda=
+    | |   |   +-InlineLambda
+    | |   |     +-argument_list=[$lambda_arg.x#3]
+    | |   |     +-body=
+    | |   |       +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    | |   |         +-ColumnRef(type=INT64, column=$lambda_arg.x#3)
+    | |   |         +-Literal(type=INT64, value=20)
+    | |   +-FunctionArgument
+    | |     +-expr=
+    | |       +-Literal(type=INT64, value=100)
+    | +-$col3#9 :=
+    | | +-FunctionCall(Lazy_resolution_function:f_lambda_multi_arg(FUNCTION<(INT64, INT64)->INT64> p, INT64 x, INT64 y) -> INT64)
+    | |   +-FunctionArgument
+    | |   | +-inline_lambda=
+    | |   |   +-InlineLambda
+    | |   |     +-argument_list=$lambda_arg.[x#4, y#5]
+    | |   |     +-body=
+    | |   |       +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    | |   |         +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+    | |   |         | +-Literal(type=INT64, value=10)
+    | |   |         | +-ColumnRef(type=INT64, column=$lambda_arg.x#4)
+    | |   |         +-Literal(type=INT64, value=5)
+    | |   +-FunctionArgument
+    | |   | +-expr=
+    | |   |   +-Literal(type=INT64, value=3)
+    | |   +-FunctionArgument
+    | |     +-expr=
+    | |       +-Literal(type=INT64, value=4)
+    | +-$col4#10 :=
+    | | +-FunctionCall(Lazy_resolution_function:zero_lambda_arg(FUNCTION<()->INT64> p) -> INT64)
+    | |   +-FunctionArgument
+    | |     +-inline_lambda=
+    | |       +-InlineLambda
+    | |         +-argument_list=[]
+    | |         +-body=
+    | |           +-Literal(type=INT64, value=3)
+    | +-$col5#11 :=
+    |   +-FunctionCall(Lazy_resolution_function:call_twice(FUNCTION<INT64->INT64> f, INT64 x) -> INT64)
+    |     +-FunctionArgument
+    |     | +-inline_lambda=
+    |     |   +-InlineLambda
+    |     |     +-argument_list=[$lambda_arg.x#6]
+    |     |     +-body=
+    |     |       +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+    |     |         +-ColumnRef(type=INT64, column=$lambda_arg.x#6)
+    |     |         +-Literal(type=INT64, value=3)
+    |     +-FunctionArgument
+    |       +-expr=
+    |         +-Literal(type=INT64, value=4)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+#####
+## Lambdas shadow catalog functions
+#####
+
+# Here, 'abs' is a built-in function, but we use it as a parameter name.
+CREATE FUNCTION ShadowingTest(abs FUNCTION<INT64 -> INT64>, x INT64)
+AS (abs(x));
+--
+CreateFunctionStmt
++-name_path=ShadowingTest
++-return_type=INT64
++-argument_name_list=[abs, x]
++-signature=(FUNCTION<INT64->INT64> abs, INT64 x) -> INT64
++-language="SQL"
++-code="abs(x)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:abs(INT64) -> INT64)
+    +-ArgumentRef(type=INT64, name="x")
+==
+
+#####
+## Table definition for shadowing / name resolution tests.
+#####
+
+[prepare_database=udf_db]
+
+# Set up table for qualified column name shadowing test below.
+CREATE TABLE Table_with_f_column (f INT64);
+--
+CreateTableStmt
++-name_path=Table_with_f_column
++-column_definition_list=
+  +-ColumnDefinition(name="f", type=INT64, column=Table_with_f_column.f#1)
+==
+
+[use_database=udf_db]
+
+# Lambda parameter f shadows column f in table.
+
+CREATE TEMP FUNCTION Table_with_f_column_filter_unqualified (
+  f FUNCTION<INT64 -> BOOL>) AS (
+    (SELECT f FROM Table_with_f_column T
+    WHERE f(f))
+  );
+--
+CreateFunctionStmt
++-name_path=Table_with_f_column_filter_unqualified
++-create_scope=CREATE_TEMP
++-return_type=INT64
++-argument_name_list=[f]
++-signature=(FUNCTION<INT64->BOOL> f) -> INT64
++-language="SQL"
++-code="(SELECT f FROM Table_with_f_column T\n    WHERE f(f))"
++-function_expression=
+  +-SubqueryExpr
+    +-type=INT64
+    +-subquery_type=SCALAR
+    +-subquery=
+      +-ProjectScan
+        +-column_list=[Table_with_f_column.f#1]
+        +-input_scan=
+          +-FilterScan
+            +-column_list=[Table_with_f_column.f#1]
+            +-input_scan=
+            | +-TableScan(column_list=[Table_with_f_column.f#1], table=Table_with_f_column, column_index_list=[0], alias="T")
+            +-filter_expr=
+              +-FunctionCall(FUNCTION_TYPED_PARAMETER:f(INT64) -> BOOL)
+                +-ColumnRef(type=INT64, column=Table_with_f_column.f#1)
+==
+
+[use_database=udf_db]
+
+# Qualified column name T.f does not conflict with lambda parameter f.
+
+CREATE TEMP FUNCTION Table_with_f_column_filter_qualified (
+  f FUNCTION<INT64 -> BOOL>) AS (
+    (SELECT T.f FROM Table_with_f_column T
+    WHERE f(T.f))
+  );
+--
+CreateFunctionStmt
++-name_path=Table_with_f_column_filter_qualified
++-create_scope=CREATE_TEMP
++-return_type=INT64
++-argument_name_list=[f]
++-signature=(FUNCTION<INT64->BOOL> f) -> INT64
++-language="SQL"
++-code="(SELECT T.f FROM Table_with_f_column T\n    WHERE f(T.f))"
++-function_expression=
+  +-SubqueryExpr
+    +-type=INT64
+    +-subquery_type=SCALAR
+    +-subquery=
+      +-ProjectScan
+        +-column_list=[Table_with_f_column.f#1]
+        +-input_scan=
+          +-FilterScan
+            +-column_list=[Table_with_f_column.f#1]
+            +-input_scan=
+            | +-TableScan(column_list=[Table_with_f_column.f#1], table=Table_with_f_column, column_index_list=[0], alias="T")
+            +-filter_expr=
+              +-FunctionCall(FUNCTION_TYPED_PARAMETER:f(INT64) -> BOOL)
+                +-ColumnRef(type=INT64, column=Table_with_f_column.f#1)
+==
+
+#####
+## Lambda propagation
+#####
+
+[use_database=udf_db]
+# Create a function that passes its lambda parameter to my_filter.
+CREATE FUNCTION propagate_lambda(p FUNCTION<INT64 -> BOOL>) AS (my_filter(p));
+--
+CreateFunctionStmt
++-name_path=propagate_lambda
++-return_type=BOOL
++-argument_name_list=[p]
++-signature=(FUNCTION<INT64->BOOL> p) -> BOOL
++-language="SQL"
++-code="my_filter(p)"
++-function_expression=
+  +-FunctionCall(Lazy_resolution_function:my_filter(FUNCTION<INT64->BOOL> p) -> BOOL)
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:p, signature=(INT64) -> BOOL)
+==
+
+# Propagate a lambda twice (same lambda is passed as two different lambda args),
+# and also call the lambda in the same function.
+
+[use_database=udf_db]
+
+CREATE FUNCTION propagate_and_call_lambda(p FUNCTION<INT64 -> INT64>) AS (
+  f_multi_lambda_arg(p, p, p(10))
+);
+--
+CreateFunctionStmt
++-name_path=propagate_and_call_lambda
++-return_type=INT64
++-argument_name_list=[p]
++-signature=(FUNCTION<INT64->INT64> p) -> INT64
++-language="SQL"
++-code="f_multi_lambda_arg(p, p, p(10))"
++-function_expression=
+  +-FunctionCall(Lazy_resolution_function:f_multi_lambda_arg(FUNCTION<INT64->INT64> p1, FUNCTION<INT64->INT64> p2, INT64 x) -> INT64)
+    +-FunctionArgument
+    | +-function_ref=
+    |   +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:p, signature=(INT64) -> INT64)
+    +-FunctionArgument
+    | +-function_ref=
+    |   +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:p, signature=(INT64) -> INT64)
+    +-FunctionArgument
+      +-expr=
+        +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(INT64) -> INT64)
+          +-Literal(type=INT64, value=10)
+==
+
+# Check that parameter names are case-insensitive.
+create function f_param_case_insensitive(param_x FUNCTION<INT64 -> BOOL>) AS (PaRaM_X(1));
+--
+CreateFunctionStmt
++-name_path=f_param_case_insensitive
++-return_type=BOOL
++-argument_name_list=[param_x]
++-signature=(FUNCTION<INT64->BOOL> param_x) -> BOOL
++-language="SQL"
++-code="PaRaM_X(1)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:param_x(INT64) -> BOOL)
+    +-Literal(type=INT64, value=1)
+==
+
+# Case mismatch on transitive parameter call.
+# Declares parameter 'my_lambda' (lowercase) but body references 'MY_LAMBDA' (uppercase).
+# This should succeed because name resolution is case-insensitive,
+# and proxy lookup should be made case-insensitive.
+# Without the fix, this triggers a compiler crash (RET_CHECK failure).
+CREATE TEMP FUNCTION CaseMismatchPropagation(
+  my_lambda FUNCTION<INT64 -> INT64>) AS (
+    array_transform([1, 2], MY_LAMBDA)
+  );
+--
+CreateFunctionStmt
++-name_path=CaseMismatchPropagation
++-create_scope=CREATE_TEMP
++-return_type=ARRAY<INT64>
++-argument_name_list=[my_lambda]
++-signature=(FUNCTION<INT64->INT64> my_lambda) -> ARRAY<INT64>
++-language="SQL"
++-code="array_transform([1, 2], MY_LAMBDA)"
++-function_expression=
+  +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->INT64> transformation) -> ARRAY<INT64>)
+    +-FunctionArgument
+    | +-expr=
+    |   +-Literal(type=ARRAY<INT64>, value=[1, 2])
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:my_lambda, signature=(INT64) -> INT64)
+==
+
+# Catalog/Built-in Function Name Passing (Negative).
+# Verifies that passing a built-in function directly by name fails cleanly
+# with a name resolution error ("Table column or parameter not found").
+CREATE FUNCTION f_try_pass_builtin(arr ARRAY<INT64>) AS (array_transform(arr, abs));
+--
+ERROR: Unrecognized name: abs [at 1:79]
+...arr ARRAY<INT64>) AS (array_transform(arr, abs));
+                                              ^
+==
+
+# Propagation to Templated UDF (Positive).
+# Tests passing a lambda parameter transitively to a templated UDF,
+# verifying type inference works correctly.
+[prepare_database=udf_db_templated]
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+TEMPLATE_FUNCTIONS]
+CREATE FUNCTION templated_udf(x ANY TYPE, p FUNCTION<INT64 -> BOOL>) AS (p(x));
+--
+CreateFunctionStmt(name_path=templated_udf, return_type=STRUCT<>, argument_name_list=[x, p], signature=(ANY TYPE x, FUNCTION<INT64->BOOL> p) -> ANY TYPE, language="SQL", code="p(x)")
+==
+
+# Propagation to Templated UDF (Positive).
+[use_database=udf_db_templated]
+CREATE FUNCTION propagate_to_templated(f FUNCTION<INT64 -> BOOL>) AS (templated_udf(1, f));
+--
+CreateFunctionStmt
++-name_path=propagate_to_templated
++-return_type=BOOL
++-argument_name_list=[f]
++-signature=(FUNCTION<INT64->BOOL> f) -> BOOL
++-language="SQL"
++-code="templated_udf(1, f)"
++-function_expression=
+  +-FunctionCall(Templated_SQL_Function:templated_udf(INT64 x, FUNCTION<INT64->BOOL> p) -> BOOL)
+    +-FunctionArgument
+    | +-expr=
+    |   +-Literal(type=INT64, value=1)
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f, signature=(INT64) -> BOOL)
+
+With Templated SQL function call:
+  Templated_SQL_Function:templated_udf(INT64 x, FUNCTION<INT64->BOOL> p) -> BOOL
+containing resolved templated expression:
+FunctionCall(FUNCTION_TYPED_PARAMETER:p(INT64) -> BOOL)
++-ArgumentRef(type=INT64, name="x")
+==
+
+#####
+## Negative tests for mismatched lambda signatures
+#####
+
+# ERROR: Call lambda parameter with wrong argument type.
+create function f_wrong_arg(p FUNCTION<INT64 -> BOOL>) AS (p('abc'));
+--
+ERROR: No matching signature for function FUNCTION_TYPED_PARAMETER:P
+  Argument types: STRING
+  Signature: P(INT64)
+    Argument 1: Unable to coerce type STRING to expected type INT64 [at 1:60]
+create function f_wrong_arg(p FUNCTION<INT64 -> BOOL>) AS (p('abc'));
+                                                           ^
+==
+
+# ERROR: Call lambda parameter with wrong number of arguments.
+create function f_wrong_num_args(p FUNCTION<INT64 -> BOOL>) AS (p(1, 2));
+--
+ERROR: No matching signature for function FUNCTION_TYPED_PARAMETER:P
+  Argument types: INT64, INT64
+  Signature: P(INT64)
+    Signature accepts at most 1 argument, found 2 arguments [at 1:65]
+create function f_wrong_num_args(p FUNCTION<INT64 -> BOOL>) AS (p(1, 2));
+                                                                ^
+==
+
+[use_database=udf_db]
+
+# Call a function providing a lambda taking the wrong number of arguments.
+SELECT my_filter((x, y) -> x > y);
+--
+ERROR: No matching signature for function Lazy_resolution_function:my_filter
+  Argument types: LAMBDA
+  Signature: my_filter(FUNCTION<INT64->BOOL>)
+    Argument 1: lambda requires 1 arguments but 2 is provided [at 2:8]
+SELECT my_filter((x, y) -> x > y);
+       ^
+==
+
+#####
+## Disallowed features in lambdas
+#####
+
+# ERROR: Optional function-typed parameter is not supported.
+# TODO b/506944023 - Implement support for optional function-typed parameters.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+FUNCTION_ARGUMENTS_WITH_DEFAULTS]
+create function f_optional(p FUNCTION<INT64 -> INT64> DEFAULT NULL) AS (1);
+--
+ERROR: Function-typed arguments cannot have default values [at 1:63]
+create function f_optional(p FUNCTION<INT64 -> INT64> DEFAULT NULL) AS (1);
+                                                              ^
+==
+
+# ERROR: Argument to lambda itself cannot have a default.
+create function f_lambda_arg_default(p FUNCTION<INT64 DEFAULT 1 -> BOOL>) AS (1);
+--
+ERROR: Syntax error: Expected -> but got keyword DEFAULT [at 1:55]
+create function f_lambda_arg_default(p FUNCTION<INT64 DEFAULT 1 -> BOOL>) AS ...
+                                                      ^
+==
+
+# Templated function arguments (ANY TYPE) are not supported yet.
+create function f_any(p FUNCTION<ANY TYPE -> BOOL>) AS (1);
+--
+ERROR: Syntax error: Unexpected keyword ANY [at 1:34]
+create function f_any(p FUNCTION<ANY TYPE -> BOOL>) AS (1);
+                                 ^
+==
+
+# ERROR: Templated function arguments (ANY STRING) inside FUNCTION are not supported yet.
+create function f_lambda_any_string(p FUNCTION<ANY STRING -> BOOL>) AS (1);
+--
+ERROR: Syntax error: Unexpected keyword ANY [at 1:48]
+create function f_lambda_any_string(p FUNCTION<ANY STRING -> BOOL>) AS (1);
+                                               ^
+==
+
+# ERROR: Templated function arguments (ANY TABLE) inside FUNCTION are not supported yet.
+create function f_lambda_any_table(p FUNCTION<ANY TABLE -> BOOL>) AS (1);
+--
+ERROR: Syntax error: Unexpected keyword ANY [at 1:47]
+create function f_lambda_any_table(p FUNCTION<ANY TABLE -> BOOL>) AS (1);
+                                              ^
+==
+
+# Templated UDF taking a concrete lambda.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+TEMPLATE_FUNCTIONS]
+create function f_templated_lambda(x ANY TYPE, p FUNCTION<INT64 -> BOOL>) AS (p(1));
+--
+CreateFunctionStmt(name_path=f_templated_lambda, return_type=STRUCT<>, argument_name_list=[x, p], signature=(ANY TYPE x, FUNCTION<INT64->BOOL> p) -> ANY TYPE, language="SQL", code="p(1)")
+==
+
+# Templated UDF taking a concrete lambda with ANY STRING.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+TEMPLATE_FUNCTIONS,+ANY_STRING_TEMPLATED_ARGUMENT]
+create function f_templated_any_string_lambda(x ANY STRING, p FUNCTION<INT64 -> BOOL>) AS (p(1));
+--
+CreateFunctionStmt(name_path=f_templated_any_string_lambda, return_type=STRUCT<>, argument_name_list=[x, p], signature=(ANY STRING x, FUNCTION<INT64->BOOL> p) -> ANY TYPE, language="SQL", code="p(1)")
+==
+
+# ERROR: FUNCTION type in STRUCT (not supported).
+create function f_struct(s STRUCT<f FUNCTION<INT64 -> BOOL>>) AS (1);
+--
+ERROR: FUNCTION type not supported [at 1:37]
+create function f_struct(s STRUCT<f FUNCTION<INT64 -> BOOL>>) AS (1);
+                                    ^
+==
+
+# ERROR: FUNCTION type in ARRAY (not supported).
+create function f_array(a ARRAY<FUNCTION<INT64 -> BOOL>>) AS (1);
+--
+ERROR: FUNCTION type not supported [at 1:33]
+create function f_array(a ARRAY<FUNCTION<INT64 -> BOOL>>) AS (1);
+                                ^
+==
+
+# ERROR: FUNCTION as return type of a function (not supported).
+# Parser currently doesn't allow it because 'RETURNS type' doesn't expect FUNCTION.
+create function f_ret() RETURNS FUNCTION<INT64 -> BOOL> AS (x -> x > 0);
+--
+ERROR: Syntax error: Expected ")" but got "->" [at 1:63]
+create function f_ret() RETURNS FUNCTION<INT64 -> BOOL> AS (x -> x > 0);
+                                                              ^
+==
+
+# Nested function types.
+create function f_nested(p FUNCTION<FUNCTION<INT64 -> BOOL> -> BOOL>) AS (p(x -> x > 0));
+--
+ERROR: FUNCTION type not supported [at 1:37]
+create function f_nested(p FUNCTION<FUNCTION<INT64 -> BOOL> -> BOOL>) AS (p(x...
+                                    ^
+==
+
+# Test UDF with lambda parameter taking parameterized type STRING(5).
+# TODO b/http://b/506925234 - Implement support for type modifiers.
+create function f_str5(p FUNCTION<STRING(5) -> BOOL>) AS (p('abc'));
+--
+ERROR: Parameterized types are not supported in function arguments [at 1:41]
+create function f_str5(p FUNCTION<STRING(5) -> BOOL>) AS (p('abc'));
+                                        ^
+==
+
+#####
+## Disallowed funtion types
+#####
+
+# ERROR: Non-SQL functions cannot take lambda arguments.
+create function f_non_sql(p FUNCTION<INT64 -> BOOL>) RETURNS BOOL LANGUAGE testlang;
+--
+ERROR: Lambda arguments are only allowed in SQL functions [at 1:17]
+create function f_non_sql(p FUNCTION<INT64 -> BOOL>) RETURNS BOOL LANGUAGE te...
+                ^
+==
+
+# ERROR: Remote functions cannot take lambda arguments.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+REMOTE_FUNCTION]
+create function f_remote(p FUNCTION<INT64 -> BOOL>) RETURNS BOOL REMOTE;
+--
+ERROR: Lambda arguments are only allowed in SQL functions [at 1:17]
+create function f_remote(p FUNCTION<INT64 -> BOOL>) RETURNS BOOL REMOTE;
+                ^
+==
+
+# Not yet supported in TVFs
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+TEMPLATE_FUNCTIONS]
+
+create table function tvf1(f FUNCTION<INT64 -> INT64>)
+  returns table<x int64> as select f(1) x;
+--
+ERROR: Lambda arguments are not allowed in table-valued functions [at 1:23]
+create table function tvf1(f FUNCTION<INT64 -> INT64>)
+                      ^
+
+==
+
+# TVF taking ANY TABLE and a lambda.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+TEMPLATE_FUNCTIONS]
+create table function tvf_any_table_lambda(t ANY TABLE, f FUNCTION<INT64 -> INT64>)
+  returns table<x int64> as select f(1) x;
+--
+ERROR: Lambda arguments are not allowed in table-valued functions [at 1:23]
+create table function tvf_any_table_lambda(t ANY TABLE, f FUNCTION<INT64 -> I...
+                      ^
+==
+
+# ERROR: Non-SQL TVFs cannot take lambda arguments.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION]
+create table function tvf_non_sql(f FUNCTION<INT64 -> INT64>)
+  returns table<x int64> language testlang;
+--
+ERROR: Lambda arguments are not allowed in table-valued functions [at 1:23]
+create table function tvf_non_sql(f FUNCTION<INT64 -> INT64>)
+                      ^
+==
+
+# ERROR: Remote TVFs cannot take lambda arguments.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+REMOTE_FUNCTION]
+create table function tvf_remote(f FUNCTION<INT64 -> INT64>)
+  returns table<x int64> language remote;
+--
+ERROR: Lambda arguments are not allowed in table-valued functions [at 1:23]
+create table function tvf_remote(f FUNCTION<INT64 -> INT64>)
+                      ^
+==
+
+# Not yet supported in UDAs
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+CREATE_AGGREGATE_FUNCTION]
+create aggregate function uda1(f FUNCTION<INT64 -> BOOL>, x int64) AS (f(x));
+--
+ERROR: Lambda arguments are not allowed in aggregate functions [at 1:27]
+create aggregate function uda1(f FUNCTION<INT64 -> BOOL>, x int64) AS (f(x));
+                          ^
+==
+
+# ERROR: Non-SQL aggregate functions cannot take lambda arguments.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+CREATE_AGGREGATE_FUNCTION]
+create aggregate function uda_non_sql(f FUNCTION<INT64 -> BOOL>, x int64) RETURNS BOOL LANGUAGE testlang;
+--
+ERROR: Lambda arguments are not allowed in aggregate functions [at 1:27]
+create aggregate function uda_non_sql(f FUNCTION<INT64 -> BOOL>, x int64) RET...
+                          ^
+==
+
+# ERROR: Remote aggregate functions cannot take lambda arguments.
+[language_features=NONE,+UDF_LAMBDA_ARGUMENTS,+CREATE_AGGREGATE_FUNCTION,+REMOTE_FUNCTION]
+create aggregate function uda_remote(f FUNCTION<INT64 -> BOOL>, x int64) RETURNS BOOL REMOTE;
+--
+ERROR: Lambda arguments are not allowed in aggregate functions [at 1:27]
+create aggregate function uda_remote(f FUNCTION<INT64 -> BOOL>, x int64) RETU...
+                          ^
+==
+
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
+
+# Lambda called with a collation parameter.
+create function f_with_collation(p FUNCTION<STRING -> STRING>, s STRING) AS (p(COLLATE(s, 'und:ci')));
+
+--
+ERROR: Collation "und:ci" in return type of user-defined function body is not allowed [at 2:77]
+...p FUNCTION<STRING -> STRING>, s STRING) AS (p(COLLATE(s, 'und:ci')));
+                                              ^
+==
+
+#####
+## Collation tests
+#####
+
+[prepare_database=udf_db_collation]
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
+
+# Lambda called with a collation parameter, with type annotation on function argument enabled.
+# TODO b/512814252 - Add test for lambda returning a collation
+create function f_with_collation(p FUNCTION<STRING -> STRING>, s STRING) AS (p(COLLATE(s, 'und:ci')));
+
+--
+CreateFunctionStmt
++-name_path=f_with_collation
++-return_type=STRING
++-argument_name_list=[p, s]
++-signature=(FUNCTION<STRING->STRING> p, STRING s) -> STRING rejects_collation=TRUE
++-language="SQL"
++-code="p(COLLATE(s, 'und:ci'))"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(STRING) -> STRING)
+    +-type_annotation_map={Collation:"und:ci"}
+    +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(type=STRING, name="s")
+      +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+==
+
+[use_database=udf_db_collation]
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
+
+# Lambda returns collated string
+SELECT 'abc' = f_with_collation(s -> COLLATE(s, 'und:ci'), 'abc');
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+    |     +-Literal(type=STRING, value="abc")
+    |     +-FunctionCall(Lazy_resolution_function:f_with_collation(FUNCTION<STRING->STRING> p, STRING s) -> STRING)
+    |     | +-type_annotation_map={Collation:"und:ci"}
+    |     | +-FunctionArgument
+    |     | | +-inline_lambda=
+    |     | |   +-InlineLambda
+    |     | |     +-argument_list=[$lambda_arg.s#1]
+    |     | |     +-body=
+    |     | |       +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |     | |         +-type_annotation_map={Collation:"und:ci"}
+    |     | |         +-ColumnRef(type=STRING, column=$lambda_arg.s#1)
+    |     | |         +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |     | +-FunctionArgument
+    |     |   +-expr=
+    |     |     +-Literal(type=STRING, value="abc")
+    |     +-collation_list=[und:ci]
+    +-input_scan=
+      +-SingleRowScan
+==
+
+#####
+## SAFE prefix support
+#####
+
+# Test SAFE prefix on lambda parameter call.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+SAFE_FUNCTION_CALL]
+create function f_safe(p FUNCTION<INT64 -> INT64>) AS (SAFE.p(1));
+--
+CreateFunctionStmt
++-name_path=f_safe
++-return_type=INT64
++-argument_name_list=[p]
++-signature=(FUNCTION<INT64->INT64> p) -> INT64
++-language="SQL"
++-code="SAFE.p(1)"
++-function_expression=
+  +-FunctionCall({SAFE_ERROR_MODE} FUNCTION_TYPED_PARAMETER:p(INT64) -> INT64)
+    +-Literal(type=INT64, value=1)
+
+==
+
+# ERROR: SAFE prefix on lambda parameter call with FEATURE_SAFE_FUNCTION_CALL disabled.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS]
+create function f_safe_disabled(p FUNCTION<INT64 -> INT64>) AS (SAFE.p(1));
+--
+ERROR: Function calls with SAFE are not supported [at 1:65]
+create function f_safe_disabled(p FUNCTION<INT64 -> INT64>) AS (SAFE.p(1));
+                                                                ^
+==
+
+#####
+## Coercion tests
+#####
+
+# Test coercion of argument when calling lambda parameter.
+create function f_coerce_arg_call(p FUNCTION<DOUBLE -> INT64>) AS (p(1));
+--
+CreateFunctionStmt
++-name_path=f_coerce_arg_call
++-return_type=INT64
++-argument_name_list=[p]
++-signature=(FUNCTION<DOUBLE->INT64> p) -> INT64
++-language="SQL"
++-code="p(1)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(DOUBLE) -> INT64)
+    +-Literal(type=DOUBLE, value=1)
+==
+
+[use_database=udf_db]
+
+# Test lambda return type coercion (INT64 to DOUBLE).
+create function f_coerce_ret(p FUNCTION<INT64 -> DOUBLE>) AS (p(1));
+--
+CreateFunctionStmt
++-name_path=f_coerce_ret
++-return_type=DOUBLE
++-argument_name_list=[p]
++-signature=(FUNCTION<INT64->DOUBLE> p) -> DOUBLE
++-language="SQL"
++-code="p(1)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(INT64) -> DOUBLE)
+    +-Literal(type=INT64, value=1)
+==
+
+# Test invalid coercion of return value when calling lambda parameter (INT64 to STRING).
+create function f_invalid_coerce_ret_call(p FUNCTION<INT64 -> INT64>) RETURNS STRING AS (p(1));
+--
+ERROR: Function declared to return STRING but the function body produces incompatible type INT64 [at 1:90]
+...p FUNCTION<INT64 -> INT64>) RETURNS STRING AS (p(1));
+                                                  ^
+==
+
+[prepare_database=udf_db_coercion]
+
+# Test coercion of function types (invalid ).
+CREATE TEMP FUNCTION f_expects_double(p FUNCTION<DOUBLE -> BOOL>) AS (p(1.0));
+--
+CreateFunctionStmt
++-name_path=f_expects_double
++-create_scope=CREATE_TEMP
++-return_type=BOOL
++-argument_name_list=[p]
++-signature=(FUNCTION<DOUBLE->BOOL> p) -> BOOL
++-language="SQL"
++-code="p(1.0)"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:p(DOUBLE) -> BOOL)
+    +-Literal(type=DOUBLE, value=1)
+==
+
+[use_database=udf_db_coercion]
+
+# Test coercion of function types (invalid).
+# This requires coercing FUNCTION<INT64 -> BOOL> to FUNCTION<DOUBLE -> BOOL>.
+# We expect it to fail because GoogleSQL requires exact matches for function types.
+create function f_test_coercion(p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(p));
+--
+ERROR: Lambda argument type mismatch at index 0: expected DOUBLE, found INT64 [at 4:81]
+...p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(p));
+                                                   ^
+==
+
+# Test return type mismatch on propagation (invalid).
+# This requires matching FUNCTION<DOUBLE -> INT64> to FUNCTION<DOUBLE -> BOOL> (defined in f_expects_double).
+# We expect it to fail because GoogleSQL requires exact matches for function types.
+[use_database=udf_db_coercion]
+create function f_test_mismatched_return(p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(p));
+--
+ERROR: Lambda result type mismatch: expected BOOL, found INT64 [at 1:92]
+...p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(p));
+                                                     ^
+==
+
+# Test chained UDF lambda parameter calls.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+WITH_EXPRESSION,+CHAINED_FUNCTION_CALLS]
+create function chained_lambda_call(
+  x INT64,
+  arg_lambda FUNCTION<INT64 -> BOOL>,
+  other_lambda FUNCTION<BOOL -> BOOL>
+) AS (
+  (x).arg_lambda().other_lambda()
+);
+--
+CreateFunctionStmt
++-name_path=chained_lambda_call
++-return_type=BOOL
++-argument_name_list=[x, arg_lambda, other_lambda]
++-signature=(INT64 x, FUNCTION<INT64->BOOL> arg_lambda, FUNCTION<BOOL->BOOL> other_lambda) -> BOOL
++-language="SQL"
++-code="(x).arg_lambda().other_lambda()"
++-function_expression=
+  +-FunctionCall(FUNCTION_TYPED_PARAMETER:other_lambda(BOOL) -> BOOL)
+    +-FunctionCall(FUNCTION_TYPED_PARAMETER:arg_lambda(INT64) -> BOOL)
+      +-ArgumentRef(type=INT64, name="x")
+
+==
+
+#####
+## Call built-in functions that take lambdas with a function-typed argument.
+#####
+
+# Pass a function-typed parameter where a lambda is expected.
+create function PropagateTransform(arr array<int64>, f function<int64 -> bool>)
+as (array_transform(arr, f));
+--
+CreateFunctionStmt
++-name_path=PropagateTransform
++-return_type=ARRAY<BOOL>
++-argument_name_list=[arr, f]
++-signature=(ARRAY<INT64> arr, FUNCTION<INT64->BOOL> f) -> ARRAY<BOOL>
++-language="SQL"
++-code="array_transform(arr, f)"
++-function_expression=
+  +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->BOOL> transformation) -> ARRAY<BOOL>)
+    +-FunctionArgument
+    | +-expr=
+    |   +-ArgumentRef(type=ARRAY<INT64>, name="arr")
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f, signature=(INT64) -> BOOL)
+
+==
+
+# Multiple function-typed parameters passed where lambdas are expected.
+create function MultiPropagate(arr array<int64>, f1 function<int64 -> int64>, f2 function<int64 -> bool>)
+as (array_transform(array_transform(arr, f1), f2));
+--
+CreateFunctionStmt
++-name_path=MultiPropagate
++-return_type=ARRAY<BOOL>
++-argument_name_list=[arr, f1, f2]
++-signature=(ARRAY<INT64> arr, FUNCTION<INT64->INT64> f1, FUNCTION<INT64->BOOL> f2) -> ARRAY<BOOL>
++-language="SQL"
++-code="array_transform(array_transform(arr, f1), f2)"
++-function_expression=
+  +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->BOOL> transformation) -> ARRAY<BOOL>)
+    +-FunctionArgument
+    | +-expr=
+    |   +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->INT64> transformation) -> ARRAY<INT64>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-ArgumentRef(type=ARRAY<INT64>, name="arr")
+    |     +-FunctionArgument
+    |       +-function_ref=
+    |         +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f1, signature=(INT64) -> INT64)
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f2, signature=(INT64) -> BOOL)
+
+==
+

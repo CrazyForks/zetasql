@@ -1,0 +1,7 @@
+MODULE named_constant_referenced_by_tvf;
+
+CREATE PRIVATE CONSTANT bar = 1;
+
+CREATE PUBLIC TABLE FUNCTION tvf(a INT32) AS (SELECT bar - a AS foo);
+CREATE PUBLIC TABLE FUNCTION tvf_templated(a ANY TYPE)
+    AS (SELECT bar - a AS foo);

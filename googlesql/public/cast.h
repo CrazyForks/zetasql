@@ -154,6 +154,39 @@ inline absl::StatusOr<Value> CastStatusOrValue(
                    nullptr, canonicalize_zero);
 }
 
+// Returns true if the type is castable to JSON.
+bool IsTypeCastableToJson(const Type* from_type,
+                          const LanguageOptions& language_options);
+
+// Returns true if values of `type` can be coerced to JSON for equality
+// comparison. This function should return true iff for any given `T x`, `T y`,
+// `(x = y) <=> (CAST(x AS JSON) = CAST(y AS JSON))`.
+// Note that the equality comparison operators include:
+// =, <>, !=, IS [NOT] DISTINCT FROM, and IN.
+bool IsJsonCastEqualityPreserving(const Type* type);
+
+// Returns true if values of `type` can be coerced to JSON for ordering
+// comparison. This function should return true iff for any given `T x`, `T y`,
+// `(x < y) <=> (CAST(x AS JSON) < CAST(y AS JSON))`
+// Note that the ordering comparison operators include:
+// <, <=, >, >=, and BETWEEN.
+bool IsJsonCastOrderPreserving(const Type* type);
+
+// Returns CastFunctionProperty for casting from from_type to to_type if
+// supported by the language options, or nullptr otherwise.
+// If language_options is nullptr, unsupported `CastFunctionProperty` may be
+// returned.
+const CastFunctionProperty* GetCastProperty(
+    TypeKind from_type_kind, TypeKind to_type_kind,
+    const LanguageOptions* language_options);
+
+// Returns a hash map with TypeKindPair as key, and CastFunctionProperty as
+// value.  This identifies whether the (from, to) cast pairs in the key are
+// allowed explicitly, implicitly, etc., and what the cost is for the cast.
+// If a (from, to) pair is not in the map, then that cast is not allowed.
+// If language_options is nullptr, unsupported casts may be returned.
+CastHashMap GetCastPropertyMap(const LanguageOptions* language_options);
+
 class ExtendedCompositeCastEvaluator;
 
 namespace internal {  //   For internal use only
@@ -171,19 +204,13 @@ absl::StatusOr<Value> CastValueWithoutTypeValidation(
     const std::optional<std::string>& format,
     const std::optional<std::string>& time_zone,
     const ExtendedCompositeCastEvaluator* extended_conversion_evaluator,
-    bool canonicalize_zero);
+    bool canonicalize_zero, bool* out_found_non_deterministic = nullptr);
 
 // Returns a hash map with TypeKindPair as key, and CastFunctionProperty as
 // value.  This identifies whether the (from, to) cast pairs in the key are
 // allowed explicitly, implicitly, etc., and what the cost is for the cast.
 // If a (from, to) pair is not in the map, then that cast is not allowed.
 const CastHashMap& GetGoogleSQLCasts();
-
-// Returns a hash map with TypeKindPair as key, and FormatValidationFunc as
-// value. If a (from, to) pair is in the map, then a format string is allowed
-// for that cast. The corresponding validation function will be called to
-// validate the format string at analysis time.
-const CastFormatMap& GetCastFormatMap();
 
 }  // namespace internal
 

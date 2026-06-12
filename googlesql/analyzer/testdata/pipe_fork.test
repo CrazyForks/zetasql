@@ -13,7 +13,7 @@ ERROR: Pipe FORK not supported [at 2:1]
 # statement kinds are enabled.
 # TODO SQLBuilder doesn't work for pipe FORK yet.
 [default no_run_sqlbuilder]
-[default language_features=MAXIMUM,+PIPES,+PIPE_FORK,+PIPE_IF,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+WITH_ON_SUBQUERY,+PIPE_STATIC_DESCRIBE,+PIPE_CREATE_TABLE,+PIPE_EXPORT_DATA,+WITH_RECURSIVE,+PIPE_LOG]
+[default language_features=MAXIMUM,+PIPES,+PIPE_FORK,+PIPE_IF,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+WITH_ON_SUBQUERY,+PIPE_STATIC_DESCRIBE,+PIPE_CREATE_TABLE,+PIPE_EXPORT_DATA,+WITH_RECURSIVE,+PIPE_LOG,+PIPE_FINISH]
 [supported_statement_kinds={{QUERY|GENERALIZED_QUERY|QUERY,GENERALIZED_QUERY|INSERT}}]
 FROM KeyValue
 |> FORK ()
@@ -1985,3 +1985,78 @@ MultiStmt
         +-column_list=[KeyValue.Key#1]
         +-input_scan=
           +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$fork_cte_1")
+==
+
+FROM KeyValue
+|> FORK (
+     |> SELECT key+1
+     |> FINISH
+   ),
+   (
+     |> SELECT value
+     |> FINISH
+   )
+--
+GeneralizedQueryStmt
++-query=
+  +-PipeForkScan
+    +-input_scan=
+    | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+    +-subpipeline_list=
+      +-GeneralizedQuerySubpipeline
+      | +-subpipeline=
+      |   +-Subpipeline
+      |     +-scan=
+      |       +-FinishScan
+      |         +-input_scan=
+      |           +-ProjectScan
+      |             +-column_list=[$pipe_select.$col1#3]
+      |             +-expr_list=
+      |             | +-$col1#3 :=
+      |             |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+      |             |     +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+      |             |     +-Literal(type=INT64, value=1)
+      |             +-input_scan=
+      |               +-SubpipelineInputScan(column_list=KeyValue.[Key#1, Value#2])
+      +-GeneralizedQuerySubpipeline
+        +-subpipeline=
+          +-Subpipeline
+            +-scan=
+              +-FinishScan
+                +-input_scan=
+                  +-ProjectScan
+                    +-column_list=[KeyValue.Value#2]
+                    +-input_scan=
+                      +-SubpipelineInputScan(column_list=KeyValue.[Key#1, Value#2])
+
+
+[REWRITTEN AST]
+MultiStmt
++-statement_list=
+  +-CreateWithEntryStmt
+  | +-with_entry=
+  |   +-WithEntry
+  |     +-with_query_name="$fork_cte_1"
+  |     +-with_subquery=
+  |       +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+  +-TerminalQueryStmt
+  | +-query=
+  |   +-FinishScan
+  |     +-input_scan=
+  |       +-ProjectScan
+  |         +-column_list=[$pipe_select.$col1#3]
+  |         +-expr_list=
+  |         | +-$col1#3 :=
+  |         |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  |         |     +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+  |         |     +-Literal(type=INT64, value=1)
+  |         +-input_scan=
+  |           +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$fork_cte_1")
+  +-TerminalQueryStmt
+    +-query=
+      +-FinishScan
+        +-input_scan=
+          +-ProjectScan
+            +-column_list=[KeyValue.Value#2]
+            +-input_scan=
+              +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$fork_cte_1")

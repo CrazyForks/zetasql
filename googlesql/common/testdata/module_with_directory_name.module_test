@@ -1,0 +1,8 @@
+# This test imports a module whose import name matches a directory, where
+# the module file is inside that directory.
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.module_with_directory_name;
+--
+Lazy_resolution_function:fun1
+  (INT32 a) -> INT32

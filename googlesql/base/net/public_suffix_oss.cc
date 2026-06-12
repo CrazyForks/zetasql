@@ -15,8 +15,14 @@
 //
 
 #include "googlesql/base/net/public_suffix_oss.h"
+#include <cstddef>
+#include <string>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -24,8 +30,10 @@
 #include "absl/strings/string_view.h"
 #include "googlesql/base/logging.h"
 #include "googlesql/base/net/public_suffix_list_data.h"
+#include "unicode/bytestream.h"
 #include "unicode/errorcode.h"
 #include "unicode/idna.h"
+#include "unicode/uidna.h"
 
 namespace googlesql::internal {
 namespace {

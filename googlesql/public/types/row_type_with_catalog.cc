@@ -14,42 +14,44 @@
 // limitations under the License.
 //
 
+#include <any>
 #include <functional>
 #include <string>
 
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/types/row_type.h"
 #include "googlesql/public/types/type.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql {
 
-static Type::HasFieldResult TableHasColumn(const Table* table,
-                                           const std::string& name) {
-  if (table->GetColumnListMode() == Table::ColumnListMode::DEFAULT) {
+static absl::StatusOr<Type::HasFieldResult> TableHasColumn(
+    const Table& table, absl::string_view name, std::any* context) {
+  if (table.GetColumnListMode() == Table::ColumnListMode::DEFAULT) {
     // With non-lazy tables, we can check for columns cheaply and accurately.
-    const Column* column = table->FindColumnByName(name);
+    const Column* column = table.FindColumnByName(std::string(name));
     return column == nullptr ? Type::HAS_NO_FIELD : Type::HAS_FIELD;
   } else {
-    // For lazy-column tables, assume we always potentially have a field with
-    // that name.
-    // We'll resolve it or give errors at the point when the analyzer tries to
-    // actually use the field.
-    //
-    // This causes a few issues:
-    // * NameScopes assume that all column names exist, which means that in
-    //   queries with more than one table, all unqualified names look
-    //   ambiguous.
-    // * `SELECT * EXCEPT (name)` doesn't check that `name` actually exists.
-    //
-    // TODO Make this use FindLazyColumn so it works all tables.
-    // This requires propagating error handling through HasField callers.
-    return Type::HAS_FIELD;
+    absl::StatusOr<const Column*> find_result =
+        table.FindLazyColumn(name, context);
+    if (!find_result.ok()) {
+      // kNotFound can be used to indicate not found, other errors are returned.
+      if (absl::IsNotFound(find_result.status())) {
+        return Type::HAS_NO_FIELD;
+      }
+      return find_result.status();
+    }
+    // nullptr can be used to indicate not found.
+    return *find_result == nullptr ? Type::HAS_NO_FIELD : Type::HAS_FIELD;
   }
 }
 
 // This is the setter in row_type.cc used to install the callback.
 using HasColumnCallbackType =
-    std::function<Type::HasFieldResult(const Table*, const std::string&)>;
+    std::function<absl::StatusOr<Type::HasFieldResult>(
+        const Table&, absl::string_view, std::any*)>;
 void SetRowTypeHasColumnColumnCallback(HasColumnCallbackType callback);
 
 // Install callbacks to call Catalog methods.

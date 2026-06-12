@@ -2,9 +2,9 @@
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
-# GQL within SQL
+# Graphs within SQL
 
-GoogleSQL supports the following syntax to use GQL
+GoogleSQL supports the following syntax to use graphs
 within SQL queries.
 
 ## Language list
@@ -119,7 +119,8 @@ FROM GRAPH_TABLE(
 
 The following query produces an error because directly outputting the graph
 element `n` is not supported. Convert `n` to its JSON representation using the
-`SAFE_TO_JSON` for successful output.
+`SAFE_TO_JSON`
+function for successful output.
 
 ```googlesql {.bad}
 -- Error

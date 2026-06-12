@@ -1,0 +1,942 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+SELECT * FROM t
+UNPIVOT(x FOR q IN ({{|x,}} **cols {{|,y}}));
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-46] [SELECT * FROM...**cols ))]
+  Query [0-46] [SELECT * FROM...**cols ))]
+    Select [0-46] [SELECT * FROM...**cols ))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-46] [FROM t UNPIVOT...**cols ))]
+        TablePathExpression [14-46] [t UNPIVOT(...**cols ))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-46] [UNPIVOT(x FOR q IN ( **cols ))]
+            ExpressionList [24-25] [x]
+              PathExpression [24-25] [x]
+                Identifier(x) [24-25] [x]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-45] [( **cols )]
+              UnpivotInItem [37-43] [**cols]
+                ExpressionList [37-43] [**cols]
+                  UnpackExpression [37-43] [**cols]
+                    PathExpression [39-43] [cols]
+                      Identifier(cols) [39-43] [cols]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(x FOR q IN (** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-48] [SELECT * FROM...*cols ,y))]
+  Query [0-48] [SELECT * FROM...*cols ,y))]
+    Select [0-48] [SELECT * FROM...*cols ,y))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-48] [FROM t UNPIVOT...*cols ,y))]
+        TablePathExpression [14-48] [t UNPIVOT(...*cols ,y))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-48] [UNPIVOT(x...*cols ,y))]
+            ExpressionList [24-25] [x]
+              PathExpression [24-25] [x]
+                Identifier(x) [24-25] [x]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-47] [( **cols ,y)]
+              UnpivotInItem [37-43] [**cols]
+                ExpressionList [37-43] [**cols]
+                  UnpackExpression [37-43] [**cols]
+                    PathExpression [39-43] [cols]
+                      Identifier(cols) [39-43] [cols]
+              UnpivotInItem [45-46] [y]
+                ExpressionList [45-46] [y]
+                  PathExpression [45-46] [y]
+                    Identifier(y) [45-46] [y]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(x FOR q IN (** (cols), (y)))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-48] [SELECT * FROM...**cols ))]
+  Query [0-48] [SELECT * FROM...**cols ))]
+    Select [0-48] [SELECT * FROM...**cols ))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-48] [FROM t UNPIVOT...**cols ))]
+        TablePathExpression [14-48] [t UNPIVOT(...**cols ))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-48] [UNPIVOT(x...**cols ))]
+            ExpressionList [24-25] [x]
+              PathExpression [24-25] [x]
+                Identifier(x) [24-25] [x]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-47] [(x, **cols )]
+              UnpivotInItem [36-37] [x]
+                ExpressionList [36-37] [x]
+                  PathExpression [36-37] [x]
+                    Identifier(x) [36-37] [x]
+              UnpivotInItem [39-45] [**cols]
+                ExpressionList [39-45] [**cols]
+                  UnpackExpression [39-45] [**cols]
+                    PathExpression [41-45] [cols]
+                      Identifier(cols) [41-45] [cols]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(x FOR q IN ((x), ** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-50] [SELECT * FROM...*cols ,y))]
+  Query [0-50] [SELECT * FROM...*cols ,y))]
+    Select [0-50] [SELECT * FROM...*cols ,y))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-50] [FROM t UNPIVOT...*cols ,y))]
+        TablePathExpression [14-50] [t UNPIVOT(...*cols ,y))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-50] [UNPIVOT(x...*cols ,y))]
+            ExpressionList [24-25] [x]
+              PathExpression [24-25] [x]
+                Identifier(x) [24-25] [x]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-49] [(x, **cols ,y)]
+              UnpivotInItem [36-37] [x]
+                ExpressionList [36-37] [x]
+                  PathExpression [36-37] [x]
+                    Identifier(x) [36-37] [x]
+              UnpivotInItem [39-45] [**cols]
+                ExpressionList [39-45] [**cols]
+                  UnpackExpression [39-45] [**cols]
+                    PathExpression [41-45] [cols]
+                      Identifier(cols) [41-45] [cols]
+              UnpivotInItem [47-48] [y]
+                ExpressionList [47-48] [y]
+                  PathExpression [47-48] [y]
+                    Identifier(y) [47-48] [y]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(x FOR q IN ((x), ** (cols), (y)))
+==
+
+SELECT * FROM t
+UNPIVOT(s FOR q IN (**COLUMNS(['a', 'b']) as 'columns'));
+--
+ERROR: Syntax error: Expected ")" or "," but got keyword AS [at 2:43]
+UNPIVOT(s FOR q IN (**COLUMNS(['a', 'b']) as 'columns'));
+                                          ^
+
+==
+
+FROM t
+|> UNPIVOT(s FOR q IN ({{|x,}} **cols {{|,y}}));
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-40] [FROM t |>...**cols ))]
+  Query [0-40] [FROM t |>...**cols ))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-40] [|> UNPIVOT...**cols ))]
+      UnpivotClause [10-40] [UNPIVOT(s FOR q IN ( **cols ))]
+        ExpressionList [18-19] [s]
+          PathExpression [18-19] [s]
+            Identifier(s) [18-19] [s]
+        PathExpression [24-25] [q]
+          Identifier(q) [24-25] [q]
+        UnpivotInItemList [29-39] [( **cols )]
+          UnpivotInItem [31-37] [**cols]
+            ExpressionList [31-37] [**cols]
+              UnpackExpression [31-37] [**cols]
+                PathExpression [33-37] [cols]
+                  Identifier(cols) [33-37] [cols]
+--
+FROM
+  t
+|> UNPIVOT(s FOR q IN (** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-42] [FROM t |>...*cols ,y))]
+  Query [0-42] [FROM t |>...*cols ,y))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-42] [|> UNPIVOT...*cols ,y))]
+      UnpivotClause [10-42] [UNPIVOT(s...*cols ,y))]
+        ExpressionList [18-19] [s]
+          PathExpression [18-19] [s]
+            Identifier(s) [18-19] [s]
+        PathExpression [24-25] [q]
+          Identifier(q) [24-25] [q]
+        UnpivotInItemList [29-41] [( **cols ,y)]
+          UnpivotInItem [31-37] [**cols]
+            ExpressionList [31-37] [**cols]
+              UnpackExpression [31-37] [**cols]
+                PathExpression [33-37] [cols]
+                  Identifier(cols) [33-37] [cols]
+          UnpivotInItem [39-40] [y]
+            ExpressionList [39-40] [y]
+              PathExpression [39-40] [y]
+                Identifier(y) [39-40] [y]
+--
+FROM
+  t
+|> UNPIVOT(s FOR q IN (** (cols), (y)))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-42] [FROM t |>...**cols ))]
+  Query [0-42] [FROM t |>...**cols ))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-42] [|> UNPIVOT...**cols ))]
+      UnpivotClause [10-42] [UNPIVOT(s...**cols ))]
+        ExpressionList [18-19] [s]
+          PathExpression [18-19] [s]
+            Identifier(s) [18-19] [s]
+        PathExpression [24-25] [q]
+          Identifier(q) [24-25] [q]
+        UnpivotInItemList [29-41] [(x, **cols )]
+          UnpivotInItem [30-31] [x]
+            ExpressionList [30-31] [x]
+              PathExpression [30-31] [x]
+                Identifier(x) [30-31] [x]
+          UnpivotInItem [33-39] [**cols]
+            ExpressionList [33-39] [**cols]
+              UnpackExpression [33-39] [**cols]
+                PathExpression [35-39] [cols]
+                  Identifier(cols) [35-39] [cols]
+--
+FROM
+  t
+|> UNPIVOT(s FOR q IN ((x), ** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-44] [FROM t |>...*cols ,y))]
+  Query [0-44] [FROM t |>...*cols ,y))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-44] [|> UNPIVOT...*cols ,y))]
+      UnpivotClause [10-44] [UNPIVOT(s...*cols ,y))]
+        ExpressionList [18-19] [s]
+          PathExpression [18-19] [s]
+            Identifier(s) [18-19] [s]
+        PathExpression [24-25] [q]
+          Identifier(q) [24-25] [q]
+        UnpivotInItemList [29-43] [(x, **cols ,y)]
+          UnpivotInItem [30-31] [x]
+            ExpressionList [30-31] [x]
+              PathExpression [30-31] [x]
+                Identifier(x) [30-31] [x]
+          UnpivotInItem [33-39] [**cols]
+            ExpressionList [33-39] [**cols]
+              UnpackExpression [33-39] [**cols]
+                PathExpression [35-39] [cols]
+                  Identifier(cols) [35-39] [cols]
+          UnpivotInItem [41-42] [y]
+            ExpressionList [41-42] [y]
+              PathExpression [41-42] [y]
+                Identifier(y) [41-42] [y]
+--
+FROM
+  t
+|> UNPIVOT(s FOR q IN ((x), ** (cols), (y)))
+==
+
+SELECT * FROM t
+UNPIVOT(s FOR q IN (({{|x,}} **cols {{|,y}}) as 'columns'));
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-61] [SELECT * FROM...columns'))]
+  Query [0-61] [SELECT * FROM...columns'))]
+    Select [0-61] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-61] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-61] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-61] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-60] [(( **cols ) as 'columns')]
+              UnpivotInItem [36-59] [( **cols ) as 'columns']
+                ExpressionList [38-44] [**cols]
+                  UnpackExpression [38-44] [**cols]
+                    PathExpression [40-44] [cols]
+                      Identifier(cols) [40-44] [cols]
+                UnpivotInItemLabel [47-59] [as 'columns']
+                  StringLiteral [50-59] ['columns']
+                    StringLiteralComponent('columns') [50-59] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((** (cols)) AS 'columns'))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-63] [SELECT * FROM...columns'))]
+  Query [0-63] [SELECT * FROM...columns'))]
+    Select [0-63] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-63] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-63] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-63] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-62] [(( **cols ,y) as 'columns')]
+              UnpivotInItem [36-61] [( **cols ,y) as 'columns']
+                ExpressionList [38-47] [**cols ,y]
+                  UnpackExpression [38-44] [**cols]
+                    PathExpression [40-44] [cols]
+                      Identifier(cols) [40-44] [cols]
+                  PathExpression [46-47] [y]
+                    Identifier(y) [46-47] [y]
+                UnpivotInItemLabel [49-61] [as 'columns']
+                  StringLiteral [52-61] ['columns']
+                    StringLiteralComponent('columns') [52-61] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((** (cols), y) AS 'columns'))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-63] [SELECT * FROM...columns'))]
+  Query [0-63] [SELECT * FROM...columns'))]
+    Select [0-63] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-63] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-63] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-63] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-62] [((x, **cols ) as 'columns')]
+              UnpivotInItem [36-61] [(x, **cols ) as 'columns']
+                ExpressionList [37-46] [x, **cols]
+                  PathExpression [37-38] [x]
+                    Identifier(x) [37-38] [x]
+                  UnpackExpression [40-46] [**cols]
+                    PathExpression [42-46] [cols]
+                      Identifier(cols) [42-46] [cols]
+                UnpivotInItemLabel [49-61] [as 'columns']
+                  StringLiteral [52-61] ['columns']
+                    StringLiteralComponent('columns') [52-61] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((x, ** (cols)) AS 'columns'))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-65] [SELECT * FROM...columns'))]
+  Query [0-65] [SELECT * FROM...columns'))]
+    Select [0-65] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-65] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-65] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-65] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-64] [((x, **cols ,y) as 'columns')]
+              UnpivotInItem [36-63] [(x, **cols ,y) as 'columns']
+                ExpressionList [37-49] [x, **cols ,y]
+                  PathExpression [37-38] [x]
+                    Identifier(x) [37-38] [x]
+                  UnpackExpression [40-46] [**cols]
+                    PathExpression [42-46] [cols]
+                      Identifier(cols) [42-46] [cols]
+                  PathExpression [48-49] [y]
+                    Identifier(y) [48-49] [y]
+                UnpivotInItemLabel [51-63] [as 'columns']
+                  StringLiteral [54-63] ['columns']
+                    StringLiteralComponent('columns') [54-63] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((x, ** (cols), y) AS 'columns'))
+==
+
+SELECT * FROM t
+UNPIVOT(s FOR q IN (z, ({{|x,}} **cols {{|,y}}) as 'columns'));
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-64] [SELECT * FROM...columns'))]
+  Query [0-64] [SELECT * FROM...columns'))]
+    Select [0-64] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-64] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-64] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-64] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-63] [(z, ( **cols ) as 'columns')]
+              UnpivotInItem [36-37] [z]
+                ExpressionList [36-37] [z]
+                  PathExpression [36-37] [z]
+                    Identifier(z) [36-37] [z]
+              UnpivotInItem [39-62] [( **cols ) as 'columns']
+                ExpressionList [41-47] [**cols]
+                  UnpackExpression [41-47] [**cols]
+                    PathExpression [43-47] [cols]
+                      Identifier(cols) [43-47] [cols]
+                UnpivotInItemLabel [50-62] [as 'columns']
+                  StringLiteral [53-62] ['columns']
+                    StringLiteralComponent('columns') [53-62] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((z), (** (cols)) AS 'columns'))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-66] [SELECT * FROM...columns'))]
+  Query [0-66] [SELECT * FROM...columns'))]
+    Select [0-66] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-66] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-66] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-66] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-65] [(z, ( **cols ,y) as 'columns')]
+              UnpivotInItem [36-37] [z]
+                ExpressionList [36-37] [z]
+                  PathExpression [36-37] [z]
+                    Identifier(z) [36-37] [z]
+              UnpivotInItem [39-64] [( **cols ,y) as 'columns']
+                ExpressionList [41-50] [**cols ,y]
+                  UnpackExpression [41-47] [**cols]
+                    PathExpression [43-47] [cols]
+                      Identifier(cols) [43-47] [cols]
+                  PathExpression [49-50] [y]
+                    Identifier(y) [49-50] [y]
+                UnpivotInItemLabel [52-64] [as 'columns']
+                  StringLiteral [55-64] ['columns']
+                    StringLiteralComponent('columns') [55-64] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((z), (** (cols), y) AS 'columns'))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-66] [SELECT * FROM...columns'))]
+  Query [0-66] [SELECT * FROM...columns'))]
+    Select [0-66] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-66] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-66] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-66] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-65] [(z, (x, **cols ) as 'columns')]
+              UnpivotInItem [36-37] [z]
+                ExpressionList [36-37] [z]
+                  PathExpression [36-37] [z]
+                    Identifier(z) [36-37] [z]
+              UnpivotInItem [39-64] [(x, **cols ) as 'columns']
+                ExpressionList [40-49] [x, **cols]
+                  PathExpression [40-41] [x]
+                    Identifier(x) [40-41] [x]
+                  UnpackExpression [43-49] [**cols]
+                    PathExpression [45-49] [cols]
+                      Identifier(cols) [45-49] [cols]
+                UnpivotInItemLabel [52-64] [as 'columns']
+                  StringLiteral [55-64] ['columns']
+                    StringLiteralComponent('columns') [55-64] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((z), (x, ** (cols)) AS 'columns'))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-68] [SELECT * FROM...columns'))]
+  Query [0-68] [SELECT * FROM...columns'))]
+    Select [0-68] [SELECT * FROM...columns'))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-68] [FROM t UNPIVOT...columns'))]
+        TablePathExpression [14-68] [t UNPIVOT(...columns'))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-68] [UNPIVOT(s...columns'))]
+            ExpressionList [24-25] [s]
+              PathExpression [24-25] [s]
+                Identifier(s) [24-25] [s]
+            PathExpression [30-31] [q]
+              Identifier(q) [30-31] [q]
+            UnpivotInItemList [35-67] [(z, (x, **...'columns')]
+              UnpivotInItem [36-37] [z]
+                ExpressionList [36-37] [z]
+                  PathExpression [36-37] [z]
+                    Identifier(z) [36-37] [z]
+              UnpivotInItem [39-66] [(x, **cols ,y) as 'columns']
+                ExpressionList [40-52] [x, **cols ,y]
+                  PathExpression [40-41] [x]
+                    Identifier(x) [40-41] [x]
+                  UnpackExpression [43-49] [**cols]
+                    PathExpression [45-49] [cols]
+                      Identifier(cols) [45-49] [cols]
+                  PathExpression [51-52] [y]
+                    Identifier(y) [51-52] [y]
+                UnpivotInItemLabel [54-66] [as 'columns']
+                  StringLiteral [57-66] ['columns']
+                    StringLiteralComponent('columns') [57-66] ['columns']
+--
+SELECT
+  *
+FROM
+  t UNPIVOT(s FOR q IN ((z), (x, ** (cols), y) AS 'columns'))
+==
+
+SELECT * FROM t
+UNPIVOT((**cols) FOR q IN (Q0, Q1));
+
+--
+QueryStatement [0-51] [SELECT * FROM...(Q0, Q1))]
+  Query [0-51] [SELECT * FROM...(Q0, Q1))]
+    Select [0-51] [SELECT * FROM...(Q0, Q1))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-51] [FROM t UNPIVOT...(Q0, Q1))]
+        TablePathExpression [14-51] [t UNPIVOT(...(Q0, Q1))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-51] [UNPIVOT((*...(Q0, Q1))]
+            ExpressionList [25-31] [**cols]
+              UnpackExpression [25-31] [**cols]
+                PathExpression [27-31] [cols]
+                  Identifier(cols) [27-31] [cols]
+            PathExpression [37-38] [q]
+              Identifier(q) [37-38] [q]
+            UnpivotInItemList [42-50] [(Q0, Q1)]
+              UnpivotInItem [43-45] [Q0]
+                ExpressionList [43-45] [Q0]
+                  PathExpression [43-45] [Q0]
+                    Identifier(Q0) [43-45] [Q0]
+              UnpivotInItem [47-49] [Q1]
+                ExpressionList [47-49] [Q1]
+                  PathExpression [47-49] [Q1]
+                    Identifier(Q1) [47-49] [Q1]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT((** (cols)) FOR q IN ((Q0), (Q1)))
+==
+
+SELECT * FROM t
+UNPIVOT(({{|x,}} **cols {{|,y}}) FOR q IN (Q0, Q1));
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-53] [SELECT * FROM...(Q0, Q1))]
+  Query [0-53] [SELECT * FROM...(Q0, Q1))]
+    Select [0-53] [SELECT * FROM...(Q0, Q1))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-53] [FROM t UNPIVOT...(Q0, Q1))]
+        TablePathExpression [14-53] [t UNPIVOT(...(Q0, Q1))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-53] [UNPIVOT((...(Q0, Q1))]
+            ExpressionList [26-32] [**cols]
+              UnpackExpression [26-32] [**cols]
+                PathExpression [28-32] [cols]
+                  Identifier(cols) [28-32] [cols]
+            PathExpression [39-40] [q]
+              Identifier(q) [39-40] [q]
+            UnpivotInItemList [44-52] [(Q0, Q1)]
+              UnpivotInItem [45-47] [Q0]
+                ExpressionList [45-47] [Q0]
+                  PathExpression [45-47] [Q0]
+                    Identifier(Q0) [45-47] [Q0]
+              UnpivotInItem [49-51] [Q1]
+                ExpressionList [49-51] [Q1]
+                  PathExpression [49-51] [Q1]
+                    Identifier(Q1) [49-51] [Q1]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT((** (cols)) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-55] [SELECT * FROM...(Q0, Q1))]
+  Query [0-55] [SELECT * FROM...(Q0, Q1))]
+    Select [0-55] [SELECT * FROM...(Q0, Q1))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-55] [FROM t UNPIVOT...(Q0, Q1))]
+        TablePathExpression [14-55] [t UNPIVOT(...(Q0, Q1))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-55] [UNPIVOT((...(Q0, Q1))]
+            ExpressionList [26-35] [**cols ,y]
+              UnpackExpression [26-32] [**cols]
+                PathExpression [28-32] [cols]
+                  Identifier(cols) [28-32] [cols]
+              PathExpression [34-35] [y]
+                Identifier(y) [34-35] [y]
+            PathExpression [41-42] [q]
+              Identifier(q) [41-42] [q]
+            UnpivotInItemList [46-54] [(Q0, Q1)]
+              UnpivotInItem [47-49] [Q0]
+                ExpressionList [47-49] [Q0]
+                  PathExpression [47-49] [Q0]
+                    Identifier(Q0) [47-49] [Q0]
+              UnpivotInItem [51-53] [Q1]
+                ExpressionList [51-53] [Q1]
+                  PathExpression [51-53] [Q1]
+                    Identifier(Q1) [51-53] [Q1]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT((** (cols), y) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-55] [SELECT * FROM...(Q0, Q1))]
+  Query [0-55] [SELECT * FROM...(Q0, Q1))]
+    Select [0-55] [SELECT * FROM...(Q0, Q1))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-55] [FROM t UNPIVOT...(Q0, Q1))]
+        TablePathExpression [14-55] [t UNPIVOT(...(Q0, Q1))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-55] [UNPIVOT((x...(Q0, Q1))]
+            ExpressionList [25-34] [x, **cols]
+              PathExpression [25-26] [x]
+                Identifier(x) [25-26] [x]
+              UnpackExpression [28-34] [**cols]
+                PathExpression [30-34] [cols]
+                  Identifier(cols) [30-34] [cols]
+            PathExpression [41-42] [q]
+              Identifier(q) [41-42] [q]
+            UnpivotInItemList [46-54] [(Q0, Q1)]
+              UnpivotInItem [47-49] [Q0]
+                ExpressionList [47-49] [Q0]
+                  PathExpression [47-49] [Q0]
+                    Identifier(Q0) [47-49] [Q0]
+              UnpivotInItem [51-53] [Q1]
+                ExpressionList [51-53] [Q1]
+                  PathExpression [51-53] [Q1]
+                    Identifier(Q1) [51-53] [Q1]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT((x, ** (cols)) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-57] [SELECT * FROM...(Q0, Q1))]
+  Query [0-57] [SELECT * FROM...(Q0, Q1))]
+    Select [0-57] [SELECT * FROM...(Q0, Q1))]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-57] [FROM t UNPIVOT...(Q0, Q1))]
+        TablePathExpression [14-57] [t UNPIVOT(...(Q0, Q1))]
+          PathExpression [14-15] [t]
+            Identifier(t) [14-15] [t]
+          UnpivotClause [16-57] [UNPIVOT((x...(Q0, Q1))]
+            ExpressionList [25-37] [x, **cols ,y]
+              PathExpression [25-26] [x]
+                Identifier(x) [25-26] [x]
+              UnpackExpression [28-34] [**cols]
+                PathExpression [30-34] [cols]
+                  Identifier(cols) [30-34] [cols]
+              PathExpression [36-37] [y]
+                Identifier(y) [36-37] [y]
+            PathExpression [43-44] [q]
+              Identifier(q) [43-44] [q]
+            UnpivotInItemList [48-56] [(Q0, Q1)]
+              UnpivotInItem [49-51] [Q0]
+                ExpressionList [49-51] [Q0]
+                  PathExpression [49-51] [Q0]
+                    Identifier(Q0) [49-51] [Q0]
+              UnpivotInItem [53-55] [Q1]
+                ExpressionList [53-55] [Q1]
+                  PathExpression [53-55] [Q1]
+                    Identifier(Q1) [53-55] [Q1]
+--
+SELECT
+  *
+FROM
+  t UNPIVOT((x, ** (cols), y) FOR q IN ((Q0), (Q1)))
+==
+
+FROM t
+|> UNPIVOT((**cols) FOR q IN (Q0, Q1));
+
+--
+QueryStatement [0-45] [FROM t |>...(Q0, Q1))]
+  Query [0-45] [FROM t |>...(Q0, Q1))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-45] [|> UNPIVOT...(Q0, Q1))]
+      UnpivotClause [10-45] [UNPIVOT((*...(Q0, Q1))]
+        ExpressionList [19-25] [**cols]
+          UnpackExpression [19-25] [**cols]
+            PathExpression [21-25] [cols]
+              Identifier(cols) [21-25] [cols]
+        PathExpression [31-32] [q]
+          Identifier(q) [31-32] [q]
+        UnpivotInItemList [36-44] [(Q0, Q1)]
+          UnpivotInItem [37-39] [Q0]
+            ExpressionList [37-39] [Q0]
+              PathExpression [37-39] [Q0]
+                Identifier(Q0) [37-39] [Q0]
+          UnpivotInItem [41-43] [Q1]
+            ExpressionList [41-43] [Q1]
+              PathExpression [41-43] [Q1]
+                Identifier(Q1) [41-43] [Q1]
+--
+FROM
+  t
+|> UNPIVOT((** (cols)) FOR q IN ((Q0), (Q1)))
+==
+
+FROM t
+|> UNPIVOT(({{|x,}} **cols {{|,y}}) FOR q IN (Q0, Q1));
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-47] [FROM t |>...(Q0, Q1))]
+  Query [0-47] [FROM t |>...(Q0, Q1))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-47] [|> UNPIVOT...(Q0, Q1))]
+      UnpivotClause [10-47] [UNPIVOT((...(Q0, Q1))]
+        ExpressionList [20-26] [**cols]
+          UnpackExpression [20-26] [**cols]
+            PathExpression [22-26] [cols]
+              Identifier(cols) [22-26] [cols]
+        PathExpression [33-34] [q]
+          Identifier(q) [33-34] [q]
+        UnpivotInItemList [38-46] [(Q0, Q1)]
+          UnpivotInItem [39-41] [Q0]
+            ExpressionList [39-41] [Q0]
+              PathExpression [39-41] [Q0]
+                Identifier(Q0) [39-41] [Q0]
+          UnpivotInItem [43-45] [Q1]
+            ExpressionList [43-45] [Q1]
+              PathExpression [43-45] [Q1]
+                Identifier(Q1) [43-45] [Q1]
+--
+FROM
+  t
+|> UNPIVOT((** (cols)) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-49] [FROM t |>...(Q0, Q1))]
+  Query [0-49] [FROM t |>...(Q0, Q1))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-49] [|> UNPIVOT...(Q0, Q1))]
+      UnpivotClause [10-49] [UNPIVOT((...(Q0, Q1))]
+        ExpressionList [20-29] [**cols ,y]
+          UnpackExpression [20-26] [**cols]
+            PathExpression [22-26] [cols]
+              Identifier(cols) [22-26] [cols]
+          PathExpression [28-29] [y]
+            Identifier(y) [28-29] [y]
+        PathExpression [35-36] [q]
+          Identifier(q) [35-36] [q]
+        UnpivotInItemList [40-48] [(Q0, Q1)]
+          UnpivotInItem [41-43] [Q0]
+            ExpressionList [41-43] [Q0]
+              PathExpression [41-43] [Q0]
+                Identifier(Q0) [41-43] [Q0]
+          UnpivotInItem [45-47] [Q1]
+            ExpressionList [45-47] [Q1]
+              PathExpression [45-47] [Q1]
+                Identifier(Q1) [45-47] [Q1]
+--
+FROM
+  t
+|> UNPIVOT((** (cols), y) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-49] [FROM t |>...(Q0, Q1))]
+  Query [0-49] [FROM t |>...(Q0, Q1))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-49] [|> UNPIVOT...(Q0, Q1))]
+      UnpivotClause [10-49] [UNPIVOT((x...(Q0, Q1))]
+        ExpressionList [19-28] [x, **cols]
+          PathExpression [19-20] [x]
+            Identifier(x) [19-20] [x]
+          UnpackExpression [22-28] [**cols]
+            PathExpression [24-28] [cols]
+              Identifier(cols) [24-28] [cols]
+        PathExpression [35-36] [q]
+          Identifier(q) [35-36] [q]
+        UnpivotInItemList [40-48] [(Q0, Q1)]
+          UnpivotInItem [41-43] [Q0]
+            ExpressionList [41-43] [Q0]
+              PathExpression [41-43] [Q0]
+                Identifier(Q0) [41-43] [Q0]
+          UnpivotInItem [45-47] [Q1]
+            ExpressionList [45-47] [Q1]
+              PathExpression [45-47] [Q1]
+                Identifier(Q1) [45-47] [Q1]
+--
+FROM
+  t
+|> UNPIVOT((x, ** (cols)) FOR q IN ((Q0), (Q1)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-51] [FROM t |>...(Q0, Q1))]
+  Query [0-51] [FROM t |>...(Q0, Q1))]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeUnpivot [7-51] [|> UNPIVOT...(Q0, Q1))]
+      UnpivotClause [10-51] [UNPIVOT((x...(Q0, Q1))]
+        ExpressionList [19-31] [x, **cols ,y]
+          PathExpression [19-20] [x]
+            Identifier(x) [19-20] [x]
+          UnpackExpression [22-28] [**cols]
+            PathExpression [24-28] [cols]
+              Identifier(cols) [24-28] [cols]
+          PathExpression [30-31] [y]
+            Identifier(y) [30-31] [y]
+        PathExpression [37-38] [q]
+          Identifier(q) [37-38] [q]
+        UnpivotInItemList [42-50] [(Q0, Q1)]
+          UnpivotInItem [43-45] [Q0]
+            ExpressionList [43-45] [Q0]
+              PathExpression [43-45] [Q0]
+                Identifier(Q0) [43-45] [Q0]
+          UnpivotInItem [47-49] [Q1]
+            ExpressionList [47-49] [Q1]
+              PathExpression [47-49] [Q1]
+                Identifier(Q1) [47-49] [Q1]
+--
+FROM
+  t
+|> UNPIVOT((x, ** (cols), y) FOR q IN ((Q0), (Q1)))

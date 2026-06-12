@@ -41,8 +41,11 @@
 #ifndef THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_FLAT_SET_H_
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_FLAT_SET_H_
 
+#include <cstddef>
 #include <functional>
 #include <initializer_list>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/meta/type_traits.h"

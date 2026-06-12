@@ -1,0 +1,228 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+select * EXCEPT ({{|x,}} **cols {{|,y}})
+from Foo;
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-35] [select * EXCEPT...) from Foo]
+  Query [0-35] [select * EXCEPT...) from Foo]
+    Select [0-35] [select * EXCEPT...) from Foo]
+      SelectList [7-26] [* EXCEPT ( **cols )]
+        SelectColumn [7-26] [* EXCEPT ( **cols )]
+          StarWithModifiers [7-26] [* EXCEPT ( **cols )]
+            StarModifiers [9-26] [EXCEPT ( **cols )]
+              StarExceptList [9-26] [EXCEPT ( **cols )]
+                ExpressionList [16-26] [( **cols )]
+                  UnpackExpression [18-24] [**cols]
+                    PathExpression [20-24] [cols]
+                      Identifier(cols) [20-24] [cols]
+      FromClause [27-35] [from Foo]
+        TablePathExpression [32-35] [Foo]
+          PathExpression [32-35] [Foo]
+            Identifier(Foo) [32-35] [Foo]
+--
+SELECT
+  * EXCEPT (** (cols))
+FROM
+  Foo
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-37] [select * EXCEPT...) from Foo]
+  Query [0-37] [select * EXCEPT...) from Foo]
+    Select [0-37] [select * EXCEPT...) from Foo]
+      SelectList [7-28] [* EXCEPT ( **cols ,y)]
+        SelectColumn [7-28] [* EXCEPT ( **cols ,y)]
+          StarWithModifiers [7-28] [* EXCEPT ( **cols ,y)]
+            StarModifiers [9-28] [EXCEPT ( **cols ,y)]
+              StarExceptList [9-28] [EXCEPT ( **cols ,y)]
+                ExpressionList [16-28] [( **cols ,y)]
+                  UnpackExpression [18-24] [**cols]
+                    PathExpression [20-24] [cols]
+                      Identifier(cols) [20-24] [cols]
+                  Identifier(y) [26-27] [y]
+      FromClause [29-37] [from Foo]
+        TablePathExpression [34-37] [Foo]
+          PathExpression [34-37] [Foo]
+            Identifier(Foo) [34-37] [Foo]
+--
+SELECT
+  * EXCEPT (** (cols), y)
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-37] [select * EXCEPT...) from Foo]
+  Query [0-37] [select * EXCEPT...) from Foo]
+    Select [0-37] [select * EXCEPT...) from Foo]
+      SelectList [7-28] [* EXCEPT (x, **cols )]
+        SelectColumn [7-28] [* EXCEPT (x, **cols )]
+          StarWithModifiers [7-28] [* EXCEPT (x, **cols )]
+            StarModifiers [9-28] [EXCEPT (x, **cols )]
+              StarExceptList [9-28] [EXCEPT (x, **cols )]
+                ExpressionList [16-28] [(x, **cols )]
+                  Identifier(x) [17-18] [x]
+                  UnpackExpression [20-26] [**cols]
+                    PathExpression [22-26] [cols]
+                      Identifier(cols) [22-26] [cols]
+      FromClause [29-37] [from Foo]
+        TablePathExpression [34-37] [Foo]
+          PathExpression [34-37] [Foo]
+            Identifier(Foo) [34-37] [Foo]
+--
+SELECT
+  * EXCEPT (x, ** (cols))
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-39] [select * EXCEPT...) from Foo]
+  Query [0-39] [select * EXCEPT...) from Foo]
+    Select [0-39] [select * EXCEPT...) from Foo]
+      SelectList [7-30] [* EXCEPT (x, **cols ,y)]
+        SelectColumn [7-30] [* EXCEPT (x, **cols ,y)]
+          StarWithModifiers [7-30] [* EXCEPT (x, **cols ,y)]
+            StarModifiers [9-30] [EXCEPT (x, **cols ,y)]
+              StarExceptList [9-30] [EXCEPT (x, **cols ,y)]
+                ExpressionList [16-30] [(x, **cols ,y)]
+                  Identifier(x) [17-18] [x]
+                  UnpackExpression [20-26] [**cols]
+                    PathExpression [22-26] [cols]
+                      Identifier(cols) [22-26] [cols]
+                  Identifier(y) [28-29] [y]
+      FromClause [31-39] [from Foo]
+        TablePathExpression [36-39] [Foo]
+          PathExpression [36-39] [Foo]
+            Identifier(Foo) [36-39] [Foo]
+--
+SELECT
+  * EXCEPT (x, ** (cols), y)
+FROM
+  Foo
+==
+
+from Foo
+|> select * EXCEPT ({{|x,}} **cols {{|,y}});
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-38] [from Foo |...( **cols )]
+  Query [0-38] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-38] [|> select * EXCEPT ( **cols )]
+      Select [12-38] [select * EXCEPT ( **cols )]
+        SelectList [19-38] [* EXCEPT ( **cols )]
+          SelectColumn [19-38] [* EXCEPT ( **cols )]
+            StarWithModifiers [19-38] [* EXCEPT ( **cols )]
+              StarModifiers [21-38] [EXCEPT ( **cols )]
+                StarExceptList [21-38] [EXCEPT ( **cols )]
+                  ExpressionList [28-38] [( **cols )]
+                    UnpackExpression [30-36] [**cols]
+                      PathExpression [32-36] [cols]
+                        Identifier(cols) [32-36] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     * EXCEPT (** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-40] [from Foo |...**cols ,y)]
+  Query [0-40] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-40] [|> select...**cols ,y)]
+      Select [12-40] [select * EXCEPT ( **cols ,y)]
+        SelectList [19-40] [* EXCEPT ( **cols ,y)]
+          SelectColumn [19-40] [* EXCEPT ( **cols ,y)]
+            StarWithModifiers [19-40] [* EXCEPT ( **cols ,y)]
+              StarModifiers [21-40] [EXCEPT ( **cols ,y)]
+                StarExceptList [21-40] [EXCEPT ( **cols ,y)]
+                  ExpressionList [28-40] [( **cols ,y)]
+                    UnpackExpression [30-36] [**cols]
+                      PathExpression [32-36] [cols]
+                        Identifier(cols) [32-36] [cols]
+                    Identifier(y) [38-39] [y]
+--
+FROM
+  Foo
+|> SELECT
+     * EXCEPT (** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-40] [from Foo |..., **cols )]
+  Query [0-40] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-40] [|> select..., **cols )]
+      Select [12-40] [select * EXCEPT (x, **cols )]
+        SelectList [19-40] [* EXCEPT (x, **cols )]
+          SelectColumn [19-40] [* EXCEPT (x, **cols )]
+            StarWithModifiers [19-40] [* EXCEPT (x, **cols )]
+              StarModifiers [21-40] [EXCEPT (x, **cols )]
+                StarExceptList [21-40] [EXCEPT (x, **cols )]
+                  ExpressionList [28-40] [(x, **cols )]
+                    Identifier(x) [29-30] [x]
+                    UnpackExpression [32-38] [**cols]
+                      PathExpression [34-38] [cols]
+                        Identifier(cols) [34-38] [cols]
+--
+FROM
+  Foo
+|> SELECT
+     * EXCEPT (x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-42] [from Foo |...**cols ,y)]
+  Query [0-42] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-42] [|> select...**cols ,y)]
+      Select [12-42] [select * EXCEPT (x, **cols ,y)]
+        SelectList [19-42] [* EXCEPT (x, **cols ,y)]
+          SelectColumn [19-42] [* EXCEPT (x, **cols ,y)]
+            StarWithModifiers [19-42] [* EXCEPT (x, **cols ,y)]
+              StarModifiers [21-42] [EXCEPT (x, **cols ,y)]
+                StarExceptList [21-42] [EXCEPT (x, **cols ,y)]
+                  ExpressionList [28-42] [(x, **cols ,y)]
+                    Identifier(x) [29-30] [x]
+                    UnpackExpression [32-38] [**cols]
+                      PathExpression [34-38] [cols]
+                        Identifier(cols) [34-38] [cols]
+                    Identifier(y) [40-41] [y]
+--
+FROM
+  Foo
+|> SELECT
+     * EXCEPT (x, ** (cols), y)
+
+==
+
+select * EXCEPT ((**cols))
+from Foo;
+--
+ERROR: Syntax error: Unexpected "(" [at 1:18]
+select * EXCEPT ((**cols))
+                 ^

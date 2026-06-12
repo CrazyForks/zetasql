@@ -300,5 +300,13 @@ TEST_F(UuidValueTest, SerializeUuidOrdersSameAsUuidValue) {
   TestSerializeUuidOrdersSameAsUuidValue(kAscendingUuidStrings);
 }
 
+TEST_F(UuidValueTest, TruncateLongInvalidStringInErrorMessage) {
+  std::string str(129, 'a');
+
+  EXPECT_THAT(
+      UuidValue::FromString(str),
+      StatusIs(absl::StatusCode::kOutOfRange, HasSubstr("...[TRUNCATED]")));
+}
+
 }  // namespace
 }  // namespace googlesql

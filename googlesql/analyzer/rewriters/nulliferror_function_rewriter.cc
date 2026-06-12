@@ -36,9 +36,10 @@
 #include "googlesql/resolved_ast/resolved_ast_rewrite_visitor.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
-#include "absl/status/statusor.h"
-#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
+#include "googlesql/base/status_builder.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 namespace {

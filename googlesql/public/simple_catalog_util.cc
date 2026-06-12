@@ -48,6 +48,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -55,7 +56,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -107,6 +107,7 @@ MakeFunctionFromCreateFunctionImpl(
   }
 
   function->set_sql_security(create_function_stmt.sql_security());
+  function->set_language(create_function_stmt.language());
   return function;
 }
 
@@ -262,9 +263,9 @@ absl::Status AddTableFromCreateTable(
                                    &analyzer_output))
       << create_table_stmt;
   const ResolvedStatement* resolved = analyzer_output->resolved_statement();
-  GOOGLESQL_RET_CHECK(resolved->Is<ResolvedCreateTableStmt>());
-  const ResolvedCreateTableStmt* stmt =
-      resolved->GetAs<ResolvedCreateTableStmt>();
+  GOOGLESQL_RET_CHECK(resolved->Is<ResolvedCreateTableStmtBase>());
+  const ResolvedCreateTableStmtBase* stmt =
+      resolved->GetAs<ResolvedCreateTableStmtBase>();
   if (!allow_non_temp) {
     GOOGLESQL_RET_CHECK_EQ(stmt->create_scope(),
                  ResolvedCreateStatementEnums::CREATE_TEMP);
@@ -307,6 +308,10 @@ absl::StatusOr<std::unique_ptr<SimpleTable>> MakeTableFromCreateTable(
   }
   auto created_table = std::make_unique<SimpleTable>(
       absl::StrJoin(stmt.name_path(), "."), columns);
+
+  if (stmt.is_value_table()) {
+    created_table->set_is_value_table(true);
+  }
 
   GOOGLESQL_RETURN_IF_ERROR(SetPrimaryKey(stmt, created_table.get()));
 

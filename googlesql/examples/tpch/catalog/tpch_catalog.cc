@@ -46,6 +46,7 @@
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -54,11 +55,10 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "googlesql/base/ret_check.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/csv/csv_reader.h"
-#include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 #include "googlesql/base/clock.h"
 
 namespace googlesql {
@@ -280,7 +280,8 @@ MakeIteratorFactoryFromCsvFile(const absl::string_view contents,
       }
     }
 
-    const ParsedTpchTableData* data = (*data_holder)->value().get();
+    GOOGLESQL_RETURN_IF_ERROR((**data_holder).status());
+    const ParsedTpchTableData* data = (**data_holder)->get();
     std::vector<const Column*> columns;
     std::vector<std::shared_ptr<const std::vector<Value>>> column_values;
     column_values.reserve(column_idxs.size());
@@ -372,14 +373,14 @@ static absl::Status AddJoinColumn(const Table* table1_const,
   GOOGLESQL_ASSIGN_OR_RETURN(std::vector<const Column*> columns2,
                    FindColumns(table2, column_names2));
 
-  const RowType* row_type1;
-  const RowType* row_type2;
-  GOOGLESQL_RET_CHECK_OK(type_factory->MakeRowType(table1, table1->FullName(), is_multi1,
-                                         columns1, table2, columns2,
-                                         &row_type1));
-  GOOGLESQL_RET_CHECK_OK(type_factory->MakeRowType(table2, table2->FullName(), is_multi2,
-                                         columns2, table1, columns1,
-                                         &row_type2));
+  const TableRefType* table_type1;
+  const TableRefType* table_type2;
+  GOOGLESQL_RET_CHECK_OK(type_factory->MakeTableType(table1, table1->FullName(),
+                                           is_multi1, columns1, table2,
+                                           columns2, &table_type1));
+  GOOGLESQL_RET_CHECK_OK(type_factory->MakeTableType(table2, table2->FullName(),
+                                           is_multi2, columns2, table1,
+                                           columns1, &table_type2));
 
   SimpleColumn::Attributes attributes2 = {
       .is_pseudo_column = true,
@@ -389,7 +390,7 @@ static absl::Status AddJoinColumn(const Table* table1_const,
 
   // Add join column from table1 to table2.
   GOOGLESQL_RETURN_IF_ERROR(AddOneJoinColumn(
-      table1, table2, is_multi2, row_type2,
+      table1, table2, is_multi2, table_type2,
       SimpleColumn::Attributes{.is_pseudo_column = true,
                                .is_writable_column = false,
                                .join_column = Column::JoinColumnAttributes(
@@ -397,7 +398,7 @@ static absl::Status AddJoinColumn(const Table* table1_const,
 
   // Add join column from table2 to table1.
   GOOGLESQL_RETURN_IF_ERROR(AddOneJoinColumn(
-      table2, table1, is_multi1, row_type1,
+      table2, table1, is_multi1, table_type1,
       SimpleColumn::Attributes{.is_pseudo_column = true,
                                .is_writable_column = false,
                                .join_column = Column::JoinColumnAttributes(

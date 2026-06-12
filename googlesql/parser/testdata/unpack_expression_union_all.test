@@ -1,0 +1,799 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+SELECT 1 AS x, 2 AS y
+UNION ALL BY NAME ON ({{|x,}} **cols {{|,y}})
+SELECT 20 AS y, 10 AS x;
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-77] [SELECT 1 AS...y, 10 AS x]
+  Query [0-77] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-77] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-53] [UNION ALL...( **cols )]
+        SetOperationMetadata [22-53] [UNION ALL...( **cols )]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-42] [BY NAME ON]
+          ExpressionList [43-53] [( **cols )]
+            UnpackExpression [45-51] [**cols]
+              PathExpression [47-51] [cols]
+                Identifier(cols) [47-51] [cols]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [54-77] [SELECT 20 AS y, 10 AS x]
+        SelectList [61-77] [20 AS y, 10 AS x]
+          SelectColumn [61-68] [20 AS y]
+            IntLiteral(20) [61-63] [20]
+            Alias [64-68] [AS y]
+              Identifier(y) [67-68] [y]
+          SelectColumn [70-77] [10 AS x]
+            IntLiteral(10) [70-72] [10]
+            Alias [73-77] [AS x]
+              Identifier(x) [76-77] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL BY NAME ON (** (cols))
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-79] [SELECT 1 AS...y, 10 AS x]
+  Query [0-79] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-79] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-55] [UNION ALL...**cols ,y)]
+        SetOperationMetadata [22-55] [UNION ALL...**cols ,y)]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-42] [BY NAME ON]
+          ExpressionList [43-55] [( **cols ,y)]
+            UnpackExpression [45-51] [**cols]
+              PathExpression [47-51] [cols]
+                Identifier(cols) [47-51] [cols]
+            Identifier(y) [53-54] [y]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [56-79] [SELECT 20 AS y, 10 AS x]
+        SelectList [63-79] [20 AS y, 10 AS x]
+          SelectColumn [63-70] [20 AS y]
+            IntLiteral(20) [63-65] [20]
+            Alias [66-70] [AS y]
+              Identifier(y) [69-70] [y]
+          SelectColumn [72-79] [10 AS x]
+            IntLiteral(10) [72-74] [10]
+            Alias [75-79] [AS x]
+              Identifier(x) [78-79] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL BY NAME ON (** (cols), y)
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-79] [SELECT 1 AS...y, 10 AS x]
+  Query [0-79] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-79] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-55] [UNION ALL..., **cols )]
+        SetOperationMetadata [22-55] [UNION ALL..., **cols )]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-42] [BY NAME ON]
+          ExpressionList [43-55] [(x, **cols )]
+            Identifier(x) [44-45] [x]
+            UnpackExpression [47-53] [**cols]
+              PathExpression [49-53] [cols]
+                Identifier(cols) [49-53] [cols]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [56-79] [SELECT 20 AS y, 10 AS x]
+        SelectList [63-79] [20 AS y, 10 AS x]
+          SelectColumn [63-70] [20 AS y]
+            IntLiteral(20) [63-65] [20]
+            Alias [66-70] [AS y]
+              Identifier(y) [69-70] [y]
+          SelectColumn [72-79] [10 AS x]
+            IntLiteral(10) [72-74] [10]
+            Alias [75-79] [AS x]
+              Identifier(x) [78-79] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL BY NAME ON (x, ** (cols))
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-81] [SELECT 1 AS...y, 10 AS x]
+  Query [0-81] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-81] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-57] [UNION ALL...**cols ,y)]
+        SetOperationMetadata [22-57] [UNION ALL...**cols ,y)]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-42] [BY NAME ON]
+          ExpressionList [43-57] [(x, **cols ,y)]
+            Identifier(x) [44-45] [x]
+            UnpackExpression [47-53] [**cols]
+              PathExpression [49-53] [cols]
+                Identifier(cols) [49-53] [cols]
+            Identifier(y) [55-56] [y]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [58-81] [SELECT 20 AS y, 10 AS x]
+        SelectList [65-81] [20 AS y, 10 AS x]
+          SelectColumn [65-72] [20 AS y]
+            IntLiteral(20) [65-67] [20]
+            Alias [68-72] [AS y]
+              Identifier(y) [71-72] [y]
+          SelectColumn [74-81] [10 AS x]
+            IntLiteral(10) [74-76] [10]
+            Alias [77-81] [AS x]
+              Identifier(x) [80-81] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL BY NAME ON (x, ** (cols), y)
+SELECT
+  20 AS y,
+  10 AS x
+==
+
+
+SELECT 1 AS x, 2 AS y
+|> UNION ALL BY NAME ON ({{|x,}} **cols {{|,y}})
+    (SELECT 20 AS y, 10 AS x);
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-86] [SELECT 1 AS..., 10 AS x)]
+  Query [0-86] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-86] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-56] [UNION ALL...( **cols )]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-45] [BY NAME ON]
+        ExpressionList [46-56] [( **cols )]
+          UnpackExpression [48-54] [**cols]
+            PathExpression [50-54] [cols]
+              Identifier(cols) [50-54] [cols]
+      Query [62-85] [SELECT 20 AS y, 10 AS x]
+        Select [62-85] [SELECT 20 AS y, 10 AS x]
+          SelectList [69-85] [20 AS y, 10 AS x]
+            SelectColumn [69-76] [20 AS y]
+              IntLiteral(20) [69-71] [20]
+              Alias [72-76] [AS y]
+                Identifier(y) [75-76] [y]
+            SelectColumn [78-85] [10 AS x]
+              IntLiteral(10) [78-80] [10]
+              Alias [81-85] [AS x]
+                Identifier(x) [84-85] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL BY NAME ON (** (cols))
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-88] [SELECT 1 AS..., 10 AS x)]
+  Query [0-88] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-88] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-58] [UNION ALL...**cols ,y)]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-45] [BY NAME ON]
+        ExpressionList [46-58] [( **cols ,y)]
+          UnpackExpression [48-54] [**cols]
+            PathExpression [50-54] [cols]
+              Identifier(cols) [50-54] [cols]
+          Identifier(y) [56-57] [y]
+      Query [64-87] [SELECT 20 AS y, 10 AS x]
+        Select [64-87] [SELECT 20 AS y, 10 AS x]
+          SelectList [71-87] [20 AS y, 10 AS x]
+            SelectColumn [71-78] [20 AS y]
+              IntLiteral(20) [71-73] [20]
+              Alias [74-78] [AS y]
+                Identifier(y) [77-78] [y]
+            SelectColumn [80-87] [10 AS x]
+              IntLiteral(10) [80-82] [10]
+              Alias [83-87] [AS x]
+                Identifier(x) [86-87] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL BY NAME ON (** (cols), y)
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-88] [SELECT 1 AS..., 10 AS x)]
+  Query [0-88] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-88] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-58] [UNION ALL..., **cols )]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-45] [BY NAME ON]
+        ExpressionList [46-58] [(x, **cols )]
+          Identifier(x) [47-48] [x]
+          UnpackExpression [50-56] [**cols]
+            PathExpression [52-56] [cols]
+              Identifier(cols) [52-56] [cols]
+      Query [64-87] [SELECT 20 AS y, 10 AS x]
+        Select [64-87] [SELECT 20 AS y, 10 AS x]
+          SelectList [71-87] [20 AS y, 10 AS x]
+            SelectColumn [71-78] [20 AS y]
+              IntLiteral(20) [71-73] [20]
+              Alias [74-78] [AS y]
+                Identifier(y) [77-78] [y]
+            SelectColumn [80-87] [10 AS x]
+              IntLiteral(10) [80-82] [10]
+              Alias [83-87] [AS x]
+                Identifier(x) [86-87] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL BY NAME ON (x, ** (cols))
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-90] [SELECT 1 AS..., 10 AS x)]
+  Query [0-90] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-90] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-60] [UNION ALL...**cols ,y)]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-45] [BY NAME ON]
+        ExpressionList [46-60] [(x, **cols ,y)]
+          Identifier(x) [47-48] [x]
+          UnpackExpression [50-56] [**cols]
+            PathExpression [52-56] [cols]
+              Identifier(cols) [52-56] [cols]
+          Identifier(y) [58-59] [y]
+      Query [66-89] [SELECT 20 AS y, 10 AS x]
+        Select [66-89] [SELECT 20 AS y, 10 AS x]
+          SelectList [73-89] [20 AS y, 10 AS x]
+            SelectColumn [73-80] [20 AS y]
+              IntLiteral(20) [73-75] [20]
+              Alias [76-80] [AS y]
+                Identifier(y) [79-80] [y]
+            SelectColumn [82-89] [10 AS x]
+              IntLiteral(10) [82-84] [10]
+              Alias [85-89] [AS x]
+                Identifier(x) [88-89] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL BY NAME ON (x, ** (cols), y)
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+==
+
+SELECT 1 AS x, 2 AS y
+UNION ALL CORRESPONDING BY ({{|x,}} **cols {{|,y}})
+SELECT 20 AS y, 10 AS x;
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-83] [SELECT 1 AS...y, 10 AS x]
+  Query [0-83] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-83] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-59] [UNION ALL...( **cols )]
+        SetOperationMetadata [22-59] [UNION ALL...( **cols )]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-48] [CORRESPONDING BY]
+          ExpressionList [49-59] [( **cols )]
+            UnpackExpression [51-57] [**cols]
+              PathExpression [53-57] [cols]
+                Identifier(cols) [53-57] [cols]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [60-83] [SELECT 20 AS y, 10 AS x]
+        SelectList [67-83] [20 AS y, 10 AS x]
+          SelectColumn [67-74] [20 AS y]
+            IntLiteral(20) [67-69] [20]
+            Alias [70-74] [AS y]
+              Identifier(y) [73-74] [y]
+          SelectColumn [76-83] [10 AS x]
+            IntLiteral(10) [76-78] [10]
+            Alias [79-83] [AS x]
+              Identifier(x) [82-83] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL CORRESPONDING BY (** (cols))
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-85] [SELECT 1 AS...y, 10 AS x]
+  Query [0-85] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-85] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-61] [UNION ALL...**cols ,y)]
+        SetOperationMetadata [22-61] [UNION ALL...**cols ,y)]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-48] [CORRESPONDING BY]
+          ExpressionList [49-61] [( **cols ,y)]
+            UnpackExpression [51-57] [**cols]
+              PathExpression [53-57] [cols]
+                Identifier(cols) [53-57] [cols]
+            Identifier(y) [59-60] [y]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [62-85] [SELECT 20 AS y, 10 AS x]
+        SelectList [69-85] [20 AS y, 10 AS x]
+          SelectColumn [69-76] [20 AS y]
+            IntLiteral(20) [69-71] [20]
+            Alias [72-76] [AS y]
+              Identifier(y) [75-76] [y]
+          SelectColumn [78-85] [10 AS x]
+            IntLiteral(10) [78-80] [10]
+            Alias [81-85] [AS x]
+              Identifier(x) [84-85] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL CORRESPONDING BY (** (cols), y)
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-85] [SELECT 1 AS...y, 10 AS x]
+  Query [0-85] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-85] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-61] [UNION ALL..., **cols )]
+        SetOperationMetadata [22-61] [UNION ALL..., **cols )]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-48] [CORRESPONDING BY]
+          ExpressionList [49-61] [(x, **cols )]
+            Identifier(x) [50-51] [x]
+            UnpackExpression [53-59] [**cols]
+              PathExpression [55-59] [cols]
+                Identifier(cols) [55-59] [cols]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [62-85] [SELECT 20 AS y, 10 AS x]
+        SelectList [69-85] [20 AS y, 10 AS x]
+          SelectColumn [69-76] [20 AS y]
+            IntLiteral(20) [69-71] [20]
+            Alias [72-76] [AS y]
+              Identifier(y) [75-76] [y]
+          SelectColumn [78-85] [10 AS x]
+            IntLiteral(10) [78-80] [10]
+            Alias [81-85] [AS x]
+              Identifier(x) [84-85] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL CORRESPONDING BY (x, ** (cols))
+SELECT
+  20 AS y,
+  10 AS x
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-87] [SELECT 1 AS...y, 10 AS x]
+  Query [0-87] [SELECT 1 AS...y, 10 AS x]
+    SetOperation(UNION ALL) [0-87] [SELECT 1 AS...y, 10 AS x]
+      SetOperationMetadataList [22-63] [UNION ALL...**cols ,y)]
+        SetOperationMetadata [22-63] [UNION ALL...**cols ,y)]
+          SetOperationType [22-27] [UNION]
+          SetOperationAllOrDistinct [28-31] [ALL]
+          SetOperationColumnMatchMode [32-48] [CORRESPONDING BY]
+          ExpressionList [49-63] [(x, **cols ,y)]
+            Identifier(x) [50-51] [x]
+            UnpackExpression [53-59] [**cols]
+              PathExpression [55-59] [cols]
+                Identifier(cols) [55-59] [cols]
+            Identifier(y) [61-62] [y]
+      Select [0-21] [SELECT 1 AS x, 2 AS y]
+        SelectList [7-21] [1 AS x, 2 AS y]
+          SelectColumn [7-13] [1 AS x]
+            IntLiteral(1) [7-8] [1]
+            Alias [9-13] [AS x]
+              Identifier(x) [12-13] [x]
+          SelectColumn [15-21] [2 AS y]
+            IntLiteral(2) [15-16] [2]
+            Alias [17-21] [AS y]
+              Identifier(y) [20-21] [y]
+      Select [64-87] [SELECT 20 AS y, 10 AS x]
+        SelectList [71-87] [20 AS y, 10 AS x]
+          SelectColumn [71-78] [20 AS y]
+            IntLiteral(20) [71-73] [20]
+            Alias [74-78] [AS y]
+              Identifier(y) [77-78] [y]
+          SelectColumn [80-87] [10 AS x]
+            IntLiteral(10) [80-82] [10]
+            Alias [83-87] [AS x]
+              Identifier(x) [86-87] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+UNION ALL CORRESPONDING BY (x, ** (cols), y)
+SELECT
+  20 AS y,
+  10 AS x
+==
+
+
+SELECT 1 AS x, 2 AS y
+|> UNION ALL CORRESPONDING BY ({{|x,}} **cols {{|,y}})
+    (SELECT 20 AS y, 10 AS x);
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-92] [SELECT 1 AS..., 10 AS x)]
+  Query [0-92] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-92] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-62] [UNION ALL...( **cols )]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-51] [CORRESPONDING BY]
+        ExpressionList [52-62] [( **cols )]
+          UnpackExpression [54-60] [**cols]
+            PathExpression [56-60] [cols]
+              Identifier(cols) [56-60] [cols]
+      Query [68-91] [SELECT 20 AS y, 10 AS x]
+        Select [68-91] [SELECT 20 AS y, 10 AS x]
+          SelectList [75-91] [20 AS y, 10 AS x]
+            SelectColumn [75-82] [20 AS y]
+              IntLiteral(20) [75-77] [20]
+              Alias [78-82] [AS y]
+                Identifier(y) [81-82] [y]
+            SelectColumn [84-91] [10 AS x]
+              IntLiteral(10) [84-86] [10]
+              Alias [87-91] [AS x]
+                Identifier(x) [90-91] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL CORRESPONDING BY (** (cols))
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-94] [SELECT 1 AS..., 10 AS x)]
+  Query [0-94] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-94] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-64] [UNION ALL...**cols ,y)]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-51] [CORRESPONDING BY]
+        ExpressionList [52-64] [( **cols ,y)]
+          UnpackExpression [54-60] [**cols]
+            PathExpression [56-60] [cols]
+              Identifier(cols) [56-60] [cols]
+          Identifier(y) [62-63] [y]
+      Query [70-93] [SELECT 20 AS y, 10 AS x]
+        Select [70-93] [SELECT 20 AS y, 10 AS x]
+          SelectList [77-93] [20 AS y, 10 AS x]
+            SelectColumn [77-84] [20 AS y]
+              IntLiteral(20) [77-79] [20]
+              Alias [80-84] [AS y]
+                Identifier(y) [83-84] [y]
+            SelectColumn [86-93] [10 AS x]
+              IntLiteral(10) [86-88] [10]
+              Alias [89-93] [AS x]
+                Identifier(x) [92-93] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL CORRESPONDING BY (** (cols), y)
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-94] [SELECT 1 AS..., 10 AS x)]
+  Query [0-94] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-94] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-64] [UNION ALL..., **cols )]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-51] [CORRESPONDING BY]
+        ExpressionList [52-64] [(x, **cols )]
+          Identifier(x) [53-54] [x]
+          UnpackExpression [56-62] [**cols]
+            PathExpression [58-62] [cols]
+              Identifier(cols) [58-62] [cols]
+      Query [70-93] [SELECT 20 AS y, 10 AS x]
+        Select [70-93] [SELECT 20 AS y, 10 AS x]
+          SelectList [77-93] [20 AS y, 10 AS x]
+            SelectColumn [77-84] [20 AS y]
+              IntLiteral(20) [77-79] [20]
+              Alias [80-84] [AS y]
+                Identifier(y) [83-84] [y]
+            SelectColumn [86-93] [10 AS x]
+              IntLiteral(10) [86-88] [10]
+              Alias [89-93] [AS x]
+                Identifier(x) [92-93] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL CORRESPONDING BY (x, ** (cols))
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-96] [SELECT 1 AS..., 10 AS x)]
+  Query [0-96] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-96] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-66] [UNION ALL...**cols ,y)]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-51] [CORRESPONDING BY]
+        ExpressionList [52-66] [(x, **cols ,y)]
+          Identifier(x) [53-54] [x]
+          UnpackExpression [56-62] [**cols]
+            PathExpression [58-62] [cols]
+              Identifier(cols) [58-62] [cols]
+          Identifier(y) [64-65] [y]
+      Query [72-95] [SELECT 20 AS y, 10 AS x]
+        Select [72-95] [SELECT 20 AS y, 10 AS x]
+          SelectList [79-95] [20 AS y, 10 AS x]
+            SelectColumn [79-86] [20 AS y]
+              IntLiteral(20) [79-81] [20]
+              Alias [82-86] [AS y]
+                Identifier(y) [85-86] [y]
+            SelectColumn [88-95] [10 AS x]
+              IntLiteral(10) [88-90] [10]
+              Alias [91-95] [AS x]
+                Identifier(x) [94-95] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL CORRESPONDING BY (x, ** (cols), y)
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )
+
+==
+
+SELECT 1 AS x, 2 AS y
+|> UNION ALL BY NAME ON (**cols1, **cols2)
+    (SELECT 20 AS y, 10 AS x);
+--
+QueryStatement [0-94] [SELECT 1 AS..., 10 AS x)]
+  Query [0-94] [SELECT 1 AS..., 10 AS x)]
+    Select [0-21] [SELECT 1 AS x, 2 AS y]
+      SelectList [7-21] [1 AS x, 2 AS y]
+        SelectColumn [7-13] [1 AS x]
+          IntLiteral(1) [7-8] [1]
+          Alias [9-13] [AS x]
+            Identifier(x) [12-13] [x]
+        SelectColumn [15-21] [2 AS y]
+          IntLiteral(2) [15-16] [2]
+          Alias [17-21] [AS y]
+            Identifier(y) [20-21] [y]
+    PipeSetOperation [22-94] [|> UNION ALL..., 10 AS x)]
+      SetOperationMetadata [25-64] [UNION ALL..., **cols2)]
+        SetOperationType [25-30] [UNION]
+        SetOperationAllOrDistinct [31-34] [ALL]
+        SetOperationColumnMatchMode [35-45] [BY NAME ON]
+        ExpressionList [46-64] [(**cols1, **cols2)]
+          UnpackExpression [47-54] [**cols1]
+            PathExpression [49-54] [cols1]
+              Identifier(cols1) [49-54] [cols1]
+          UnpackExpression [56-63] [**cols2]
+            PathExpression [58-63] [cols2]
+              Identifier(cols2) [58-63] [cols2]
+      Query [70-93] [SELECT 20 AS y, 10 AS x]
+        Select [70-93] [SELECT 20 AS y, 10 AS x]
+          SelectList [77-93] [20 AS y, 10 AS x]
+            SelectColumn [77-84] [20 AS y]
+              IntLiteral(20) [77-79] [20]
+              Alias [80-84] [AS y]
+                Identifier(y) [83-84] [y]
+            SelectColumn [86-93] [10 AS x]
+              IntLiteral(10) [86-88] [10]
+              Alias [89-93] [AS x]
+                Identifier(x) [92-93] [x]
+--
+SELECT
+  1 AS x,
+  2 AS y
+|> UNION ALL BY NAME ON (** (cols1), ** (cols2))
+   (
+   SELECT
+     20 AS y,
+     10 AS x
+   )

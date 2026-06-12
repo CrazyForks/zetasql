@@ -91,7 +91,8 @@ information on data type literals and constructors, see
   <td><a href="#graph_element_type">Graph element type</a>
 </td>
   <td>
-    An element in a property graph.<br/>
+    An element in a property graph. Can be a <code>GRAPH_NODE</code> or
+    <code>GRAPH_EDGE</code>.<br/>
     SQL type name: <code>GRAPH_ELEMENT</code>
   </td>
 </tr>
@@ -111,6 +112,15 @@ information on data type literals and constructors, see
   <td>
     Represents JSON, a lightweight data-interchange format.<br/>
     SQL type name: <code>JSON</code>
+  </td>
+</tr>
+
+<tr>
+  <td><a href="#measure_type">Measure type</a>
+</td>
+  <td>
+    An aggregate calculation that doesn’t overcount.<br/>
+    SQL type name: <code>MEASURE</code>
   </td>
 </tr>
 
@@ -272,7 +282,6 @@ Applies to all data types except for:
 + `PROTO`
 + `STRUCT`
 + `GEOGRAPHY`
-+ `JSON`
 + `GRAPH_ELEMENT`
 
 #### Ordering `NULL`s 
@@ -352,7 +361,6 @@ Groupable data types can generally appear in an expression following `GROUP BY`,
 
 + `PROTO`
 + `GEOGRAPHY`
-+ `JSON`
 
 #### Grouping with floating point types
 
@@ -402,7 +410,6 @@ All data types are supported except for:
 
 + `PROTO`
 + `GEOGRAPHY`
-+ `JSON`
 
 Notes:
 
@@ -575,7 +582,7 @@ ARRAY&lt;STRUCT&lt;ARRAY&lt;INT64&gt;&gt;&gt;
 <td>An array of arrays of 64-bit integers. Notice that there is a struct between
 the two arrays because arrays can't hold other arrays directly.</td>
 </tr>
-<tbody>
+</tbody>
 </table>
 
 ### Constructing an array 
@@ -1214,16 +1221,18 @@ MATCH (n:Person)
 RETURN TYPEOF(n) AS t
 LIMIT 1
 
-/*----------------------------------------------+
- | t                                            |
- +----------------------------------------------+
- | GRAPH_NODE(FinGraph)<Id INT64, ..., DYNAMIC> |
- +---------------------------------------------*/
+/*-------------------------------------+
+ | t                                   |
+ +-------------------------------------+
+ | GRAPH_NODE(FinGraph)<id INT64, ...> |
+ +-------------------------------------*/
 ```
 
 [graph-query]: https://github.com/google/googlesql/blob/master/docs/graph-intro.md
 
 [fin-graph]: https://github.com/google/googlesql/blob/master/docs/graph-schema-statements.md#fin_graph
+
+[type-of]: https://github.com/google/googlesql/blob/master/docs/utility-functions.md#typeof
 
 ## Interval type 
 <a id="interval_type"></a>
@@ -1499,7 +1508,77 @@ Expect these canonicalization behaviors when creating a value of JSON type:
 To learn more about the literal representation of a JSON type,
 see [JSON literals][json-literals].
 
+### Comparison and sorting
+
+You can compare JSON types for equality and ordering. You can also use JSON
+types in a `GROUP BY` and `ORDER BY` clause.
+
+When comparing JSON values of different types, the following relations apply:
+`NULL` (JSON null) < `STRING` < `NUMBER` < `BOOLEAN` < `ARRAY` < `OBJECT`.
+
+When comparing JSON values of the same type, the following rules apply:
+
+*   **Objects:** Compared pairwise with lexicographical key string
+    order. Key-value pairs are extracted from both objects, sorted internally by
+    key, and then compared pairwise in key order. The comparison proceeds first
+    by the key and then by its value. The first pair that differs determines the
+    order. If one object's sorted pairs form a prefix of the other's, the object
+    with more pairs is considered greater.
+*   **Arrays:** Compared element by element from the beginning. The
+    first pair of elements that differ determines the order. If one array's
+    elements form a prefix of the other's, the longer array is considered
+    greater.
+*   **Booleans:** `true` is considered greater than `false`.
+*   **Numbers:** Compared using standard mathematical numeric comparison.
+*   **Strings:** Compared using standard lexicographical string comparison.
+*   **Nulls:** All JSON null values are considered equal to each other and less
+    than any other non-null JSON value.
+
 [json-literals]: https://github.com/google/googlesql/blob/master/docs/lexical.md#json_literals
+
+## Measure type 
+<a id="measure_type"></a>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MEASURE</code></td>
+<td>An aggregate calculation that doesn't overcount.</td>
+</tr>
+</tbody>
+</table>
+
+A measure is a special type that aggregates data without overcounting.
+The measure type is used by only the [`AGG` function][agg-function]. Measures
+are useful for defining business metrics that you can query using the
+`AGG` function instead of complex aggregation queries.
+
+<!-- Possibly too technical, hiding for now. (@stetsonr, 10-09-2025)
+A measure in GoogleSQL is conceptualized as a *lambda function* that wraps an
+*expression* with *grain-locking* behavior:
+
++   Lambda function: A measure captures column values from the definition
+    context and reuses the values when evaluating the wrapped expression in a
+    different context.
++   Measure expression: A measure must wrap a non-empty expression, typically an
+    aggregate expression, but can also be a constant expression.
++   Grain-locking: A measure uses this behavior to ensure that aggregate
+    calculations within measure expressions occur only on rows considered source
+    rows for that aggregation.
+-->
+The measure type has the following limitations:
+
++   Supported by only the `AGG` function.
++   Can't be a member type of non-measure container types, such as
+    `STRUCT`, `ARRAY`, or `MAP` types.
+
+[agg-function]: https://github.com/google/googlesql/blob/master/docs/aggregate_functions.md#agg
 
 ## Numeric types 
 <a id="numeric_types"></a>
@@ -1927,7 +2006,7 @@ NEW googlesql.examples.astronomy.Planet {
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
-> NOTE: The syntax is very similar to the Protocol Buffer Text Format
+> Note: The syntax is very similar to the Protocol Buffer Text Format
 >  syntax.
 > The differences are:
 >
@@ -1935,6 +2014,10 @@ NEW googlesql.examples.astronomy.Planet {
 > +   Repeated fields are written as `x_array: [1, 2, 3]` instead of `x_array:`
 >     appearing multiple times.
 > +   Extensions use parentheses instead of square brackets.
+> +   Enum values can't be used directly. You must provide enum values either as
+>     a string or as an integer. For example, instead of
+>     `enum_field: ENUM_VALUE`, use `enum_field: 'ENUM_VALUE'` or
+>     `enum_field: 123`.
 
 <!-- mdlint on -->
 
@@ -2406,7 +2489,7 @@ STRUCT&lt;inner_array ARRAY&lt;INT64&gt;&gt;
 <td>A struct containing an array named <code>inner_array</code> that holds
 64-bit integer elements.</td>
 </tr>
-<tbody>
+</tbody>
 </table>
 
 ### Constructing a struct 

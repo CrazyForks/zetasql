@@ -33,6 +33,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -40,7 +41,6 @@
 #include "absl/strings/substitute.h"
 #include "googlesql/base/case.h"
 #include "re2/re2.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::functions::match_recognize {
 

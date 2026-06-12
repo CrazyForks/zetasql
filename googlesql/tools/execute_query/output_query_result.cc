@@ -29,12 +29,12 @@
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/reference_impl/type_helpers.h"
 #include "googlesql/base/check.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

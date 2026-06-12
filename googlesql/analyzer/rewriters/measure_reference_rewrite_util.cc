@@ -22,23 +22,28 @@
 
 #include "googlesql/analyzer/rewriters/measure_collector.h"
 #include "googlesql/analyzer/rewriters/measure_type_rewriter_util.h"
+#include "googlesql/common/type_visitors.h"
 #include "googlesql/public/function.h"
+#include "googlesql/public/types/annotation.h"
+#include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
+#include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
 #include "googlesql/resolved_ast/resolved_ast_rewrite_visitor.h"
 #include "googlesql/resolved_ast/resolved_ast_visitor.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -50,9 +55,11 @@ class AggedMeasureMarker : public ResolvedASTVisitor {
   absl::Status VisitResolvedAggregateFunctionCall(
       const ResolvedAggregateFunctionCall* node) override {
     if (IsMeasureAggFunction(node)) {
-      GOOGLESQL_ASSIGN_OR_RETURN(ResolvedColumn measure_col,
-                       GetInvokedMeasureColumn(node));
-      measure_collector_.MarkAgged(measure_col.type()->AsMeasure());
+      GOOGLESQL_RET_CHECK_EQ(node->argument_list().size(), 1);
+      const ResolvedExpr* arg = node->argument_list()[0].get();
+      const MeasureType* measure_type = arg->type()->AsMeasure();
+      GOOGLESQL_RET_CHECK(measure_type != nullptr);
+      measure_collector_.MarkAgged(measure_type);
     }
     return DefaultVisit(node);
   }
@@ -67,16 +74,131 @@ absl::Status MarkAggedMeasures(const ResolvedNode* resolved_ast,
   return resolved_ast->Accept(&visitor);
 }
 
-// Assumes `aggregate_fn` is the builtin function `AGG(MEASURE<T>) => T`.
-static absl::StatusOr<const ResolvedColumnRef*> GetMeasureColumnRef(
-    const ResolvedAggregateFunctionCall* aggregate_fn) {
-  GOOGLESQL_RET_CHECK(aggregate_fn != nullptr);
-  GOOGLESQL_RET_CHECK(aggregate_fn->argument_list().size() == 1);
-  const ResolvedExpr* arg = aggregate_fn->argument_list()[0].get();
-  GOOGLESQL_RET_CHECK(arg->Is<ResolvedColumnRef>());
-  return arg->GetAs<ResolvedColumnRef>();
-}
+// Helper class to:
+// 1. Check if a type is or recursively contains an AGG'ed MeasureType.
+// 2. Compute the replacement type by recursively replacing AGG'ed MeasureTypes
+//    with their corresponding closure struct types.
+//
+// We can't use `TypeRewriter` directly because it creates new MeasureTypes, and
+// the measure type rewriter rely on the original pointer identity of the
+// MeasureType to work.
+class MeasureTypeReplacer {
+ public:
+  MeasureTypeReplacer(const MeasureCollector& measure_collector,
+                      TypeFactory& type_factory)
+      : measure_collector_(measure_collector), type_factory_(type_factory) {}
+  MeasureTypeReplacer(const MeasureTypeReplacer&) = delete;
+  MeasureTypeReplacer& operator=(const MeasureTypeReplacer&) = delete;
 
+  // Returns true if `type` is an AGG'ed measure or a composite type that
+  // transitively contains an AGG'ed measure.
+  //
+  // Also enforces the invariant that measures can only appear under struct
+  // types, not other composite types like arrays or maps.
+  absl::StatusOr<bool> IsOrContainsAggedMeasure(const Type* type) {
+    auto it = is_or_contains_cache_.find(type);
+    if (it != is_or_contains_cache_.end()) {
+      return it->second;
+    }
+
+    MeasureTypeFinder visitor(measure_collector_);
+    GOOGLESQL_RETURN_IF_ERROR(
+        visitor.Visit(AnnotatedType(type, /*annotation_map=*/nullptr)));
+
+    bool result = visitor.found_agged_measure();
+    is_or_contains_cache_[type] = result;
+    return result;
+  }
+
+  // Computes the closure type for `type` by replacing AGG'ed measures with
+  // their closure struct types.
+  absl::StatusOr<const Type*> ComputeClosureType(const Type* type) {
+    auto it = replacement_cache_.find(type);
+    if (it != replacement_cache_.end()) {
+      return it->second;
+    }
+
+    const Type* replacement = type;
+
+    if (type->IsMeasureType()) {
+      if (measure_collector_.IsAgged(type->AsMeasure())) {
+        GOOGLESQL_ASSIGN_OR_RETURN(MeasureInfo info,
+                         measure_collector_.GetMeasureInfo(type->AsMeasure()));
+        replacement = info.closure_struct.type();
+      }
+    } else if (type->IsStruct()) {
+      std::vector<StructField> new_fields;
+      new_fields.reserve(type->AsStruct()->fields().size());
+      bool fields_changed = false;
+      for (const StructField& field : type->AsStruct()->fields()) {
+        GOOGLESQL_ASSIGN_OR_RETURN(const Type* new_field_type,
+                         ComputeClosureType(field.type));
+        if (new_field_type != field.type) {
+          fields_changed = true;
+        }
+        new_fields.push_back(StructField(field.name, new_field_type));
+      }
+
+      if (fields_changed) {
+        const StructType* new_struct_type = nullptr;
+        GOOGLESQL_RETURN_IF_ERROR(
+            type_factory_.MakeStructType(new_fields, &new_struct_type));
+        replacement = new_struct_type;
+      }
+    }
+
+    replacement_cache_[type] = replacement;
+    return replacement;
+  }
+
+ private:
+  const MeasureCollector& measure_collector_;
+  TypeFactory& type_factory_;
+
+  // Caches results of `IsOrContainsAggedMeasure`.
+  absl::flat_hash_map<const Type*, bool> is_or_contains_cache_;
+  // Caches results of `ComputeClosureType`.
+  absl::flat_hash_map<const Type*, const Type*> replacement_cache_;
+
+  // Visitor to check if a type is or contains AGG'ed measures, while validating
+  // that struct is the only composite type that can contain measures.
+  class MeasureTypeFinder : public TypeVisitor {
+   public:
+    explicit MeasureTypeFinder(const MeasureCollector& collector)
+        : collector_(collector) {}
+    MeasureTypeFinder(const MeasureTypeFinder&) = delete;
+    MeasureTypeFinder& operator=(const MeasureTypeFinder&) = delete;
+
+    absl::Status PostVisit(AnnotatedType annotated_type) override {
+      const Type* type = annotated_type.type;
+      if (type->IsMeasureType()) {
+        found_measure_ = true;
+        if (collector_.IsAgged(type->AsMeasure())) {
+          found_agged_measure_ = true;
+        }
+        return absl::OkStatus();
+      }
+
+      if (!type->ComponentTypes().empty() && found_measure_) {
+        // STRUCTs are the only container type that can contain measures.
+        GOOGLESQL_RET_CHECK(type->IsStruct());
+      }
+      return absl::OkStatus();
+    }
+
+    bool found_agged_measure() const { return found_agged_measure_; }
+
+   private:
+    const MeasureCollector& collector_;
+    // Whether we have encountered any measure type.
+    bool found_measure_ = false;
+    // Whether we have encountered any AGG'ed measure type.
+    bool found_agged_measure_ = false;
+  };
+};
+
+// Rewrites measure columns to closure struct columns and expands AGG(m) calls
+// into expressions over constituent aggregates.
 class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
  public:
   MeasureColumnRewriter(MeasureCollector& measure_collector,
@@ -90,7 +212,8 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
         function_call_builder_(function_call_builder),
         language_options_(language_options),
         column_factory_(column_factory),
-        type_factory_(type_factory) {}
+        type_factory_(type_factory),
+        measure_type_replacer_(measure_collector, type_factory) {}
 
  protected:
   // Creates a new stack frame to hold constituent aggregates produced by
@@ -99,6 +222,7 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
   absl::Status PreVisitResolvedAggregateScan(
       const ResolvedAggregateScan& node) override {
     constituent_aggregates_stack_.emplace_back();
+    pending_computed_columns_stack_.emplace_back();
     for (const auto& agg_col : node.aggregate_list()) {
       if (IsMeasureAggFunction(agg_col->expr())) {
         constituent_aggregates_stack_.back().agg_m_columns.insert(
@@ -110,11 +234,15 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
 
   absl::Status PreVisitResolvedAggregateFunctionCall(
       const ResolvedAggregateFunctionCall& node) override {
-    if (IsMeasureAggFunction(&node)) {
-      // We do not support nested AGG calls currently.
-      GOOGLESQL_RET_CHECK(!is_under_measure_agg_function_);
-      is_under_measure_agg_function_ = true;
+    if (!IsMeasureAggFunction(&node)) {
+      return absl::OkStatus();
     }
+    // We do not support nested AGG calls currently.
+    GOOGLESQL_RET_CHECK(active_measure_type_ == nullptr);
+    GOOGLESQL_RET_CHECK(node.argument_list().size() == 1);
+    const ResolvedExpr* arg = node.argument_list()[0].get();
+    GOOGLESQL_RET_CHECK(arg->type()->IsMeasureType());
+    active_measure_type_ = arg->type()->AsMeasure();
     return absl::OkStatus();
   }
 
@@ -127,27 +255,28 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
     if (!IsMeasureAggFunction(node.get())) {
       return node;
     }
-    GOOGLESQL_RET_CHECK(is_under_measure_agg_function_);
-    is_under_measure_agg_function_ = false;
-    GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedColumnRef* measure_col_ref,
-                     GetMeasureColumnRef(node.get()));
-    const ResolvedColumn& measure_column = measure_col_ref->column();
-    GOOGLESQL_RET_CHECK(measure_collector_.IsAgged(measure_column.type()->AsMeasure()));
+    GOOGLESQL_RET_CHECK(active_measure_type_ != nullptr);
+    const MeasureType* measure_type = active_measure_type_;
+    active_measure_type_ = nullptr;
+    GOOGLESQL_ASSIGN_OR_RETURN(MeasureInfo measure_info,
+                     measure_collector_.GetMeasureInfo(measure_type));
 
-    GOOGLESQL_ASSIGN_OR_RETURN(ResolvedColumn closure_column,
-                     measure_collector_.GetClosureColumn(measure_column));
-    GOOGLESQL_RET_CHECK(measure_column.type()->IsMeasureType());
+    const ResolvedExpr* arg = node->argument_list()[0].get();
+    // `temp_closure_struct_ref` is a temporary column reference to the
+    // created computed column. It does not need to persist because
+    // `RewriteMeasureExpr` creates its own copy of it.
+    std::unique_ptr<const ResolvedColumnRef> temp_closure_struct_ref;
+    GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedColumnRef* closure_struct_ref,
+                     ComputeClosureStructRef(arg, temp_closure_struct_ref));
+    GOOGLESQL_RET_CHECK(closure_struct_ref != nullptr);
+    GOOGLESQL_RET_CHECK(closure_struct_ref->type() == measure_info.closure_struct.type());
 
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        MeasureInfo measure_info,
-        measure_collector_.GetMeasureInfo(measure_column.type()->AsMeasure()));
     GOOGLESQL_ASSIGN_OR_RETURN(
         RewriteMeasureExprResult result,
-        RewriteMeasureExpr(measure_info.measure_expr, closure_column,
+        RewriteMeasureExpr(measure_info.measure_expr, closure_struct_ref,
                            measure_info.row_identity_column_names,
-                           measure_col_ref->is_correlated(), any_value_fn_,
-                           function_call_builder_, language_options_,
-                           column_factory_, type_factory_));
+                           any_value_fn_, function_call_builder_,
+                           language_options_, column_factory_, type_factory_));
     for (auto& agg : result.constituent_aggregate_list) {
       constituent_aggregates_stack_.back().constituent_aggregate_list.push_back(
           std::move(agg));
@@ -157,39 +286,45 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
 
   absl::StatusOr<ResolvedColumn> PostVisitResolvedColumn(
       const ResolvedColumn& column) override {
-    if (!column.type()->IsMeasureType()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        bool contains_agged_measure,
+        measure_type_replacer_.IsOrContainsAggedMeasure(column.type()));
+
+    // If the column type is not or does not contain an AGG'ed measure, no
+    // rewrite is needed.
+    if (!contains_agged_measure) {
       return column;
     }
-    if (!measure_collector_.IsAgged(column.type()->AsMeasure())) {
-      return column;
+
+    // If the column type is an AGG'ed measure, replace it with the closure
+    // column to propagate information (e.g., row identity columns) required for
+    // AGG(m) evaluation.
+    if (column.type()->IsMeasureType()) {
+      return measure_collector_.GetClosureColumn(column);
     }
-    if (is_under_measure_agg_function_) {
-      // This is for AGG(m). No need to rewrite the column separately; the whole
-      // AGG(m) will be rewritten directly. The logic here assumes that the
-      // argument to the AGG function is always a column ref. This assumption is
-      // currently enforced by UnsupportedQueryShapeFinder, but relaxing it in
-      // the future will require changing the logic here.
-      return column;
-    }
-    return measure_collector_.GetClosureColumn(column);
+
+    // Otherwise, the column type is a composite type that contains an AGG'ed
+    // measure, e.g., the `s` column in:
+    //
+    // ```sql
+    // FROM T
+    // |> SELECT STRUCT(m) AS s
+    // |> AGGREGATE AGG(s.m)
+    // ```
+    //
+    // We need to fix its ResolvedColumn::type() because the AGG'ed measure type
+    // has been rewritten to the closure struct type by `PostVisitType`, which
+    // doesn't update the type of `ResolvedColumn`.
+    GOOGLESQL_ASSIGN_OR_RETURN(const Type* new_type,
+                     measure_type_replacer_.ComputeClosureType(column.type()));
+
+    return ResolvedColumn(
+        column.column_id(), column.table_name_id(), column.name_id(),
+        AnnotatedType(new_type, column.type_annotation_map()));
   }
 
-  // We have to have this function instead of doing a PostVisitType() because
-  // we don't replace non-AGG'ed measure columns with the struct closure
-  // columns.
-  absl::StatusOr<std::unique_ptr<const ResolvedNode>>
-  PostVisitResolvedColumnRef(
-      std::unique_ptr<const ResolvedColumnRef> node) override {
-    const Type* column_type = node->column().type();
-    const Type* ref_type = node->type();
-    if (is_under_measure_agg_function_ || column_type == ref_type) {
-      return node;
-    }
-    // The measure column the ColumnRef points to is rewritten to the closure
-    // column, so update the ColumnRef's type to match.
-    GOOGLESQL_RET_CHECK(ref_type->IsMeasureType());
-    GOOGLESQL_RET_CHECK(column_type->IsStruct());
-    return ToBuilder(std::move(node)).set_type(column_type).Build();
+  absl::StatusOr<const Type*> PostVisitType(const Type* type) override {
+    return measure_type_replacer_.ComputeClosureType(type);
   }
 
   // If AGG(m) calls are present under `node`, this function rewrites `node`
@@ -238,9 +373,17 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
         std::move(constituent_aggregates_stack_.back());
     constituent_aggregates_stack_.pop_back();
 
+    std::vector<std::unique_ptr<const ResolvedComputedColumn>>
+        pending_computed_columns =
+            std::move(pending_computed_columns_stack_.back());
+    pending_computed_columns_stack_.pop_back();
+
     // If `agg_info.agg_m_columns` is empty, it means no AGG(m) function calls
     // were found under this AggregateScan. No rewrite is needed.
     if (agg_info.agg_m_columns.empty()) {
+      GOOGLESQL_RET_CHECK(pending_computed_columns.empty())
+          << "Found pending computed columns for AggregateScan without AGG(m) "
+             "calls";
       return node;
     }
 
@@ -252,6 +395,24 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
         computed_columns_for_project_scan;
 
     ResolvedAggregateScanBuilder agg_scan_builder = ToBuilder(std::move(node));
+
+    // If there are pending computed columns (from `AGG(expr)` where `expr` is
+    // not a column reference), wrap the input scan in a `ProjectScan` to
+    // evaluate the <expr>s before aggregation.
+    if (!pending_computed_columns.empty()) {
+      auto input_scan = agg_scan_builder.release_input_scan();
+      ResolvedColumnList new_project_column_list = input_scan->column_list();
+      for (const auto& cc : pending_computed_columns) {
+        new_project_column_list.push_back(cc->column());
+      }
+
+      auto project_scan = MakeResolvedProjectScan(
+          new_project_column_list, std::move(pending_computed_columns),
+          std::move(input_scan));
+
+      agg_scan_builder.set_input_scan(std::move(project_scan));
+    }
+
     std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
         original_aggregate_list = agg_scan_builder.release_aggregate_list();
 
@@ -316,10 +477,36 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
   const LanguageOptions& language_options_;
   ColumnFactory& column_factory_;
   TypeFactory& type_factory_;
+  MeasureTypeReplacer measure_type_replacer_;
 
-  // If true, we are currently visiting nodes under an AGG(MEASURE)
-  // function.
-  bool is_under_measure_agg_function_ = false;
+  // The measure type of argument of the current AGG call being visited.
+  const MeasureType* active_measure_type_ = nullptr;
+
+  // Normalizes the input of AGG to a column reference. If `arg` is not a
+  // ResolvedColumnRef, creates a ResolvedComputedColumn to wrap it and returns
+  // a temporary ResolvedColumnRef to the computed column.
+  absl::StatusOr<const ResolvedColumnRef*> ComputeClosureStructRef(
+      const ResolvedExpr* arg,
+      std::unique_ptr<const ResolvedColumnRef>& temp_closure_struct_ref) {
+    if (!arg->Is<ResolvedColumnRef>()) {
+      ResolvedColumn new_col = column_factory_.MakeCol("$aggregate", "agg_arg",
+                                                       arg->annotated_type());
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> arg_copy,
+                       ResolvedASTDeepCopyVisitor::Copy(arg));
+      auto computed_col =
+          MakeResolvedComputedColumn(new_col, std::move(arg_copy));
+      pending_computed_columns_stack_.back().push_back(std::move(computed_col));
+
+      temp_closure_struct_ref = MakeResolvedColumnRef(
+          new_col.type(), new_col,
+          // The created ResolvedComputedColumn will be added to a ProjectScan
+          // that wraps the `input_scan` of the `AggregateScan`, so for the AGG
+          // call that column is always local.
+          /*is_correlated=*/false);
+      return temp_closure_struct_ref.get();
+    }
+    return arg->GetAs<ResolvedColumnRef>();
+  }
 
   // Holds information about rewritten AGG(m) calls under an AggregateScan.
   struct ConstituentAggregates {
@@ -331,6 +518,16 @@ class MeasureColumnRewriter : public ResolvedASTRewriteVisitor {
   };
   // A stack to hold ConstituentAggregates for nested AggregateScans.
   std::vector<ConstituentAggregates> constituent_aggregates_stack_;
+
+  // The top of the stack is the list of pending computed columns to be added to
+  // the `input_scan` of the current `AggregateScan`. These computed columns are
+  // created for each `AGG(expr)` calls of the current AggregateScan where
+  // `expr` is not a column reference.
+  //
+  // This allows us to rewrite `AGG(expr)` into `AGG(m)` where m is a single
+  // column reference.
+  std::vector<std::vector<std::unique_ptr<const ResolvedComputedColumn>>>
+      pending_computed_columns_stack_;
 };
 
 absl::StatusOr<std::unique_ptr<const ResolvedNode>> RewriteMeasureColumns(

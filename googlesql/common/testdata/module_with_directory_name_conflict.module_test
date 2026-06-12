@@ -1,0 +1,19 @@
+# This test imports a module whose import name matches both a module file
+# and a directory where there is also a module file is inside that directory.
+# the IMPORT resolves to the top level module file, not the module file
+# inside the directory.
+
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.module_with_directory_name_conflict;
+--
+Lazy_resolution_function:function_good
+  (INT32 a) -> INT32
+==
+
+# We can import the nested module directly using the nested path name.
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.module_with_directory_name_conflict.module_with_directory_name_conflict;
+--
+Lazy_resolution_function:function_nested
+  (STRING a) -> STRING

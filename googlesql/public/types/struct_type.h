@@ -192,7 +192,7 @@ class StructType : public ListBackedType {
   void DebugStringImpl(bool details, TypeOrStringVector* stack,
                        std::string* debug_string) const override;
 
-  HasFieldResult HasFieldImpl(const std::string& name, int* field_id,
+  HasFieldResult HasFieldImpl(absl::string_view name, int* field_id,
                               bool include_pseudo_fields) const override;
 
   void CopyValueContent(const ValueContent& from,

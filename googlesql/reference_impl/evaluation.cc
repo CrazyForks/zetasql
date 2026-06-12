@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/internal_value.h"
 #include "googlesql/common/thread_stack.h"
+#include "googlesql/public/collator.h"
 #include "googlesql/public/functions/date_time_util.h"
 #include "googlesql/public/functions/datetime.pb.h"
 #include "googlesql/public/type.h"
@@ -32,13 +32,17 @@
 #include "googlesql/reference_impl/tuple.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/clock.h"
 
 ABSL_FLAG(
@@ -234,14 +238,14 @@ static bool IsSafeModeConvertibleError(const absl::Status& status) {
     case absl::StatusCode::kUnavailable:
     case absl::StatusCode::kDataLoss:
     case absl::StatusCode::kFailedPrecondition:
+    case absl::StatusCode::kNotFound:
+    case absl::StatusCode::kAlreadyExists:
     default:
       return false;
 
     // These are probably errors caused by bad input values, and errors
     // should be replaced with NULL in SAFE mode.
     case absl::StatusCode::kInvalidArgument:
-    case absl::StatusCode::kNotFound:
-    case absl::StatusCode::kAlreadyExists:
     case absl::StatusCode::kOutOfRange:
       return true;
   }
@@ -263,6 +267,85 @@ absl::Status PeriodicallyVerifyNotAborted(EvaluationContext* context,
     return context->VerifyNotAborted();
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<Value> ReplaceStringsWithCollationKeys(
+    const Value& value, const Type* output_type,
+    const GoogleSqlCollator* collator) {
+  if (collator == nullptr) {
+    return value;
+  }
+
+  if (value.is_null()) {
+    return Value::Null(output_type);
+  }
+
+  if (!collator->IsComposite()) {
+    GOOGLESQL_RET_CHECK(value.type()->IsString());
+
+    absl::Cord cord;
+    GOOGLESQL_RETURN_IF_ERROR(collator->GetSortKeyUtf8(value.string_value(), &cord));
+    return Value::Bytes(cord.Flatten());
+  }
+
+  const auto* composite_collator = collator->AsComposite();
+  GOOGLESQL_RET_CHECK(composite_collator != nullptr);
+
+  // Composite collator, recurse into the value.
+  switch (value.type_kind()) {
+    case TYPE_ARRAY: {
+      GOOGLESQL_RET_CHECK_EQ(composite_collator->child_collators().size(), 1);
+      const GoogleSqlCollator* element_collator =
+          composite_collator->child_collators()[0].get();
+
+      std::vector<Value> new_elements;
+      new_elements.reserve(value.num_elements());
+
+      GOOGLESQL_RET_CHECK(output_type->IsArray()) << output_type->DebugString();
+      for (int i = 0; i < value.num_elements(); ++i) {
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            Value new_element,
+            ReplaceStringsWithCollationKeys(
+                value.element(i), output_type->AsArray()->element_type(),
+                element_collator));
+        new_elements.push_back(std::move(new_element));
+      }
+
+      // Collated STRINGs gets updated to BYTES, so update the type accordingly.
+      // HACK: we take the type from the elements, and skip this step if empty.
+      //       The type shouldn't depend on the elements but it shouldn't change
+      //       in the first place, so this approach of changing to BYTES is
+      //       itself a hack.
+      Value new_array = InternalValue::ArrayNotChecked(
+          output_type->AsArray(), InternalValue::GetOrderKind(value),
+          std::move(new_elements));
+
+      return new_array;
+    }
+    case TYPE_STRUCT: {
+      GOOGLESQL_RET_CHECK_EQ(composite_collator->child_collators().size(),
+                   value.num_fields());
+
+      GOOGLESQL_RET_CHECK(output_type->IsStruct()) << output_type->DebugString();
+
+      std::vector<Value> new_fields;
+      new_fields.reserve(value.num_fields());
+      for (int i = 0; i < value.num_fields(); ++i) {
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            Value new_field,
+            ReplaceStringsWithCollationKeys(
+                value.field(i), output_type->AsStruct()->field(i).type,
+                composite_collator->child_collators()[i].get()));
+        new_fields.push_back(std::move(new_field));
+      }
+      return Value::MakeStructFromValidatedInputs(output_type->AsStruct(),
+                                                  std::move(new_fields));
+    }
+    default:
+      // TODO: Graph elements and the like.
+      GOOGLESQL_RET_CHECK_FAIL() << "Unsupported type for composite collation: "
+                       << value.type()->DebugString();
+  }
 }
 
 }  // namespace googlesql

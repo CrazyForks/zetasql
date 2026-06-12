@@ -26,13 +26,11 @@ SELECT ARRAY_OFFSET([new googlesql_test.EmptyMessage()], new googlesql_test.E...
 ==
 
 [language_features=NONE,{{|+ARRAY_FIND_FUNCTIONS}}]
-[no_java]
-# TODO: Enable this test when enum debug string is fixed in Java
 SELECT ARRAY_OFFSET([CAST(1 AS INT32), CAST(2 AS INT32), CAST(3 AS INT32)], 3)
 --
 ALTERNATION GROUP: <empty>
 --
-ERROR: Function not found: ARRAY_OFFSET; Did you mean array_first? [at 2:8]
+ERROR: Function not found: ARRAY_OFFSET; Did you mean array_first? [at 1:8]
 SELECT ARRAY_OFFSET([CAST(1 AS INT32), CAST(2 AS INT32), CAST(3 AS INT32)], 3)
        ^
 --
@@ -54,8 +52,6 @@ QueryStmt
       +-SingleRowScan
 ==
 
-[no_java]
-# TODO: Enable this test when enum debug string is fixed in Java
 SELECT ARRAY_OFFSET([STRUCT(1 AS a), STRUCT(2), STRUCT(3)], STRUCT(3 AS a), "LAST")
 --
 QueryStmt
@@ -74,8 +70,6 @@ QueryStmt
       +-SingleRowScan
 ==
 
-[no_java]
-# TODO: Enable this test when enum debug string is fixed in Java
 SELECT ARRAY_OFFSET([STRUCT(1 AS a), STRUCT(2), STRUCT(3)], STRUCT(3 AS a), CAST("LAST" AS ARRAY_FIND_MODE))
 --
 QueryStmt
@@ -141,13 +135,11 @@ SELECT ARRAY_FIND([4, 5.0], CAST(5 AS FLOAT))
 ==
 
 [language_features=NONE,{{|+ARRAY_FIND_FUNCTIONS}}]
-[no_java]
-# TODO: Enable this test when enum debug string is fixed in Java
 SELECT ARRAY_FIND([4, 5.0], 5, "LAST")
 --
 ALTERNATION GROUP: <empty>
 --
-ERROR: Function not found: ARRAY_FIND; Did you mean array_min? [at 2:8]
+ERROR: Function not found: ARRAY_FIND; Did you mean array_min? [at 1:8]
 SELECT ARRAY_FIND([4, 5.0], 5, "LAST")
        ^
 --
@@ -1640,3 +1632,4 @@ QueryStmt
     |               +-SingleRowScan
     +-input_scan=
       +-TableScan(column_list=[KeyValue.Key#1], table=KeyValue, column_index_list=[0], alias="kv")
+==

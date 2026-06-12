@@ -1,0 +1,75 @@
+# Standard DROP AI INDEX variants.
+# Tests combinations of IF EXISTS, path names, quoted identifiers,
+# and the optional ON clause.
+drop ai index {{|if exists}} a.`idx`.c {{|on d.`tbl`.f}};
+--
+ALTERNATION GROUP: <empty>
+--
+DropAiIndexStatement [0-24] [drop ai index  a.`idx`.c]
+  PathExpression [15-24] [a.`idx`.c]
+    Identifier(a) [15-16] [a]
+    Identifier(idx) [17-22] [`idx`]
+    Identifier(c) [23-24] [c]
+--
+DROP AI INDEX a.idx.c
+--
+ALTERNATION GROUP: on d.`tbl`.f
+--
+DropAiIndexStatement [0-37] [drop ai index...d.`tbl`.f]
+  PathExpression [15-24] [a.`idx`.c]
+    Identifier(a) [15-16] [a]
+    Identifier(idx) [17-22] [`idx`]
+    Identifier(c) [23-24] [c]
+  PathExpression [28-37] [d.`tbl`.f]
+    Identifier(d) [28-29] [d]
+    Identifier(tbl) [30-35] [`tbl`]
+    Identifier(f) [36-37] [f]
+--
+DROP AI INDEX a.idx.c ON d.tbl.f
+--
+ALTERNATION GROUP: if exists,
+--
+DropAiIndexStatement(is_if_exists) [0-33] [drop ai index...a.`idx`.c]
+  PathExpression [24-33] [a.`idx`.c]
+    Identifier(a) [24-25] [a]
+    Identifier(idx) [26-31] [`idx`]
+    Identifier(c) [32-33] [c]
+--
+DROP AI INDEX IF EXISTS a.idx.c
+--
+ALTERNATION GROUP: if exists,on d.`tbl`.f
+--
+DropAiIndexStatement(is_if_exists) [0-46] [drop ai index...d.`tbl`.f]
+  PathExpression [24-33] [a.`idx`.c]
+    Identifier(a) [24-25] [a]
+    Identifier(idx) [26-31] [`idx`]
+    Identifier(c) [32-33] [c]
+  PathExpression [37-46] [d.`tbl`.f]
+    Identifier(d) [37-38] [d]
+    Identifier(tbl) [39-44] [`tbl`]
+    Identifier(f) [45-46] [f]
+--
+DROP AI INDEX IF EXISTS a.idx.c ON d.tbl.f
+==
+
+# Test that IF EXISTS is treated as a keyword and doesn't conflict with
+# identifiers unless they are quoted.
+# This case specifically tests using "if exists foo" as a quoted identifier
+# for the index name.
+drop ai index `if exists foo` on t1;
+--
+DropAiIndexStatement [0-35] [drop ai index...foo` on t1]
+  PathExpression [14-29] [`if exists foo`]
+    Identifier(`if exists foo`) [14-29] [`if exists foo`]
+  PathExpression [33-35] [t1]
+    Identifier(t1) [33-35] [t1]
+--
+DROP AI INDEX `if exists foo` ON t1
+==
+
+# DROP AI INDEX doesn't support more than 2 path expressions (index and table).
+drop ai index foo on t1 bar;
+--
+ERROR: Syntax error: Expected end of input but got identifier "bar" [at 1:25]
+drop ai index foo on t1 bar;
+                        ^

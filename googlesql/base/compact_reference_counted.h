@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <atomic>
+#include <cstdint>
 #include <type_traits>
 
 namespace googlesql_base {

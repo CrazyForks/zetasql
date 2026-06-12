@@ -74,6 +74,7 @@ BUILTIN_PROTO_DEPS = [
     "//googlesql/public:type_proto_java_proto",
     "//googlesql/public:value_java_proto",
     "//googlesql/proto:function_java_proto",
+    "//googlesql/proto:kmeans_options_java_proto",
 ]
 
 java_plugin(

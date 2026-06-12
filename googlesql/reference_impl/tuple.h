@@ -51,9 +51,9 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "googlesql/base/flat_set.h"
-#include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
+#include "googlesql/base/map_util.h"
 
 namespace googlesql {
 

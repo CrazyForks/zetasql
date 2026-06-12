@@ -1,0 +1,57 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referenced_by_udf;
+--
+Lazy_resolution_function:udf_using_int64
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:udf_using_int64_templated
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:udf_using_nested_int64
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:udf_using_nested_int64_templated
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:udf_using_nested_nested_int64
+ERROR: Function udf_using_nested_nested_int64 is invalid [at .../googlesql/testdata/modules/named_constant_referenced_by_udf.sqlm:23:24]
+CREATE PUBLIC FUNCTION udf_using_nested_nested_int64(a INT32) AS
+                       ^
+Unrecognized name: nested_module [at .../googlesql/testdata/modules/named_constant_referenced_by_udf.sqlm:24:10]
+    (a * nested_module.nested_nested_module.bat);
+         ^
+
+Templated_SQL_Function:udf_using_nested_nested_int64_templated
+  (ANY TYPE a) -> ANY TYPE
+
+PRIVATE CONSTANT bar=Int64(1) (INT64)
+--
+MODULE named_constant_in_nested_module_referenced_by_udf imported AS nested_module by MODULE named_constant_referenced_by_udf
+Module 'named_constant_in_nested_module_referenced_by_udf'
+Module contents:
+MODULE named_constant_in_nested_module_referenced_by_udf;
+
+IMPORT MODULE googlesql.testdata.modules.named_constant_in_nested_nested_module_referenced_by_udf AS nested_nested_module;
+
+CREATE PUBLIC CONSTANT baz = 2;
+
+Initialized constants:
+CONSTANT baz=Int64(2) (INT64)
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE named_constant_in_nested_nested_module_referenced_by_udf imported AS nested_nested_module by MODULE named_constant_in_nested_module_referenced_by_udf
+Module 'named_constant_in_nested_nested_module_referenced_by_udf'
+Module contents:
+MODULE named_constant_in_nested_nested_module_referenced_by_udf;
+
+CREATE PUBLIC CONSTANT bat = 3;
+
+Initialized constants:
+CONSTANT bat=Int64(3) (INT64)
+
+Initialization errors:
+<no errors>

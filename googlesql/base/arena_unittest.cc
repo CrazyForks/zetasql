@@ -23,7 +23,10 @@
 #include <cerrno>
 #include <csignal>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <set>
 #include <string>
@@ -31,7 +34,10 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/macros.h"
 #include "absl/container/node_hash_set.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "googlesql/base/arena.h"
 #include "googlesql/base/arena_allocator.h"

@@ -233,3 +233,31 @@ select 1>>>>3;
 ERROR: Syntax error: Unexpected ">>" [at 1:11]
 select 1>>>>3;
           ^
+==
+
+SELECT STRUCT<a INT64>(1), 1 >> 0;
+--
+QueryStatement [0-33]
+  Query [0-33]
+    Select [0-33]
+      SelectList [7-33]
+        SelectColumn [7-25]
+          StructConstructorWithKeyword [7-25]
+            StructType [7-22]
+              StructField [14-21]
+                Identifier(a) [14-15]
+                SimpleType [16-21]
+                  PathExpression [16-21]
+                    Identifier(INT64) [16-21]
+            StructConstructorArg [23-24]
+              IntLiteral(1) [23-24]
+        SelectColumn [27-33]
+          BitwiseShiftExpression(>>) [27-33]
+            IntLiteral(1) [27-28]
+            Location [29-31]
+            IntLiteral(0) [32-33]
+
+--
+SELECT
+  STRUCT< a INT64 > (1),
+  1 >> 0

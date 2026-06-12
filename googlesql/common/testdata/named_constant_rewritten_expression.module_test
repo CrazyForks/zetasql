@@ -1,0 +1,6 @@
+MODULE googlesql.testdata.modules.named_constant_rewritten_expression;
+
+CREATE PUBLIC CONSTANT rewritten_expression_named_constant =
+    ARRAY_TRANSFORM([1, 2, 3], e->CAST(e AS STRING));
+--
+CONSTANT rewritten_expression_named_constant=Array[String("1"), String("2"), String("3")] (ARRAY<STRING>)

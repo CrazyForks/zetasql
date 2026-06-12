@@ -25,9 +25,10 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
-#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/strings/string_view.h"
+#include "googlesql/base/status_builder.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 

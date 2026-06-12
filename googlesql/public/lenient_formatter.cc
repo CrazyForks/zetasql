@@ -25,9 +25,9 @@
 #include "googlesql/tools/formatter/internal/layout.h"
 #include "googlesql/tools/formatter/internal/parsed_file.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

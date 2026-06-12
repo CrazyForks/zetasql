@@ -645,11 +645,6 @@ class Function {
   static constexpr Mode AGGREGATE = FunctionEnums::AGGREGATE;
   static constexpr Mode ANALYTIC = FunctionEnums::ANALYTIC;
 
-  // The SQL SECURITY specified when the function was created.
-  ResolvedCreateStatementEnums::SqlSecurity sql_security() const {
-    return sql_security_;
-  }
-
   // Functions in the root catalog can use one of the first two constructors.
   // Functions in a nested catalog should use the constructor with the
   // <function_name_path>, identifying the full path name of the function
@@ -712,7 +707,7 @@ class Function {
       const FunctionProto& proto,
       const std::vector<const google::protobuf::DescriptorPool*>& pools,
       TypeFactory* factory, std::unique_ptr<Function>* result)>;
-  static void RegisterDeserializer(const std::string& group_name,
+  static void RegisterDeserializer(std::string group_name,
                                    FunctionDeserializer deserializer);
 
   const std::string& Name() const { return function_name_path_.back(); }
@@ -758,6 +753,10 @@ class Function {
                          return signature.context_id() == signature_id;
                        });
   }
+
+  // Returns true if this is a FunctionTypedParameter, which is used as a
+  // placeholder for a function-typed argument of a SQL UDF.
+  virtual bool IsFunctionTypedParameter() const { return false; }
 
   // Returns whether or not this Function is a specific function
   // interface or implementation.
@@ -984,9 +983,17 @@ class Function {
 
   const std::string& alias_name() const { return function_options_.alias_name; }
 
+  // The SQL SECURITY specified when the function was created.
+  ResolvedCreateStatementEnums::SqlSecurity sql_security() const {
+    return sql_security_;
+  }
   void set_sql_security(ResolvedCreateStatementEnums::SqlSecurity security) {
     sql_security_ = security;
   }
+
+  // The language specified when the function was created.
+  absl::string_view language() const { return language_; }
+  void set_language(std::string language) { language_ = std::move(language); }
 
   void set_statement_context(StatementContext context) {
     statement_context_ = context;
@@ -1003,6 +1010,7 @@ class Function {
   const FunctionOptions function_options_;
   ResolvedCreateStatementEnums::SqlSecurity sql_security_ =
       ResolvedCreateStatementEnums::SQL_SECURITY_UNSPECIFIED;
+  std::string language_;
 
   // The GoogleSQL statement context in which this object was defined,
   // indicating the context in which it was analyzed or needs to be analyzed.

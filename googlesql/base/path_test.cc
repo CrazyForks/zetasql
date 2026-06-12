@@ -16,10 +16,12 @@
 
 #include "googlesql/base/path.h"
 
+#include <string>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql_base {
 

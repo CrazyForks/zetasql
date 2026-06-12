@@ -79,6 +79,7 @@ cc_library(
         "//googlesql/base:status",
         "//googlesql/base:strings",
         "//googlesql/common:errors",
+        "//googlesql/common:measure_utils",
         "//googlesql/common:thread_stack",
         "//googlesql/parser",
         "//googlesql/public:coercer",
@@ -94,6 +95,7 @@ cc_library(
         "//googlesql/public/types",
         "//googlesql/resolved_ast",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -174,6 +176,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -182,16 +185,35 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "json_comparison_analyzer_test",
+    srcs = ["json_comparison_analyzer_test.cc"],
+    deps = [
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/base/testing:status_matchers",
+        "//googlesql/public:analyzer",
+        "//googlesql/public:analyzer_options",
+        "//googlesql/public:language_options",
+        "//googlesql/public:options_cc_proto",
+        "//googlesql/public:type",
+        "//googlesql/testdata:sample_catalog",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_library(
     name = "resolver",
     srcs = [
         "analytic_function_resolver.cc",
         "column_cycle_detector.cc",
+        "conflicting_field_paths_validator.cc",
         "expr_resolver_helper.cc",
         "function_resolver.cc",
+        "graph_ddl_resolver.cc",
         "graph_expr_resolver_helper.cc",
         "graph_query_resolver.cc",
-        "graph_stmt_resolver.cc",
         "query_resolver_helper.cc",
         "recursive_queries.cc",
         "recursive_queries.h",
@@ -206,11 +228,12 @@ cc_library(
     hdrs = [
         "analytic_function_resolver.h",
         "column_cycle_detector.h",
+        "conflicting_field_paths_validator.h",
         "expr_resolver_helper.h",
         "function_resolver.h",
+        "graph_ddl_resolver.h",
         "graph_expr_resolver_helper.h",
         "graph_query_resolver.h",
-        "graph_stmt_resolver.h",
         "named_argument_info.h",
         "query_resolver_helper.h",
         "resolver.h",
@@ -293,12 +316,15 @@ cc_library(
         "//googlesql/public:with_modifier_mode",
         "//googlesql/public/annotation:collation",
         "//googlesql/public/functions:array_zip_mode_cc_proto",
+        "//googlesql/public/functions:cast_date_time",
         "//googlesql/public/functions:convert_string",
+        "//googlesql/public/functions:convert_string_with_format",
         "//googlesql/public/functions:date_time_util",
         "//googlesql/public/functions:datetime_cc_proto",
         "//googlesql/public/functions:normalize_mode_cc_proto",
         "//googlesql/public/functions:range",
         "//googlesql/public/functions:regexp",
+        "//googlesql/public/functions:string",
         "//googlesql/public/proto:type_annotation_cc_proto",
         "//googlesql/public/types",
         "//googlesql/resolved_ast",
@@ -316,6 +342,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
@@ -426,6 +453,7 @@ cc_library(
         "//googlesql/analyzer/rewriters:pipe_describe_rewriter",
         "//googlesql/analyzer/rewriters:pipe_if_rewriter",
         "//googlesql/analyzer/rewriters:pivot_rewriter",
+        "//googlesql/analyzer/rewriters:quantified_comparison_rewriter",
         "//googlesql/analyzer/rewriters:registration",
         "//googlesql/analyzer/rewriters:row_type_rewriter",
         "//googlesql/analyzer/rewriters:sql_function_inliner",
@@ -470,6 +498,7 @@ cc_library(
         ":resolver",
         ":rewrite_resolved_ast",
         "//googlesql/base:logging",
+        "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/common:errors",
         "//googlesql/common:internal_analyzer_options",
@@ -827,6 +856,7 @@ cc_library(
         ":analyzer_output_mutator",
         ":analyzer_test_options",
         "//googlesql/base",
+        "//googlesql/base:check",
         "//googlesql/base:enum_utils",
         "//googlesql/base:map_util",
         "//googlesql/base:ret_check",
@@ -945,6 +975,7 @@ cc_library(
         "//googlesql/public:sql_function",
         "//googlesql/public:templated_sql_function",
         "//googlesql/public/annotation:collation",
+        "//googlesql/public/annotation:is_versioned",
         "//googlesql/public/types",
         "//googlesql/resolved_ast",
         "//googlesql/resolved_ast:resolved_node_kind_cc_proto",
@@ -968,7 +999,9 @@ cc_test(
         "//googlesql/public:builtin_function_options",
         "//googlesql/public:catalog",
         "//googlesql/public:function_headers",
+        "//googlesql/public:id_string",
         "//googlesql/public:simple_catalog",
+        "//googlesql/public/annotation:is_versioned",
         "//googlesql/public/types",
         "//googlesql/resolved_ast",
         "//googlesql/resolved_ast:rewrite_utils",
@@ -1037,9 +1070,15 @@ cc_test(
     ],
 )
 
-[gen_analyzer_test(
-    filename = f.split("/")[-1],
-) for f in glob(["testdata/*.test"])]
+created_cpp_tests = [
+    gen_analyzer_test(filename = f.split("/")[-1])
+    for f in glob(["testdata/*.test"])
+]
+
+test_suite(
+    name = "all_cpp_file_based_tests",
+    tests = created_cpp_tests,
+)
 
 bzl_library(
     name = "builddefs_bzl",

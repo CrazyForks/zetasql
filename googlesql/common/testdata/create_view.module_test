@@ -1,0 +1,259 @@
+MODULE m;
+CREATE PUBLIC VIEW v0 OPTIONS (allowed_references = 'builtin') as Select 1 a, 2 b;
+--
+VIEW v0
+==
+
+MODULE m;
+CREATE VIEW v1 as Select 1 a, 2 b;
+--
+VIEW v1
+ERROR: View v1 is invalid [at 2:13]
+CREATE VIEW v1 as Select 1 a, 2 b;
+            ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at 2:1]
+CREATE VIEW v1 as Select 1 a, 2 b;
+^
+==
+
+MODULE m;
+CREATE OR REPLACE PUBLIC view v2 as Select 1 a, 2 b;
+--
+VIEW v2
+ERROR: View v2 is invalid [at 2:31]
+CREATE OR REPLACE PUBLIC view v2 as Select 1 a, 2 b;
+                              ^
+Modules do not support CREATE OR REPLACE for CREATE VIEW [at 2:1]
+CREATE OR REPLACE PUBLIC view v2 as Select 1 a, 2 b;
+^
+==
+
+MODULE m;
+CREATE PUBLIC VIEW IF NOT EXISTS v3 as Select 1 a, 2 b;
+--
+VIEW v3
+ERROR: View v3 is invalid [at 2:34]
+CREATE PUBLIC VIEW IF NOT EXISTS v3 as Select 1 a, 2 b;
+                                 ^
+Modules do not support IF NOT EXISTS for CREATE VIEW [at 2:1]
+CREATE PUBLIC VIEW IF NOT EXISTS v3 as Select 1 a, 2 b;
+^
+==
+
+MODULE m;
+CREATE PRIVATE VIEW views.v4 as Select 1 a, 2 b;
+--
+--
+Module errors:
+INVALID_ARGUMENT: Modules do not support creating views with multi-part names or in nested catalogs [at 2:21]
+CREATE PRIVATE VIEW views.v4 as Select 1 a, 2 b;
+                    ^
+==
+
+# Check for duplicate names is case-insensitive
+MODULE m;
+CREATE PUBLIC VIEW VIEW5 OPTIONS (allowed_references = 'global') as Select 1 a, 2 b;
+CREATE PRIVATE VIEW view5 as Select 3 a, 4 b;
+--
+VIEW VIEW5
+--
+Module errors:
+INVALID_ARGUMENT: Views must have unique names, but found duplicate name view5 [at 3:1]
+CREATE PRIVATE VIEW view5 as Select 3 a, 4 b;
+^
+==
+
+MODULE m;
+CREATE PUBLIC VIEW v6 OPTIONS (allowed_references = 'yes')
+as Select 1 a, 2 b;
+--
+VIEW v6
+ERROR: View v6 is invalid [at 2:20]
+CREATE PUBLIC VIEW v6 OPTIONS (allowed_references = 'yes')
+                   ^
+Option allowed_references must be one of 'builtin' or 'global' [at 2:32]
+CREATE PUBLIC VIEW v6 OPTIONS (allowed_references = 'yes')
+                               ^
+==
+
+# View referring to an unknown table - no failure in the lazy state.
+[no_resolve_statements]
+Module m;
+CREATE PUBLIC VIEW foo as (select * from bar);
+--
+VIEW foo
+==
+
+# View referring to an unknown table - fails during resolution.
+Module m;
+CREATE PUBLIC VIEW foo as (select * from bar);
+--
+VIEW foo
+ERROR: View foo is invalid [at 2:20]
+CREATE PUBLIC VIEW foo as (select * from bar);
+                   ^
+Table not found: bar [at 2:42]
+CREATE PUBLIC VIEW foo as (select * from bar);
+                                         ^
+==
+
+# Cyclic dependency in the view definitions
+Module m;
+CREATE PUBLIC VIEW foo as (select * from bar);
+CREATE PUBLIC VIEW bar as (select * from foo);
+--
+VIEW bar
+ERROR: View bar is invalid [at 3:20]
+CREATE PUBLIC VIEW bar as (select * from foo);
+                   ^
+View foo is invalid [at 2:20]
+CREATE PUBLIC VIEW foo as (select * from bar);
+                   ^
+Recursive dependencies detected when resolving view m.bar, which include objects (m.bar, m.foo, m.bar) [at 3:20]
+CREATE PUBLIC VIEW bar as (select * from foo);
+                   ^
+
+VIEW foo
+ERROR: View foo is invalid [at 2:20]
+CREATE PUBLIC VIEW foo as (select * from bar);
+                   ^
+Recursive dependencies detected when resolving view m.bar, which include objects (m.bar, m.foo, m.bar) [at 3:20]
+CREATE PUBLIC VIEW bar as (select * from foo);
+                   ^
+==
+
+# View referencing other modules defined objects.
+Module m;
+CREATE PRIVATE CONSTANT lorem = "ipsum";
+CREATE PUBLIC TABLE FUNCTION foo(arr array<int32>) as (select x from unnest(arr) as x);
+CREATE PRIVATE FUNCTION square(a int32) as (a*a);
+CREATE PUBLIC VIEW bar as (select x as x, square(x) as sqrx, lorem from foo([1,2,3]));
+--
+PRIVATE Lazy_resolution_function:square
+  (INT32 a) -> INT64
+
+TVF:foo
+  (ARRAY<INT32> arr) -> TABLE<x INT32>
+
+VIEW bar
+
+PRIVATE CONSTANT lorem=String("ipsum") (STRING)
+==
+
+# View referred to by other module objects.
+Module m;
+CREATE PRIVATE VIEW foo as (select x from unnest([1, 1, 2, 3, 5]) as x);
+CREATE PUBLIC FUNCTION bar (a int64) as (a * (select max(x) from foo));
+CREATE PUBLIC TABLE FUNCTION baz() as (select x, count(x) as y from foo group by x);
+--
+Lazy_resolution_function:bar
+  (INT64 a) -> INT64
+
+TVF:baz
+  () -> TABLE<x INT64, y INT64>
+
+PRIVATE VIEW foo
+==
+
+# Views created with the builtin scope can only reference other builtin scope
+# module objects. Whereas views created with the global scope can refer to both
+# builtin and global scope module objects.
+Module m;
+CREATE PUBLIC FUNCTION func_builtin(a int32) OPTIONS (allowed_references = 'builtin') as (a*a);
+CREATE PUBLIC FUNCTION func_global(a int32) OPTIONS (allowed_references = 'global') as (a*a);
+
+CREATE PUBLIC VIEW v1 OPTIONS (allowed_references = 'builtin') as (select func_builtin(1) as a);
+CREATE PUBLIC VIEW v2 OPTIONS (allowed_references = 'builtin') as (select func_builtin(1) as a, func_global(2) as b);
+CREATE PUBLIC VIEW v3 OPTIONS (allowed_references = 'global') as (select func_builtin(1) as a, func_global(2) as b);
+--
+Lazy_resolution_function:func_builtin
+  (INT32 a) -> INT64
+
+Lazy_resolution_function:func_global
+  (INT32 a) -> INT64
+
+VIEW v1
+
+VIEW v2
+ERROR: View v2 is invalid [at 6:20]
+CREATE PUBLIC VIEW v2 OPTIONS (allowed_references = 'builtin') as (select fun...
+                   ^
+Invalid function func_global [at 6:97]
+...builtin') as (select func_builtin(1) as a, func_global(2) as b);
+                                              ^
+Invalid reference to global-scope function 'func_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+VIEW v3
+==
+
+Module m;
+CREATE PUBLIC RECURSIVE VIEW fact(n, factorial) AS
+(
+  SELECT 1 as n, 1 as factorial
+  UNION ALL
+  SELECT n+1, factorial*(n+1) FROM fact WHERE n < 5
+);
+--
+VIEW fact
+==
+
+# View referencing a function which has a deprecation warning.
+Module m;
+CREATE PUBLIC VIEW foo AS (Select 1 a, deprecation_warning() b);
+--
+VIEW foo
+DEPRECATION WARNING:
+Function SAMPLE_FUNCTIONS:DEPRECATION_WARNING triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at 2:40]
+CREATE PUBLIC VIEW foo AS (Select 1 a, deprecation_warning() b);
+                                       ^
+Operation <foo1> is deprecated [at module1.sqlm:11:21]
+some caret string for foo_1
+                      ^
+[googlesql.DeprecationWarning] { kind: PROTO3_FIELD_PRESENCE }
+==
+
+# SQL SECURITY clause is not allowed in statements with the PUBLIC/PRIVATE
+# modifier and consequently not allowed in views defined in modules.
+Module m;
+CREATE PUBLIC VIEW v1 SQL SECURITY DEFINER AS (select 1 a);
+CREATE PRIVATE VIEW v2 SQL SECURITY INVOKER AS (select 1 a);
+--
+VIEW v1
+ERROR: View v1 is invalid [at 2:20]
+CREATE PUBLIC VIEW v1 SQL SECURITY DEFINER AS (select 1 a);
+                   ^
+SQL SECURITY clause is not supported on statements with the PUBLIC modifier. [at 2:1]
+CREATE PUBLIC VIEW v1 SQL SECURITY DEFINER AS (select 1 a);
+^
+
+PRIVATE VIEW v2
+ERROR: View v2 is invalid [at 3:21]
+CREATE PRIVATE VIEW v2 SQL SECURITY INVOKER AS (select 1 a);
+                    ^
+SQL SECURITY clause is not supported on statements with the PRIVATE modifier. [at 3:1]
+CREATE PRIVATE VIEW v2 SQL SECURITY INVOKER AS (select 1 a);
+^
+==
+
+# Some engines use the OPTIONS clause to specify the privilege model / SQL
+# SECURITY for the view. CREATE VIEW statements in modules only respect the
+# allowed_references option from OPTIONS list, anything else gets ignored.
+Module m;
+CREATE PUBLIC VIEW v1 OPTIONS (privilege_model = CREATOR_RIGHTS, foo = bar) AS (select 1 a);
+--
+VIEW v1
+==
+
+# Global scope views require global catalog to be provided.
+[no_provide_global_catalog]
+MODULE m;
+CREATE PUBLIC VIEW v1 OPTIONS(allowed_references = 'builtin') AS (select 1 a);
+CREATE PUBLIC VIEW v2 OPTIONS(allowed_references = 'global') AS (select 2 b);
+--
+VIEW v1
+
+VIEW v2
+ERROR: View v2 is invalid [at 3:20]
+CREATE PUBLIC VIEW v2 OPTIONS(allowed_references = 'global') AS (select 2 b);
+                   ^
+Global references are not supported by this execution environment

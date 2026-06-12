@@ -15,12 +15,18 @@
 //
 
 #include "googlesql/base/net/public_suffix_oss.h"
+#include <cstddef>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "googlesql/base/net/idn_oss.h"
 #include "googlesql/base/net/public_suffix_test_psl.h"
 

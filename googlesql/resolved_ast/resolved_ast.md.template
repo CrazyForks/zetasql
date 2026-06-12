@@ -49,7 +49,7 @@ Additional non-generated classes that are documented separately:
 <p><pre><code>
 {{- root_node_name|linkify}}
 {% for node in root_child_nodes|sort_by_name recursive%}
-{{"%*s" | format(loop.depth * 2, "")}}{{node.name|linkify}}
+{{"%*s" | format(loop.depth * 2, "")}}<a id="{{node.name}}-toc" href="#{{node.name}}">{{node.name}}</a>
 {{loop(node.subclasses|sort_by_name) -}}
 {% endfor %}
 </code></pre></p>
@@ -63,6 +63,11 @@ the base class.
 {% for node in nodes %}
 
 ### {{node.name}}{ #{{node.name|unplural}} }
+
+{{ "ResolvedNode"|as_link }}
+{%- for super in node.superclasses|sort(attribute='depth') %}
+ &rsaquo; {{super.name|as_link}} {% endfor %} &rsaquo; {{node.name}}
+ &nbsp;(<a href="#{{node.name}}-toc">tree</a>)
 
 <p><pre><code class="lang-c++">
 {%- if node.comment %}

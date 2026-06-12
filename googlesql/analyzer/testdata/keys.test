@@ -449,7 +449,7 @@ QueryStmt
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
 FROM KeyValue
 --
-ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a literal or query parameter [at 1:46]
+ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a constant expression [at 1:46]
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
                                              ^
 ==
@@ -457,7 +457,7 @@ SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES), CAST(value AS BYTES))
 FROM KeyValue
 --
-ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a literal or query parameter [at 1:46]
+ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a constant expression [at 1:46]
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES), CAST(value...
                                              ^
 ==
@@ -509,7 +509,7 @@ SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(NULL AS STRING), NULL)
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
 FROM KeyValue
 --
-ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a literal or query parameter [at 1:46]
+ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a constant expression [at 1:46]
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
                                              ^
 ==
@@ -517,6 +517,60 @@ SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES))
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES), CAST(value AS BYTES))
 FROM KeyValue
 --
-ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a literal or query parameter [at 1:46]
+ERROR: Argument 2 to KEYS.KEYSET_CHAIN must be a constant expression [at 1:46]
 SELECT KEYS.KEYSET_CHAIN(@test_param_string, CAST(value AS BYTES), CAST(value...
                                              ^
+==
+
+SELECT KEYS.KEYSET_CHAIN(@test_param_string, FROM_BASE64('MDEyMzQ1Njc4OWFiY2RlZg=='))
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:keys.keyset_chain(STRING, BYTES) -> STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>)
+    |     +-Parameter(type=STRING, name="test_param_string")
+    |     +-FunctionCall(GoogleSQL:from_base64(STRING) -> BYTES)
+    |       +-Literal(type=STRING, value="MDEyMzQ1Njc4OWFiY2RlZg==")
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_KEYSET('FPE_FF1', metadata => '{"radix": 10, "input_length": 6}')
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BYTES]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:keys.new_keyset(STRING, STRING metadata) -> BYTES)
+    |     +-Literal(type=STRING, value="FPE_FF1")
+    |     +-Literal(type=STRING, value='{"radix": 10, "input_length": 6}')
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_KEYSET('AEAD_AES_GCM_256', metadata => '{"radix": 10}')
+--
+ERROR: Metadata argument is not supported for key type 'AEAD_AES_GCM_256' [at 1:8]
+SELECT KEYS.NEW_KEYSET('AEAD_AES_GCM_256', metadata => '{"radix": 10}')
+       ^
+
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_KEYSET('DETERMINISTIC_AEAD_AES_SIV_CMAC_256', metadata => '{"radix": 10}')
+--
+ERROR: Metadata argument is not supported for key type 'DETERMINISTIC_AEAD_AES_SIV_CMAC_256' [at 1:8]
+SELECT KEYS.NEW_KEYSET('DETERMINISTIC_AEAD_AES_SIV_CMAC_256', metadata => '{"...
+       ^

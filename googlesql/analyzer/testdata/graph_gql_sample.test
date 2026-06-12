@@ -80,8 +80,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_3
     RETURN
       a_3 AS a_4
@@ -93,8 +92,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_3
     RETURN
       a_3 AS a_4
@@ -204,12 +202,9 @@ FROM
     aml
     MATCH
       (
-        (a_2
-        IS (% | ! %))
-        -[a_3
-        IS (% | ! %)]->
-        (a_4
-        IS (% | ! %))
+        (a_2 IS (% | ! %))
+        -[a_3 IS (% | ! %)]->
+        (a_4 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_5
     RETURN
@@ -223,12 +218,9 @@ FROM
     aml
     MATCH
       (
-        (a_2
-        IS (% | ! %))
-        -[a_3
-        IS (% | ! %)]->
-        (a_4
-        IS (% | ! %))
+        (a_2 IS (% | ! %))
+        -[a_3 IS (% | ! %)]->
+        (a_4 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_5
     RETURN
@@ -348,12 +340,9 @@ FROM
     aml
     MATCH
       a_2 = (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]-
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]-
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_6
     RETURN
@@ -367,12 +356,9 @@ FROM
     aml
     MATCH
       a_2 = (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]-
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]-
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_6
     RETURN
@@ -525,8 +511,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_3
     RETURN
       a_3 AS a_4
@@ -538,8 +523,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_3
     RETURN
       a_3 AS a_4
@@ -649,12 +633,9 @@ FROM
     aml
     MATCH
       (
-        (a_2
-        IS (% | ! %))
-        -[a_3
-        IS (% | ! %)]->
-        (a_4
-        IS (% | ! %))
+        (a_2 IS (% | ! %))
+        -[a_3 IS (% | ! %)]->
+        (a_4 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_5
     RETURN
@@ -668,12 +649,9 @@ FROM
     aml
     MATCH
       (
-        (a_2
-        IS (% | ! %))
-        -[a_3
-        IS (% | ! %)]->
-        (a_4
-        IS (% | ! %))
+        (a_2 IS (% | ! %))
+        -[a_3 IS (% | ! %)]->
+        (a_4 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_5
     RETURN
@@ -793,12 +771,9 @@ FROM
     aml
     MATCH
       a_2 = (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]-
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]-
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_6
     RETURN
@@ -812,12 +787,9 @@ FROM
     aml
     MATCH
       a_2 = (
-        (a_3
-        IS (% | ! %))
-        -[a_4
-        IS (% | ! %)]-
-        (a_5
-        IS (% | ! %))
+        (a_3 IS (% | ! %))
+        -[a_4 IS (% | ! %)]-
+        (a_5 IS (% | ! %))
       ) { 3, 5 }
     TABLESAMPLE bernoulli(5 PERCENT) WITH WEIGHT AS a_6
     RETURN
@@ -1107,22 +1079,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_3, a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)
@@ -1138,22 +1103,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_3, a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)
@@ -1376,22 +1334,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_2, a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)
@@ -1407,22 +1358,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_2, a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)
@@ -1638,22 +1582,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)
@@ -1669,22 +1606,15 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
       (
-        (a_4
-        IS (% | ! %))
-        -[a_5
-        IS (% | ! %)]->
-        (a_6
-        IS (% | ! %))
+        (a_4 IS (% | ! %))
+        -[a_5 IS (% | ! %)]->
+        (a_6 IS (% | ! %))
       ) { 3, 5 }
-      (a_7
-      IS (% | ! %))
-      -[a_8
-      IS (% | ! %)]-
-      (a_9
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
+      -[a_8 IS (% | ! %)]-
+      (a_9 IS (% | ! %))
     TABLESAMPLE reservoir(5 ROWS PARTITION BY a_3.age, ELEMENT_ID(a_7), SOURCE_NODE_ID(a_8)) WITH WEIGHT AS a_10 REPEATABLE (123)
     LET
       a_11 = MAX(a_5.amount)

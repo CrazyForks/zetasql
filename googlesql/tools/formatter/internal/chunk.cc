@@ -41,6 +41,7 @@
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
 #include "googlesql/tools/formatter/internal/fusible_tokens.h"
+#include "googlesql/tools/formatter/internal/procedural_block_def.h"
 #include "googlesql/tools/formatter/internal/token.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
@@ -49,6 +50,7 @@
 #include "absl/log/die_if_null.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -57,7 +59,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "googlesql/base/flat_set.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::formatter::internal {
 namespace {
@@ -209,7 +210,7 @@ bool CanBePartOfExpression(const Token& token) {
   static const auto* forbidden = new googlesql_base::flat_set<absl::string_view>(
       {"}", ";", ",", "BY", "DEFAULT", "DEFINE", "CASE", "ELSE", "INTERVAL",
        "ON", "THEN", "WHEN"});
-  return !IsTopLevelClauseKeyword(token) &&
+  return !IsTopLevelClauseKeyword(token) && !token.IsProceduralKeyword() &&
          !forbidden->contains(token.GetKeyword());
 }
 
@@ -555,7 +556,8 @@ bool Chunk::SpaceBetweenTokens(const Token& token_before,
                                      Token::Type::PRIVILEGE_TYPE_KEYWORD,
                                      Token::Type::SELECT_STAR_MODIFIER,
                                      Token::Type::ASSIGNMENT_OPERATOR}) ||
-               !CanBeFusedWithOpenParenOrBracket(*this, &token_before)) {
+               !CanBeFusedWithOpenParenOrBracket(*this, &token_before) ||
+               token_before.IsProceduralKeyword()) {
       return true;
     }
     return false;
@@ -1206,6 +1208,12 @@ bool IsPartOfSameChunk(const Chunk& chunk, const std::vector<Token*>& tokens,
            // Special case: '/*arg_name=*/value' should be attached to the
            // value, not to the previous token.
            !IsArgumentNameInlineComment(*current_token);
+  }
+
+  // Group procedural block closer keywords together (e.g. "END IF").
+  if (previous_token->Is(Token::Type::PROCEDURAL_BLOCK_CLOSER) &&
+      current_token->Is(Token::Type::PROCEDURAL_BLOCK_CLOSER)) {
+    return true;
   }
 
   if (current_token->Is(Token::Type::CHAINED_METHOD_DOT_SEPARATOR)) {
@@ -2656,6 +2664,256 @@ void MarkAllBuiltinFunctions(const TokensView& tokens_view) {
   }
 }
 
+namespace {
+
+std::optional<ProceduralContinuerDef> GetFormattingDef(const Chunk& chunk) {
+  if (!chunk.FirstToken().Is(Token::Type::PROCEDURAL_BLOCK_CONTINUER)) {
+    return std::nullopt;
+  }
+  Chunk* opener = chunk.MatchingOpeningChunk();
+  if (!opener) return std::nullopt;
+
+  const ProceduralBlockDef* def = GetProceduralBlockDef(opener->FirstKeyword());
+  if (!def) return std::nullopt;
+
+  const ProceduralContinuerDef* continuer =
+      def->FindContinuer(chunk.FirstKeyword());
+  if (!continuer) return std::nullopt;
+
+  return *continuer;
+}
+
+}  // namespace
+
+bool Chunk::IsProceduralBodyStarter() const {
+  std::optional<ProceduralContinuerDef> def = GetFormattingDef(*this);
+  return def.has_value() && def->type == ProceduralContinuerType::BODY_STARTER;
+}
+
+bool Chunk::IsComplexProceduralBody() const {
+  std::optional<ProceduralContinuerDef> def = GetFormattingDef(*this);
+  // We only evaluate body complexity for continuers that actually introduce a
+  // block of statements (e.g., THEN, ELSE). Continuers that introduce
+  // conditions (e.g., ELSEIF, WHEN) have expects_statement = false and are
+  // skipped here.
+  if (!def.has_value() || !def->expects_statement) return false;
+
+  // The current block's opener. All continuers and closers of this block
+  // point to this opener. (GetFormattingDef guarantees this is non-null).
+  const Chunk* opener = MatchingOpeningChunk();
+
+  bool has_semicolon = false;
+
+  for (const Chunk* c = NextNonCommentChunk(); c != nullptr;
+       c = c->NextNonCommentChunk()) {
+    // If we reached the end of this branch's body...
+    if (c->MatchingOpeningChunk() == opener) break;
+
+    // A body is complex if it contains a nested procedural block.
+    if (c->FirstToken().IsProceduralKeyword()) return true;
+
+    if (c->LastKeyword() == ";") {
+      // If we already saw a semicolon, this is a second statement, so the body
+      // is complex.
+      if (has_semicolon) return true;
+      has_semicolon = true;
+    }
+  }
+  return false;
+}
+
+bool Chunk::IsProceduralBranchDivider() const {
+  std::optional<ProceduralContinuerDef> def = GetFormattingDef(*this);
+  return def.has_value() &&
+         def->type == ProceduralContinuerType::BRANCH_DIVIDER;
+}
+
+// A post-parsing pass that walks through the token stream and assigns
+// structural roles (OPENER, CONTINUER, CLOSER) to keywords belonging
+// to procedural blocks. The tags assigned by this class are used later by
+// `MarkAllProceduralBlockPairs` to link the procedural blocks.
+class ProceduralBlockTagger {
+ public:
+  // Initializes the tagger with a list of tokens (excluding comments).
+  explicit ProceduralBlockTagger(const std::vector<Token*>& tokens)
+      : tokens_(tokens) {}
+
+  // Executes the tagging process over the provided tokens.
+  void Tag() {
+    absl::string_view last_kw = "";
+    for (size_t i = 0; i < tokens_.size(); ++i) {
+      Token* token = tokens_[i];
+      const absl::string_view kw = token->GetKeyword();
+
+      if (IsOpenParenOrBracket(kw)) {
+        scope_stack_.push_back({token, nullptr, {}, state_});
+      } else if (IsCloseParenOrBracket(kw)) {
+        HandleCloseBracket(kw);
+      } else if (kw == "END") {
+        i = HandleEndKeyword(token, i);
+      } else if (!TryHandleOpener(token, kw, last_kw) &&
+                 !TryHandleContinuer(token, kw)) {
+        UpdateStatementState(token, kw);
+      }
+
+      if (token->IsKeyword()) last_kw = kw;
+    }
+  }
+
+ private:
+  // The tagger acts as a 3-state machine to differentiate between procedural
+  // boundaries and standard SQL statements.
+  enum class TaggerState {
+    // The tagger is waiting for a new statement to begin (e.g. after a ';' or
+    // after a procedural block body starter like 'THEN').
+    EXPECTING_STATEMENT,
+    // The tagger just saw a procedural opener (e.g. 'IF'). The tokens that
+    // follow belong to the procedural condition, not a standard statement.
+    // This allows 'TryHandleContinuer' to recognize keywords like 'THEN'.
+    IN_PROCEDURAL_CONDITION,
+    // The tagger is actively reading a standard SQL statement (e.g. 'SELECT').
+    // While in this state, procedural continuers are ignored (e.g. a 'WHEN'
+    // inside a standard 'MERGE' statement won't be treated as a procedural
+    // branch divider).
+    IN_STANDARD_STATEMENT,
+  };
+
+  struct Scope {
+    Token* opener;
+    const ProceduralBlockDef* def;  // non-null for procedural blocks
+    std::vector<Token*> continuers;
+    TaggerState saved_state;
+  };
+
+  // Adjusts the scope stack when encountering a closing parenthesis or bracket.
+  void HandleCloseBracket(absl::string_view kw) {
+    const absl::string_view open_kw = CorrespondingOpenBracket(kw);
+    auto it = std::find_if(scope_stack_.rbegin(), scope_stack_.rend(),
+                           [open_kw](const Scope& s) {
+                             return s.opener->GetKeyword() == open_kw;
+                           });
+
+    if (it != scope_stack_.rend()) {
+      state_ = it->saved_state;
+      // Erase the matching open bracket and everything above it.
+      scope_stack_.erase(std::prev(it.base()), scope_stack_.end());
+    }
+  }
+
+  // Processes an END keyword, resolving the current procedural scope and
+  // tagging the closing tokens appropriately.
+  size_t HandleEndKeyword(Token* end_token, size_t i) {
+    if (scope_stack_.empty() || !scope_stack_.back().def) {
+      return i;
+    }
+
+    const ProceduralBlockDef* def = scope_stack_.back().def;
+    const bool has_suffix = !def->closer_suffix.empty();
+    const size_t next_i = i + 1;
+    const bool matched_suffix =
+        next_i < tokens_.size() &&
+        tokens_[next_i]->GetKeyword() == def->closer_suffix;
+
+    // The following logic correctly allows procedural `CASE` statements
+    // (with suffix) while essentially ignoring expression `CASE` (no suffix)
+    // for procedural tagging purposes, since `CASE` expressions are already
+    // handled by other grouping rules.
+    if (has_suffix && !matched_suffix) {
+      if (def->is_expression_capable) {
+        state_ = scope_stack_.back().saved_state;
+        scope_stack_.pop_back();
+      } else {
+        state_ = TaggerState::EXPECTING_STATEMENT;
+        // The "END" keyword didn't match the expected suffix, so this doesn't
+        // close the current procedural block. Since we are resetting to
+        // EXPECTING_STATEMENT, pop the current scope to avoid leaving a
+        // malformed block on the stack.
+        scope_stack_.pop_back();
+      }
+      return i;
+    }
+
+    // Note: We do not restore state_ to saved_state here. Semicolons (;)
+    // at the end of statements inside and after the block will reset the
+    // state to EXPECTING_STATEMENT anyway, making explicit restoration
+    // redundant.
+    Scope scope = std::move(scope_stack_.back());
+    scope_stack_.pop_back();
+
+    scope.opener->SetType(Token::Type::PROCEDURAL_BLOCK_OPENER);
+    end_token->SetType(Token::Type::PROCEDURAL_BLOCK_CLOSER);
+
+    if (has_suffix) {
+      tokens_[++i]->SetType(Token::Type::PROCEDURAL_BLOCK_CLOSER);
+    }
+    for (Token* c : scope.continuers) {
+      c->SetType(Token::Type::PROCEDURAL_BLOCK_CONTINUER);
+    }
+
+    return i;
+  }
+
+  // Attempts to match the given keyword against the registry of procedural
+  // block openers. If matched, pushes a new procedural scope onto the stack.
+  // Returns true if handled.
+  bool TryHandleOpener(Token* token, absl::string_view kw,
+                       absl::string_view last_kw) {
+    if (token->Is(Token::Type::KEYWORD_AS_IDENTIFIER_FRAGMENT) ||
+        token->Is(Token::Type::BUILTIN_FUNCTION) ||
+        !IsBlockOpenerRequiringEnd(kw, last_kw)) {
+      return false;
+    }
+
+    const ProceduralBlockDef* def = GetProceduralBlockDef(kw);
+    scope_stack_.push_back({token, def, {}, state_});
+    state_ = TaggerState::IN_PROCEDURAL_CONDITION;
+    return true;
+  }
+  // Attempts to match the given keyword as a valid continuer for the
+  // active procedural block. Returns true if handled.
+  bool TryHandleContinuer(Token* token, absl::string_view kw) {
+    if (scope_stack_.empty() || !scope_stack_.back().def ||
+        token->Is(Token::Type::KEYWORD_AS_IDENTIFIER_FRAGMENT) ||
+        state_ == TaggerState::IN_STANDARD_STATEMENT) {
+      return false;
+    }
+
+    if (const ProceduralContinuerDef* matched =
+            scope_stack_.back().def->FindContinuer(kw)) {
+      scope_stack_.back().continuers.push_back(token);
+      state_ = matched->expects_statement
+                   ? TaggerState::EXPECTING_STATEMENT
+                   : TaggerState::IN_PROCEDURAL_CONDITION;
+      return true;
+    }
+
+    return false;
+  }
+
+  void UpdateStatementState(Token* token, absl::string_view kw) {
+    // Semicolons reset the tagger to expect a new statement.
+    if (kw == ";" && token->IsKeyword()) {
+      state_ = TaggerState::EXPECTING_STATEMENT;
+      return;
+    }
+
+    // Since the tagger iterates over tokens without comments, we only need
+    // to ensure we don't treat the end of the input as a new statement.
+    if (state_ == TaggerState::EXPECTING_STATEMENT && !token->IsEndOfInput()) {
+      state_ = TaggerState::IN_STANDARD_STATEMENT;
+    }
+  }
+
+  const std::vector<Token*>& tokens_;
+  std::vector<Scope> scope_stack_;
+  TaggerState state_ = TaggerState::EXPECTING_STATEMENT;
+};
+
+void MarkAllProceduralBlocks(const TokensView& tokens_view) {
+  ProceduralBlockTagger tagger(tokens_view.WithoutComments());
+  tagger.Tag();
+}
+
 void AnnotateTokens(const TokensView& tokens,
                     const ParseLocationTranslator& location_translator,
                     const FormatterOptions& formatter_options) {
@@ -2686,6 +2944,7 @@ void AnnotateTokens(const TokensView& tokens,
   if (formatter_options.IsCapitalizeFunctions()) {
     MarkAllBuiltinFunctions(tokens);
   }
+  MarkAllProceduralBlocks(tokens);
 }
 
 void MarkAllAngleBracketPairs(std::vector<Chunk>* chunks) {
@@ -2713,6 +2972,35 @@ void MarkAllAngleBracketPairs(std::vector<Chunk>* chunks) {
           break;
         }
       }
+    }
+  }
+}
+
+void MarkAllProceduralBlockPairs(std::vector<Chunk>* chunks) {
+  // Use a vector as a stack to keep track of the most recently opened,
+  // but not yet closed, procedural blocks.
+  std::vector<Chunk*> open_blocks;
+  for (Chunk& chunk : *chunks) {
+    if (chunk.Empty()) continue;
+
+    const Token& first_token = chunk.FirstToken();
+    if (first_token.Is(Token::Type::PROCEDURAL_BLOCK_OPENER)) {
+      // e.g., "IF" or "CASE". Push onto the stack.
+      open_blocks.push_back(&chunk);
+      continue;
+    }
+
+    if (open_blocks.empty()) continue;
+
+    if (first_token.Is(Token::Type::PROCEDURAL_BLOCK_CONTINUER)) {
+      // e.g., "ELSE" or "WHEN". Link it to the current open block.
+      chunk.SetMatchingOpeningChunk(open_blocks.back());
+    } else if (first_token.Is(Token::Type::PROCEDURAL_BLOCK_CLOSER)) {
+      // e.g., "END". Pop from the stack and cross-link opener and closer.
+      Chunk* opener = open_blocks.back();
+      open_blocks.pop_back();
+      opener->SetMatchingClosingChunk(&chunk);
+      chunk.SetMatchingOpeningChunk(opener);
     }
   }
 }
@@ -2782,6 +3070,7 @@ absl::StatusOr<std::vector<Chunk>> ChunksFromTokens(
   }
 
   MarkAllAngleBracketPairs(&chunks);
+  MarkAllProceduralBlockPairs(&chunks);
   return chunks;
 }
 

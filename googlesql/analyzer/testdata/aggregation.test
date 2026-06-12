@@ -4156,16 +4156,8 @@ select sum() from KeyValue;
        ^
 ==
 
-[language_features=NONE,{{+DISALLOW_GROUP_BY_FLOAT|}}]
+[language_features=NONE]
 select count(distinct int64), count(distinct float) from SimpleTypes
---
-ALTERNATION GROUP: +DISALLOW_GROUP_BY_FLOAT
---
-ERROR: Aggregate functions with DISTINCT cannot be used with arguments of type FLOAT [at 1:31]
-select count(distinct int64), count(distinct float) from SimpleTypes
-                              ^
---
-ALTERNATION GROUP: <empty>
 --
 QueryStmt
 +-output_column_list=
@@ -4190,16 +4182,8 @@ QueryStmt
               +-distinct=TRUE
 ==
 
-[language_features=NONE,{{+DISALLOW_GROUP_BY_FLOAT|}}]
+[language_features=NONE]
 select double, count(*) from SimpleTypes group by double
---
-ALTERNATION GROUP: +DISALLOW_GROUP_BY_FLOAT
---
-ERROR: Grouping by expressions of type DOUBLE is not allowed [at 1:51]
-select double, count(*) from SimpleTypes group by double
-                                                  ^
---
-ALTERNATION GROUP: <empty>
 --
 QueryStmt
 +-output_column_list=
@@ -5786,17 +5770,10 @@ select sqrt(2 having max value)
               ^
 ==
 
-[language_features=NONE,{{+DISALLOW_GROUP_BY_FLOAT,+HAVING_IN_AGGREGATE|+HAVING_IN_AGGREGATE}}]
+# HAVING with floating point.
+[language_features=NONE,+HAVING_IN_AGGREGATE]
 select count(1 having max 0.1)
 from KeyValue
---
-ALTERNATION GROUP: +DISALLOW_GROUP_BY_FLOAT,+HAVING_IN_AGGREGATE
---
-ERROR: HAVING modifier does not support expressions of type DOUBLE [at 1:16]
-select count(1 having max 0.1)
-               ^
---
-ALTERNATION GROUP: +HAVING_IN_AGGREGATE
 --
 QueryStmt
 +-output_column_list=
@@ -6048,7 +6025,8 @@ QueryStmt
 
 ==
 
-[language_features=NONE,{{+GROUP_BY_STRUCT|+GROUP_BY_STRUCT,+DISALLOW_GROUP_BY_FLOAT|}}]
+# STRUCT containing floating point.
+[language_features=NONE,{{+GROUP_BY_STRUCT|}}]
 SELECT t
 FROM (SELECT AS STRUCT 1 a, 1.2121 b) t
 GROUP BY t
@@ -6084,12 +6062,6 @@ QueryStmt
         |         +-SingleRowScan
         +-group_by_list=
           +-t#4 := ColumnRef(type=STRUCT<a INT64, b DOUBLE>, column=$make_struct.$struct#3)
---
-ALTERNATION GROUP: +GROUP_BY_STRUCT,+DISALLOW_GROUP_BY_FLOAT
---
-ERROR: Grouping by expressions of type STRUCT containing DOUBLE is not allowed [at 3:10]
-GROUP BY t
-         ^
 --
 ALTERNATION GROUP: <empty>
 --
@@ -6131,64 +6103,6 @@ ALTERNATION GROUP: <empty>
 ERROR: Grouping by expressions of type STRUCT is not allowed [at 1:61]
 select as struct (Key, KitchenSink) from TestTable group by 1
                                                             ^
-==
-
-# Error - struct contains a floating point which with DISALLOW_GROUP_BY_FLOAT
-# flag, does not support GROUP BY.
-[language_features=NONE,{{+GROUP_BY_STRUCT|+GROUP_BY_STRUCT,+DISALLOW_GROUP_BY_FLOAT}}]
-SELECT {{T.|}}a.b.c.d.e
-FROM (SELECT STRUCT (STRUCT (STRUCT (STRUCT (1.0 as e) as d) as c) as b) as a) T
-GROUP BY T.a;
---
-ALTERNATION GROUPS:
-    +GROUP_BY_STRUCT,T.
-    +GROUP_BY_STRUCT,
---
-QueryStmt
-+-output_column_list=
-| +-$query.e#3 AS e [DOUBLE]
-+-query=
-  +-ProjectScan
-    +-column_list=[$query.e#3]
-    +-expr_list=
-    | +-e#3 :=
-    |   +-GetStructField
-    |     +-type=DOUBLE
-    |     +-expr=
-    |     | +-GetStructField
-    |     |   +-type=STRUCT<e DOUBLE>
-    |     |   +-expr=
-    |     |   | +-GetStructField
-    |     |   |   +-type=STRUCT<d STRUCT<e DOUBLE>>
-    |     |   |   +-expr=
-    |     |   |   | +-GetStructField
-    |     |   |   |   +-type=STRUCT<c STRUCT<d STRUCT<e DOUBLE>>>
-    |     |   |   |   +-expr=
-    |     |   |   |   | +-ColumnRef(type=STRUCT<b STRUCT<c STRUCT<d STRUCT<e DOUBLE>>>>, column=$groupby.a#2)
-    |     |   |   |   +-field_idx=0
-    |     |   |   +-field_idx=0
-    |     |   +-field_idx=0
-    |     +-field_idx=0
-    +-input_scan=
-      +-AggregateScan
-        +-column_list=[$groupby.a#2]
-        +-input_scan=
-        | +-ProjectScan
-        |   +-column_list=[T.a#1]
-        |   +-expr_list=
-        |   | +-a#1 := Literal(type=STRUCT<b STRUCT<c STRUCT<d STRUCT<e DOUBLE>>>>, value={b:{c:{d:{e:1}}}})
-        |   +-input_scan=
-        |     +-SingleRowScan
-        +-group_by_list=
-          +-a#2 := ColumnRef(type=STRUCT<b STRUCT<c STRUCT<d STRUCT<e DOUBLE>>>>, column=T.a#1)
---
-ALTERNATION GROUPS:
-    +GROUP_BY_STRUCT,+DISALLOW_GROUP_BY_FLOAT,T.
-    +GROUP_BY_STRUCT,+DISALLOW_GROUP_BY_FLOAT,
---
-ERROR: Grouping by expressions of type STRUCT containing DOUBLE is not allowed [at 3:10]
-GROUP BY T.a;
-         ^
 ==
 
 # Error - struct contains an array, which does not support group by.

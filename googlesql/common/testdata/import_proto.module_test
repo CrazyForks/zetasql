@@ -1,0 +1,145 @@
+# This test takes an IMPORT statement as input, read the module contents
+# from the related file (residing in googlesql/testdata), creates a
+# ModuleCatalog from the contents, and then dumps the Catalog functions,
+# tvfs, and types.
+#
+# UDFs and TVFs in 'import_proto' references protos imported in the module.
+#
+# Note that the imported proto file imports other proto files, but the
+# only protos in the module catalog are the top level protos in the
+# directly-imported proto file.
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.import_proto AS import_proto;
+--
+Lazy_resolution_function:TestCastToNestedEnum
+  (INT64 a) -> ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum>
+
+Lazy_resolution_function:TestCastToNestedProto
+  (STRING a) -> PROTO<googlesql_test.TestTopLevelPB.TestNestedPB>
+
+Lazy_resolution_function:TestCastToTriplyNestedEnum
+  (INT64 a) -> ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB.TestTriplyNestedEnum>
+
+Lazy_resolution_function:TestCastToTriplyNestedProto
+  (STRING a) -> PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB>
+
+Lazy_resolution_function:TestReferencingPB
+  (STRING a, STRING b, INT32 c) -> PROTO<googlesql_test.TestReferencingPB>
+
+Lazy_resolution_function:TestReferencingPB_2
+  () -> PROTO<googlesql_test.TestReferencingPB>
+
+Lazy_resolution_function:TestReferencingPB_3
+  () -> PROTO<googlesql_test.TestReferencingPB>
+
+Lazy_resolution_function:TestReferencingPB_4
+  (INT64 a) -> PROTO<googlesql_test.TestReferencingPB>
+
+TVF:TestReferencingPBTable
+  (STRING a, STRING b, INT32 c) -> TABLE<TestReferencingPB_value PROTO<googlesql_test.TestReferencingPB>>
+
+TVF:TestReferencingPBTable_2
+  (INT64 a) -> TABLE<key INT64, TestReferencingPB_value PROTO<googlesql_test.TestReferencingPB>>
+
+PROTO<googlesql_test.AnotherReferencingPB>
+
+PROTO<googlesql_test.TestExtensionPB>
+
+PROTO<googlesql_test.TestNestedReferencingEnumPB.NestedReferencingEnumPB>
+
+PROTO<googlesql_test.TestNestedReferencingEnumPB>
+
+PROTO<googlesql_test.TestNestedReferencingPB.NestedReferencingPB>
+
+PROTO<googlesql_test.TestNestedReferencingPB>
+
+PROTO<googlesql_test.TestReferencingPB>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNested2PB>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestDoublyNestedEnum>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB.TestTriplyNestedEnum>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum2>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB>
+
+PROTO<googlesql_test.TestTopLevelPB>
+--
+Module errors:
+INVALID_ARGUMENT: The IMPORT PROTO statement does not support AS alias; use INTO alias instead [at .../googlesql/testdata/modules/import_proto.sqlm:11:37]
+IMPORT PROTO "bogus_pathname.proto" AS foo;
+                                    ^
+
+INVALID_ARGUMENT: IMPORT PROTO statements inside modules do not allow AS or INTO alias, but found alias foo [at .../googlesql/testdata/modules/import_proto.sqlm:12:45]
+IMPORT PROTO "another_bogus_pathname.proto" INTO foo;
+                                            ^
+==
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.import_proto_enum
+    AS import_proto;
+--
+Lazy_resolution_function:TestReferencedEnum
+  () -> ENUM<googlesql_test.TestReferencedEnum>
+
+Lazy_resolution_function:TestReferencedEnum_2
+  (INT32 a) -> ENUM<googlesql_test.TestReferencedEnum>
+
+Lazy_resolution_function:TestReferencedEnum_3
+  (STRING a) -> ENUM<googlesql_test.TestReferencedEnum>
+
+Lazy_resolution_function:TestReferencedPB
+  (INT64 a) -> PROTO<googlesql_test.TestReferencedPB>
+
+Lazy_resolution_function:TestReferencingPB
+  (STRING a, STRING b, INT32 c) -> PROTO<googlesql_test.TestReferencingPB>
+
+TVF:TestAnotherReferencingPBTable
+  (ENUM<googlesql_test.TestReferencedEnum> enum_value, PROTO<googlesql_test.TestReferencedPB> proto_value) -> TABLE<another_referencing_pb PROTO<googlesql_test.AnotherReferencingPB>>
+
+PROTO<googlesql_test.AnotherReferencingPB>
+
+PROTO<googlesql_test.TestExtensionPB>
+
+PROTO<googlesql_test.TestNestedReferencingEnumPB.NestedReferencingEnumPB>
+
+PROTO<googlesql_test.TestNestedReferencingEnumPB>
+
+PROTO<googlesql_test.TestNestedReferencingPB.NestedReferencingPB>
+
+PROTO<googlesql_test.TestNestedReferencingPB>
+
+ENUM<googlesql_test.TestReferencedEnum>
+
+PROTO<googlesql_test.TestReferencedPB>
+
+PROTO<googlesql_test.TestReferencingPB>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNested2PB>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestDoublyNestedEnum>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB.TestTriplyNestedEnum>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB.TestTriplyNestedPB>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB.TestDoublyNestedPB>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum2>
+
+ENUM<googlesql_test.TestTopLevelPB.TestNestedPB.TestNestedEnum>
+
+PROTO<googlesql_test.TestTopLevelPB.TestNestedPB>
+
+PROTO<googlesql_test.TestTopLevelPB>
+
+PROTO<googlesql_test.UnreferencedPB>

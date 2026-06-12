@@ -6,21 +6,25 @@ create {{public|private}} procedure MyProc()
 BEGIN
 END;
 --
-ALTERNATION GROUPS:
-    NONE,public
-    MAXIMUM,public
+ALTERNATION GROUP: NONE,public
 --
 ERROR: CREATE PROCEDURE statement is not supported inside modules [at 2:1]
 create public procedure MyProc()
 ^
 --
-ALTERNATION GROUPS:
-    NONE,private
-    MAXIMUM,private
+ALTERNATION GROUP: NONE,private
 --
 ERROR: CREATE PROCEDURE statement is not supported inside modules [at 2:1]
 create private procedure MyProc()
 ^
+--
+ALTERNATION GROUP: MAXIMUM,public
+--
+CreateProcedureStmt(name_path=MyProc, create_scope=CREATE_PUBLIC, argument_name_list=[], signature=() -> <void>, procedure_body="BEGIN\nEND")
+--
+ALTERNATION GROUP: MAXIMUM,private
+--
+CreateProcedureStmt(name_path=MyProc, create_scope=CREATE_PRIVATE, argument_name_list=[], signature=() -> <void>, procedure_body="BEGIN\nEND")
 ==
 
 [language_features={{NONE|MAXIMUM}},+PROCEDURES_IN_MODULES]
@@ -197,7 +201,7 @@ ALTERNATION GROUPS:
     NONE,BUILTIN
     MAXIMUM,BUILTIN
 --
-ERROR: The allowed_references option can only be the literal string 'GLOBAL' [at 3:11]
+ERROR: The allowed_references option can only be the literal string 'GLOBAL' for SQL procedures in modules [at 3:11]
   OPTIONS(allowed_references='BUILTIN')
           ^
 ==

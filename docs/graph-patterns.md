@@ -109,7 +109,7 @@ be used in a `MATCH` statement.
 
 #### Description
 
-A graph pattern consists of a list path patterns. You can optionally
+A graph pattern consists of a list of path patterns. You can optionally
 include a `WHERE` clause. For example:
 
   ```googlesql {.no-copy}
@@ -333,7 +333,7 @@ An element pattern is either a node pattern or an edge pattern.
   ```
 
   ```googlesql {.no-copy}
-  (c:City)            -- Matches all City nodes in a property graph.
+  (a:Account)            -- Matches all Account nodes in a property graph.
   ```
 
   ```googlesql {.no-copy}
@@ -342,7 +342,7 @@ An element pattern is either a node pattern or an edge pattern.
 + `edge_pattern`: a pattern to match edges in a property graph. For example:
 
   ```googlesql {.no-copy}
-  -[LivesIn]->        -- Matches all LivesIn edges in a property graph.
+  -[Transfers]->        -- Matches all Transfers edges in a property graph.
   ```
 
   ```googlesql {.no-copy}
@@ -350,7 +350,7 @@ An element pattern is either a node pattern or an edge pattern.
   ```
 
   ```googlesql {.no-copy}
-  (n:Person)-(c:City) -- Matches edges between Person and City nodes in any direction.
+  (n:Person)-(a:Account) -- Matches edges between Person and Account nodes in any direction.
   ```
 
   There are several types of edge patterns:
@@ -359,7 +359,7 @@ An element pattern is either a node pattern or an edge pattern.
   + `abbreviated_edge_any`: Any-direction edge, no pattern filler.
 
   ```googlesql {.no-copy}
--[e:Located_In]-     -- Any-direction full edge with filler.
+-[e:Transfers]-     -- Any-direction full edge with filler.
 -[]-                 -- Any-direction full edge, no filler.
 -                    -- Any-direction abbreviated edge.
   ```
@@ -368,7 +368,7 @@ An element pattern is either a node pattern or an edge pattern.
   + `abbreviated_edge_left`: Left-direction edge, no pattern filler.
 
   ```googlesql {.no-copy}
-  <-[e:Located_In]-  -- Left full edge with filler.
+  <-[e:Transfers]-  -- Left full edge with filler.
   <-[]-              -- Left full edge, no filler.
   <-                 -- Left abbreviated edge.
   ```
@@ -377,7 +377,7 @@ An element pattern is either a node pattern or an edge pattern.
   + `abbreviated_edge_right`: Right-direction edge, no pattern filler.
 
   ```googlesql {.no-copy}
-  -[e:Located_In]->  -- Right full edge with filler.
+  -[e:Transfers]->  -- Right full edge with filler.
   -[]->              -- Right full edge, no filler.
   ->                 -- Right abbreviated edge.
   ```
@@ -389,7 +389,7 @@ An element pattern is either a node pattern or an edge pattern.
   . For example:
 
   ```googlesql {.no-copy}
-  (p:Person WHERE p.name = 'Kai')
+  (p:Person WHERE p.name = 'Alex')
   ```
 
 <a id="graph_pattern_variables"></a>
@@ -398,12 +398,12 @@ An element pattern is either a node pattern or an edge pattern.
   You can use a graph pattern variable to reference the element
   it's bound to in a linear graph query.
 
-  `p` is the variable for the graph pattern element `p:Person` in the
+  `a` is the variable for the graph pattern element `a:Account` in the
   following example:
 
   ```googlesql {.no-copy}
-  (p:Person)-[:Located_In]->(c:City),
-  (p)-[:Knows]->(p:Person WHERE p.name = 'Kai')
+  (p:Person)-[:Owns]->(a:Account),
+  (a)-[:Transfers]->(a2:Account WHERE a2.nick_name = 'Vacation Fund')
   ```
 + `is_label_condition`: A `label expression` that the matched nodes and edges
   must satisfy. This condition includes `label expression`. You can use
@@ -418,11 +418,11 @@ An element pattern is either a node pattern or an edge pattern.
   ```
 
   ```googlesql {.no-copy}
-  -[IS Knows]->
+  -[IS Transfers]->
   ```
 
   ```googlesql {.no-copy}
-  -[:Knows]->
+  -[:Transfers]->
   ```
 + `label_expression`: The expression for the label. For more information,
   see [Label expression definition][label-expression-definition].
@@ -441,17 +441,17 @@ An element pattern is either a node pattern or an edge pattern.
   Examples:
 
   ```googlesql {.no-copy}
-  (m:MusicCreator WHERE m.name = 'Cruz Richards')
+  (p:Person WHERE p.name = 'Dana')
   ```
 
   ```googlesql {.no-copy}
-  (s:Singer)->(album:Album)<-(s2)
-  WHERE s.name != s2.name
+  (p:Person)->(a:Account)<-(p2)
+  WHERE p.name != p2.name
   ```
 
   ```googlesql {.no-copy}
-  (s:Singer)-[has_friend:Knows]->
-  (s2:Singer WHERE s2.singer_name = 'Mahan Lomond')
+  (p:Person)-[o:Owns]->
+  (a:Account WHERE a.nick_name = 'Rainy Day Fund')
   ```
 + `cost_expression`: An optional expression for an edge pattern. This expression
   is used to calculate the total compute cost of a path when used with the
@@ -477,11 +477,11 @@ An element pattern is either a node pattern or an edge pattern.
   Examples:
 
   ```googlesql {.no-copy}
-  {name: 'Cruz Richards'}
+  {name: 'Dana'}
   ```
 
   ```googlesql {.no-copy}
-  {last_name: 'Richards', albums: 2}
+  {nick_name: 'Vacation Fund', is_blocked: false}
   ```
 + `element_property`: An element property in `property_filters`. The same
   element property can be included more than once in the same
@@ -501,56 +501,45 @@ An element pattern is either a node pattern or an edge pattern.
   Examples:
 
   ```googlesql {.no-copy}
-  (n:Person {age: 20})
+  (n:Person {name: 'Dana'})
   ```
 
   ```googlesql {.no-copy}
-  (n:Person {id: n.age})
+  (t:Transfers {id: t.to_id})
   ```
 
   ```googlesql {.no-copy}
-  (n1:Person)-[e: Owns {since: 2023}]->(n2:Account)
+  (n1:Person)-[e: Owns {account_id: 16}]->(n2:Account)
   ```
 
   ```googlesql {.no-copy}
-  (:Person {id: 100, age: 20})-[e:Knows]->(n2:Person)
+  (:Person {name: 'Alex'})-[o:owns]->(a:Account)
   ```
 
   ```googlesql {.no-copy}
-  (n:Person|Student {id: n.age + n.student_id})
+  (n:Person|Account {id: 16})
   ```
 
   ```googlesql {.no-copy}
-  (n:Person {age: 20, id: 30})
+  (a:Account {is_blocked: false, nick_name: 'Vacation Fund'})
   ```
 
   ```googlesql {.no-copy}
-  (n {id: 100, age: 20})
+  (a {is_blocked: false, nick_name: 'Vacation Fund'})
   ```
 
   ```googlesql {.no-copy}
-  (n:Person {id: 10 + n.age})-[e:Knows {since: 2023 + e.id}]->
-  ```
-
-  The following are equivalent:
-
-  ```googlesql {.no-copy}
-  (n:Person WHERE n.id = 100 AND n.age = 20)
-  ```
-
-  ```googlesql {.no-copy}
-  (n:Person {id: 100, age: 20})
+  (a:Account {id: 7})-[t:Transfers {to_id: 9 + t.id}]->
   ```
 
   The following are equivalent:
 
   ```googlesql {.no-copy}
-  (a:Employee {employee_id: 10})->(:University)<-(a:Alumni {alumni_id: 20})
+  (a:Account WHERE a.id = 100 AND a.is_blocked = true)
   ```
 
   ```googlesql {.no-copy}
-  (a:Employee&Alumni {employee_id: 10, alumni_id: 20})->
-  (:University)<-(a:Employee&Alumni {employee_id: 10, alumni_id: 20})
+  (a:Account {id: 100, is_blocked: true})
   ```
 
   Although a `NULL` literal can be used as property value in the
@@ -558,22 +547,22 @@ An element pattern is either a node pattern or an edge pattern.
   This distinction is important when you create an element pattern:
 
   ```googlesql {.no-copy}
-  (n:Person {age: NULL})          -- '= NULL'
-  (n:Person WHERE n.age = NULL)   -- '= NULL'
-  (n:Person WHERE n.age IS NULL)  -- 'IS NULL'
+  (n:Person {id: NULL})          -- '= NULL'
+  (n:Person WHERE n.id = NULL)   -- '= NULL'
+  (n:Person WHERE n.id IS NULL)  -- 'IS NULL'
   ```
 
   The following produce errors:
 
   ```googlesql {.bad .no-copy}
-  -- Error: The property specification for n2 can't reference properties in
-  -- e and n1.
-  (n1:Person)-[e:Knows]->(n2:Person {id: e.since+n1.age})
+  -- Error: The property specification for a2 can't reference properties in
+  -- t and a1.
+  (a1:Account)-[t:transfers]->(a2:Account {id: a1.id})
   ```
 
   ```googlesql {.bad .no-copy}
   -- Error: Aggregate expressions aren't allowed.
-  (n:Person {id: SUM(n.age)})
+  (n:Person {id: SUM(n.id)})
   ```
 
   ```googlesql {.bad .no-copy}
@@ -588,7 +577,7 @@ An element pattern is either a node pattern or an edge pattern.
 
 #### Details
 
-Nodes and edges matched by `element pattern` are referred to as graph elements.
+Nodes and edges matched by `element_pattern` are referred to as graph elements.
 Graph elements can be used in GQL [predicates][graph-predicates], [functions][graph-functions]
 and subqueries within GQL.
 
@@ -976,67 +965,67 @@ is performed on to the consecutive node patterns.
 The following are examples of subpath patterns:
 
   ```googlesql {.no-copy}
-  -- Success: e and p are both declared within the same subpath pattern and
+  -- Success: t and a are both declared within the same subpath pattern and
   -- can be referenced in that subpath pattern.
-  (-[e:LocatedIn]->(p:Person)->(c:City) WHERE p.id = e.id)
+  (-[t:Transfers]->(a:Account)->(b:Account) WHERE t.id > a.id)
   ```
 
   ```googlesql {.no-copy}
-  -- Success: e and p are both declared within the same subpath pattern
+  -- Success: t and a are both declared within the same subpath pattern
   -- hierarchy and can be referenced inside of that subpath pattern hierarchy.
-  (-[e:LocatedIn]->((p:Person)->(c:City)) WHERE p.id = e.id)
+  (-[t:Transfers]->((a:Account)->(b:Account)) WHERE t.id > a.id)
   ```
 
   ```googlesql {.no-copy}
-  -- Error: e is declared outside of the inner subpath pattern and therefore
+  -- Error: t is declared outside of the inner subpath pattern and therefore
   -- can't be referenced inside of the inner subpath pattern.
-  (-[e:LocatedIn]->((p:Person)->(c:City) WHERE p.id = e.id))
+  (-[t:Transfers]->((a:Account)->(b:Account) WHERE a.id = t.id))
   ```
 
   ```googlesql {.no-copy}
-  -- Success: e and p are declared in a subpath pattern and can be used outside
+  -- Success: t and a are declared in a subpath pattern and can be used outside
   -- of the subpath pattern.
-  (-[e:LocatedIn]->(p:Person))->(c:City) WHERE p.id = e.id
+  (-[t:Transfers]->(a:Account))->(b:Account) WHERE a.id = t.id
   ```
 
   ```googlesql {.no-copy}
   -- No subpath patterns:
-  (p:Person)-[e:LocatedIn]->(c:City)-[s:StudyAt]->(u:School)
+  (a:Account)-[t:Transfers]->(b:Account)-[u:Transfers]->(c:Account)
   ```
 
   ```googlesql {.no-copy}
   -- One subpath pattern on the left:
-  ((p:Person)-[e:LocatedIn]->(c:City))-[s:StudyAt]->(u:School)
+  ((a:Account)-[t:Transfers]->(b:Account))-[u:Transfers]->(c:Account)
   ```
 
   ```googlesql {.no-copy}
   -- One subpath pattern on the right:
-  (p:Person)-[e:LocatedIn]->((c:City)-[s:StudyAt]->(u:School))
+  (a:Account)-[t:Transfers]->((b:Account)-[u:Transfers]->(c:Account))
   ```
 
   ```googlesql {.no-copy}
   -- One subpath pattern around the entire path pattern:
-  ((p:Person)-[e:LocatedIn]->(c:City)-[s:StudyAt]->(u:School))
+  ((a:Account)-[t:Transfers]->(b:Account)-[u:Transfers]->(c:Account))
   ```
 
   ```googlesql {.no-copy}
   -- One subpath pattern that contains only a node pattern:
-  ((p:Person))-[e:LocatedIn]->(c:City)-[s:StudyAt]->(u:School)
+  ((a:Account))-[t:Transfers]->(b:Account)-[u:Transfers]->(c:Account)
   ```
 
   ```googlesql {.no-copy}
   -- One subpath pattern that contains only an edge pattern:
-  (p:Person)(-[e:LocatedIn]->)(c:City)-[s:StudyAt]->(u:School)
+  (a:Account)(-[t:Transfers]->)(b:Account)-[u:Transfers]->(c:Account)
   ```
 
   ```googlesql {.no-copy}
   -- Two subpath patterns, one inside the other:
-  ((p:Person)(-[e:LocatedIn]->(c:City)))-[s:StudyAt]->(u:School)
+  ((a:Account)(-[t:Transfers]->(b:Account)))-[u:Transfers]->(c:Account)
   ```
 
   ```googlesql {.no-copy}
   -- Three consecutive subpath patterns:
-  ((p:Person))(-[e:LocatedIn]->(c:City))(-[s:StudyAt]->(u:School))
+  ((a:Account))(-[t:Transfers]->(b:Account))(-[u:Transfers]->(c:Account))
   ```
 
 #### Examples
@@ -1079,13 +1068,16 @@ required.
 <pre>
 <span class="var">quantified_path_primary</span>:
   <span class="var">path_primary</span>
-  { <span class="var">fixed_quantifier</span> | <span class="var">bounded_quantifier</span> }
+  { <span class="var">fixed_quantifier</span> | <span class="var">bounded_quantifier</span> | <span class="var">symbol_quantifier</span> }
+
+<span class="var">symbol_quantifier</span>:
+  "*" | "+"
 
 <span class="var">fixed_quantifier</span>:
   "{" <span class="var">bound</span> "}"
 
 <span class="var">bounded_quantifier</span>:
-  "{" [ <span class="var">lower_bound</span> ], <span class="var">upper_bound</span> "}"
+  "{" [ <span class="var">lower_bound</span> ], [ <span class="var">upper_bound</span> ] "}"
 </pre>
 
 #### Description
@@ -1094,30 +1086,48 @@ A quantified path pattern is a path pattern with a portion that can repeat
 within a specified range. You can specify the range, using a quantifier. A
 quantified path pattern is commonly used to match variable-length paths.
 
+A graph pattern variable declared in a quantified pattern becomes a *group
+variable* when accessed outside that pattern. It binds to an array of
+matched graph elements.
+
+You can access a group variable as an array. Its graph elements are preserved in
+the order of their appearance along the matched paths. You can aggregate a group
+variable using [horizontal aggregation][horizontal-aggregation].
+
 #### Definitions
 
-+ `quantified_path_primary`: The quantified path pattern to add to the graph
-query.
++   `quantified_path_primary`: The quantified path pattern to add to the graph
+    query.
++   `path_primary`: The portion of a path pattern to be quantified.
++   `fixed_quantifier`: The exact number of times the path pattern portion must
+    repeat.
 
-+ `path_primary`: The portion of a path pattern to be quantified.
-+ `fixed_quantifier`: The exact number of times the path pattern portion must
-   repeat.
+    +   `bound`: A positive integer that represents the exact number of
+        repetitions.
++   `bounded_quantifier`: The minimum and maximum number of times the path
+    pattern portion can repeat.
 
-  + `bound`: A positive integer that represents the exact number of repetitions.
-+ `bounded_quantifier`: The minimum and maximum number of times the path pattern
-  portion can repeat.
+    +   `lower_bound`: A non-negative integer that represents the minimum number
+        of times that the path pattern portion must repeat. If a lower bound
+        isn't provided, 0 is used by default.
 
-  + `lower_bound`: A non-negative integer that represents the minimum number of
-  times that the path pattern portion must repeat. If a lower bound isn't
-  provided, 0 is used by default.
+    +   `upper_bound`: A positive integer that represents the maximum number of
+        times that the path pattern portion can repeat. If an upper bound is
+        specified, it must be equal to or greater than
+        `lower_bound`. If an
+        upper bound isn't specified, the path quantification is unbounded.
++   `symbol_quantifier`: A symbol that indicates that the path quantification is
+    unbounded.
 
-  + `upper_bound`: A positive integer that represents the maximum number of
-    times that the path pattern portion can repeat. This number must be
-    specified and be equal to or greater than `lower_bound`.
+    +   `*`: An asterisk is equivalent to `{0, }`, meaning zero or more
+        repetitions.
+
+    +   `+`: A plus sign is equivalent to `{1, }`, meaning one or more
+        repetitions.
 
 #### Details
 
-+   A path must have a _minimum node count_ greater than 0. The minimum node
++   A path must have a *minimum node count* greater than 0. The minimum node
     count of a quantified portion within the path is calculated as:
 
     ```none
@@ -1125,8 +1135,8 @@ query.
     ```
 
     When `bound` or `lower_bound` of the quantified path pattern portion is 0,
-    the path must contain other parts with _minimum node count_ greater than 0.
-+   A quantified path must have a _minimum path length_ greater than 0. The
+    the path must contain other parts with *minimum node count* greater than 0.
++   A quantified path must have a *minimum path length* greater than 0. The
     minimum path length of a quantified path is calculated as:
 
     ```none
@@ -1136,8 +1146,47 @@ query.
     The path length of a node is 0. The path length of an edge is 1.
 +   A quantified path pattern with `bounded_quantifier` matches paths of any
     length between the lower and the upper bound. This is equivalent to unioning
-    match results from multiple quantified path patterns with `fixed_quantifier`,
-    one for each number between the lower bound and upper bound.
+    match results from multiple quantified path patterns with
+    `fixed_quantifier`, one for each number between the lower bound and upper
+    bound.
++   Unbounded path quantification is allowed only when the query can guarantee
+    that the path-finding algorithm terminates, even if there are cycles in the
+    graph. Otherwise, an analysis time error occurs. For example, you must use
+    unbounded path quantification with only the following path search prefixes:
+
+    +   **Selective path search prefixes**: For example, `ANY`, `ANY SHORTEST`,
+        or `ANY CHEAPEST`.
+
+        The following example shows a bounded quantifier without an upper bound
+        used with the path search prefix `ANY SHORTEST`:
+
+        ```googlesql
+        MATCH ANY SHORTEST (a)-[e]->{1, }(b)
+        ```
+
+        The following example shows a `*` quantifier used with the path search
+        prefix `ANY CHEAPEST`:
+
+        ```googlesql
+        MATCH ANY CHEAPEST (a)(-[e]->)*(b)
+        ```
+
+    +   **Restrictive path modes**: For example, `TRAIL`, `ACYCLIC`, or
+        `SIMPLE`. These modes prevent paths from repeating nodes or edges.
+
+        The following example shows a `+` quantifier used with the path search
+        prefix `ACYCLIC`:
+
+        ```googlesql
+        MATCH ACYCLIC (a)-[e]->+(b)
+        ```
+
+        The following example shows a bounded quantifier without an upper bound
+        used with the path search prefix `TRAIL`:
+
+        ```googlesql
+        MATCH TRAIL ((a)-[e]->(b)){0, }
+        ```
 +   Quantification is allowed on an edge or subpath. When quantifying an edge,
     the edge pattern is canonicalized into a subpath.
 
@@ -1155,96 +1204,100 @@ query.
 +   Only singleton variables can be multiply-declared. A singleton variable is a
     variable that binds exactly to one node or edge.
 
-    In the following `MATCH` statement, the variables `p`, `knows`, and `f` are
+    In the following `MATCH` statement, the variables `p`, `t`, and `f` are
     singleton variables, which bind exactly to one element each.
 
     ```googlesql {.no-copy}
-    MATCH (p)-[knows]->(f)
+    MATCH (p)-[t]->(f)
     ```
 +   Variables defined within a quantified path pattern bind to an array of
     elements outside of the quantified path pattern and are called group
     variables.
 
-    In the following `MATCH` statement, the path pattern has the quantifier
-    `{1, 3}`. The variables `p`, `knows`, and `f` are each bind to an array of
+    In the following `MATCH` statement, the path pattern has the quantifier `{1,
+    3}`. The variables `p`, `t`, and `f` each bind to an array of
     elements in the `MATCH` statement result and are considered group variables:
 
     ```googlesql {.no-copy}
-    MATCH ((p)-[knows]->(f)){1, 3}
+    MATCH ((p)-[t]->(f)){1, 3}
     ```
 
-    Within the quantified pattern, before the quantifier is applied, `p`, `knows`,
-    and `f` each bind to exactly one element and are considered singleton
-    variables.
+    Within the quantified pattern, before the quantifier is applied, `p`,
+    `t`, and `f` each bind to exactly one element and are considered
+    singleton variables.
 
-Examples:
+The following are other syntax examples of a quantified path pattern:
 
 ```googlesql {.no-copy}
 -- Quantified path pattern with a fixed quantifier:
-MATCH ((p:Person)-[k:Knows]->(f:Person)){2}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){2}
 
 -- Equivalent:
-MATCH ((p0:Person)-[k0:Knows]->(f0:Person)(p1:Person)-[k1:Knows]->(f1:Person))
+MATCH ((a0:Account)-[t0:Transfers]->(b0:Account)(a1:Account)-[t1:Transfers]->(b1:Account))
 ```
 
 ```googlesql {.no-copy}
 -- Quantified path pattern with a bounded quantifier:
-MATCH ((p:Person)-[k:Knows]->(f:Person)){1,3}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){1,3}
+RETURN return_statement
 
 -- Equivalent:
-MATCH ((p:Person)-[k:Knows]->(f:Person)){1}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){1}
+RETURN return_statement
 UNION ALL
-MATCH ((p:Person)-[k:Knows]->(f:Person)){2}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){2}
+RETURN return_statement
 UNION ALL
-MATCH ((p:Person)-[k:Knows]->(f:Person)){3}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){3}
+RETURN return_statement
 ```
 
 ```googlesql {.no-copy}
 -- Quantified subpath with default lower bound (0) and an upper bound.
 -- When subpath is repeated 0 times, the path pattern is semantically equivalent
--- to (source_person:Person)(dest_person:Person).
-MATCH (source_person:Person)((p:Person)-[k:Knows]->(f:Person)){, 4}(dest_person:Person)
+-- to (source_acct:Account)(dest_acct:Account).
+MATCH (source_acct:Account)((a:Account)-[t:Transfers]->(b:Account)){, 4}(dest_acct:Account)
 ```
 
 ```googlesql {.no-copy}
 -- Edge quantification is canonicalized into subpath quantification:
-MATCH (p:Person)-[k:Knows]->{1,2}(f:Person)
+MATCH (a:Account)-[t:Transfers]->{1,2}(b:Account)
 
 -- Equivalent:
-MATCH (p:Person)(()-[k:Knows]->()){1,2}(f:Person)
+MATCH (a:Account)(()-[t:Transfers]->()){1,2}(b:Account)
 ```
 
 ```googlesql {.no-copy}
 -- ERROR: Minimum path length for the quantified path is 0.
-MATCH (p:Person){1, 3}
+MATCH (a:Account){1, 3}
 ```
 
 ```googlesql {.no-copy}
 -- ERROR: Minimum node count and minimum path length for the entire path is 0.
-MATCH ((p:Person)-[k:Knows]->(f:Person)){0}
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){0}
 ```
 
 ```googlesql {.no-copy}
 -- ERROR: Minimum path length for the entire path is 0 when quantified portion
 -- is repeated 0 times.
-MATCH (:Person)((p:Person)-[k:Knows]->(f:Person)){0, 3}
+MATCH (:Person)((a:Account)-[t:Transfers]->(b:Account)){0, 3}
 ```
 
 ```googlesql {.no-copy}
--- ERROR: `p` is declared once as a group variable and once as a singleton
+-- ERROR: `a` is declared once as a group variable and once as a singleton
 -- variable.
-MATCH (s:Person) ((p:Person)-[k:Knows]->(f:Person)){1, 3}->(p:Person)
+MATCH (c:Account) ((a:Account)-[t:Transfers]->(b:Account)){1, 3}->(a:Account)
 ```
 
 ```googlesql {.no-copy}
--- ERROR: `p` is declared twice as a group variable.
-MATCH ((p:Person)-[k:Knows]->(f:Person)){1, 3}-[x.Knows]->((p:Person)-[z:Knows]-(d:Person)){2}
+-- ERROR: `a` is declared twice as a group variable.
+MATCH ((a:Account)-[t:Transfers]->(b:Account)){1, 3}-[u:Transfers]->((a:Account)-[v:Transfers]-(c:Account)){2}
 ```
 
 ```googlesql {.no-copy}
--- Since both declarations of `p` are within the quantifier’s pattern,
+-- Since both declarations of `a` are within the quantifier’s pattern,
 -- they are treated as singleton variables and can be multiply-declared.
-MATCH (s:person)((p:Person)-[k:Knows]->(p:Person)){1, 3}
+MATCH (b:Account)((a:Account)-[t:Transfers]->(a:Account)){1, 3}
 ```
 
 #### Examples
@@ -1300,7 +1353,7 @@ RETURN src.id AS src_account_id, dst.id AS dst_account_id
 In the following query, `e` is declared in a quantified path pattern. When
 referenced outside of that pattern, `e` is a group variable bound to an array
 of `Transfers`. You can use the group variable in aggregate functions such
-as `SUM` and `ARRAY_LENGTH`:
+as `SUM` and `ARRAY_LENGTH` inside of a `LET`, `WHERE`, or `FILTER` clause:
 
 ```googlesql
 GRAPH FinGraph
@@ -1321,7 +1374,32 @@ RETURN
  +-----------------------------------------------------------------*/
 ```
 
+The following query uses a restrictive path mode together with unbounded path
+quantification:
+
+```googlesql
+GRAPH FinGraph
+MATCH TRAIL (a)->{2,}(b)
+RETURN DISTINCT a.id AS src_id, b.id AS dest_id
+ORDER BY src_id, dest_id
+
+/*------------------+
+ | src_id | dest_id |
+ +------------------+
+ | 7      | 7       |
+ | 7      | 16      |
+ | 7      | 20      |
+ | 16     | 7       |
+ | 16     | 16      |
+ | 20     | 7       |
+ | 20     | 16      |
+ | 20     | 20      |
+ +------------------*/
+```
+
 [graph-pattern-definition]: #graph_pattern_definition
+
+[horizontal-aggregation]: https://github.com/google/googlesql/blob/master/docs/graph-gql-functions.md#gql-horiz-agg-func-calls
 
 ## Label expression 
 <a id="label_expression_definition"></a>
@@ -1358,43 +1436,43 @@ operators (AND, OR, NOT) and parentheses for grouping.
   label expressions. For example:
 
   ```googlesql {.no-copy}
-  (p:(Singer|Writer))
+  (p:(Person|Account))
   ```
 
   ```googlesql {.no-copy}
-  (p:(Singer|(Producer|Writer)))
+  (p:(Person|(Account|Loan)))
   ```
 
   ```googlesql {.no-copy}
-  (p:(Singer|(Producer&Writer)))
+  (p:(Person|(Account&Loan)))
   ```
 + `and_expression`: [GQL logical `AND` operation][graph-operators] for
   label expressions. For example:
 
   ```googlesql {.no-copy}
-  (p:(Singer&Producer))
+  (p:(Person&Account))
   ```
 
   ```googlesql {.no-copy}
-  (p:(Singer&(Writer|Producer)))
+  (p:(Person&(Account|Loan)))
   ```
 
   ```googlesql {.no-copy}
-  (p:(Singer&(Writer&Producer)))
+  (p:(Person&(Account&Loan)))
   ```
 + `not_expression`: [GQL logical `NOT` operation][graph-operators] for
   label expressions. For example:
 
   ```googlesql {.no-copy}
-  (p:!Singer)
+  (p:!Person)
   ```
 
   ```googlesql {.no-copy}
-  (p:(!Singer&!Writer))
+  (p:(!Person&!Account))
   ```
 
   ```googlesql {.no-copy}
-  (p:(Singer|(!Writer&!Producer)))
+  (p:(Person|(!Account&!Loan)))
   ```
 
 #### Details
@@ -1526,8 +1604,7 @@ To use `ANY CHEAPEST` or `CHEAPEST k` in a query:
   `COST` expression.
 + The `COST` expression must be used only on edge patterns.
 + All variables used by `<expr>` must be local to the edge pattern.
-+ `<expr>` must be a numeric type: `INT32`, `INT64`, `UINT32`, `UINT64`,
-  `FLOAT`, `DOUBLE`, `NUMERIC`, or `BIGNUMERIC`.
++ `<expr>` must be a [numeric][numeric] type
 + `<expr>` must evaluate to a finite positive number. `NULL`, zero, negative
   values, `Inf`, and `NaN` produce a runtime error.
 
@@ -1734,6 +1811,8 @@ RETURN a.id AS a_id, b.id AS b_id, total_cost
 ```
 
 [quantified-path-pattern]: #quantified_paths
+
+[numeric]: https://github.com/google/googlesql/blob/master/docs/data-types.md#numeric_types
 
 ## Path mode 
 <a id="path_mode"></a>

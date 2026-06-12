@@ -1,0 +1,39 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_circular_function;
+--
+PRIVATE Lazy_resolution_function:c2
+ERROR: Function c2 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:4:25]
+CREATE PRIVATE FUNCTION c2(a INT64) AS (a * c1);
+                        ^
+Constant c1 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^
+Constant c3 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:24]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                       ^
+Invalid function c2 [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:29]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                            ^
+Recursive dependencies detected when resolving function named_constant_circular_function.c2, which include objects (named_constant_circular_function.c2, named_constant_circular_function.c1, named_constant_circular_function.c3, named_constant_circular_function.c2) [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:4:25]
+
+PRIVATE CONSTANT c1=Uninitialized value (unknown type)
+ERROR during resolution: Constant c1 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:3:25]
+CREATE PRIVATE CONSTANT c1 = c3 + 1;
+                        ^
+Constant c3 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:24]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                       ^
+Invalid function c2 [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:29]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                            ^
+Recursive dependencies detected when resolving function named_constant_circular_function.c2, which include objects (named_constant_circular_function.c2, named_constant_circular_function.c1, named_constant_circular_function.c3, named_constant_circular_function.c2) [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:4:25]
+
+CONSTANT c3=Uninitialized value (unknown type)
+ERROR during resolution: Constant c3 is invalid [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:24]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                       ^
+Invalid function c2 [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:5:29]
+CREATE PUBLIC CONSTANT c3 = c2(3);
+                            ^
+Recursive dependencies detected when resolving function named_constant_circular_function.c2, which include objects (named_constant_circular_function.c2, named_constant_circular_function.c1, named_constant_circular_function.c3, named_constant_circular_function.c2) [at .../googlesql/testdata/modules/named_constant_circular_function.sqlm:4:25]

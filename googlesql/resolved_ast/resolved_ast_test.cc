@@ -590,7 +590,8 @@ ProjectScan (*** This node has unaccessed field ***)
           node->CheckFieldsAccessed().message());
 
       // Access one of the vector elements, and its bool value.
-      static_cast<const ResolvedLiteral*>(node->expr_list(1)->expr())->value();
+      static_cast<const ResolvedLiteral*>(node->expr_list(1)->expr())
+          ->value();
 
       // Now the vector is accessed, but some of its elements aren't.
       EXPECT_EQ(
@@ -615,8 +616,9 @@ ProjectScan (*** This node has unaccessed field ***)
 
       EXPECT_EQ(2, i);
       // Access the whole vector, and element 1's bool value.
-      static_cast<const ResolvedLiteral*>(node->expr_list()[1]->expr())->value();
-    // Now the vector is accessed, but some of its elements aren't.
+      static_cast<const ResolvedLiteral*>(node->expr_list()[1]->expr())
+          ->value();
+      // Now the vector is accessed, but some of its elements aren't.
       EXPECT_EQ(
           R"(Unimplemented feature (ResolvedComputedColumn::expr not accessed)
 ProjectScan
@@ -631,7 +633,8 @@ ProjectScan
     // We get an OK result once we access all vector elements.
     for (int j = 0; j < node->expr_list_size(); ++j) {
       EXPECT_FALSE(node->CheckFieldsAccessed().ok());
-      static_cast<const ResolvedLiteral*>(node->expr_list(j)->expr())->value();
+      static_cast<const ResolvedLiteral*>(node->expr_list(j)->expr())
+          ->value();
     }
     GOOGLESQL_EXPECT_OK(node->CheckFieldsAccessed());
 

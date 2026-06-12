@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/base/enum_utils.h"
 #include "googlesql/common/function_signature_testutil.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/proto/function.pb.h"
@@ -31,9 +32,12 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/table_valued_function.h"
 #include "googlesql/public/type.h"
+#include "googlesql/public/type_parameters.pb.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_deserializer.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/type_parameters.h"
 #include "googlesql/public/value.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -42,7 +46,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status.h"
 
 namespace googlesql {
 
@@ -308,6 +311,209 @@ TEST(FunctionSignatureTests, FunctionArgumentTypeWithDefaultValues) {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("ANY DESCRIPTOR argument cannot have a default value")));
+}
+
+TEST(FunctionSignatureTests, FunctionArgumentTypeWithDefaultTypeModifiers) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(TypeParameters(), collation);
+
+  // Type modifiers is initialized to empty.
+  FunctionArgumentType arg_type(factory.get_int32(),
+                                FunctionArgumentTypeOptions(),
+                                /*num_occurrences=*/1);
+  EXPECT_TRUE(arg_type.type_modifiers().IsEmpty());
+}
+
+TEST(FunctionSignatureTests, FunctionArgumentTypeWithTypeModifiers) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  StringTypeParametersProto string_type_param_proto;
+  string_type_param_proto.set_max_length(123);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, collation);
+
+  FunctionArgumentType arg_type(factory.get_string(),
+                                FunctionArgumentTypeOptions(),
+                                /*num_occurrences=*/1, type_modifiers);
+
+  EXPECT_TRUE(arg_type.type_modifiers().Equals(type_modifiers));
+
+  // Test serialization / deserialization.
+  FileDescriptorSetMap fdset_map;
+  FunctionArgumentTypeProto proto;
+  GOOGLESQL_ASSERT_OK(arg_type.Serialize(&fdset_map, &proto));
+
+  std::vector<const google::protobuf::DescriptorPool*> pools;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<FunctionArgumentType> deserialized_arg_type,
+      FunctionArgumentType::Deserialize(proto,
+                                        TypeDeserializer(&factory, pools)));
+
+  EXPECT_TRUE(deserialized_arg_type->type_modifiers().Equals(type_modifiers));
+}
+
+TEST(FunctionSignatureTests, FunctionArgumentTypeWithTypeModifiers_Validation) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(TypeParameters(), collation);
+
+  // Test that type modifiers are not allowed if kind is not ARG_TYPE_FIXED.
+  for (auto kind :
+       googlesql_base::EnumerateEnumValues<SignatureArgumentKind>()) {
+    if (kind == ARG_TYPE_FIXED ||
+        // FunctionArgumentType with ARG_TYPE_LAMBDA constructed directly is not
+        // allowed. So skip it too.
+        kind == ARG_TYPE_LAMBDA) {
+      continue;
+    }
+    FunctionArgumentType invalid_arg_type(kind, FunctionArgumentTypeOptions(),
+                                          /*num_occurrences=*/1,
+                                          type_modifiers);
+    EXPECT_THAT(
+        invalid_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 AllOf(HasSubstr("TypeModifiers are only applicable for kind "
+                                 "ARG_TYPE_FIXED"),
+                       HasSubstr(invalid_arg_type.DebugString()))));
+  }
+}
+
+TEST(FunctionSignatureTests,
+     FunctionArgumentTypeWithTypeModifiers_InvalidTypeParameters) {
+  TypeFactory factory;
+  StringTypeParametersProto string_type_param_proto;
+  string_type_param_proto.set_max_length(123);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, Collation());
+
+  FunctionArgumentType invalid_arg_type(factory.get_int64(),
+                                        FunctionArgumentTypeOptions(),
+                                        /*num_occurrences=*/1, type_modifiers);
+  EXPECT_THAT(invalid_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("INT64 does not support type parameters: "
+                                 "INT64 type_parameters:(max_length=123)")));
+}
+
+TEST(FunctionSignatureTests,
+     FunctionArgumentTypeWithTypeModifiers_InvalidCollation) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  NumericTypeParametersProto numeric_type_param_proto;
+  numeric_type_param_proto.set_precision(10);
+  numeric_type_param_proto.set_scale(5);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeNumericTypeParameters(numeric_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, collation);
+  FunctionArgumentType invalid_arg_type(factory.get_numeric(),
+                                        FunctionArgumentTypeOptions(),
+                                        /*num_occurrences=*/1, type_modifiers);
+  EXPECT_THAT(
+      invalid_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Collation must have compatible structure with the argument "
+                   "type: NUMERIC type_parameters:(precision=10,scale=5), "
+                   "collation:und:ci")));
+}
+
+TEST(FunctionSignatureTests,
+     FunctionArgumentTypeWithTypeModifiers_MismatchedNumberOfFields) {
+  TypeFactory factory;
+
+  // Create type STRUCT(f1 STRING).
+  const StructType* struct_type;
+  GOOGLESQL_ASSERT_OK(
+      factory.MakeStructType({{"f1", factory.get_string()}}, &struct_type));
+
+  // Create type modifiers [(max_length=123),(max_length=123)].
+  StringTypeParametersProto string_type_param_proto;
+  string_type_param_proto.set_max_length(123);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+  TypeModifiers type_modifiers = TypeModifiers::MakeTypeModifiers(
+      TypeParameters::MakeTypeParametersWithChildList({type_param, type_param}),
+      Collation());
+
+  FunctionArgumentType invalid_arg_type(struct_type,
+                                        FunctionArgumentTypeOptions(),
+                                        /*num_occurrences=*/1, type_modifiers);
+  EXPECT_THAT(
+      invalid_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstr("RET_CHECK failure"),
+                HasSubstr(
+                    "type_parameters.num_children() == num_fields() (2 vs. 1) "
+                    ": STRUCT<f1 STRING> "
+                    "type_parameters:[(max_length=123),(max_length=123)]"))));
+}
+
+TEST(FunctionSignatureTests, InvalidTypeModifiersInTVFSchemaColumn) {
+  TypeFactory factory;
+  StringTypeParametersProto string_type_param_proto;
+  string_type_param_proto.set_max_length(123);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, Collation());
+
+  FunctionArgumentType relation_arg_type(
+      googlesql::FunctionArgumentType::RelationWithSchema(
+          googlesql::TVFRelation(
+              {googlesql::TVFSchemaColumn("c", googlesql::types::Int64Type(),
+                                          false, false, type_modifiers)}),
+          /*extra_relation_input_columns_allowed=*/false));
+
+  EXPECT_THAT(relation_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type parameters must have compatible "
+                                 "structure with the column type: c "
+                                 "INT64 type_parameters:(max_length=123)")));
+}
+
+TEST(FunctionSignatureTests, LambdaFunctionArgumentTypeWithTypeModifiers) {
+  TypeFactory factory;
+  NumericTypeParametersProto numeric_type_param_proto;
+  numeric_type_param_proto.set_precision(10);
+  numeric_type_param_proto.set_scale(5);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeNumericTypeParameters(numeric_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, Collation());
+  FunctionArgumentType arg_type(factory.get_numeric(),
+                                FunctionArgumentTypeOptions(),
+                                /*num_occurrences=*/1, type_modifiers);
+  EXPECT_THAT(arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+              absl_testing::IsOk());
+
+  // Type modifiers are not allowed in lambda argument types.
+  FunctionArgumentType lambda_arg_type =
+      FunctionArgumentType::Lambda({arg_type}, ARG_TYPE_ANY_1);
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Lambda argument cannot have type modifiers")));
+
+  lambda_arg_type = FunctionArgumentType::Lambda({ARG_TYPE_ANY_1}, arg_type);
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Lambda argument cannot have type modifiers")));
 }
 
 TEST(FunctionSignatureTests, FunctionSignatureWithDefaultValues) {
@@ -617,6 +823,47 @@ TEST(FunctionSignatureTests, LambdaFunctionArgumentTypeSerializationTest) {
                               },
                               FunctionArgumentType(ARG_TYPE_ANY_2)),
                           &type_factory);
+}
+
+TEST(FunctionSignatureTests,
+     DeclarativeTypesAreDeduplicatedAcrossTheSignatureWhenDeserializing) {
+  TypeFactory factory1;
+  const Type* declarative_type;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      declarative_type,
+      factory1.MakeDeclarativeType(DeclarativeTypeDescriptor()
+                                       .set_type_id({"N1", "mytype"})
+                                       .set_display_name("MyType")
+                                       .set_backing_type(types::Int64Type())));
+
+  FunctionArgumentTypeList arguments;
+  arguments.push_back(FunctionArgumentType(declarative_type, 1));
+  arguments.push_back(FunctionArgumentType(declarative_type, 1));
+
+  FunctionSignature signature(/*result_type=*/types::BoolType(), arguments,
+                              /*context_id=*/-1);
+
+  FileDescriptorSetMap file_descriptor_set_map;
+  FunctionSignatureProto proto;
+  GOOGLESQL_ASSERT_OK(signature.Serialize(&file_descriptor_set_map, &proto));
+
+  TypeFactory factory2;
+  TypeDeserializer type_deserializer(&factory2);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<FunctionSignature> deserialized_signature,
+      FunctionSignature::Deserialize(proto, type_deserializer));
+
+  ASSERT_EQ(deserialized_signature->arguments().size(), 2);
+  const Type* type1 = deserialized_signature->argument(0).type();
+  const Type* type2 = deserialized_signature->argument(1).type();
+
+  // Ensure the type was deduplicated.
+  ASSERT_NE(type1, nullptr);
+  ASSERT_NE(type2, nullptr);
+  EXPECT_EQ(type1, type2);
+  EXPECT_TRUE(type1->IsDeclarativeType());
+  EXPECT_EQ(type1->AsDeclarativeType()->ShortTypeName(PRODUCT_INTERNAL),
+            "MyType");
 }
 
 // The following helpers generate GoogleSQL function signatures for testing.
@@ -1882,6 +2129,7 @@ static std::vector<FunctionArgumentType> GetTemplatedArgumentTypes(
   templated_types.push_back(FunctionArgumentType(ARG_TYPE_RELATION));
   templated_types.push_back(FunctionArgumentType(ARG_TYPE_MODEL));
   templated_types.push_back(FunctionArgumentType(ARG_TYPE_CONNECTION));
+  templated_types.push_back(FunctionArgumentType(ARG_TYPE_STRING_ANY));
   templated_types.push_back(
       FunctionArgumentType::Lambda({ARG_TYPE_ANY_1}, ARG_TYPE_ANY_2));
   templated_types.push_back(
@@ -1919,7 +2167,7 @@ TEST(FunctionSignatureTests, TestIsTemplatedArgument) {
     // values.
     enum_size += SignatureArgumentKind_IsValid(i);
   }
-  ASSERT_EQ(33, enum_size);
+  ASSERT_EQ(34, enum_size);
 
   std::set<SignatureArgumentKind> templated_kinds;
   templated_kinds.insert(ARG_TYPE_ANY_1);
@@ -1951,6 +2199,7 @@ TEST(FunctionSignatureTests, TestIsTemplatedArgument) {
   templated_kinds.insert(ARG_TYPE_GRAPH_PATH);
   templated_kinds.insert(ARG_TYPE_SEQUENCE);
   templated_kinds.insert(ARG_MEASURE_TYPE_ANY_1);
+  templated_kinds.insert(ARG_TYPE_STRING_ANY);
 
   std::set<SignatureArgumentKind> non_templated_kinds;
   non_templated_kinds.insert(ARG_TYPE_FIXED);

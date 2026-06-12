@@ -38,6 +38,9 @@ namespace googlesql {
 
 // This is the base class for deep-copy rewriter classes.
 //
+// Note: The preferred interface for rewriters is the ResolvedAstRewriteVisitor
+// (.../googlesql/resolved_ast:resolved_ast_rewrite_visitor).
+//
 // It provides the utility functions to handle the data flow and the
 // implementations for copying individual node types as well as ResolvedColumn.
 // This can be subclassed to create a copy of the AST with modifications.

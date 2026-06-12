@@ -38,12 +38,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -104,8 +104,8 @@ absl::Status PatternMatchingOp::SetSchemasForEvaluation(
   for (KeyArg* key : mutable_order_keys()) {
     GOOGLESQL_RETURN_IF_ERROR(key->mutable_value_expr()->SetSchemasForEvaluation(
         ConcatSpans(params_schemas, {input_schema.get()})));
-    if (key->mutable_collation() != nullptr) {
-      GOOGLESQL_RETURN_IF_ERROR(key->mutable_collation()->SetSchemasForEvaluation(
+    if (key->collation_name() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(key->mutable_collation_name()->SetSchemasForEvaluation(
           ConcatSpans(params_schemas, {input_schema.get()})));
     }
   }

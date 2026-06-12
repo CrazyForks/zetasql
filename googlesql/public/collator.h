@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -30,6 +31,8 @@
 #include "googlesql/base/status.h"
 
 namespace googlesql {
+
+class CompositeGoogleSqlCollator;
 
 // How the legacy "unicode" special collation name is handled.
 // See (broken link) for more background.
@@ -57,6 +60,13 @@ class GoogleSqlCollator {
   GoogleSqlCollator(const GoogleSqlCollator&) = delete;
   GoogleSqlCollator& operator=(const GoogleSqlCollator&) = delete;
   virtual ~GoogleSqlCollator() = 0;
+
+  virtual bool IsComposite() const { return false; }
+  virtual const CompositeGoogleSqlCollator* AsComposite() const {
+    return nullptr;
+  }
+
+  virtual std::string DebugString() const = 0;
 
   // A three valued string compare method based on the collate specific rules.
   //
@@ -167,6 +177,47 @@ void RegisterIcuCollatorImpl(
 // default. For testing only.
 void RegisterDefaultCollatorImpl();
 }  // namespace internal
+
+// Represents a collator for composite types like ARRAY and STRUCT.
+// It holds child collators for its elements or fields.
+class CompositeGoogleSqlCollator : public GoogleSqlCollator {
+ public:
+  // Creates a CompositeGoogleSqlCollator with a list of child collators.
+  // For ARRAY types, child_collators should contain exactly one element.
+  // For STRUCT types, child_collators should contain one element per field.
+  static absl::StatusOr<std::unique_ptr<const CompositeGoogleSqlCollator>>
+  Create(std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators);
+
+  bool IsComposite() const override { return true; }
+  const CompositeGoogleSqlCollator* AsComposite() const override {
+    return this;
+  }
+
+  // String comparison methods are not supported for CompositeGoogleSqlCollator.
+  int64_t CompareUtf8(absl::string_view s1, absl::string_view s2,
+                      absl::Status* error) const override;
+  absl::Status GetSortKeyUtf8(absl::string_view input,
+                              absl::Cord* output) const override;
+
+  bool IsBinaryComparison() const override { return false; }
+  const icu::RuleBasedCollator* GetIcuCollator() const override {
+    return nullptr;
+  }
+
+  // Returns the child collators.
+  const std::vector<std::unique_ptr<const GoogleSqlCollator>>& child_collators()
+      const {
+    return child_collators_;
+  }
+
+  std::string DebugString() const override;
+
+ private:
+  explicit CompositeGoogleSqlCollator(
+      std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators);
+
+  std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators_;
+};
 
 }  // namespace googlesql
 

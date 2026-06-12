@@ -322,9 +322,16 @@ class StructAnnotationMap : public AnnotationMap {
   StructAnnotationMap* AsStructMap() override { return this; }
   const StructAnnotationMap* AsStructMap() const override { return this; }
 
+  // Returns the child (field) annotation map at index `i`.
+  // Returns an error if `i` is out of bounds.
+  absl::StatusOr<const AnnotationMap*> child(int i) const;
+  // Returns the child (field) annotation map at index `i`.
+  // Returns an error if `i` is out of bounds.
+  absl::StatusOr<AnnotationMap*> mutable_child(int i);
+
   int num_fields() const { return static_cast<int>(fields_.size()); }
-  const AnnotationMap* field(int i) const { return fields_[i].get(); }
-  AnnotationMap* mutable_field(int i) { return fields_[i].get(); }
+  const AnnotationMap* field(int i) const;
+  AnnotationMap* mutable_field(int i);
 
   // Clones <from> and overwrites what's in the struct field <i>.
   // If <from> is nullptr, the struct field is set to NULL.
@@ -471,6 +478,8 @@ enum class AnnotationKind {
   kSampleAnnotation = 2,
   // Annotation ID for googlesql::TimestampPrecisionAnnotation.
   kTimestampPrecision = 3,
+  // Annotation ID for googlesql::IsVersionedAnnotation.
+  kIsVersioned = 4,
   // Annotation ID up to kMaxBuiltinAnnotationKind are reserved for googlesql
   // built-in annotations.
   kMaxBuiltinAnnotationKind = 10000,

@@ -56,7 +56,8 @@ absl::StatusOr<JSONValue> ToJson(
     const LanguageOptions& language_options, bool canonicalize_zero = false,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields =
         UnsupportedFieldsEnum::FAIL,
-    bool path_as_object = false);
+    bool path_as_object = false, bool reject_nan_infinity_floats = false,
+    bool* out_found_non_deterministic = nullptr);
 
 }  // namespace functions
 }  // namespace googlesql

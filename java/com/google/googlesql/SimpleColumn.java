@@ -33,6 +33,7 @@ public final class SimpleColumn implements Column, Serializable {
   private boolean isPseudoColumn;
   private boolean isWritableColumn;
   private final boolean canUpdateToDefault;
+  private final AnnotationMap annotationMap;
 
   /**
    * @param tableName name of the table this column belongs to.
@@ -44,13 +45,32 @@ public final class SimpleColumn implements Column, Serializable {
       Type type,
       boolean isPseudoColumn,
       boolean isWritableColumn,
-      boolean canUpdateToDefault) {
+      boolean canUpdateToDefault,
+      AnnotationMap annotationMap) {
     this.name = name == null ? "" : name;
     this.fullName = String.format("%s.%s", tableName, name);
     this.type = type;
     this.isPseudoColumn = isPseudoColumn;
     this.isWritableColumn = isWritableColumn;
     this.canUpdateToDefault = canUpdateToDefault;
+    this.annotationMap = annotationMap;
+  }
+
+  public SimpleColumn(
+      String tableName,
+      String name,
+      Type type,
+      boolean isPseudoColumn,
+      boolean isWritableColumn,
+      boolean canUpdateToDefault) {
+    this(
+        tableName,
+        name,
+        type,
+        isPseudoColumn,
+        isWritableColumn,
+        canUpdateToDefault,
+        /* annotationMap= */ null);
   }
 
   public SimpleColumn(
@@ -81,6 +101,9 @@ public final class SimpleColumn implements Column, Serializable {
     builder.setIsPseudoColumn(isPseudoColumn);
     builder.setIsWritableColumn(isWritableColumn);
     builder.setCanUpdateUnwritableToDefault(canUpdateToDefault);
+    if (annotationMap != null) {
+      builder.setAnnotationMap(annotationMap.serialize());
+    }
     return builder.build();
   }
 
@@ -103,13 +126,18 @@ public final class SimpleColumn implements Column, Serializable {
       ImmutableList<? extends DescriptorPool> pools,
       TypeFactory factory) {
     Type type = factory.deserialize(proto.getType(), pools);
+    AnnotationMap annotationMap = null;
+    if (proto.hasAnnotationMap()) {
+      annotationMap = AnnotationMap.deserialize(proto.getAnnotationMap());
+    }
     return new SimpleColumn(
         tableName,
         proto.getName(),
         type,
         proto.getIsPseudoColumn(),
         proto.getIsWritableColumn(),
-        proto.getCanUpdateUnwritableToDefault());
+        proto.getCanUpdateUnwritableToDefault(),
+        annotationMap);
   }
 
   @Override
@@ -155,11 +183,13 @@ public final class SimpleColumn implements Column, Serializable {
         && Objects.equals(this.type, otherAsColumn.type)
         && this.isPseudoColumn == otherAsColumn.isPseudoColumn
         && this.isWritableColumn == otherAsColumn.isWritableColumn
-        && this.canUpdateToDefault == otherAsColumn.canUpdateToDefault;
+        && this.canUpdateToDefault == otherAsColumn.canUpdateToDefault
+        && Objects.equals(this.annotationMap, otherAsColumn.annotationMap);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, fullName, type, isPseudoColumn, isWritableColumn, canUpdateToDefault);
+    return Objects.hash(
+        name, fullName, type, isPseudoColumn, isWritableColumn, canUpdateToDefault, annotationMap);
   }
 }

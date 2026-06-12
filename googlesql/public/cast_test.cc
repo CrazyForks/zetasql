@@ -16,6 +16,7 @@
 
 #include "googlesql/public/cast.h"
 
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <utility>
@@ -25,13 +26,17 @@
 #include "googlesql/common/graph_element_utils.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/compliance/functions_testlib.h"
+#include "googlesql/public/civil_time.h"
 #include "googlesql/public/function.h"
+#include "googlesql/public/interval_value.h"
 #include "googlesql/public/json_value.h"
 #include "googlesql/public/language_options.h"
+#include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/uuid_value.h"
 #include "googlesql/public/value.h"
 #include "googlesql/testdata/test_schema.pb.h"
 #include "googlesql/testing/test_function.h"
@@ -41,12 +46,13 @@
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -357,6 +363,230 @@ TEST(ArrayCastTest, StringToInt64) {
               StatusIs(absl::StatusCode::kOutOfRange,
                        HasSubstr("Error casting element at index 1 in ARRAY: "
                                  "Bad int64 value: bad_val")));
+}
+
+absl::StatusOr<Value> CastToJsonHelper(const Value& from_value) {
+  LanguageOptions language_options;
+  // Enable the cast to JSON feature.
+  language_options.EnableLanguageFeature(FEATURE_CAST_TO_JSON_TYPE);
+  return CastValue(from_value, absl::UTCTimeZone(), language_options,
+                   types::JsonType());
+}
+
+TEST(JsonCastTest, SqlTypesToJson) {
+  // Cast BOOL.
+  EXPECT_THAT(CastToJsonHelper(Bool(true)),
+              IsOkAndHolds(Json(JSONValue(true))));
+  EXPECT_THAT(CastToJsonHelper(Bool(false)),
+              IsOkAndHolds(Json(JSONValue(false))));
+
+  // Cast INT32/UINT32.
+  EXPECT_THAT(CastToJsonHelper(Int32(1)),
+              IsOkAndHolds(Json(JSONValue(int64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(Int32(-1)),
+              IsOkAndHolds(Json(JSONValue(int64_t{-1}))));
+  EXPECT_THAT(CastToJsonHelper(Int32(0)),
+              IsOkAndHolds(Json(JSONValue(int64_t{0}))));
+  EXPECT_THAT(CastToJsonHelper(Int32(std::numeric_limits<int32_t>::max())),
+              IsOkAndHolds(Json(
+                  JSONValue(int64_t{std::numeric_limits<int32_t>::max()}))));
+  EXPECT_THAT(CastToJsonHelper(Int32(std::numeric_limits<int32_t>::min())),
+              IsOkAndHolds(Json(
+                  JSONValue(int64_t{std::numeric_limits<int32_t>::min()}))));
+
+  EXPECT_THAT(CastToJsonHelper(Uint32(1)),
+              IsOkAndHolds(Json(JSONValue(uint64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(Uint32(0)),
+              IsOkAndHolds(Json(JSONValue(uint64_t{0}))));
+  EXPECT_THAT(CastToJsonHelper(Uint32(std::numeric_limits<uint32_t>::max())),
+              IsOkAndHolds(Json(
+                  JSONValue(uint64_t{std::numeric_limits<uint32_t>::max()}))));
+
+  // Cast INT64/UINT64.
+  EXPECT_THAT(CastToJsonHelper(Int64(1)),
+              IsOkAndHolds(Json(JSONValue(int64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(Int64(-1)),
+              IsOkAndHolds(Json(JSONValue(int64_t{-1}))));
+  EXPECT_THAT(CastToJsonHelper(Int64(0)),
+              IsOkAndHolds(Json(JSONValue(int64_t{0}))));
+  EXPECT_THAT(
+      CastToJsonHelper(Int64(std::numeric_limits<int64_t>::max())),
+      IsOkAndHolds(Json(JSONValue(std::numeric_limits<int64_t>::max()))));
+  EXPECT_THAT(
+      CastToJsonHelper(Int64(std::numeric_limits<int64_t>::min())),
+      IsOkAndHolds(Json(JSONValue(std::numeric_limits<int64_t>::min()))));
+
+  EXPECT_THAT(CastToJsonHelper(Uint64(1)),
+              IsOkAndHolds(Json(JSONValue(uint64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(Uint64(0)),
+              IsOkAndHolds(Json(JSONValue(uint64_t{0}))));
+  EXPECT_THAT(
+      CastToJsonHelper(Uint64(std::numeric_limits<uint64_t>::max())),
+      IsOkAndHolds(Json(JSONValue(std::numeric_limits<uint64_t>::max()))));
+
+  // Cast FLOAT/DOUBLE.
+  EXPECT_THAT(CastToJsonHelper(Float(1.5)),
+              IsOkAndHolds(Json(JSONValue(double{1.5}))));
+  EXPECT_THAT(CastToJsonHelper(Float(-1.5)),
+              IsOkAndHolds(Json(JSONValue(double{-1.5}))));
+  EXPECT_THAT(CastToJsonHelper(Float(0.0)),
+              IsOkAndHolds(Json(JSONValue(double{0.0}))));
+  EXPECT_THAT(CastToJsonHelper(Float(-0.0)),
+              IsOkAndHolds(Json(JSONValue(double{0.0}))));
+
+  EXPECT_THAT(CastToJsonHelper(Double(1.5)),
+              IsOkAndHolds(Json(JSONValue(double{1.5}))));
+  EXPECT_THAT(CastToJsonHelper(Double(-1.5)),
+              IsOkAndHolds(Json(JSONValue(double{-1.5}))));
+  EXPECT_THAT(CastToJsonHelper(Double(0.0)),
+              IsOkAndHolds(Json(JSONValue(double{0.0}))));
+  EXPECT_THAT(CastToJsonHelper(Double(-0.0)),
+              IsOkAndHolds(Json(JSONValue(double{0.0}))));
+
+  EXPECT_THAT(CastToJsonHelper(Double(std::numeric_limits<double>::infinity())),
+              StatusIs(absl::StatusCode::kOutOfRange,
+                       HasSubstr("Infinity is not a valid JSON number")));
+  EXPECT_THAT(
+      CastToJsonHelper(Double(-std::numeric_limits<double>::infinity())),
+      StatusIs(absl::StatusCode::kOutOfRange,
+               HasSubstr("Infinity is not a valid JSON number")));
+  EXPECT_THAT(
+      CastToJsonHelper(Double(std::numeric_limits<double>::quiet_NaN())),
+      StatusIs(absl::StatusCode::kOutOfRange,
+               HasSubstr("NaN is not a valid JSON number")));
+  EXPECT_THAT(
+      CastToJsonHelper(Double(std::numeric_limits<double>::signaling_NaN())),
+      StatusIs(absl::StatusCode::kOutOfRange,
+               HasSubstr("NaN is not a valid JSON number")));
+  EXPECT_THAT(
+      CastToJsonHelper(Double(std::numeric_limits<double>::quiet_NaN())),
+      StatusIs(absl::StatusCode::kOutOfRange,
+               HasSubstr("NaN is not a valid JSON number")));
+
+  // Cast NMERIC/BIGNUMERIC.
+  EXPECT_THAT(CastToJsonHelper(Numeric(NumericValue(1))),
+              IsOkAndHolds(Json(JSONValue(int64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(Numeric(NumericValue::MaxValue())),
+              IsOkAndHolds(Json(JSONValue(double{1e+29}))));
+
+  EXPECT_THAT(CastToJsonHelper(BigNumeric(BigNumericValue(1))),
+              IsOkAndHolds(Json(JSONValue(int64_t{1}))));
+  EXPECT_THAT(CastToJsonHelper(BigNumeric(BigNumericValue::MaxValue())),
+              IsOkAndHolds(Json(JSONValue(double{5.7896044618658096e+38}))));
+
+  // Cast STRING.
+  EXPECT_THAT(CastToJsonHelper(String("abc")),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("abc")))));
+  EXPECT_THAT(CastToJsonHelper(String("")),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("")))));
+  EXPECT_THAT(CastToJsonHelper(String("null")),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("null")))));
+  EXPECT_THAT(CastToJsonHelper(String("1")),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("1")))));
+
+  // Cast DATE/DATETIME
+  EXPECT_THAT(CastToJsonHelper(values::Date(1)),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("1970-01-02")))));
+  EXPECT_THAT(
+      CastToJsonHelper(values::Datetime(
+          DatetimeValue::FromYMDHMSAndMicros(2024, 1, 2, 3, 4, 5, 0))),
+      IsOkAndHolds(Json(JSONValue(absl::string_view("2024-01-02T03:04:05")))));
+
+  // Cast TIME/TIMESTAMP
+  EXPECT_THAT(
+      CastToJsonHelper(values::Time(TimeValue::FromHMSAndMicros(3, 4, 5, 0))),
+      IsOkAndHolds(Json(JSONValue(absl::string_view("03:04:05")))));
+  EXPECT_THAT(CastToJsonHelper(values::TimestampFromUnixMicros(1)),
+              IsOkAndHolds(Json(JSONValue(
+                  absl::string_view("1970-01-01T00:00:00.000001Z")))));
+
+  // Cast UUID
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto uuid, UuidValue::FromString("00000000-0000-0000-0000-000000000000"));
+  EXPECT_THAT(CastToJsonHelper(values::Uuid(uuid)),
+              IsOkAndHolds(Json(JSONValue(
+                  absl::string_view("00000000-0000-0000-0000-000000000000")))));
+
+  // Cast BYTES
+  EXPECT_THAT(CastToJsonHelper(values::Bytes("abc")),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("YWJj")))));
+
+  // Cast ENUM
+  const EnumType* enum_type;
+  GOOGLESQL_ASSERT_OK(type_factory->MakeEnumType(googlesql_test::TestEnum_descriptor(),
+                                       &enum_type));
+  EXPECT_THAT(CastToJsonHelper(values::Enum(enum_type, 1)),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("TESTENUM1")))));
+
+  // Cast INTERVAL
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto interval, IntervalValue::FromMonths(1));
+  EXPECT_THAT(CastToJsonHelper(values::Interval(interval)),
+              IsOkAndHolds(Json(JSONValue(absl::string_view("P1M")))));
+
+  // Cast RANGE
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value range_val,
+                       Value::MakeRange(values::Date(1), values::Date(10)));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto expected_json,
+                       JSONValue::ParseJSONString(
+                           R"({"start":"1970-01-02","end":"1970-01-11"})"));
+  EXPECT_THAT(CastToJsonHelper(range_val),
+              IsOkAndHolds(Json(std::move(expected_json))));
+
+  // Cast PROTO
+
+  // Cast GRAPH_ELEMENT
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto node, GraphNode({"g"}, "n1", {{"a", Value::Int64(1)}}, {"L1"}, "T"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto expected_node_json,
+      JSONValue::ParseJSONString(
+          R"({"identifier":"bjE=","kind":"node","labels":["L1"],"properties":{"a":1}})"));
+  EXPECT_THAT(CastToJsonHelper(node),
+              IsOkAndHolds(Json(std::move(expected_node_json))));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto edge, GraphEdge({"g"}, "e1", {{"a", Value::Int64(1)}}, {"L1"}, "T",
+                           "n1", "n2"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto expected_edge_json,
+      JSONValue::ParseJSONString(
+          R"({"destination_node_identifier":"bjI=","identifier":"ZTE=","kind":"edge","labels":["L1"],"properties":{"a":1},"source_node_identifier":"bjE="})"));
+  EXPECT_THAT(CastToJsonHelper(edge),
+              IsOkAndHolds(Json(std::move(expected_edge_json))));
+
+  // Cast GRAPH_PATH
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto node2,
+      GraphNode({"g"}, "n2", {{"a", Value::Int64(1)}}, {"L1"}, "T"));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value path,
+                       Value::MakeGraphPath(test_values::MakeGraphPathType(
+                                                node.type()->AsGraphElement(),
+                                                edge.type()->AsGraphElement()),
+                                            {node, edge, node2}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto expected_path_json,
+      JSONValue::ParseJSONString(
+          R"([{"identifier":"bjE=","kind":"node","labels":["L1"],"properties":{"a":1}},{"destination_node_identifier":"bjI=","identifier":"ZTE=","kind":"edge","labels":["L1"],"properties":{"a":1},"source_node_identifier":"bjE="},{"identifier":"bjI=","kind":"node","labels":["L1"],"properties":{"a":1}}])"));
+  EXPECT_THAT(CastToJsonHelper(path),
+              IsOkAndHolds(Json(std::move(expected_path_json))));
+
+  // Cast ARRAY
+  const ArrayType* array_type;
+  GOOGLESQL_ASSERT_OK(
+      type_factory->MakeArrayType(type_factory->get_int64(), &array_type));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto expected_array_json,
+                       JSONValue::ParseJSONString(R"([1,2])"));
+  EXPECT_THAT(CastToJsonHelper(values::Array(
+                  array_type, {values::Int64(1), values::Int64(2)})),
+              IsOkAndHolds(Json(std::move(expected_array_json))));
+
+  // Cast STRUCT
+  const StructType* struct_type;
+  GOOGLESQL_ASSERT_OK(type_factory->MakeStructType({{"a", type_factory->get_int64()}},
+                                         &struct_type));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto expected_struct_json,
+                       JSONValue::ParseJSONString(R"({"a":1})"));
+  EXPECT_THAT(CastToJsonHelper(values::Struct(struct_type, {values::Int64(1)})),
+              IsOkAndHolds(Json(std::move(expected_struct_json))));
 }
 
 TEST(MapCastErrorTest, KeyValueSpecificError) {
@@ -988,5 +1218,8 @@ INSTANTIATE_TEST_SUITE_P(CastTokenList, CastTemplateTest,
 
 INSTANTIATE_TEST_SUITE_P(CastUuid, CastTemplateTest,
                          testing::ValuesIn(GetFunctionTestsCastUuid()));
+
+INSTANTIATE_TEST_SUITE_P(CastJson, CastTemplateTest,
+                         testing::ValuesIn(GetFunctionTestsCastJson()));
 
 }  // namespace googlesql

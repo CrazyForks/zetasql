@@ -55,6 +55,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -66,7 +67,6 @@
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -161,8 +161,8 @@ class VectorEvaluatorTableModifyIterator : public EvaluatorTableModifyIterator {
   int row_idx_ = -1;
   // The value to be returned by GetValue() for delete operations.
   const Value invalid_value_ = Value::Invalid();
-  // A callback function called by the destructor, currently used by Evalutor to
-  // detect outliving iterators.
+  // A callback function called by the destructor, currently used by Evaluator
+  // to detect outliving iterators.
   const std::function<void()> deletion_cb_;
 };
 
@@ -175,10 +175,18 @@ class VectorEvaluatorTableModifyIterator : public EvaluatorTableModifyIterator {
 class ReferenceResultIterator : public EvaluatorTableIterator {
  public:
   ReferenceResultIterator(const Value& result,
-                          const std::function<void()>& deletion_cb)
-      : rows_(result.elements()), row_idx_(-1), deletion_cb_(deletion_cb) {
-    auto returning_row_struct = result.type()->AsArray()->element_type();
-    fields_ = returning_row_struct->AsStruct()->fields();
+                          const std::function<void()>& deletion_cb,
+                          bool is_value_table = false)
+      : rows_(result.elements()),
+        row_idx_(-1),
+        is_value_table_(is_value_table),
+        deletion_cb_(deletion_cb) {
+    auto returning_row_type = result.type()->AsArray()->element_type();
+    if (is_value_table_) {
+      fields_.push_back({"", returning_row_type});
+    } else {
+      fields_ = returning_row_type->AsStruct()->fields();
+    }
   }
 
   ~ReferenceResultIterator() override { deletion_cb_(); }
@@ -190,6 +198,9 @@ class ReferenceResultIterator : public EvaluatorTableIterator {
   const Type* GetColumnType(int i) const override { return fields_[i].type; }
 
   const Value& GetValue(int i) const override {
+    if (is_value_table_) {
+      return rows_[row_idx_];
+    }
     return rows_[row_idx_].field(i);
   }
 
@@ -205,8 +216,10 @@ class ReferenceResultIterator : public EvaluatorTableIterator {
   std::vector<StructField> fields_;
   // The positional index of the current row in the row vector.
   int row_idx_;
-  // A callback function called by the destructor, currently used by Evalutor to
-  // detect outliving iterators.
+  // Whether the result table is a value table.
+  const bool is_value_table_;
+  // A callback function called by the destructor, currently used by Evaluator
+  // to detect outliving iterators.
   const std::function<void()> deletion_cb_;
 };
 
@@ -702,7 +715,8 @@ absl::Status Evaluator::PrepareLocked(const AnalyzerOptions& options,
       case RESOLVED_DELETE_STMT:
       case RESOLVED_UPDATE_STMT:
       case RESOLVED_CREATE_TABLE_AS_SELECT_STMT:
-      case RESOLVED_MULTI_STMT: {
+      case RESOLVED_MULTI_STMT:
+      case RESOLVED_TERMINAL_QUERY_STMT: {
         GOOGLESQL_RETURN_IF_ERROR(Algebrizer::AlgebrizeStatement(
             options.language(), GetAlgebrizerOptions(analyzer_output_),
             evaluator_options_.type_factory, statement_, &compiled_value_expr_,
@@ -1215,19 +1229,42 @@ Evaluator::ExecuteMultiAfterPrepareWithOrderedParamsLocked(
 
     const Value& sub_result = stmt_result.value.value();
     if (sub_stmt->node_kind() == RESOLVED_QUERY_STMT ||
-        sub_stmt->node_kind() == RESOLVED_CREATE_TABLE_AS_SELECT_STMT) {
-      IncrementNumLiveIterators();
-      std::function<void()> deletion_cb = [this]() {
-        DecrementNumLiveIterators();
-      };
-      PreparedStatementBase::StmtKind kind =
-          sub_stmt->node_kind() == RESOLVED_CREATE_TABLE_AS_SELECT_STMT
-              ? PreparedStatementBase::StmtKind::kCTAS
-              : PreparedStatementBase::StmtKind::kQuery;
+        sub_stmt->node_kind() == RESOLVED_CREATE_TABLE_AS_SELECT_STMT ||
+        sub_stmt->node_kind() == RESOLVED_TERMINAL_QUERY_STMT) {
+      PreparedStatementBase::StmtKind kind;
+      if (sub_stmt->node_kind() == RESOLVED_CREATE_TABLE_AS_SELECT_STMT) {
+        kind = PreparedStatementBase::StmtKind::kCTAS;
+      } else if (sub_stmt->node_kind() == RESOLVED_TERMINAL_QUERY_STMT) {
+        kind = PreparedStatementBase::StmtKind::kTerminalQuery;
+        // The reference evaluator returns an invalid Value for terminal
+        // queries, representing "no table".
+        GOOGLESQL_RET_CHECK(!sub_result.is_valid());
+      } else {
+        kind = PreparedStatementBase::StmtKind::kQuery;
+      }
+
+      std::unique_ptr<EvaluatorTableIterator> table_iterator;
+      if (kind != PreparedStatementBase::StmtKind::kTerminalQuery) {
+        IncrementNumLiveIterators();
+        std::function<void()> deletion_cb = [this]() {
+          DecrementNumLiveIterators();
+        };
+        bool is_value_table = false;
+        if (sub_stmt->node_kind() == RESOLVED_QUERY_STMT) {
+          is_value_table =
+              sub_stmt->GetAs<ResolvedQueryStmt>()->is_value_table();
+        } else if (sub_stmt->node_kind() ==
+                   RESOLVED_CREATE_TABLE_AS_SELECT_STMT) {
+          is_value_table =
+              sub_stmt->GetAs<ResolvedCreateTableStmtBase>()->is_value_table();
+        }
+        table_iterator = std::make_unique<ReferenceResultIterator>(
+            sub_result, deletion_cb, is_value_table);
+      }
+
       output_iterators.push_back(PreparedStatementBase::StmtResult{
           .kind = kind,
-          .table_iterator = std::make_unique<ReferenceResultIterator>(
-              sub_result, deletion_cb),
+          .table_iterator = std::move(table_iterator),
           .statement = sub_stmt,
       });
     } else {

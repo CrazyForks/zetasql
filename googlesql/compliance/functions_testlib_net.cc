@@ -381,8 +381,8 @@ std::vector<FunctionTestCall> GetFunctionTestsNet() {
        "[2001:0db8:0000:0000:0000:ff00:0042:8329]", NullString(), NullString()},
       {"[2001:0db8:0000:0000:0000:ff00:0042:8329]",
        "[2001:0db8:0000:0000:0000:ff00:0042:8329]", NullString(), NullString()},
-      {"[2001:0db8/0000:0000:0000:ff00:0042:8329]",
-       "[2001:0db8", NullString(), NullString()},
+      {"[2001:0db8/0000:0000:0000:ff00:0042:8329]", "[2001:0db8", NullString(),
+       NullString()},
       {"foo.com//bar", "foo.com", "foo.com", "com"},
       {"/google", NullString(), NullString(), NullString()},
       {"/Google.COM", NullString(), NullString(), NullString()},
@@ -464,7 +464,7 @@ std::vector<FunctionTestCall> GetFunctionTestsNet() {
       {"http://1.2.3.4", "1.2.3.4", NullString(), NullString()},
       {"http://1.2.3.4.5", "1.2.3.4.5", NullString(), NullString()},
       {"http://1000.2000.3000.4000", "1000.2000.3000.4000", NullString(),
-          NullString()},
+       NullString()},
       {"http://a", "a", NullString(), NullString()},
       {"http://a.b", "a.b", NullString(), NullString()},
       {"http://abc.xyz", "abc.xyz", "abc.xyz", "xyz"},
@@ -472,8 +472,9 @@ std::vector<FunctionTestCall> GetFunctionTestsNet() {
       // the pubic suffix list. It should not be treated as a public suffix.
       {"http://compute.amazonaws.com", "compute.amazonaws.com", "amazonaws.com",
        "com"},
-      // *.kh is a public suffix rule with a wildcard (*).
-      {"http://foo.bar.kh", "foo.bar.kh", "foo.bar.kh", "bar.kh"},
+      // *.sch.uk is a public suffix rule with a wildcard (*).
+      {"http://foo.bar.sch.uk", "foo.bar.sch.uk", "foo.bar.sch.uk",
+       "bar.sch.uk"},
       {" http://www.Google.COM ", "www.Google.COM", "Google.COM", "COM"},
       {"http://x y.com", "x y.com", "x y.com", "com"},
       {String("http://x\000y.com"), String("x\000y.com"), String("x\000y.com"),

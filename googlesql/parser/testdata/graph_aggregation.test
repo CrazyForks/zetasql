@@ -648,8 +648,7 @@ FROM
       WHERE
         a.account_id = c.account_id
     MATCH
-      (c
-      IS Account)
+      (c IS Account)
       ->
       (a)
     RETURN
@@ -868,8 +867,7 @@ FROM
       WHERE
         a.account_id = c.account_id
     MATCH
-      (c
-      IS Account)
+      (c IS Account)
       ->
       (a)
     RETURN

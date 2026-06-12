@@ -95,24 +95,24 @@ ARRAY<STRUCT<
         WINDOW_END TIMESTAMP
       >>
 [unknown order:{
-                 2025-01-02 08:00:00+00,
-                 2025-01-02 00:00:00+00,
-                 2025-01-03 00:00:00+00
-               },
-               {
                  2025-01-04 08:00:00+00,
                  2025-01-04 00:00:00+00,
                  2025-01-05 00:00:00+00
                },
                {
-                 2025-01-01 08:00:00+00,
-                 2025-01-01 00:00:00+00,
-                 2025-01-02 00:00:00+00
-               },
-               {
                  2025-01-03 08:00:00+00,
                  2025-01-03 00:00:00+00,
                  2025-01-04 00:00:00+00
+               },
+               {
+                 2025-01-02 08:00:00+00,
+                 2025-01-02 00:00:00+00,
+                 2025-01-03 00:00:00+00
+               },
+               {
+                 2025-01-01 08:00:00+00,
+                 2025-01-01 00:00:00+00,
+                 2025-01-02 00:00:00+00
                }]
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
@@ -194,14 +194,14 @@ ARRAY<STRUCT<
         WINDOW_END TIMESTAMP
       >>
 [unknown order:{
-                 2025-01-02 00:00:00+00,
-                 2025-01-02 00:00:00+00,
-                 2025-01-03 00:00:00+00
-               },
-               {
                  2025-01-01 00:00:00+00,
                  2025-01-01 00:00:00+00,
                  2025-01-02 00:00:00+00
+               },
+               {
+                 2025-01-02 00:00:00+00,
+                 2025-01-02 00:00:00+00,
+                 2025-01-03 00:00:00+00
                }]
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
@@ -221,13 +221,13 @@ ARRAY<STRUCT<
         WINDOW_START TIMESTAMP,
         WINDOW_END TIMESTAMP
       >>
-[unknown order:{2, NULL, NULL, NULL},
-               {
+[unknown order:{
                  1,
                  2025-01-01 00:00:00+00,
                  2025-01-01 00:00:00+00,
                  2025-01-02 00:00:00+00
                },
+               {2, NULL, NULL, NULL},
                {3, NULL, NULL, NULL}]
 ==
 # Omitting the WINDOW_START and WINDOW_END in the select does not affect Tumble.
@@ -291,19 +291,19 @@ ERROR: generic::out_of_range: Bucket for 9999-12-31 23:59:59.999999+00 is outsid
 [name=zero_window_size]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 0 DAY);
 --
-ERROR: generic::invalid_argument: Window size cannot be zero.
+ERROR: generic::out_of_range: Window size cannot be zero.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=negative_window_size]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", - INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Window size cannot be negative.
+ERROR: generic::out_of_range: Window size cannot be negative.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=null_window_size]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", CAST(NULL AS INTERVAL));
 --
-ERROR: generic::invalid_argument: Window size cannot be null.
+ERROR: generic::out_of_range: Window size cannot be null.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=timestamp_col_wrong_type]
@@ -316,16 +316,52 @@ WITH CteWithNullTimestamps AS (
 )
 SELECT * FROM tumble(TABLE CteWithNullTimestamps, "id", INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Timestamp column 'id' is not of TIMESTAMP type.
+ERROR: generic::out_of_range: Timestamp column 'id' is not of TIMESTAMP type.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=timestamp_col_not_found]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "non_existent_ts_col", INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Timestamp column 'non_existent_ts_col' not found in input table.
+ERROR: generic::out_of_range: Timestamp column 'non_existent_ts_col' not found in input table.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
 [name=null_origin]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, origin => NULL);
 --
-ERROR: generic::invalid_argument: Origin cannot be null.
+ERROR: generic::out_of_range: Origin cannot be null.
+==
+[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
+[name=tumble_duplicate_columns]
+SELECT *
+FROM TUMBLE(
+  (SELECT 10 as val, 20 as val, TIMESTAMP '2024-01-01 00:00:00' as ts),
+  'ts',
+  INTERVAL 1 HOUR
+)
+--
+ARRAY<STRUCT<
+        val INT64,
+        val INT64,
+        ts TIMESTAMP,
+        WINDOW_START TIMESTAMP,
+        WINDOW_END TIMESTAMP
+      >>
+[{
+   10,
+   20,
+   2024-01-01 08:00:00+00,
+   2024-01-01 08:00:00+00,
+   2024-01-01 09:00:00+00
+ }]
+==
+[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
+[name=tumble_pruned_columns]
+SELECT WINDOW_START
+FROM TUMBLE(
+  (SELECT 10 as val, 20 as val, TIMESTAMP '2024-01-01 00:00:00' as ts),
+  'ts',
+  INTERVAL 1 HOUR
+)
+--
+ARRAY<STRUCT<WINDOW_START TIMESTAMP>>[{2024-01-01 08:00:00+00}]
+

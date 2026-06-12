@@ -1,10 +1,54 @@
 # OPTIONS related tests, for different locations
 #
-# The OPTIONS clause includes a parenthesized list of comma-separated
+# The OPTIONS clause includes a parenthesized list of comma-separated entries.
+# These can be 'FROM <expression>' entries (which must appear first) or
 # '<identifier> = <expression>' entries.
 #
 # We use the MODULE statement for these tests since it is the simplest
 # statement type.
+
+MODULE foo OPTIONS(FROM bar);
+--
+ModuleStatement [0-28] [MODULE foo OPTIONS(FROM bar)]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [18-28] [(FROM bar)]
+    OptionsEntry [19-27] [FROM bar]
+      PathExpression [24-27] [bar]
+        Identifier(bar) [24-27] [bar]
+--
+MODULE foo OPTIONS(FROM bar)
+==
+
+MODULE foo OPTIONS(FROM bar, a=1);
+--
+ModuleStatement [0-33] [MODULE foo...bar, a=1)]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [18-33] [(FROM bar, a=1)]
+    OptionsEntry [19-27] [FROM bar]
+      PathExpression [24-27] [bar]
+        Identifier(bar) [24-27] [bar]
+    OptionsEntry [29-32] [a=1]
+      Identifier(a) [29-30] [a]
+      IntLiteral(1) [31-32] [1]
+--
+MODULE foo OPTIONS(FROM bar, a = 1)
+==
+
+MODULE foo OPTIONS(a=1, FROM bar);
+--
+ERROR: Syntax error: FROM option must appear before all other options [at 1:25]
+MODULE foo OPTIONS(a=1, FROM bar);
+                        ^
+==
+
+MODULE foo OPTIONS(FROM foo, a=1, FROM bar);
+--
+ERROR: Syntax error: FROM option must appear before all other options [at 1:35]
+MODULE foo OPTIONS(FROM foo, a=1, FROM bar);
+                                  ^
+==
 
 # An empty options list is allowed.
 MODULE foo OPTIONS();
@@ -559,3 +603,130 @@ DefineTableStatement [0-22] [DEFINE TABLE foo (a=1)]
       IntLiteral(1) [20-21] [1]
 --
 DEFINE TABLE foo(a = 1)
+==
+
+MODULE foo OPTIONS (FROM struct1, a = "a");
+--
+ModuleStatement [0-42] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-42] [(FROM struct1, a = "a")]
+    OptionsEntry [20-32] [FROM struct1]
+      PathExpression [25-32] [struct1]
+        Identifier(struct1) [25-32] [struct1]
+    OptionsEntry [34-41] [a = "a"]
+      Identifier(a) [34-35] [a]
+      StringLiteral [38-41] ["a"]
+        StringLiteralComponent("a") [38-41] ["a"]
+--
+MODULE foo OPTIONS(FROM struct1, a = "a")
+==
+
+MODULE foo OPTIONS (FROM struct1, FROM struct2, a = "a");
+--
+ModuleStatement [0-56] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-56] [(FROM struct1..., a = "a")]
+    OptionsEntry [20-32] [FROM struct1]
+      PathExpression [25-32] [struct1]
+        Identifier(struct1) [25-32] [struct1]
+    OptionsEntry [34-46] [FROM struct2]
+      PathExpression [39-46] [struct2]
+        Identifier(struct2) [39-46] [struct2]
+    OptionsEntry [48-55] [a = "a"]
+      Identifier(a) [48-49] [a]
+      StringLiteral [52-55] ["a"]
+        StringLiteralComponent("a") [52-55] ["a"]
+--
+MODULE foo OPTIONS(FROM struct1, FROM struct2, a = "a")
+==
+
+[language_features=NONE,+BRACED_PROTO_CONSTRUCTORS]
+MODULE foo OPTIONS (FROM {a: "a"}, a = "a");
+--
+ModuleStatement [0-43] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-43] [(FROM {a: "a"}, a = "a")]
+    OptionsEntry [20-33] [FROM {a: "a"}]
+      BracedConstructor [25-33] [{a: "a"}]
+        BracedConstructorField [26-32] [a: "a"]
+          BracedConstructorLhs [26-27] [a]
+            PathExpression [26-27] [a]
+              Identifier(a) [26-27] [a]
+          BracedConstructorFieldValue [29-32] ["a"]
+            StringLiteral [29-32] ["a"]
+              StringLiteralComponent("a") [29-32] ["a"]
+    OptionsEntry [35-42] [a = "a"]
+      Identifier(a) [35-36] [a]
+      StringLiteral [39-42] ["a"]
+        StringLiteralComponent("a") [39-42] ["a"]
+--
+MODULE foo OPTIONS(FROM {
+    a : "a"
+  }, a = "a")
+==
+
+[language_features=NONE,+BRACED_PROTO_CONSTRUCTORS]
+MODULE foo OPTIONS (FROM struct{a: "a"}, a = "a");
+--
+ModuleStatement [0-49] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-49] [(FROM struct{a: "a"}, a = "a")]
+    OptionsEntry [20-39] [FROM struct{a: "a"}]
+      StructBracedConstructor [25-39] [struct{a: "a"}]
+        BracedConstructor [31-39] [{a: "a"}]
+          BracedConstructorField [32-38] [a: "a"]
+            BracedConstructorLhs [32-33] [a]
+              PathExpression [32-33] [a]
+                Identifier(a) [32-33] [a]
+            BracedConstructorFieldValue [35-38] ["a"]
+              StringLiteral [35-38] ["a"]
+                StringLiteralComponent("a") [35-38] ["a"]
+    OptionsEntry [41-48] [a = "a"]
+      Identifier(a) [41-42] [a]
+      StringLiteral [45-48] ["a"]
+        StringLiteralComponent("a") [45-48] ["a"]
+--
+MODULE foo OPTIONS(FROM STRUCT {
+    a : "a"
+  }, a = "a")
+==
+
+MODULE foo OPTIONS (FROM Fn(1), a = "a");
+--
+ModuleStatement [0-40] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-40] [(FROM Fn(1), a = "a")]
+    OptionsEntry [20-30] [FROM Fn(1)]
+      FunctionCall [25-30] [Fn(1)]
+        PathExpression [25-27] [Fn]
+          Identifier(Fn) [25-27] [Fn]
+        IntLiteral(1) [28-29] [1]
+    OptionsEntry [32-39] [a = "a"]
+      Identifier(a) [32-33] [a]
+      StringLiteral [36-39] ["a"]
+        StringLiteralComponent("a") [36-39] ["a"]
+--
+MODULE foo OPTIONS(FROM Fn(1), a = "a")
+==
+
+MODULE foo OPTIONS (FROM @var, a = "a");
+--
+ModuleStatement [0-39] [MODULE foo..., a = "a")]
+  PathExpression [7-10] [foo]
+    Identifier(foo) [7-10] [foo]
+  OptionsList [19-39] [(FROM @var, a = "a")]
+    OptionsEntry [20-29] [FROM @var]
+      ParameterExpr [25-29] [@var]
+        Identifier(var) [26-29] [var]
+    OptionsEntry [31-38] [a = "a"]
+      Identifier(a) [31-32] [a]
+      StringLiteral [35-38] ["a"]
+        StringLiteralComponent("a") [35-38] ["a"]
+--
+MODULE foo OPTIONS(FROM @var, a = "a")
+==

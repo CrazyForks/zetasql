@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/common/float_margin.h"
 #include "googlesql/compliance/parameters_test_util.h"
 #include "googlesql/compliance/test_driver.h"
 #include "googlesql/public/options.pb.h"
@@ -31,6 +32,7 @@
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -39,7 +41,6 @@
 #include "file_based_test_driver/test_case_options.h"
 #include "googlesql/base/file_util.h"  
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(bool, auto_generate_test_names, false,
           "When true, test cases in file don't have to have [name] tag, the "
@@ -58,6 +59,7 @@ constexpr absl::string_view kParameters = "parameters";
 constexpr absl::string_view kPrepareDatabase = "prepare_database";
 constexpr absl::string_view kReserveMatchRecognize = "reserve_match_recognize";
 constexpr absl::string_view kReserveGraphTable = "reserve_graph_table";
+constexpr absl::string_view kFloatMarginUlpBits = "float_margin_ulp_bits";
 
 constexpr absl::string_view kExtractLabels = "extract_labels";  // boolean flag
 
@@ -112,7 +114,7 @@ constexpr absl::string_view kUseTestDatabaseCopy = "use_test_database_copy";
 constexpr absl::string_view kExcludeForSqlBuilderPipeSqlEquivalenceTests =
     "exclude_in_sql_builder_pipe_sql_equivalence_tests";
 
-FilebasedSQLTestCaseOptions::FilebasedSQLTestCaseOptions() {}
+FilebasedSQLTestCaseOptions::FilebasedSQLTestCaseOptions() = default;
 
 static absl::flat_hash_set<std::string> SplitProtosOrEnums(
     absl::string_view item_string) {
@@ -286,6 +288,7 @@ FilebasedSQLTestFileOptions::ProcessTestCase(absl::string_view test_case,
   case_opts->use_test_database_copy_ = options_->GetBool(kUseTestDatabaseCopy);
   case_opts->exclude_in_sql_builder_pipe_sql_equivalence_tests_ =
       options_->GetBool(kExcludeForSqlBuilderPipeSqlEquivalenceTests);
+  case_opts->float_margin_ulp_bits_ = options_->GetInt64(kFloatMarginUlpBits);
 
   // Sometimes the first "...\n==" block in a test file is just setting up
   // option defaults. This is fine, but we want to skip name validation.
@@ -361,6 +364,7 @@ FilebasedSQLTestFileOptions::FilebasedSQLTestFileOptions(
                            PrimaryKeyModeName(PrimaryKeyMode::DEFAULT));
   options_->RegisterBool(kUseTestDatabaseCopy, false);
   options_->RegisterBool(kExcludeForSqlBuilderPipeSqlEquivalenceTests, false);
+  options_->RegisterInt64(kFloatMarginUlpBits, FloatMargin::kDefaultUlpBits);
 }
 
 }  // namespace googlesql

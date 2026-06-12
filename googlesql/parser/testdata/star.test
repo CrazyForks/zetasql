@@ -28,7 +28,8 @@ QueryStatement [0-26] [select * except (a) from t]
           StarWithModifiers [7-19] [* except (a)]
             StarModifiers [9-19] [except (a)]
               StarExceptList [9-19] [except (a)]
-                Identifier(a) [17-18] [a]
+                ExpressionList [16-19] [(a)]
+                  Identifier(a) [17-18] [a]
       FromClause [20-26] [from t]
         TablePathExpression [25-26] [t]
           PathExpression [25-26] [t]
@@ -78,9 +79,10 @@ QueryStatement [0-68] [select 123...as d), 456]
           StarWithModifiers [12-63] [* except (...c, 5 as d)]
             StarModifiers [14-63] [except (a,...c, 5 as d)]
               StarExceptList [14-28] [except (a,b,c)]
-                Identifier(a) [22-23] [a]
-                Identifier(b) [24-25] [b]
-                Identifier(c) [26-27] [c]
+                ExpressionList [21-28] [(a,b,c)]
+                  Identifier(a) [22-23] [a]
+                  Identifier(b) [24-25] [b]
+                  Identifier(c) [26-27] [c]
               StarReplaceItem [38-46] [a+1 as b]
                 BinaryExpression(+) [38-41] [a+1]
                   PathExpression [38-39] [a]
@@ -110,6 +112,14 @@ select * except ()
                  ^
 ==
 
+select * except ((a))
+
+--
+ERROR: Syntax error: Unexpected "(" [at 1:18]
+select * except ((a))
+                 ^
+==
+
 select * except (1)
 --
 ERROR: Syntax error: Unexpected integer literal "1" [at 1:18]
@@ -119,7 +129,7 @@ select * except (1)
 
 select * except (a.b)
 --
-ERROR: Syntax error: Expected ")" or "," but got "." [at 1:19]
+ERROR: Syntax error: Expected ")" but got "." [at 1:19]
 select * except (a.b)
                   ^
 ==
@@ -164,7 +174,8 @@ QueryStatement [0-21] [select a.* except (b)]
               Identifier(a) [7-8] [a]
             StarModifiers [11-21] [except (b)]
               StarExceptList [11-21] [except (b)]
-                Identifier(b) [19-20] [b]
+                ExpressionList [18-21] [(b)]
+                  Identifier(b) [19-20] [b]
 --
 SELECT
   a.* EXCEPT (b)
@@ -205,7 +216,8 @@ QueryStatement [0-58] [select func...except(Y)]
               Identifier(x) [14-15] [x]
             StarModifiers [18-43] [except(b) replace(1 as d)]
               StarExceptList [18-27] [except(b)]
-                Identifier(b) [25-26] [b]
+                ExpressionList [24-27] [(b)]
+                  Identifier(b) [25-26] [b]
               StarReplaceItem [36-42] [1 as d]
                 IntLiteral(1) [36-37] [1]
                 Identifier(d) [41-42] [d]
@@ -215,7 +227,8 @@ QueryStatement [0-58] [select func...except(Y)]
               Identifier(z) [45-46] [z]
             StarModifiers [49-58] [except(Y)]
               StarExceptList [49-58] [except(Y)]
-                Identifier(Y) [56-57] [Y]
+                ExpressionList [55-58] [(Y)]
+                  Identifier(Y) [56-57] [Y]
 --
 SELECT
   func().x.* EXCEPT (b) REPLACE (1 AS d),
@@ -321,15 +334,17 @@ QueryStatement [0-52] [select * except...except (c)]
             StarWithModifiers [7-21] [* except (a,b)]
               StarModifiers [9-21] [except (a,b)]
                 StarExceptList [9-21] [except (a,b)]
-                  Identifier(a) [17-18] [a]
-                  Identifier(b) [19-20] [b]
+                  ExpressionList [16-21] [(a,b)]
+                    Identifier(a) [17-18] [a]
+                    Identifier(b) [19-20] [b]
       Select [33-52] [select * except (c)]
         SelectList [40-52] [* except (c)]
           SelectColumn [40-52] [* except (c)]
             StarWithModifiers [40-52] [* except (c)]
               StarModifiers [42-52] [except (c)]
                 StarExceptList [42-52] [except (c)]
-                  Identifier(c) [50-51] [c]
+                  ExpressionList [49-52] [(c)]
+                    Identifier(c) [50-51] [c]
 --
 SELECT
   * EXCEPT (a, b)
@@ -427,7 +442,8 @@ QueryStatement [0-47] [select x.*...select x.*]
                 Identifier(x) [7-8] [x]
               StarModifiers [11-20] [except(a)]
                 StarExceptList [11-20] [except(a)]
-                  Identifier(a) [18-19] [a]
+                  ExpressionList [17-20] [(a)]
+                    Identifier(a) [18-19] [a]
       Select [37-47] [select x.*]
         SelectList [44-47] [x.*]
           SelectColumn [44-47] [x.*]

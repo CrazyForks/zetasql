@@ -48,6 +48,7 @@
 
 #include "googlesql/base/logging.h"
 #include "absl/base/attributes.h"
+#include "googlesql/base/check.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"

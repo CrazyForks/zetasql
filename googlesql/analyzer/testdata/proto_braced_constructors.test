@@ -6,9 +6,9 @@
 [language_features=NONE]
 SELECT NEW googlesql_test.TestExtraPB {}
 --
-ERROR: Braced constructors are not supported [at 1:39]
+ERROR: Braced constructors are not supported [at 1:8]
 SELECT NEW googlesql_test.TestExtraPB {}
-                                      ^
+       ^
 ==
 
 [language_features=NONE]
@@ -300,7 +300,7 @@ SELECT NEW googlesql_test.TestExtraPB {
      }
 }
 --
-ERROR: Unexpected braced syntax after call to function 'UDPATE'. If the intent is to set an extension field, the preceding field must include a trailing comma. If the intent is to invoke the UPDATE constructor for a proto, the function name is misspelled. [at 7:77]
+ERROR: Syntax error: Unexpected braced constructor [at 7:77]
      (googlesql_test.TestExtraPBExtensionHolder.test_extra_proto_extension) {
                                                                             ^
 ==
@@ -1836,3 +1836,41 @@ select
 ERROR: Unable to infer a type for braced constructor [at 2:24]
    fn_on_KitchenSinkPB({int64_key_1: 1, int64_key_2: 2})
                        ^
+==
+
+SELECT NEW googlesql_test.TestExtraPB {
+  int32_val1: ABS(1) { int32_val1: 1 }
+};
+--
+ERROR: Syntax error: Unexpected braced constructor [at 2:22]
+  int32_val1: ABS(1) { int32_val1: 1 }
+                     ^
+==
+
+[language_features=NONE]
+select NEW googlesql_test.KitchenSinkPB { int64_key_1: 123 };
+--
+ERROR: Braced constructors are not supported [at 1:8]
+select NEW googlesql_test.KitchenSinkPB { int64_key_1: 123 };
+       ^
+==
+
+SELECT NEW googlesql_test.KitchenSinkPB { (int32_val1 + int32_val2) : 1 };
+--
+ERROR: Braced constructor field name must be a path expression [at 1:44]
+SELECT NEW googlesql_test.KitchenSinkPB { (int32_val1 + int32_val2) : 1 };
+                                           ^
+==
+
+SELECT NEW googlesql_test.KitchenSinkPB { "field" : 1 };
+--
+ERROR: Braced constructor field name must be a path expression [at 1:43]
+SELECT NEW googlesql_test.KitchenSinkPB { "field" : 1 };
+                                          ^
+==
+
+SELECT NEW googlesql_test.KitchenSinkPB { (int32_val1) : 1 };
+--
+ERROR: Extension int32_val1 not found [at 1:44]
+SELECT NEW googlesql_test.KitchenSinkPB { (int32_val1) : 1 };
+                                           ^

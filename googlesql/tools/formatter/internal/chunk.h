@@ -160,6 +160,20 @@ class Chunk {
   // "DETERMINISTIC", "LANGUAGE", "RETURNS", etc.
   bool IsFunctionSignatureModifier() const;
 
+  // Returns true if the chunk is a body starter (e.g., THEN in an IF statement)
+  // that introduces a new block of statements.
+  bool IsProceduralBodyStarter() const;
+
+  // Returns true if the chunk is a body starter and the block body is
+  // "complex". A body is considered "complex" if it contains a nested
+  // procedural block, or if it contains multiple statements.
+  bool IsComplexProceduralBody() const;
+
+  // Returns true if the chunk is a branch divider (e.g., ELSE in an IF
+  // statement) that separates different execution paths within the same
+  // procedural block.
+  bool IsProceduralBranchDivider() const;
+
   // Returns true if the chunk is a start of a new query or sub-query.
   bool IsStartOfNewQuery() const;
 

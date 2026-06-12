@@ -86,7 +86,8 @@ class AnalyticFunctionResolver {
   // Constructor. Does not take ownership of <resolver>.  Takes ownership of
   // <named_window_info_map> if non-NULL.
   explicit AnalyticFunctionResolver(
-      Resolver* resolver, NamedWindowInfoMap* named_window_info_map = nullptr);
+      Resolver* resolver,
+      std::unique_ptr<NamedWindowInfoMap> named_window_info_map = nullptr);
   AnalyticFunctionResolver(const AnalyticFunctionResolver&) = delete;
   AnalyticFunctionResolver& operator=(const AnalyticFunctionResolver&) = delete;
 
@@ -155,7 +156,7 @@ class AnalyticFunctionResolver {
   absl::Status SetWindowClause(const ASTWindowClause& window_clause);
 
   // Releases ownership of <named_window_info_map_>.
-  NamedWindowInfoMap* ReleaseNamedWindowInfoMap();
+  std::unique_ptr<NamedWindowInfoMap> ReleaseNamedWindowInfoMap();
 
   // Disable named window references. <clause_name> is only for displaying error
   // message and cannot be empty.  We disable them before resolving the ORDER
@@ -361,9 +362,7 @@ class AnalyticFunctionResolver {
   // resolved result in a WindowExprInfoList, and adds it to the map
   // <ast_to_resolved_info_> with <ast_order_by> as the key.  The returned
   // <order_by_info_out> is not owned by the caller, but by
-  // <ast_to_resolved_info_map_>. If <is_in_range_window> is true and the option
-  // DISALLOW_GROUP_BY_FLOAT is enabled, returns an error when there exists a
-  // floating point order key.
+  // <ast_to_resolved_info_map_>.
   absl::Status ResolveWindowOrderByPreAggregation(
       const ASTOrderBy* ast_order_by, bool is_in_range_window,
       ExprResolutionInfo* expr_resolution_info, bool allow_ordinals,

@@ -1,0 +1,93 @@
+[language_features=MAXIMUM,{{-|+}}ARRAY_OF_ARRAY]
+select * from graph_table(
+  aml
+  match ((a)-[e]->(b)){2}
+  columns (ARRAY_LENGTH([a, a]) AS x, ARRAY_LENGTH([e, e]) AS y)
+)
+--
+ALTERNATION GROUP: -
+--
+ERROR: Cannot construct array with element type ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, ...>> because nested arrays are not supported [at 4:26]
+  columns (ARRAY_LENGTH([a, a]) AS x, ARRAY_LENGTH([e, e]) AS y)
+                         ^
+--
+ALTERNATION GROUP: +
+--
+QueryStmt
++-output_column_list=
+| +-$graph_table.x#9 AS x [INT64]
+| +-$graph_table.y#10 AS y [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[x#9, y#10]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[x#9, y#10]
+        +-property_graph=aml
+        +-input_scan=
+        | +-GraphScan
+        |   +-column_list=[$path_scan.$head#7, $element_table.a#4, $element_table.e#5, $path_scan.$tail#8]
+        |   +-input_scan_list=
+        |     +-GraphPathScan
+        |       +-column_list=[$path_scan.$head#7, $element_table.a#4, $element_table.e#5, $path_scan.$tail#8]
+        |       +-input_scan_list=
+        |       | +-GraphNodeScan
+        |       | | +-column_list=[$element_table.a#1]
+        |       | | +-label_expr=
+        |       | | | +-GraphLabelNaryExpr
+        |       | | |   +-op=OR
+        |       | | |   +-operand_list=
+        |       | | |     +-GraphWildCardLabel
+        |       | | |     +-GraphLabelNaryExpr
+        |       | | |       +-op=NOT
+        |       | | |       +-operand_list=
+        |       | | |         +-GraphWildCardLabel
+        |       | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |       | +-GraphEdgeScan
+        |       | | +-column_list=[$element_table.e#2]
+        |       | | +-label_expr=
+        |       | | | +-GraphLabelNaryExpr
+        |       | | |   +-op=OR
+        |       | | |   +-operand_list=
+        |       | | |     +-GraphWildCardLabel
+        |       | | |     +-GraphLabelNaryExpr
+        |       | | |       +-op=NOT
+        |       | | |       +-operand_list=
+        |       | | |         +-GraphWildCardLabel
+        |       | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+        |       | | +-orientation=RIGHT
+        |       | +-GraphNodeScan
+        |       |   +-column_list=[$element_table.b#3]
+        |       |   +-label_expr=
+        |       |   | +-GraphLabelNaryExpr
+        |       |   |   +-op=OR
+        |       |   |   +-operand_list=
+        |       |   |     +-GraphWildCardLabel
+        |       |   |     +-GraphLabelNaryExpr
+        |       |   |       +-op=NOT
+        |       |   |       +-operand_list=
+        |       |   |         +-GraphWildCardLabel
+        |       |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |       +-head=$path_scan.$head#7
+        |       +-tail=$path_scan.$tail#8
+        |       +-quantifier=
+        |       | +-GraphPathPatternQuantifier
+        |       |   +-lower_bound=
+        |       |   | +-Literal(type=INT64, value=2)
+        |       |   +-upper_bound=
+        |       |     +-Literal(type=INT64, value=2)
+        |       +-group_variable_list=
+        |         +-GraphMakeArrayVariable(element=$element_table.a#1, array=$element_table.a#4)
+        |         +-GraphMakeArrayVariable(element=$element_table.e#2, array=$element_table.e#5)
+        |         +-GraphMakeArrayVariable(element=$element_table.b#3, array=$element_table.b#6)
+        +-shape_expr_list=
+          +-x#9 :=
+          | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>>) -> INT64)
+          |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>) -> ARRAY<ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>>)
+          |     +-ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.a#4)
+          |     +-ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.a#4)
+          +-y#10 :=
+            +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>>) -> INT64)
+              +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>) -> ARRAY<ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>>)
+                +-ColumnRef(type=ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>, column=$element_table.e#5)
+                +-ColumnRef(type=ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>, column=$element_table.e#5)

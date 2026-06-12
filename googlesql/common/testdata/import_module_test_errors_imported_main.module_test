@@ -1,0 +1,720 @@
+# This test takes an IMPORT statement as input, reads the module contents
+# from the related file (residing in googlesql/testdata), creates a
+# ModuleCatalog from the contents, and then dumps the Catalog udfs/tvfs.
+#
+# This test imports a module that imports other modules, where various
+# kinds of module errors are present in both the top level and nested
+# imports (parser errors, initialization errors, import errors, resolution
+# errors, etc.).
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_main;
+--
+Templated_SQL_Function:invalid_reference_to_aggregate_argument
+  (ANY TYPE aem) -> ANY TYPE
+
+PRIVATE Templated_SQL_Function:private_templated_uda
+  (ANY TYPE a) -> ANY TYPE
+
+PRIVATE Templated_SQL_Function:private_templated_udf
+  (ANY TYPE a) -> ANY TYPE
+
+PRIVATE Lazy_resolution_function:private_uda
+  (INT64 a) -> INT64
+
+PRIVATE Lazy_resolution_function:private_udf
+  (STRING a) -> STRING
+
+Templated_SQL_Function:templated_uda
+  (ANY TYPE a) -> ANY TYPE
+
+Templated_SQL_Function:templated_uda_error_bad_agg_arg_ref
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:templated_uda_init_error
+ERROR: Function templated_uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:75:17]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:75:1]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+^
+
+Templated_SQL_Function:templated_uda_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Templated_SQL_Function:templated_udf
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:templated_udf_init_error
+ERROR: Function templated_udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:47:22]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+                     ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:47:1]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+^
+
+Templated_SQL_Function:templated_udf_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:uda
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:uda_init_error
+ERROR: Function uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:60:17]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:60:1]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+^
+
+Lazy_resolution_function:uda_resolution_error
+ERROR: Function uda_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:63:34]
+CREATE PUBLIC AGGREGATE FUNCTION uda_resolution_error(a INT64)
+                                 ^
+Could not cast literal "b" to type DATE [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:64:14]
+AS (SUM(a) + "b");
+             ^
+
+Lazy_resolution_function:udf
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:udf_init_error
+ERROR: Function udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:32:17]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:32:1]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+^
+
+Lazy_resolution_function:udf_resolution_error
+ERROR: Function udf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:37:24]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                       ^
+Could not cast literal "a" to type DATE [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:37:62]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                                                             ^
+
+PRIVATE TVF:private_templated_tvf
+  (ANY TYPE a) -> ANY TABLE
+
+PRIVATE TVF:private_tvf
+  (INT64 a) -> TABLE<a INT64>
+
+TVF:templated_tvf
+  (ANY TYPE a) -> ANY TABLE
+
+TVF:templated_tvf_init_error
+ERROR: Table function templated_tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:108:23]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:108:1]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+^
+
+TVF:templated_tvf_resolution_error
+  (ANY TYPE a) -> ANY TABLE
+
+TVF:tvf
+  (INT64 a) -> TABLE<a INT64>
+
+TVF:tvf_init_error
+ERROR: Table function tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:95:23]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:95:1]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+^
+
+TVF:tvf_resolution_error
+ERROR: Table function tvf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:98:30]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                             ^
+Could not cast literal "c" to type DATE [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:98:75]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                                                                          ^
+
+CONSTANT constant=String("constant") (STRING)
+
+CONSTANT constant_evaluation_error=Uninitialized value (DOUBLE)
+ERROR during evaluation: generic::out_of_range: division by zero: 1 / 0 [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:135:24]
+CREATE PUBLIC CONSTANT constant_evaluation_error = 1 / 0;
+                       ^
+
+CONSTANT constant_init_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:122:17]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:122:1]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+^
+
+CONSTANT constant_resolution_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:125:24]
+CREATE PUBLIC CONSTANT constant_resolution_error =
+                       ^
+Could not cast literal "constant_resolution_error" to type DATE [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:126:9]
+    1 + "constant_resolution_error";
+        ^
+
+PRIVATE CONSTANT private_contant=Int64(1) (INT64)
+--
+MODULE module_test_errors_imported_a imported AS module_test_errors_imported_a by MODULE module_test_errors_main
+Module 'module_test_errors_imported_a'
+Module contents:
+\-- This imported module has no errors.
+MODULE module_test_errors_imported_a;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Initialization errors:
+<no errors>
+
+MODULE module_test_errors_imported_b imported AS module_test_errors_imported_b by MODULE module_test_errors_main
+Module 'module_test_errors_imported_b'
+Module contents:
+\-- This imported module has a parse error.
+MODULE module_test_errors_imported_b;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- Parse error
+CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
+
+\-- Other (valid) statement that is currently ignored due to the parse error.
+CREATE PUBLIC FUNCTION bot(a INT64) AS (a);
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
+CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
+               ^
+
+MODULE module_test_errors_imported_c imported AS module_test_errors_imported_c by MODULE module_test_errors_main
+Module 'module_test_errors_imported_c'
+Module contents:
+\-- This imported module has some initialization errors.
+MODULE module_test_errors_imported_c;
+
+\-- Catalog initialization error - SELECT statements are invalid inside modules.
+SELECT * FROM some_table;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- UDF init error (not PRIVATE and not PUBLIC)
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+
+\-- Templated UDF initialization error
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+
+\-- UDA initialization error
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+
+\-- Templated UDA initialization error
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+
+\-- TVF initialization error
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+
+\-- Templated TVF initialization error
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+
+\-- Constant initialization error
+CREATE CONSTANT constant_init_error = "constant_init_error";
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:templated_uda_init_error
+ERROR: Function templated_uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:20:17]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:20:1]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+^
+
+Lazy_resolution_function:templated_udf_init_error
+ERROR: Function templated_udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:14:22]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+                     ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:14:1]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+^
+
+Lazy_resolution_function:uda_init_error
+ERROR: Function uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:17:17]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:17:1]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+^
+
+Lazy_resolution_function:udf_init_error
+ERROR: Function udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:11:17]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:11:1]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+^
+
+Initialized table functions:
+TVF:templated_tvf_init_error
+ERROR: Table function templated_tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:26:23]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:26:1]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+^
+
+TVF:tvf_init_error
+ERROR: Table function tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:23:23]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:23:1]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+^
+
+Initialized constants:
+CONSTANT constant_init_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:29:17]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:29:1]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+^
+
+Initialization errors:
+INVALID_ARGUMENT: Unsupported statement kind: QueryStatement [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:5:1]
+SELECT * FROM some_table;
+^
+
+MODULE module_test_errors_imported_d imported AS module_test_errors_imported_d by MODULE module_test_errors_main
+Module 'module_test_errors_imported_d'
+Module contents:
+\-- This imported module has resolution errors.
+MODULE module_test_errors_imported_d;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- UDF resolution error
+\-- Note that this will not show up with ModuleCatalog::AppendModuleErrors()
+\-- if the function is not resolved.
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+
+\-- Templated UDF resolution error
+CREATE PUBLIC FUNCTION templated_udf_resolution_error(a ANY TYPE) AS (a + "a");
+
+\-- UDA resolution error
+CREATE PUBLIC AGGREGATE FUNCTION uda_resolution_error(a INT64)
+AS (SUM(a) + "b");
+
+\-- Templated UDA resolution error
+CREATE PUBLIC AGGREGATE FUNCTION templated_uda_resolution_error(a ANY TYPE)
+AS (SUM(a) + "b");
+
+\-- TVF resolution error
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+
+\-- Templated TVF resolution error
+CREATE PUBLIC TABLE FUNCTION templated_tvf_resolution_error(a ANY TYPE)
+AS (SELECT a + "c");
+
+\-- Constant resolution error
+CREATE PUBLIC CONSTANT constant_resolution_error =
+    1 + "constant_resolution_error";
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Templated_SQL_Function:templated_uda_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Templated_SQL_Function:templated_udf_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:uda_resolution_error
+ERROR: Function uda_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:16:34]
+CREATE PUBLIC AGGREGATE FUNCTION uda_resolution_error(a INT64)
+                                 ^
+Could not cast literal "b" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:17:14]
+AS (SUM(a) + "b");
+             ^
+
+Lazy_resolution_function:udf_resolution_error
+ERROR: Function udf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:10:24]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                       ^
+Could not cast literal "a" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:10:62]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                                                             ^
+
+Initialized table functions:
+TVF:templated_tvf_resolution_error
+  (ANY TYPE a) -> ANY TABLE
+
+TVF:tvf_resolution_error
+ERROR: Table function tvf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:24:30]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                             ^
+Could not cast literal "c" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:24:75]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                                                                          ^
+
+Initialized constants:
+CONSTANT constant_resolution_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:31:24]
+CREATE PUBLIC CONSTANT constant_resolution_error =
+                       ^
+Could not cast literal "constant_resolution_error" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:32:9]
+    1 + "constant_resolution_error";
+        ^
+
+Initialization errors:
+<no errors>
+
+MODULE module_test_errors_imported_e imported AS module_test_errors_imported_e by MODULE module_test_errors_main
+Module 'module_test_errors_imported_e'
+Module contents:
+\-- This imported module has no (local) errors, but there are errors in nested
+\-- imports.
+
+MODULE module_test_errors_imported_e;
+
+\-- no errors
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_a;
+\-- parse error
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_b;
+\-- init errors
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_c;
+\-- resolution errors
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_d;
+\-- recursive import
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_e;
+\-- evaluation errors
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_f;
+\-- non-existing module
+IMPORT MODULE googlesql.foo;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: IMPORT MODULE module_test_errors_imported_e failed resolution with error: Recursive IMPORTs detected when creating module googlesql.testdata.modules.module_test_errors_imported_e, which includes modules (googlesql.testdata.modules.module_test_errors_imported_e, googlesql.testdata.modules.module_test_errors_main) [at .../googlesql/testdata/modules/module_test_errors_imported_e.sqlm:15:1]
+IMPORT MODULE googlesql.testdata.modules.module_test_errors_imported_e;
+^
+
+INVALID_ARGUMENT: IMPORT MODULE foo failed resolution with error: Module googlesql.foo not found in following locations:
+.../googlesql/foo.sqlm;
+.../googlesql/foo/foo.sqlm [at .../googlesql/testdata/modules/module_test_errors_imported_e.sqlm:19:1]
+IMPORT MODULE googlesql.foo;
+^
+
+Imported module info:
+MODULE module_test_errors_imported_a imported AS module_test_errors_imported_a by MODULE module_test_errors_imported_e
+Module 'module_test_errors_imported_a'
+Module contents:
+\-- This imported module has no errors.
+MODULE module_test_errors_imported_a;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Initialization errors:
+<no errors>
+
+MODULE module_test_errors_imported_b imported AS module_test_errors_imported_b by MODULE module_test_errors_imported_e
+Module 'module_test_errors_imported_b'
+Module contents:
+\-- This imported module has a parse error.
+MODULE module_test_errors_imported_b;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- Parse error
+CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
+
+\-- Other (valid) statement that is currently ignored due to the parse error.
+CREATE PUBLIC FUNCTION bot(a INT64) AS (a);
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Initialization errors:
+INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
+CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
+               ^
+
+MODULE module_test_errors_imported_c imported AS module_test_errors_imported_c by MODULE module_test_errors_imported_e
+Module 'module_test_errors_imported_c'
+Module contents:
+\-- This imported module has some initialization errors.
+MODULE module_test_errors_imported_c;
+
+\-- Catalog initialization error - SELECT statements are invalid inside modules.
+SELECT * FROM some_table;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- UDF init error (not PRIVATE and not PUBLIC)
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+
+\-- Templated UDF initialization error
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+
+\-- UDA initialization error
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+
+\-- Templated UDA initialization error
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+
+\-- TVF initialization error
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+
+\-- Templated TVF initialization error
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+
+\-- Constant initialization error
+CREATE CONSTANT constant_init_error = "constant_init_error";
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:templated_uda_init_error
+ERROR: Function templated_uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:20:17]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:20:1]
+CREATE FUNCTION templated_uda_init_error(a ANY TYPE) AS (SUM(a));
+^
+
+Lazy_resolution_function:templated_udf_init_error
+ERROR: Function templated_udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:14:22]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+                     ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:14:1]
+CREATE TEMP FUNCTION templated_udf_init_error(a ANY TYPE) AS (a);
+^
+
+Lazy_resolution_function:uda_init_error
+ERROR: Function uda_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:17:17]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:17:1]
+CREATE FUNCTION uda_init_error(a INT64) AS (SUM(a));
+^
+
+Lazy_resolution_function:udf_init_error
+ERROR: Function udf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:11:17]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:11:1]
+CREATE FUNCTION udf_init_error(a INT64) AS (a);
+^
+
+Initialized table functions:
+TVF:templated_tvf_init_error
+ERROR: Table function templated_tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:26:23]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:26:1]
+CREATE TABLE FUNCTION templated_tvf_init_error(a ANY TYPE) AS (SELECT a);
+^
+
+TVF:tvf_init_error
+ERROR: Table function tvf_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:23:23]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+                      ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:23:1]
+CREATE TABLE FUNCTION tvf_init_error(a INT64) AS (SELECT a);
+^
+
+Initialized constants:
+CONSTANT constant_init_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_init_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:29:17]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:29:1]
+CREATE CONSTANT constant_init_error = "constant_init_error";
+^
+
+Initialization errors:
+INVALID_ARGUMENT: Unsupported statement kind: QueryStatement [at .../googlesql/testdata/modules/module_test_errors_imported_c.sqlm:5:1]
+SELECT * FROM some_table;
+^
+
+MODULE module_test_errors_imported_d imported AS module_test_errors_imported_d by MODULE module_test_errors_imported_e
+Module 'module_test_errors_imported_d'
+Module contents:
+\-- This imported module has resolution errors.
+MODULE module_test_errors_imported_d;
+
+\-- Valid
+CREATE PUBLIC FUNCTION foo(a INT64) AS (a);
+
+\-- UDF resolution error
+\-- Note that this will not show up with ModuleCatalog::AppendModuleErrors()
+\-- if the function is not resolved.
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+
+\-- Templated UDF resolution error
+CREATE PUBLIC FUNCTION templated_udf_resolution_error(a ANY TYPE) AS (a + "a");
+
+\-- UDA resolution error
+CREATE PUBLIC AGGREGATE FUNCTION uda_resolution_error(a INT64)
+AS (SUM(a) + "b");
+
+\-- Templated UDA resolution error
+CREATE PUBLIC AGGREGATE FUNCTION templated_uda_resolution_error(a ANY TYPE)
+AS (SUM(a) + "b");
+
+\-- TVF resolution error
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+
+\-- Templated TVF resolution error
+CREATE PUBLIC TABLE FUNCTION templated_tvf_resolution_error(a ANY TYPE)
+AS (SELECT a + "c");
+
+\-- Constant resolution error
+CREATE PUBLIC CONSTANT constant_resolution_error =
+    1 + "constant_resolution_error";
+
+Initialized functions:
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Templated_SQL_Function:templated_uda_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Templated_SQL_Function:templated_udf_resolution_error
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:uda_resolution_error
+ERROR: Function uda_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:16:34]
+CREATE PUBLIC AGGREGATE FUNCTION uda_resolution_error(a INT64)
+                                 ^
+Could not cast literal "b" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:17:14]
+AS (SUM(a) + "b");
+             ^
+
+Lazy_resolution_function:udf_resolution_error
+ERROR: Function udf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:10:24]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                       ^
+Could not cast literal "a" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:10:62]
+CREATE PUBLIC FUNCTION udf_resolution_error(a INT64) AS (a + "a");
+                                                             ^
+
+Initialized table functions:
+TVF:templated_tvf_resolution_error
+  (ANY TYPE a) -> ANY TABLE
+
+TVF:tvf_resolution_error
+ERROR: Table function tvf_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:24:30]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                             ^
+Could not cast literal "c" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:24:75]
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_error(a INT64) AS (SELECT a + "c");
+                                                                          ^
+
+Initialized constants:
+CONSTANT constant_resolution_error=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_resolution_error is invalid [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:31:24]
+CREATE PUBLIC CONSTANT constant_resolution_error =
+                       ^
+Could not cast literal "constant_resolution_error" to type DATE [at .../googlesql/testdata/modules/module_test_errors_imported_d.sqlm:32:9]
+    1 + "constant_resolution_error";
+        ^
+
+Initialization errors:
+<no errors>
+
+MODULE module_test_errors_imported_f imported AS module_test_errors_imported_f by MODULE module_test_errors_imported_e
+Module 'module_test_errors_imported_f'
+Module contents:
+\-- This imported module has evaluation errors.
+MODULE module_test_errors_imported_f;
+
+\-- Valid
+CREATE PUBLIC CONSTANT constant_f = "constant_f";
+
+\-- Constant evaluation error
+\-- Used with a mock ConstantEvaluator that returns an error for this expression.
+\-- Note that this will not show up with ModuleCatalog::AppendModuleErrors()
+\-- if the constant is not evaluated.
+CREATE PUBLIC CONSTANT constant_evaluation_error_f = 1 / 0;
+
+Initialized constants:
+CONSTANT constant_evaluation_error_f=Uninitialized value (DOUBLE)
+ERROR during evaluation: generic::out_of_range: division by zero: 1 / 0 [at .../googlesql/testdata/modules/module_test_errors_imported_f.sqlm:11:24]
+CREATE PUBLIC CONSTANT constant_evaluation_error_f = 1 / 0;
+                       ^
+
+CONSTANT constant_f=String("constant_f") (STRING)
+
+Initialization errors:
+<no errors>
+
+MODULE module_test_errors_imported_f imported AS module_test_errors_imported_f by MODULE module_test_errors_main
+Module 'module_test_errors_imported_f'
+Module contents:
+\-- This imported module has evaluation errors.
+MODULE module_test_errors_imported_f;
+
+\-- Valid
+CREATE PUBLIC CONSTANT constant_f = "constant_f";
+
+\-- Constant evaluation error
+\-- Used with a mock ConstantEvaluator that returns an error for this expression.
+\-- Note that this will not show up with ModuleCatalog::AppendModuleErrors()
+\-- if the constant is not evaluated.
+CREATE PUBLIC CONSTANT constant_evaluation_error_f = 1 / 0;
+
+Initialized constants:
+CONSTANT constant_evaluation_error_f=Uninitialized value (DOUBLE)
+ERROR during evaluation: generic::out_of_range: division by zero: 1 / 0 [at .../googlesql/testdata/modules/module_test_errors_imported_f.sqlm:11:24]
+CREATE PUBLIC CONSTANT constant_evaluation_error_f = 1 / 0;
+                       ^
+
+CONSTANT constant_f=String("constant_f") (STRING)
+
+Initialization errors:
+<no errors>
+--
+Module errors:
+INVALID_ARGUMENT: IMPORT MODULE foo failed resolution with error: Module googlesql.foo not found in following locations:
+.../googlesql/foo.sqlm;
+.../googlesql/foo/foo.sqlm [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:22:1]
+IMPORT MODULE googlesql.foo;
+^
+
+INVALID_ARGUMENT: Unsupported statement kind: QueryStatement [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:25:1]
+SELECT * FROM some_table;
+^
+
+INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:146:16]
+CREATE PRIVATE FUNCTINO udf_parse_error(a INT64) AS (a);
+               ^

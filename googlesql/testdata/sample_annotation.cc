@@ -20,8 +20,8 @@
 #include "googlesql/public/types/simple_value.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/status/status.h"
-#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
+#include "googlesql/base/ret_check.h"
 
 // TODO: Extracts helper functions and interfaces from this class.
 namespace googlesql {

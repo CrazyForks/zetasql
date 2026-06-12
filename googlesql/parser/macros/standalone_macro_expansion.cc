@@ -19,7 +19,6 @@
 #include <cctype>
 #include <cstddef>
 #include <string>
-#include <vector>
 
 #include "googlesql/parser/macros/token_splicing_utils.h"
 #include "googlesql/parser/tm_token.h"

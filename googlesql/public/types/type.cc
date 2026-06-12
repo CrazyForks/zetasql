@@ -39,6 +39,7 @@
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/array_type.h"
+#include "googlesql/public/types/declarative_type.h"
 #include "googlesql/public/types/map_type.h"
 #include "googlesql/public/types/range_type.h"
 #include "googlesql/public/types/row_type.h"
@@ -48,15 +49,16 @@
 #include "googlesql/public/value.pb.h"
 #include "googlesql/public/value_content.h"
 #include "absl/base/optimization.h"
+#include "absl/functional/overload.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -84,7 +86,7 @@ TypeStore::~TypeStore() {
                 ;
     // Avoid crashing on the TypeFactory dependency reference itself.
     for (const TypeStore* other : factories_depending_on_this_) {
-      absl::MutexLock l(&other->mutex_);
+      absl::MutexLock l(other->mutex_);
       other->depends_on_factories_.erase(this);
     }
   }
@@ -92,7 +94,7 @@ TypeStore::~TypeStore() {
   for (const TypeStore* other : depends_on_factories_) {
     bool need_to_unref = false;
     {
-      absl::MutexLock l(&other->mutex_);
+      absl::MutexLock l(other->mutex_);
       if (other->factories_depending_on_this_.erase(this) != 0) {
         need_to_unref = other->keep_alive_while_referenced_from_value_;
       }
@@ -379,6 +381,12 @@ constexpr TypeKindInfoList MakeTypeKindInfoList() {
       .specificity = 36,
       .simple = false,
   };
+  kinds[TYPE_DECLARATIVE] = {
+      .name = "DECLARATIVE",
+      .cost = 37,
+      .specificity = 37,
+      .simple = false,
+  };
 
   return kinds;
 }
@@ -507,8 +515,7 @@ bool Type::TypeSpecificityLess(const Type* t1, const Type* t2) {
 }
 
 absl::Status Type::SerializeToProtoAndFileDescriptors(
-    TypeProto* type_proto,
-    google::protobuf::FileDescriptorSet* file_descriptor_set,
+    TypeProto* type_proto, google::protobuf::FileDescriptorSet* file_descriptor_set,
     std::set<const google::protobuf::FileDescriptor*>* file_descriptors) const {
   type_proto->Clear();
 
@@ -575,8 +582,7 @@ absl::Status Type::SerializeToProtoAndDistinctFileDescriptors(
       options, type_proto, file_descriptor_set_map);
 }
 
-absl::Status Type::SerializeToSelfContainedProto(
-    TypeProto* type_proto) const {
+absl::Status Type::SerializeToSelfContainedProto(TypeProto* type_proto) const {
   type_proto->Clear();
   FileDescriptorSetMap file_descriptor_set_map;
   // No limit on FileDescriptorSet size.  TODO: Allow a limit to be
@@ -625,6 +631,19 @@ std::string Type::DebugString(bool details) const {
   return debug_string;
 }
 
+// Returns the type name to use in the error messages.
+// Unfortunately, for backward compatibility, we have to continue using
+// `TypeKindToString()`. However, for declarative types, we want the actual name
+// and not just TYPE_DECLARATIVE.
+// Note: for the future, ExtendedType will likely also benefit from the name,
+// and not just EXTENDED.
+static std::string GetTypeDescriptionForErrorMessage(const Type* type,
+                                                     ProductMode product_mode) {
+  return type->IsDeclarativeType()
+             ? type->AsDeclarativeType()->TypeName(product_mode)
+             : Type::TypeKindToString(type->kind(), product_mode);
+}
+
 bool Type::SupportsGrouping(const LanguageOptions& language_options,
                             std::string* type_description) const {
   const Type* no_grouping_type;
@@ -632,14 +651,15 @@ bool Type::SupportsGrouping(const LanguageOptions& language_options,
       this->SupportsGroupingImpl(language_options, &no_grouping_type);
   if (!supports_grouping && type_description != nullptr) {
     if (no_grouping_type == this) {
-      *type_description =
-          TypeKindToString(this->kind(), language_options.product_mode());
+      *type_description = GetTypeDescriptionForErrorMessage(
+          this, language_options.product_mode());
     } else {
-      *type_description = absl::StrCat(
-          TypeKindToString(this->kind(), language_options.product_mode()),
-          " containing ",
-          TypeKindToString(no_grouping_type->kind(),
-                           language_options.product_mode()));
+      *type_description =
+          absl::StrCat(GetTypeDescriptionForErrorMessage(
+                           this, language_options.product_mode()),
+                       " containing ",
+                       GetTypeDescriptionForErrorMessage(
+                           no_grouping_type, language_options.product_mode()));
     }
   }
   return supports_grouping;
@@ -661,14 +681,15 @@ bool Type::SupportsPartitioning(const LanguageOptions& language_options,
 
   if (!supports_partitioning && type_description != nullptr) {
     if (no_partitioning_type == this) {
-      *type_description =
-          TypeKindToString(this->kind(), language_options.product_mode());
+      *type_description = GetTypeDescriptionForErrorMessage(
+          this, language_options.product_mode());
     } else {
       *type_description = absl::StrCat(
-          TypeKindToString(this->kind(), language_options.product_mode()),
+          GetTypeDescriptionForErrorMessage(this,
+                                            language_options.product_mode()),
           " containing ",
-          TypeKindToString(no_partitioning_type->kind(),
-                           language_options.product_mode()));
+          GetTypeDescriptionForErrorMessage(no_partitioning_type,
+                                            language_options.product_mode()));
     }
   }
   return supports_partitioning;
@@ -700,8 +721,8 @@ bool Type::SupportsOrdering(const LanguageOptions& language_options,
   if (supports_ordering) return true;
   // For unsupported types, return the type name.
   if (type_description != nullptr) {
-    *type_description = TypeKindToString(this->kind(),
-                                         language_options.product_mode());
+    *type_description =
+        TypeKindToString(this->kind(), language_options.product_mode());
   }
   return false;
 }
@@ -714,8 +735,7 @@ bool Type::SupportsOrdering() const {
 // FEATURE_ARRAY_EQUALITY. To test if 'type' supports equality,
 // checks the type recursively as array types can be nested under
 // struct types or vice versa.
-bool Type::SupportsEquality(
-    const LanguageOptions& language_options) const {
+bool Type::SupportsEquality(const LanguageOptions& language_options) const {
   if (this->IsArray()) {
     if (language_options.LanguageFeatureEnabled(FEATURE_ARRAY_EQUALITY)) {
       return this->AsArray()->element_type()->SupportsEquality(
@@ -771,9 +791,32 @@ bool Type::SupportsReturning(const LanguageOptions& language_options,
       return false;
     case TYPE_ROW:
       if (type_description != nullptr) {
-        *type_description = "ROW";
+        if (this->IsRow()) {
+          *type_description = "ROW";
+        } else {
+          *type_description = "TABLE";
+        }
       }
       return false;
+    case TYPE_DECLARATIVE: {
+      const DeclarativeType* declarative_type = this->AsDeclarativeType();
+      bool supports_returning = false;
+      std::visit(absl::Overload(
+                     [&](DeclarativeTypeDescriptor::ReturningDelegated) {
+                       supports_returning =
+                           declarative_type->backing_type()->SupportsReturning(
+                               language_options, type_description);
+                     },
+                     [&](DeclarativeTypeDescriptor::ReturningDisallowed) {
+                       supports_returning = false;
+                     }),
+                 declarative_type->returning_strategy());
+      if (!supports_returning && type_description != nullptr) {
+        *type_description =
+            declarative_type->TypeName(language_options.product_mode());
+      }
+      return supports_returning;
+    }
     default:
       return true;
   }
@@ -798,14 +841,16 @@ bool Type::HasFloatingPointFields() const {
 }
 
 bool Type::IsArrayLike() const {
-  return IsArray() || (IsRow() && AsRow()->IsJoin());
+  return IsArray() || (IsRowOrTable() && AsRowOrTable()->IsTable());
 }
+
+bool Type::IsRowLike() const { return IsRow() || IsSingleRowTable(); }
 
 absl::StatusOr<const Type*> Type::GetElementType() const {
   if (IsArray()) {
     return AsArray()->element_type();
-  } else if (IsRow() && AsRow()->IsJoin()) {
-    return AsRow()->element_type();
+  } else if (IsTable()) {
+    return AsTableRefType()->element_type();
   } else {
     GOOGLESQL_RET_CHECK_FAIL() << "GetElementType called on " << DebugString();
   }
@@ -814,10 +859,10 @@ absl::StatusOr<const Type*> Type::GetElementType() const {
 absl::Status Type::TypeMismatchError(const ValueProto& value_proto) const {
   return absl::Status(
       absl::StatusCode::kInternal,
-      absl::StrCat(
-          "Type mismatch: provided type ", DebugString(), " but proto <",
-          value_proto.ShortDebugString(),
-          "> doesn't have field of that type and is not null"));
+      absl::StrCat("Type mismatch: provided type ", DebugString(),
+                   " but proto <",
+                   value_proto.ShortDebugString(),
+                   "> doesn't have field of that type and is not null"));
 }
 
 bool TypeEquals::operator()(const Type* const type1,
@@ -879,6 +924,10 @@ std::string Type::AddCapitalizedTypePrefix(absl::string_view input,
   }
 
   return absl::StrCat(CapitalizedName(), "(", input, ")");
+}
+
+std::string Type::CapitalizedName() const {
+  return ShortTypeName(ProductMode::PRODUCT_EXTERNAL);
 }
 
 }  // namespace googlesql

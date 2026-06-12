@@ -43,6 +43,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
@@ -50,7 +51,6 @@
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

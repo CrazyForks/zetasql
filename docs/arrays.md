@@ -35,7 +35,7 @@ WITH
     SELECT [2, 4, 8, 16, 32] UNION ALL
     SELECT [5, 10]
   )
-SELECT * FROM Sequences
+SELECT * FROM Sequences;
 
 /*---------------------+
  | some_numbers        |
@@ -51,9 +51,7 @@ type of indexing you want to use:
 either [`index`][array-subscript-operator]
 or [`OFFSET(index)`][array-subscript-operator] for
 zero-based indexes, or [`ORDINAL(index)`][array-subscript-operator] for
-one-based indexes.
-
-For example:
+one-based indexes:
 
 ```googlesql
 SELECT
@@ -61,7 +59,7 @@ SELECT
   some_numbers[0] AS index_0,
   some_numbers[OFFSET(1)] AS offset_1,
   some_numbers[ORDINAL(1)] AS ordinal_1
-FROM Sequences
+FROM Sequences;
 
 /*--------------------+---------+----------+-----------+
  | some_numbers       | index_0 | offset_1 | ordinal_1 |
@@ -76,9 +74,75 @@ Note: `OFFSET` and `ORDINAL` will raise errors if the index is out of
 range. To avoid this, you can use `SAFE_OFFSET` or `SAFE_ORDINAL` to return
 `NULL` instead of raising an error.
 
+To access the first or last element in an array, use the
+[`ARRAY_FIRST`][array-first-function] or [`ARRAY_LAST`][array-last-function]
+function:
+
+```googlesql
+SELECT
+  some_numbers,
+  ARRAY_FIRST(some_numbers) AS first_element,
+  ARRAY_LAST(some_numbers) AS last_element
+FROM Sequences;
+
+/*--------------------+---------------+--------------+
+ | some_numbers       | first_element | last_element |
+ +--------------------+---------------+--------------+
+ | [0, 1, 1, 2, 3, 5] | 0             | 5            |
+ | [2, 4, 8, 16, 32]  | 2             | 32           |
+ | [5, 10]            | 5             | 10           |
+ +--------------------+---------------+--------------*/
+```
+
+With the `ARRAY_FIRST` and `ARRAY_LAST` functions, if an array is
+empty, the function produces an error:
+
+```googlesql {.bad}
+WITH
+  Sequences AS (
+    SELECT [0, 1, 1, 2, 3, 5] AS some_numbers
+    UNION ALL
+    SELECT [2, 4, 8, 16, 32]
+    UNION ALL
+    SELECT [] -- Empty array
+  )
+SELECT
+  some_numbers,
+  ARRAY_LAST(some_numbers) AS last_element
+FROM Sequences;
+
+-- Error: ARRAY_LAST can't get the last element of an empty array.
+```
+
+To handle empty arrays when accessing first and last elements, use the `SAFE.`
+prefix:
+
+```googlesql
+WITH
+  Sequences AS (
+    SELECT [0, 1, 1, 2, 3, 5] AS some_numbers
+    UNION ALL
+    SELECT [2, 4, 8, 16, 32]
+    UNION ALL
+    SELECT [] -- Empty array
+  )
+SELECT
+  some_numbers,
+  SAFE.ARRAY_LAST(some_numbers) AS last_element
+FROM Sequences;
+
+/*--------------------+--------------+
+ | some_numbers       | last_element |
+ +--------------------+--------------+
+ | [0, 1, 1, 2, 3, 5] | 5            |
+ | [2, 4, 8, 16, 32]  | 32           |
+ | []                 | NULL         |
+ +--------------------+--------------*/
+```
+
 ## Finding lengths
 
-The `ARRAY_LENGTH` function returns the length of an array.
+The [`ARRAY_LENGTH`][array-length-function] function returns the length of an array.
 
 ```googlesql
 WITH Sequences AS
@@ -1096,7 +1160,7 @@ FROM Fruits;
 
 The array returned by `ARRAY_AGG()` is in an arbitrary order, since the order in
 which the function concatenates values isn't guaranteed. To order the array
-elements, use `ORDER BY`. For example:
+elements, use `ORDER BY`:
 
 ```googlesql
 WITH Fruits AS
@@ -1385,6 +1449,8 @@ SELECT ARRAY(
 
 [array-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md
 
+[array-length-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_length
+
 [array-agg-function]: https://github.com/google/googlesql/blob/master/docs/aggregate_functions.md#array_agg
 
 [array-subscript-operator]: https://github.com/google/googlesql/blob/master/docs/operators.md#array_subscript_operator
@@ -1394,6 +1460,12 @@ SELECT ARRAY(
 [array-el-field-operator]: https://github.com/google/googlesql/blob/master/docs/operators.md#array_el_field_operator
 
 [array-zip]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array-zip
+
+[array-first-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_first
+
+[array-last-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_last
+
+[array-reverse-function]: https://github.com/google/googlesql/blob/master/docs/array_functions.md#array_reverse
 
 <!-- mdlint on -->
 

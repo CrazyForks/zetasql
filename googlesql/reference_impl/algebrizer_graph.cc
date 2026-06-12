@@ -43,16 +43,17 @@
 #include "googlesql/resolved_ast/resolved_ast_visitor.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -389,6 +390,10 @@ Algebrizer::AlgebrizeGraphTableScan(
     const ResolvedGraphTableScan* graph_table_scan,
     std::vector<FilterConjunctInfo*>* active_conjuncts) {
   graph_table_scan->MarkFieldsAccessed();
+  const PropertyGraph* property_graph = graph_table_scan->property_graph();
+  GOOGLESQL_RET_CHECK(property_graph != nullptr);
+  property_graph_stack_.push(property_graph);
+  auto clean_up = absl::MakeCleanup([this] { property_graph_stack_.pop(); });
   // TODO: We should just generate a projScan on top of the graph_table_scan,
   // and not embed the expressions in it.
   return AlgebrizeProjectScanInternal(
@@ -712,10 +717,26 @@ Algebrizer::AlgebrizeGraphQuantifiedPathScan(
         CreateGraphPathPrefixInfo(current_graph_path_context_stack_.back()));
   }
 
+  if (lower_bound != nullptr && lower_bound->IsConstant()) {
+    const ConstExpr* lower_bound_expr =
+        static_cast<const ConstExpr*>(lower_bound.get());
+    if (!lower_bound_expr->value().is_null() &&
+        lower_bound_expr->value().int64_value() > 0) {
+      // Skip starting node scan if we know lower bound is already greater than
+      // 0.
+      return QuantifiedGraphPathOp::Create(
+          /*starting_node_op=*/nullptr, std::move(path_primary_op),
+          std::move(variables), std::move(lower_bound), std::move(upper_bound),
+          path_type, cost_type, std::move(path_prefix_info));
+    }
+  }
+  // Create a dummy scan for iterating all nodes in the graph.
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> starting_node_op,
+                   AlgebrizeGraphAllNodesScan());
   return QuantifiedGraphPathOp::Create(
-      std::move(path_primary_op), std::move(variables), std::move(lower_bound),
-      std::move(upper_bound), path_type, cost_type,
-      std::move(path_prefix_info));
+      std::move(starting_node_op), std::move(path_primary_op),
+      std::move(variables), std::move(lower_bound), std::move(upper_bound),
+      path_type, cost_type, std::move(path_prefix_info));
 }
 
 absl::StatusOr<std::unique_ptr<RelationalOp>>
@@ -888,6 +909,61 @@ Algebrizer::AlgebrizeGraphPathPrimaryScan(
 }
 
 absl::StatusOr<std::unique_ptr<RelationalOp>>
+Algebrizer::AlgebrizeGraphAllNodesScan() {
+  GOOGLESQL_RET_CHECK(!property_graph_stack_.empty());
+  const PropertyGraph* property_graph = property_graph_stack_.top();
+  // Create a supertype covering all properties.
+  absl::flat_hash_set<const GraphNodeTable*> all_node_tables;
+  GOOGLESQL_RETURN_IF_ERROR(property_graph->GetNodeTables(all_node_tables));
+  bool has_dynamic_property =
+      absl::c_any_of(all_node_tables, [](const GraphNodeTable* node_table) {
+        return node_table->HasDynamicProperties();
+      });
+  std::vector<GraphElementType::PropertyType> property_types;
+  absl::flat_hash_set<const GraphPropertyDeclaration*> prop_declarations;
+  GOOGLESQL_RETURN_IF_ERROR(property_graph->GetPropertyDeclarations(prop_declarations));
+  for (const GraphPropertyDeclaration* prop_declaration : prop_declarations) {
+    property_types.push_back(GraphElementType::PropertyType{
+        prop_declaration->Name(), prop_declaration->Type()});
+  }
+  const GraphElementType* element_type;
+  if (has_dynamic_property) {
+    GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeDynamicGraphElementType(
+        property_graph->NamePath(), GraphElementType::kNode,
+        std::move(property_types), &element_type));
+  } else {
+    GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeGraphElementType(
+        property_graph->NamePath(), GraphElementType::kNode,
+        std::move(property_types), &element_type));
+  }
+
+  GOOGLESQL_RET_CHECK(!all_node_tables.empty());
+  std::vector<const GraphNodeTable*> sorted_node_tables(all_node_tables.begin(),
+                                                        all_node_tables.end());
+  absl::c_sort(sorted_node_tables,
+               [](const GraphNodeTable* a, const GraphNodeTable* b) {
+                 return a->Name() < b->Name();
+               });
+
+  std::vector<UnionAllOp::Input> union_members;
+  union_members.reserve(sorted_node_tables.size());
+  const VariableId starting_element_variable =
+      column_to_variable_->variable_generator()->GetNewVariableName(
+          "$starting_node");
+  for (const GraphElementTable* element_table : sorted_node_tables) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<RelationalOp> relational_op,
+        AlgebrizeGraphElementTableScan(starting_element_variable, element_type,
+                                       element_table));
+    GOOGLESQL_ASSIGN_OR_RETURN(union_members.emplace_back(),
+                     BuildUnionAllInput(starting_element_variable, element_type,
+                                        std::move(relational_op)));
+  }
+  GOOGLESQL_RET_CHECK_EQ(union_members.size(), all_node_tables.size());
+  return UnionAllOp::Create(std::move(union_members));
+}
+
+absl::StatusOr<std::unique_ptr<RelationalOp>>
 Algebrizer::AlgebrizeGraphElementScan(
     const ResolvedGraphElementScan* element_scan,
     std::vector<FilterConjunctInfo*>* active_conjuncts) {
@@ -928,6 +1004,11 @@ Algebrizer::AlgebrizeGraphElementScan(
   }
 
   if (union_members.empty()) {
+    if (element_scan->filter_expr() != nullptr) {
+      // Algebrize to mark fields as accessed.
+      GOOGLESQL_RETURN_IF_ERROR(
+          AlgebrizeExpression(element_scan->filter_expr()).status());
+    }
     GOOGLESQL_ASSIGN_OR_RETURN(auto const_expr, ConstExpr::Create(Value::Int64(0)));
     return EnumerateOp::Create(std::move(const_expr));
   }
@@ -1049,8 +1130,8 @@ Algebrizer::AlgebrizeGraphMakeElement(
   return NewGraphElementExpr::Create(
       element_type, make_graph_element->identifier()->element_table(),
       std::move(key), std::move(properties), std::move(dynamic_property_expr),
-      std::move(dynamic_label_expr), std::move(src_node_key),
-      std::move(dest_node_key));
+      std::move(dynamic_label_expr),
+      std::move(src_node_key), std::move(dest_node_key));
 }
 
 absl::StatusOr<std::unique_ptr<GraphGetElementPropertyExpr>>

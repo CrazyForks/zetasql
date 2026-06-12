@@ -16,41 +16,21 @@
 
 #include "googlesql/parser/macros/token_provider.h"
 
-#include <cstddef>
 #include <memory>
 #include <optional>
 
 #include "googlesql/parser/macros/token_provider_base.h"
-#include "googlesql/parser/tm_token.h"
 #include "googlesql/parser/token_with_location.h"
+#include "googlesql/parser/tokenizer.h"
 #include "googlesql/public/parse_location.h"
 #include "googlesql/base/check.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace parser {
 namespace macros {
-
-static absl::string_view GetTextBetween(absl::string_view input, size_t start,
-                                        size_t end) {
-  ABSL_DCHECK_LE(start, end);
-  ABSL_DCHECK_LE(start, input.length());
-  size_t len = end - start;
-  ABSL_DCHECK_LE(len, input.length());
-  return absl::ClippedSubstr(input, start, len);
-}
-
-static ParseLocationRange WithOffset(const ParseLocationRange& location,
-                                     int offset) {
-  return ParseLocationRange(
-      ParseLocationPoint::FromByteOffset(
-          location.start().filename(),
-          location.start().GetByteOffset() + offset),
-      ParseLocationPoint::FromByteOffset(
-          location.end().filename(), location.end().GetByteOffset() + offset));
-}
 
 TokenProvider::TokenProvider(absl::string_view filename,
                              absl::string_view input, int start_offset,
@@ -59,9 +39,7 @@ TokenProvider::TokenProvider(absl::string_view filename,
     : TokenProviderBase(filename, input, start_offset, end_offset,
                         offset_in_original_input),
       tokenizer_(std::make_unique<GoogleSqlTokenizer>(
-          filename, input.substr(0, this->end_offset()), start_offset)),
-      location_(ParseLocationPoint::FromByteOffset(filename, -1),
-                ParseLocationPoint::FromByteOffset(filename, -1)) {}
+          filename, input.substr(0, this->end_offset()), start_offset)) {}
 
 std::unique_ptr<TokenProviderBase> TokenProvider::CreateNewInstance(
     absl::string_view filename, absl::string_view input, int start_offset,
@@ -82,19 +60,14 @@ absl::StatusOr<TokenWithLocation> TokenProvider::ConsumeNextTokenImpl() {
 }
 
 absl::StatusOr<TokenWithLocation> TokenProvider::GetToken() {
-  int last_token_end_offset = location_.end().GetByteOffset();
-  if (last_token_end_offset == -1) {
-    last_token_end_offset = start_offset();
+  GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation token, tokenizer_->GetNextToken());
+  if (offset_in_original_input() != 0) {
+    token.location.mutable_start().IncrementByteOffset(
+        offset_in_original_input());
+    token.location.mutable_end().IncrementByteOffset(
+        offset_in_original_input());
   }
-
-  GOOGLESQL_ASSIGN_OR_RETURN(Token token_kind, tokenizer_->GetNextToken(&location_));
-
-  absl::string_view prev_whitespaces;
-  prev_whitespaces = GetTextBetween(input(), last_token_end_offset,
-                                    location_.start().GetByteOffset());
-
-  return {{token_kind, WithOffset(location_, offset_in_original_input()),
-           location_.GetTextFrom(input()), prev_whitespaces}};
+  return token;
 }
 
 }  // namespace macros

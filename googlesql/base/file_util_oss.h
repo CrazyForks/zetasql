@@ -36,6 +36,7 @@
 #include "absl/strings/string_view.h"
 #include "googlesql/base/path.h"
 #include "re2/re2.h"
+#include "re2/re2.h"
 
 namespace googlesql::internal {
 

@@ -40,7 +40,9 @@
 #include "googlesql/base/case.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -48,7 +50,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -272,10 +273,11 @@ void NameScope::AddRangeVariable(IdString name, const NameListPtr& scan_columns,
   AddNameTarget(name, NameTarget(scan_columns, is_pattern_variable));
 }
 
-bool NameScope::LookupName(IdString name, NameTarget* found,
-                           CorrelatedColumnsSetList* correlated_columns_sets,
-                           const std::vector<ExprResolutionInfo*>**
-                               out_lateral_column_reference_observers) const {
+absl::StatusOr<bool> NameScope::LookupName(
+    IdString name, NameTarget* found,
+    CorrelatedColumnsSetList* correlated_columns_sets,
+    const std::vector<ExprResolutionInfo*>**
+        out_lateral_column_reference_observers) const {
   if (correlated_columns_sets != nullptr) {
     correlated_columns_sets->clear();
   }
@@ -293,7 +295,10 @@ bool NameScope::LookupName(IdString name, NameTarget* found,
     // because fields names will always be implicit and cannot override that.
     NameTarget field_target;
     if (tmp == nullptr || tmp->IsColumn()) {
-      switch (current->LookupFieldTargetLocalOnly(name, &field_target)) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          Type::HasFieldResult lookup_result,
+          current->LookupFieldTargetLocalOnly(name, &field_target));
+      switch (lookup_result) {
         case Type::HAS_NO_FIELD:
           break;
         case Type::HAS_FIELD:
@@ -445,8 +450,10 @@ absl::Status NameScope::LookupNamePath(
   NameTarget target;
   // This call to LookupName() populates correlated_columns_sets if
   // the lookup resolves to a correlated column.
-  if (LookupName(first_name, &target, &correlated_columns_sets,
-                 &out_lateral_column_reference_observers)) {
+  GOOGLESQL_ASSIGN_OR_RETURN(bool name_found,
+                   LookupName(first_name, &target, &correlated_columns_sets,
+                              &out_lateral_column_reference_observers));
+  if (name_found) {
     if (in_strict_mode && target.IsImplicit()) {
       return MakeSqlErrorAt(path_expr.first_name())
              << "Alias " << ToIdentifierLiteral(first_name)
@@ -475,7 +482,9 @@ absl::Status NameScope::LookupNamePath(
           // The second identifier must be a column in that scan to be valid.
           const IdString dot_name = path_expr.name(1)->GetAsIdString();
           NameTarget found_column;
-          if (!scan_columns.LookupName(dot_name, &found_column)) {
+          GOOGLESQL_ASSIGN_OR_RETURN(bool name_found,
+                           scan_columns.LookupName(dot_name, &found_column));
+          if (!name_found) {
             if (scan_columns.is_value_table()) {
               // We'll get a better error message by returning the current
               // target and letting the caller try to resolve the next
@@ -741,7 +750,7 @@ absl::Status NameScope::CreateGetFieldTargetFromInvalidValueTableColumn(
   return absl::OkStatus();
 }
 
-Type::HasFieldResult NameScope::LookupFieldTargetLocalOnly(
+absl::StatusOr<Type::HasFieldResult> NameScope::LookupFieldTargetLocalOnly(
     IdString name, NameTarget* field_target) const {
   int found_count = 0;
   Type::HasFieldResult result = Type::HAS_NO_FIELD;
@@ -752,15 +761,16 @@ Type::HasFieldResult NameScope::LookupFieldTargetLocalOnly(
       // it.
       continue;
     }
-    Type::HasFieldResult has_field =
-        value_table_column.column().type()->HasField(name.ToString(),
-                                                     &field_id);
-    switch (has_field) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        Type::FindFieldResult find_result,
+        value_table_column.column().type()->FindField(name.ToStringView()));
+    field_id = find_result.field_id;
+    switch (find_result.has_field) {
       case Type::HAS_NO_FIELD:
         break;
       case Type::HAS_FIELD:
       case Type::HAS_PSEUDO_FIELD:
-        result = has_field;
+        result = find_result.has_field;
         ++found_count;
         if (value_table_column.is_valid_to_access()) {
           // Accessing the value table range variable is valid, so
@@ -830,7 +840,7 @@ absl::Status NameScope::CloneRangeVariablesMapped(
   return absl::OkStatus();
 }
 
-bool NameScope::HasName(IdString name) const {
+absl::StatusOr<bool> NameScope::HasName(IdString name) const {
   NameTarget found;
   return LookupName(name, &found);
 }
@@ -900,14 +910,14 @@ std::string NameScope::DebugString(
     }
   }
   if (!rv_name_lines.empty()) {
-    if (!out.empty()) out += "\n";
+    if (!out.empty()) out += '\n';
     absl::StrAppend(&out, indent, "Range variables:");
     for (const auto& name_line : rv_name_lines) {
       absl::StrAppend(&out, "\n", indent, "  ", name_line);
     }
   }
   if (!value_table_columns().empty()) {
-    if (!out.empty()) out += "\n";
+    if (!out.empty()) out += '\n';
     absl::StrAppend(&out, indent, "Value table columns:");
     for (const ValueTableColumn& value_table_column : value_table_columns()) {
       absl::StrAppend(&out, "\n", indent, "  ",
@@ -915,7 +925,7 @@ std::string NameScope::DebugString(
     }
   }
   if (previous_scope_ != nullptr) {
-    if (!out.empty()) out += "\n";
+    if (!out.empty()) out += '\n';
     absl::StrAppend(&out, indent, "Parent scope:\n",
                     previous_scope_->DebugString(absl::StrCat(indent, "  ")));
   }
@@ -1072,15 +1082,16 @@ void NameScope::InsertNameTargetsIfNotPresent(
   }
 }
 
-void NameScope::ExcludeNameFromValueTableIfPresent(
+absl::Status NameScope::ExcludeNameFromValueTableIfPresent(
     IdString name, ValueTableColumn* value_table_column) {
   if (googlesql_base::ContainsKey(value_table_column->excluded_field_names(), name)) {
     // This name is already excluded from lookups for this value table.
-    return;
+    return absl::OkStatus();
   }
-  int field_id = -1;
-  switch (value_table_column->column().type()->HasField(name.ToString(),
-                                                        &field_id)) {
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      Type::FindFieldResult result,
+      value_table_column->column().type()->FindField(name.ToStringView()));
+  switch (result.has_field) {
     case Type::HAS_NO_FIELD:
       // The field does not exist, so we do not need to exclude it.
       break;
@@ -1091,6 +1102,7 @@ void NameScope::ExcludeNameFromValueTableIfPresent(
       value_table_column->excluded_field_names().insert(name);
       break;
   }
+  return absl::OkStatus();
 }
 
 absl::Status NameScope::CopyNameScopeWithOverridingNames(
@@ -1123,7 +1135,8 @@ absl::Status NameScope::CopyNameScopeWithOverridingNames(
       // within the NameScope, if 'name' exists as a 'new_value_table'
       // field name then we must exclude this name from the value table
       // column.  Otherwise a name lookup would result as ambiguous.
-      ExcludeNameFromValueTableIfPresent(name, &new_value_table);
+      GOOGLESQL_RETURN_IF_ERROR(
+          ExcludeNameFromValueTableIfPresent(name, &new_value_table));
     }
     (*scope_with_new_names)
         ->mutable_value_table_columns()
@@ -1155,7 +1168,8 @@ absl::Status NameScope::CopyNameScopeWithOverridingNameTargets(
     ValueTableColumn new_value_table = value_table;
     for (const auto& entry : overriding_name_targets) {
       const IdString name = entry.first;
-      ExcludeNameFromValueTableIfPresent(name, &new_value_table);
+      GOOGLESQL_RETURN_IF_ERROR(
+          ExcludeNameFromValueTableIfPresent(name, &new_value_table));
     }
     (*scope_with_new_names)
         ->mutable_value_table_columns()
@@ -1721,7 +1735,9 @@ absl::Status NameList::AddValueTableColumn(
   }
   GOOGLESQL_RETURN_IF_ERROR(value_table_name_list->SetIsValueTable());
 
-  if (HasRangeVariable(range_variable_name)) {
+  GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable,
+                   HasRangeVariable(range_variable_name));
+  if (has_range_variable) {
     return MakeSqlErrorAt(ast_location)
            << "Duplicate alias " << range_variable_name << " found";
   }
@@ -1768,7 +1784,8 @@ absl::Status NameList::AddPseudoColumn(IdString name,
   // Pseudo-columns go in the NameScope as implicit columns, but don't show
   // up in the columns_ list because they don't show up in SELECT *.
   if (!IsInternalAlias(name)) {
-    name_scope_.AddColumn(name, column, false /* is_explicit */);
+    name_scope_.AddColumn(name, column, /*is_explicit=*/false);
+    pseudo_columns_.push_back(NamedColumn(name, column, /*is_explicit=*/false));
   }
   return absl::OkStatus();
 }
@@ -1780,9 +1797,10 @@ absl::Status NameList::SetIsValueTable() {
   return absl::OkStatus();
 }
 
-bool NameList::HasRangeVariable(IdString name) const {
+absl::StatusOr<bool> NameList::HasRangeVariable(IdString name) const {
   NameTarget found;
-  return name_scope_.LookupName(name, &found) && found.IsRangeVariable();
+  GOOGLESQL_ASSIGN_OR_RETURN(bool name_found, name_scope_.LookupName(name, &found));
+  return name_found && found.IsRangeVariable();
 }
 
 // We aren't defending against cycles in AddRangeVariable.  If a cycle occurs,
@@ -1797,7 +1815,8 @@ absl::Status NameList::AddRangeVariable(IdString name,
   GOOGLESQL_RET_CHECK(!scan_columns->is_value_table())
       << "AddRangeVariable cannot add a value table NameList";
 
-  if (HasRangeVariable(name)) {
+  GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable, HasRangeVariable(name));
+  if (has_range_variable) {
     return MakeSqlErrorAt(ast_location)
            << "Duplicate table alias " << name << " in the same FROM clause";
   }
@@ -1837,6 +1856,8 @@ absl::Status NameList::MergeFrom(const NameList& other,
     // Optimization: When merging into an empty NameList with no options,
     // we can just copy the full state.
     columns_ = other.columns_;
+    pseudo_columns_ = other.pseudo_columns_;
+
     name_scope_.CopyStateFrom(other.name_scope_);
     return absl::OkStatus();
   }
@@ -1850,6 +1871,8 @@ std::shared_ptr<NameList> NameList::Copy() const {
   // This is not implemented via MergeFrom to avoid needing to handle errors.
   auto new_name_list = std::make_shared<NameList>();
   new_name_list->columns_ = columns_;
+  new_name_list->pseudo_columns_ = pseudo_columns_;
+
   new_name_list->name_scope_.CopyStateFrom(name_scope_);
   return new_name_list;
 }
@@ -1889,6 +1912,8 @@ absl::Status NameList::MergeFrom(const NameList& other,
   const MergeOptions::ColumnsToRenameMap* columns_to_rename =
       options.columns_to_rename;
 
+  absl::flat_hash_set<IdString, IdStringCaseHash, IdStringCaseEqualFunc>
+      replaced_regular_column_names;
   // Copy the columns vector, with exclusions.
   // We're not using AddColumn because we're going to copy the NameScope
   // maps directly below.
@@ -1916,6 +1941,7 @@ absl::Status NameList::MergeFrom(const NameList& other,
       // non-value-tables.
       columns_.push_back(NamedColumn(new_name, *replacement_column,
                                      /*is_explicit=*/true));
+      replaced_regular_column_names.insert(named_column.name());
     } else if (excluded_field_names == nullptr ||
                !googlesql_base::ContainsKey(*excluded_field_names, named_column.name())) {
       // For value table columns, we add new excluded_field_names so fields
@@ -1976,6 +2002,34 @@ absl::Status NameList::MergeFrom(const NameList& other,
     }
   }
 
+  // Copy the pseudo-columns vector, with exclusions.
+  for (const NamedColumn& named_column : other.pseudo_columns_) {
+    if (columns_to_rename != nullptr &&
+        columns_to_rename->contains(named_column.name())) {
+      GOOGLESQL_RET_CHECK_FAIL() << "Renaming pseudo-columns is not supported: "
+                       << named_column.name();
+    }
+
+    if (columns_to_replace != nullptr &&
+        columns_to_replace->contains(named_column.name())) {
+      GOOGLESQL_RET_CHECK(replaced_regular_column_names.contains(named_column.name()))
+          << "Replacing pseudo-columns is not supported: "
+          << named_column.name();
+      // The pseudo-column is dropped because it was replaced as a regular
+      // column.
+      continue;
+    }
+
+    // Do not copy, if the old name is in the excluded field names.
+    if (excluded_field_names != nullptr &&
+        excluded_field_names->contains(named_column.name())) {
+      continue;
+    }
+
+    // No transformations apply, just copy the column.
+    pseudo_columns_.push_back(named_column);
+  }
+
   // Copy columns (including pseudo-columns, and including ambiguous column
   // markers) and range variables from inside the NameScope.
   for (const auto& item : other.name_scope_.names()) {
@@ -2028,7 +2082,8 @@ absl::Status NameList::MergeFrom(const NameList& other,
       // For range variables, we need to check for duplicates while merging.
       // Normally this would happen in AddRangeVariable, but we are bypassing
       // that call and copying the existing NameTarget directly.
-      if (HasRangeVariable(name)) {
+      GOOGLESQL_ASSIGN_OR_RETURN(bool has_range_variable, HasRangeVariable(name));
+      if (has_range_variable) {
         return MakeSqlErrorAt(ast_location) << "Duplicate table alias " << name
                                             << " in the same FROM clause";
       }
@@ -2071,44 +2126,6 @@ NameList::AddRangeVariableInWrappingNameList(
   return wrapper_name_list;
 }
 
-absl::StatusOr<std::shared_ptr<NameList>> NameList::CloneWithNewColumns(
-    const ASTNode* ast_location, absl::string_view value_table_error,
-    const ASTIdentifier* alias,
-    std::function<ResolvedColumn(const ResolvedColumn&)> clone_column,
-    IdStringPool* id_string_pool) const {
-  if (is_value_table()) {
-    return MakeSqlErrorAt(ast_location) << value_table_error;
-  }
-
-  // A new NameList pointing at the new ResolvedColumns.
-  auto cloned_name_list = std::make_shared<NameList>();
-
-  // Make a new ResolvedColumn for each column from the current list.
-  ResolvedColumnList column_list;
-  for (const NamedColumn& column : columns()) {
-    const ResolvedColumn resolved_col = clone_column(column.column());
-    column_list.emplace_back(resolved_col);
-    if (column.is_value_table_column()) {
-      return MakeSqlErrorAt(ast_location) << value_table_error;
-    } else {
-      GOOGLESQL_RETURN_IF_ERROR(cloned_name_list->AddColumn(column.name(), resolved_col,
-                                                  column.is_explicit()));
-    }
-  }
-
-  if (alias != nullptr) {
-    // If alias is provided, add a range variable to the name list so that this
-    // alias can be referred to.
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        cloned_name_list,
-        AddRangeVariableInWrappingNameList(
-            alias->GetAsIdString(), alias,
-            std::const_pointer_cast<const NameList>(cloned_name_list)));
-  }
-
-  return cloned_name_list;
-}
-
 std::vector<ResolvedColumn> NameList::GetResolvedColumns() const {
   std::vector<ResolvedColumn> ret;
   ret.reserve(columns_.size());
@@ -2118,62 +2135,41 @@ std::vector<ResolvedColumn> NameList::GetResolvedColumns() const {
   return ret;
 }
 
-static IdStringHashSetCase GetColumnNameSet(
-    absl::Span<const NamedColumn> columns) {
-  IdStringHashSetCase name_list_columns;
-  for (const NamedColumn& named_column : columns) {
-    name_list_columns.insert(named_column.name());
-  }
-  return name_list_columns;
-}
-
-// Pseudo-columns only exist in name_scope_, but not within columns_. So we
-// need to find all columns in name_scope_ that are not in columns_.
 std::vector<ResolvedColumn> NameList::GetResolvedPseudoColumns() const {
-  IdStringHashSetCase name_list_columns = GetColumnNameSet(columns_);
-
-  // Find pseudo-columns by finding all columns in name scope that are not in
-  // the name list.
-  std::vector<ResolvedColumn> pseudo_columns;
-  for (const auto& item : name_scope_.names()) {
-    IdString name = item.first;
-    if (name_list_columns.find(name) == name_list_columns.end() &&
-        item.second.IsColumn()) {
-      pseudo_columns.push_back(item.second.column());
-    }
+  std::vector<ResolvedColumn> resolved_pseudos;
+  resolved_pseudos.reserve(pseudo_columns_.size());
+  for (const NamedColumn& named_column : pseudo_columns_) {
+    resolved_pseudos.push_back(named_column.column());
   }
-
-  // Sort pseudo-columns by name for consistent Resolved AST output in tests.
-  std::stable_sort(pseudo_columns.begin(), pseudo_columns.end(),
-                   [](const ResolvedColumn& a, const ResolvedColumn& b) {
-                     return a.name() < b.name();  // Sort by name
-                   });
-
-  return pseudo_columns;
+  return resolved_pseudos;
 }
 
 std::vector<NamedColumn> NameList::GetNamedPseudoColumns() const {
-  IdStringHashSetCase name_list_columns = GetColumnNameSet(columns_);
+  return pseudo_columns_;
+}
 
-  // Find pseudo-columns by finding all columns in name scope that are not in
-  // the name list.
-  std::vector<NamedColumn> pseudo_columns;
-  for (const auto& item : name_scope_.names()) {
-    IdString name = item.first;
-    if (name_list_columns.find(name) == name_list_columns.end() &&
-        item.second.IsColumn()) {
-      pseudo_columns.push_back(NamedColumn(name, item.second.column(),
-                                           /*is_explicit=*/false));
+std::vector<ResolvedColumn> NameList::GetColumnsForPassthrough(
+    const absl::flat_hash_set<int>& excluded_column_ids) const {
+  std::vector<ResolvedColumn> passthrough_columns;
+  for (const auto& name : name_scope_.names()) {
+    if (!name.second.IsRangeVariable()) {
+      continue;
+    }
+    const NameList* scan_columns = name.second.scan_columns().get();
+    for (const NamedColumn& named_column : scan_columns->columns()) {
+      if (!excluded_column_ids.contains(named_column.column().column_id())) {
+        passthrough_columns.push_back(named_column.column());
+      }
+    }
+    for (const NamedColumn& pseudo_column :
+         scan_columns->GetNamedPseudoColumns()) {
+      if (!excluded_column_ids.contains(pseudo_column.column().column_id())) {
+        passthrough_columns.push_back(pseudo_column.column());
+      }
     }
   }
 
-  // Sort pseudo-columns by name for consistent Resolved AST output in tests.
-  std::stable_sort(pseudo_columns.begin(), pseudo_columns.end(),
-                   [](const NamedColumn& a, const NamedColumn& b) {
-                     return a.name() < b.name();  // Sort by name
-                   });
-
-  return pseudo_columns;
+  return passthrough_columns;
 }
 
 std::vector<IdString> NameList::GetColumnNames() const {
@@ -2185,13 +2181,15 @@ std::vector<IdString> NameList::GetColumnNames() const {
   return ret;
 }
 
-bool NameList::LookupName(IdString name, NameTarget* found) const {
+absl::StatusOr<bool> NameList::LookupName(IdString name,
+                                          NameTarget* found) const {
   // We only need to look in name_scope_ because all named columns in columns_
   // will also be in name_scope_.
   return name_scope_.LookupName(name, found);
 }
 
-Type::HasFieldResult NameList::SelectStarHasColumn(IdString name) const {
+absl::StatusOr<Type::HasFieldResult> NameList::SelectStarHasColumn(
+    IdString name) const {
   if (name.empty()) return Type::HAS_NO_FIELD;
 
   int fields_found = 0;
@@ -2207,10 +2205,11 @@ Type::HasFieldResult NameList::SelectStarHasColumn(IdString name) const {
       if (googlesql_base::ContainsKey(column.excluded_field_names(), name)) {
         continue;
       }
-      switch (
-          column.column().type()->HasField(name.ToString(),
-                                           /*field_id=*/nullptr,
-                                           /*include_pseudo_fields=*/false)) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          Type::FindFieldResult result,
+          column.column().type()->FindField(name.ToStringView(),
+                                            /*include_pseudo_fields=*/false));
+      switch (result.has_field) {
         case Type::HAS_NO_FIELD:
           break;
         case Type::HAS_FIELD:
@@ -2254,7 +2253,7 @@ std::string NameList::DebugString(absl::string_view indent) const {
   IdStringSetCase name_list_columns;
 
   for (const NamedColumn& named_column : columns_) {
-    if (!out.empty()) out += "\n";
+    if (!out.empty()) out += '\n';
     absl::StrAppend(&out, indent, "  ", named_column.DebugString());
 
     if (!IsInternalAlias(named_column.name())) {
@@ -2264,7 +2263,7 @@ std::string NameList::DebugString(absl::string_view indent) const {
 
   const std::string name_scope_contents =
       name_scope_.DebugString(absl::StrCat(indent, "  "), &name_list_columns);
-  if (!out.empty()) out += "\n";
+  if (!out.empty()) out += '\n';
   absl::StrAppend(&out, indent, "NameScope:");
   if (!name_scope_contents.empty()) {
     absl::StrAppend(&out, "\n", name_scope_contents);
@@ -2369,6 +2368,114 @@ absl::StatusOr<std::shared_ptr<NameList>> NameListBuilder::Build() {
   }
 
   return name_list;
+}
+
+static ValidNamePathList CopyValidNamePathList(
+    const ValidNamePathList& list,
+    const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column) {
+  ValidNamePathList new_list(list.size());
+  for (const auto& path : list) {
+    new_list.emplace_back(path.name_path(), copy_column(path.target_column()));
+  }
+  return new_list;
+}
+
+absl::StatusOr<std::unique_ptr<NameScope>> NameScope::CopyWithNewColumns(
+    const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+    const {
+  auto new_scope = absl::WrapUnique(new NameScope(*this));
+  new_scope->mutable_names()->clear();
+  new_scope->mutable_value_table_columns()->clear();
+
+  IdStringHashMapCase<NameTarget>& cloned_name_targets =
+      *new_scope->mutable_names();
+  std::vector<ValueTableColumn>& cloned_value_table_columns =
+      *new_scope->mutable_value_table_columns();
+
+  // Iterate over sorted name targets to produce a stable ResolvedAST.
+  std::vector<std::pair<IdString, NameTarget>> sorted_names(names().begin(),
+                                                            names().end());
+  std::sort(sorted_names.begin(), sorted_names.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+  for (const auto& [name, target] : sorted_names) {
+    GOOGLESQL_ASSIGN_OR_RETURN(NameTarget new_target,
+                     target.CopyWithNewColumns(copy_column));
+    cloned_name_targets.emplace(name, new_target);
+  }
+
+  cloned_value_table_columns.reserve(value_table_columns().size());
+  for (const auto& vtc : value_table_columns()) {
+    cloned_value_table_columns.emplace_back(
+        copy_column(vtc.column()), vtc.excluded_field_names(),
+        vtc.is_valid_to_access(),
+        CopyValidNamePathList(vtc.valid_name_path_list(), copy_column));
+  }
+
+  return new_scope;
+}
+
+absl::StatusOr<std::shared_ptr<NameList>> NameList::CopyWithNewColumns(
+    const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+    const {
+  auto new_name_list = std::make_shared<NameList>();
+  new_name_list->columns_.reserve(columns_.size());
+  for (const auto& col : columns_) {
+    ResolvedColumn new_column = copy_column(col.column());
+    if (col.is_value_table_column()) {
+      new_name_list->columns_.emplace_back(col.name(), new_column,
+                                           col.is_explicit(),
+                                           col.excluded_field_names());
+    } else {
+      new_name_list->columns_.emplace_back(col.name(), new_column,
+                                           col.is_explicit());
+    }
+  }
+  new_name_list->pseudo_columns_.reserve(pseudo_columns_.size());
+  for (const auto& col : pseudo_columns_) {
+    ResolvedColumn new_column = copy_column(col.column());
+    new_name_list->pseudo_columns_.emplace_back(col.name(), new_column,
+                                                col.is_explicit());
+  }
+  new_name_list->is_value_table_ = is_value_table_;
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<NameScope> cloned_name_scope_ptr,
+                   name_scope_.CopyWithNewColumns(copy_column));
+  new_name_list->name_scope_.state_ = cloned_name_scope_ptr->state_;
+
+  return new_name_list;
+}
+
+absl::StatusOr<NameTarget> NameTarget::CopyWithNewColumns(
+    const std::function<ResolvedColumn(const ResolvedColumn&)>& copy_column)
+    const {
+  switch (kind()) {
+    case NameTarget::RANGE_VARIABLE: {
+      GOOGLESQL_ASSIGN_OR_RETURN(NameListPtr new_scan_columns,
+                       scan_columns()->CopyWithNewColumns(copy_column));
+      return NameTarget(new_scan_columns, is_pattern_variable());
+    }
+    case NameTarget::IMPLICIT_COLUMN:
+    case NameTarget::EXPLICIT_COLUMN: {
+      GOOGLESQL_RET_CHECK(!delayed_column_info_.has_value())
+          << "Copying NameTarget with DelayedColumnInfo is not supported";
+      GOOGLESQL_RET_CHECK(!logging_target_info_.has_value())
+          << "Copying NameTarget with LoggingTargetInfo is not supported";
+      return NameTarget(copy_column(column()),
+                        kind() == NameTarget::EXPLICIT_COLUMN);
+    }
+    case NameTarget::FIELD_OF: {
+      return NameTarget(copy_column(column_containing_field()), field_id());
+    }
+    case NameTarget::AMBIGUOUS: {
+      return *this;
+    }
+    case NameTarget::ACCESS_ERROR: {
+      NameTarget new_target = *this;
+      new_target.set_valid_name_path_list(
+          CopyValidNamePathList(valid_name_path_list(), copy_column));
+      return new_target;
+    }
+  }
 }
 
 }  // namespace googlesql

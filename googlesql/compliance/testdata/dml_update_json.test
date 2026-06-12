@@ -17,6 +17,8 @@ UNION ALL
 SELECT cast (7 as int64), JSON '{"a": {"b": null}}'
 UNION ALL
 SELECT cast (8 as int64), JSON '{"a": {"b": true}}'
+UNION ALL
+SELECT cast (9 as int64), JSON '{"a": [1, 2, 3]}'
 
 --
 ARRAY<STRUCT<primary_key INT64, json_value JSON>>[
@@ -27,7 +29,8 @@ ARRAY<STRUCT<primary_key INT64, json_value JSON>>[
   {5, 1},
   {6, NULL},
   {7, {"a":{"b":null}}},
-  {8, {"a":{"b":true}}}
+  {8, {"a":{"b":true}}},
+  {9, {"a":[1,2,3]}}
 ]
 ==
 [prepare_database]
@@ -102,7 +105,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -124,7 +128,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -154,7 +159,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -171,13 +177,14 @@ STRUCT<
 >{1,
   ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
     {1, {"a":1}},
-    {2, {"a":null}},
+    {2, {}},
     {3, []},
     {4, null},
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -194,12 +201,13 @@ STRUCT<
   ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
     {1, {"a":1}},
     {2, {}},
-    {3, [null]},
+    {3, []},
     {4, null},
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -229,7 +237,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -251,7 +260,8 @@ STRUCT<
     {5, 2},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -273,7 +283,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -298,7 +309,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -320,7 +332,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -346,7 +359,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -380,7 +394,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -468,7 +483,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -504,7 +520,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -656,7 +673,7 @@ Update JsonContainers
 SET array_of_json[OFFSET(0)].a = 2, array_of_json[OFFSET(0)].a = 2
 WHERE primary_key = 1;
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<JSON>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<JSON>
 
 ==
 
@@ -674,7 +691,7 @@ UPDATE JsonContainers
 SET array_of_structs[OFFSET(0)].value["a"] = 2, array_of_structs[OFFSET(0)].value["a"]= 3
 WHERE primary_key = 1;
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<STRUCT<key INT64, value JSON>>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<STRUCT<key INT64, value JSON>>
 
 ==
 
@@ -684,7 +701,7 @@ SET array_of_structs[OFFSET(0)].value = 2, array_of_structs[OFFSET(0)].key = 2
 WHERE primary_key = 1;
 
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<STRUCT<key INT64, value JSON>>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<STRUCT<key INT64, value JSON>>
 ==
 
 
@@ -747,7 +764,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -777,7 +795,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -792,13 +811,14 @@ STRUCT<
 >{1,
   ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
     {1, {"a":1}},
-    {2, {"a":{"b":null}}},
+    {2, {}},
     {3, []},
     {4, null},
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -812,13 +832,14 @@ STRUCT<
 >{1,
   ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
     {1, {"a":1}},
-    {2, {"a":{"b":null}}},
+    {2, {}},
     {3, []},
     {4, null},
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -839,7 +860,8 @@ STRUCT<
     {5, 1},
     {6, {"a":1}},
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 ==
 
@@ -862,7 +884,8 @@ STRUCT<
       [{"a":{"b":[null,{"c":1}]}}]
     },
     {7, {"a":{"b":null}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -882,7 +905,8 @@ STRUCT<
     {5, 1},
     {6, NULL},
     {7, {"a":{"b":{"c":5}}}},
-    {8, {"a":{"b":true}}}
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
   ]}
 
 ==
@@ -986,5 +1010,320 @@ STRUCT<
       ARRAY<JSON>[known order:NULL, 1],
       {NULL},
       ARRAY<STRUCT<key INT64, value JSON>>[{1, "new_value"}]
+    }
+  ]}
+==
+
+[name=set_sql_null_nested_non_existent_field]
+UPDATE JsonValue SET json_value.b.c = NULL WHERE primary_key = 1
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=set_sql_null_existing_field]
+UPDATE JsonValue SET json_value.a = NULL WHERE primary_key = 1
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=set_sql_null_existing_nested_field]
+UPDATE JsonValue SET json_value.a.b = NULL WHERE primary_key = 8
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=set_sql_null_non_existent_array_element]
+UPDATE JsonValue SET json_value[0] = NULL WHERE primary_key = 3
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=set_sql_null_out_of_bounds_array_element]
+UPDATE JsonValue SET json_value[5] = NULL WHERE primary_key = 3
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+
+==
+
+[name=set_multiple_sql_null_in_array]
+UPDATE JsonValue SET json_value.a[0] = NULL, json_value.a[1] = NULL WHERE primary_key = 9;
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[3]}}
+  ]}
+==
+
+
+[name=set_sql_null_existing_array_element]
+# We'll use JsonContainers for an existing array
+UPDATE JsonContainers SET array_of_json[OFFSET(0)] = NULL WHERE primary_key = 1
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<
+          primary_key INT64,
+          array_of_json ARRAY<>,
+          struct_of_json STRUCT<json_value JSON>,
+          array_of_structs ARRAY<>
+        >>
+  [unknown order:
+    {
+      1,
+      ARRAY<JSON>[known order:NULL, {"b":2}],
+      {{"c":3}},
+      ARRAY<STRUCT<key INT64, value JSON>>[{1, {"a":1}}]
+    },
+    {
+      2,
+      ARRAY<JSON>[known order:NULL, 1],
+      {NULL},
+      ARRAY<STRUCT<key INT64, value JSON>>[{1, NULL}]
+    }
+  ]}
+==
+
+[name=set_and_remove_same_index_error]
+UPDATE JsonValue
+SET json_value["a"][0] = 10, json_value["a"][0+0] = NULL
+WHERE primary_key = 9;
+
+--
+ERROR: generic::out_of_range: Multiple updates to overlapping paths are not allowed.
+==
+
+[name=remove_same_index_twice_error]
+UPDATE JsonValue
+SET json_value["a"][0] = NULL, json_value["a"][0+0] = NULL
+WHERE primary_key = 9;
+
+--
+ERROR: generic::out_of_range: Multiple updates to overlapping paths are not allowed.
+==
+
+[name=set_same_index_twice_error]
+UPDATE JsonValue
+SET json_value["a"][0] = 10, json_value["a"][0+0] = 20
+WHERE primary_key = 9;
+
+--
+ERROR: generic::out_of_range: Multiple updates to overlapping paths are not allowed.
+==
+
+[name=set_and_remove_different_indices_ok]
+UPDATE JsonValue
+SET json_value["a"][0] = 100, json_value["a"][1] = NULL
+WHERE primary_key = 9;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[100,3]}}
+  ]}
+==
+
+[name=update_sandwich_ok]
+UPDATE JsonValue
+SET json_value["a"][0] = 10, json_value["a"][1] = NULL, json_value["a"][2] = 20
+WHERE primary_key = 9;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[10,20]}}
+  ]}
+==
+
+[name=remove_sandwich_ok]
+UPDATE JsonValue
+SET json_value["a"][0] = NULL, json_value["a"][1] = 10, json_value["a"][2] = NULL
+WHERE primary_key = 9;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[10]}}
+  ]}
+==
+
+[name=remove_beyond_end_error_step1]
+UPDATE JsonValue SET json_value[2] = 1 WHERE primary_key = 3;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, [null,null,1]},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=remove_beyond_end_is_no_op]
+# Setting an array element beyond the current end to NULL is a no-op.
+UPDATE JsonValue SET json_value[3] = NULL WHERE primary_key = 3;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}
+==
+
+[name=update_json_array_out_of_bounds_multiple_indices]
+UPDATE JsonValue SET json_value.a[5] = 1, json_value.a[7] = 1 WHERE primary_key = 9;
+
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {
+      9,
+      {"a":[1,2,3,null,null,1,null,1]}
     }
   ]}

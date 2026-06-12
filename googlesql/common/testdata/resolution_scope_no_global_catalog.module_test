@@ -1,0 +1,215 @@
+# Tests for resolution scope behavior when a global catalog is not provided.
+[default no_provide_global_catalog]
+[default no_show_imported_modules]
+
+# No scope on module- or statement-level, default is builtin.
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_valid_noscope()
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_noscope()
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_valid_noscope
+  () -> INT64
+
+TVF:tvf_valid_noscope
+  () -> TABLE<val INT64>
+==
+
+# Global-scope objects produce an error when no global catalog is provided.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC FUNCTION function_error_global_noscope()
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_noscope()
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_global_noscope
+ERROR: Function function_error_global_noscope is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_global_noscope()
+                       ^
+Global references are not supported by this execution environment
+
+TVF:tvf_error_global_noscope
+ERROR: Table function tvf_error_global_noscope is invalid [at 6:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_noscope()
+                             ^
+Global references are not supported by this execution environment
+==
+
+# Statement-level option overrides module-level option.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC FUNCTION function_valid_builtin_scope()
+OPTIONS (allowed_references='builtin')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_builtin_scope()
+OPTIONS (allowed_references='builtin')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_valid_builtin_scope
+  () -> INT64
+
+TVF:tvf_valid_builtin_scope
+  () -> TABLE<val INT64>
+==
+
+# Statement-level option overrides module-level option, global-scope objects
+# produce an error when no global catalog is provided.
+MODULE a.b.c OPTIONS (allowed_references='builtin');
+
+CREATE PUBLIC FUNCTION function_error_global_noscope()
+OPTIONS (allowed_references='global')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_noscope()
+OPTIONS (allowed_references='global')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_global_noscope
+ERROR: Function function_error_global_noscope is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_global_noscope()
+                       ^
+Global references are not supported by this execution environment
+
+TVF:tvf_error_global_noscope
+ERROR: Table function tvf_error_global_noscope is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_noscope()
+                             ^
+Global references are not supported by this execution environment
+==
+
+# Constants are always builtin.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC CONSTANT constant_valid_builtin = 1;
+--
+CONSTANT constant_valid_builtin=Int64(1) (INT64)
+==
+
+# Builtin-scope objects cannot refer to global-scope objects in the same module.
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_global_scope()
+OPTIONS (allowed_references = 'global')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_scope()
+OPTIONS (allowed_references = 'global')
+AS (SELECT 1 AS val);
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_global()
+AS (function_error_global_scope());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_global()
+AS (SELECT * FROM tvf_error_global_scope());
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_global =
+  function_error_global_scope();
+--
+Lazy_resolution_function:function_error_builtin_references_global
+ERROR: Function function_error_builtin_references_global is invalid [at 11:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_global()
+                       ^
+Invalid function function_error_global_scope [at 12:5]
+AS (function_error_global_scope());
+    ^
+Invalid reference to global-scope function 'function_error_global_scope' from a context which only allows builtin references. This execution environment does not allow global references
+
+Lazy_resolution_function:function_error_global_scope
+ERROR: Function function_error_global_scope is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_global_scope()
+                       ^
+Global references are not supported by this execution environment
+
+TVF:tvf_error_builtin_references_global
+ERROR: Table function tvf_error_builtin_references_global is invalid [at 14:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_global()
+                             ^
+Invalid table-valued function tvf_error_global_scope [at 15:19]
+AS (SELECT * FROM tvf_error_global_scope());
+                  ^
+Invalid reference to global-scope table valued function 'tvf_error_global_scope' from a context which only allows builtin references. This execution environment does not allow global references
+
+TVF:tvf_error_global_scope
+ERROR: Table function tvf_error_global_scope is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_scope()
+                             ^
+Global references are not supported by this execution environment
+
+CONSTANT constant_error_builtin_references_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_global is invalid [at 17:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_global =
+                       ^
+Invalid function function_error_global_scope [at 18:3]
+  function_error_global_scope();
+  ^
+Invalid reference to global-scope function 'function_error_global_scope' from a context which only allows builtin references. This execution environment does not allow global references
+==
+
+# Builtin-scope objects cannot reference global+public module imports.
+MODULE a.b.c;
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+AS (test.function_valid_public_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+AS (SELECT * FROM test.tvf_valid_public_global());
+--
+Lazy_resolution_function:function_error_builtin_references_public_global
+ERROR: Function function_error_builtin_references_public_global is invalid [at 4:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+                       ^
+Invalid function test.function_valid_public_global [at 5:5]
+AS (test.function_valid_public_global());
+    ^
+Invalid reference to global-scope function 'test.function_valid_public_global' from a context which only allows builtin references. This execution environment does not allow global references
+
+TVF:tvf_error_builtin_references_public_global
+ERROR: Table function tvf_error_builtin_references_public_global is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+                             ^
+Invalid table-valued function test.tvf_valid_public_global [at 8:19]
+AS (SELECT * FROM test.tvf_valid_public_global());
+                  ^
+Invalid reference to global-scope table valued function 'test.tvf_valid_public_global' from a context which only allows builtin references. This execution environment does not allow global references
+==
+
+# Constants are always builtin, cannot reference global imports.
+MODULE a.b.c OPTIONS (allowed_references='global');
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+test.function_valid_public_global();
+--
+CONSTANT constant_error_builtin_references_public_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_public_global is invalid [at 4:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+                       ^
+Invalid function test.function_valid_public_global [at 5:1]
+test.function_valid_public_global();
+^
+Invalid reference to global-scope function 'test.function_valid_public_global' from a context which only allows builtin references. This execution environment does not allow global references
+==
+
+# Global-scope objects should not produce a "Global references are not
+# supported" error until resolution is attempted.
+[no_resolve_statements]
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_global_noscope()
+OPTIONS (allowed_references='global')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_global_noscope()
+OPTIONS (allowed_references='global')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_global_noscope
+
+TVF:tvf_error_global_noscope

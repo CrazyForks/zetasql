@@ -30,13 +30,13 @@
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/net/idn.h"
 #include "googlesql/base/net/ipaddress.h"
 #include "googlesql/base/net/public_suffix.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

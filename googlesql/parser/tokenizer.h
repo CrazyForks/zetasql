@@ -18,8 +18,8 @@
 #define GOOGLESQL_PARSER_TOKENIZER_H_
 
 #include "googlesql/parser/tm_lexer.h"
-#include "googlesql/parser/tm_token.h"
-#include "googlesql/public/parse_location.h"
+#include "googlesql/parser/token_stream.h"
+#include "googlesql/parser/token_with_location.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
@@ -27,9 +27,9 @@ namespace googlesql {
 namespace parser {
 
 // A wrapper class for the generated TextMapper lexer class with access to
-// the private fields of `Lexer`.
-// TODO: b/322871843 - Rename the file to tokenizer.h.
-class GoogleSqlTokenizer final : Lexer {
+// the private fields of `Lexer`. This class adapts the Textmapper lexer's API
+// to GoogleSql's TokenStream interface.
+class GoogleSqlTokenizer final : Lexer, public TokenStream {
  public:
   GoogleSqlTokenizer(absl::string_view filename, absl::string_view input,
                      int start_offset);
@@ -37,7 +37,13 @@ class GoogleSqlTokenizer final : Lexer {
   GoogleSqlTokenizer(const GoogleSqlTokenizer&) = delete;
   GoogleSqlTokenizer& operator=(const GoogleSqlTokenizer&) = delete;
 
-  absl::StatusOr<Token> GetNextToken(ParseLocationRange* location);
+  absl::StatusOr<TokenWithLocation> GetNextToken() override;
+  int num_consumed_tokens() const override { return num_consumed_tokens_; }
+
+ private:
+  absl::string_view input_;
+  int num_consumed_tokens_ = 0;
+  int last_token_end_offset_ = 0;
 };
 
 }  // namespace parser

@@ -882,7 +882,7 @@ QueryStmt
     |       key -> INT32 (EnumTable.key#1) (implicit)
     |       vt -> googlesql_test.TestExtraPB (TestExtraValueTable.value#6)
     |     Range variables:
-    |       row -> RANGE_VARIABLE<key#1,TestEnum#2,AnotherTestEnum#3,value#6 AS vt>
+    |       row -> RANGE_VARIABLE<key#1,TestEnum#2,AnotherTestEnum#3,value#6 AS vt, pseudo_columns: Filename#4,RowId#5,Filename#7,RowId#8>
     |   """
     +-input_scan=
       +-JoinScan

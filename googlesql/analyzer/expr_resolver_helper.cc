@@ -34,10 +34,10 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/memory/memory.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -214,6 +214,7 @@ absl::StatusOr<bool> IsConstantExpression(const ResolvedExpr* expr) {
           expr->GetAs<ResolvedGraphIsLabeledPredicate>()->expr());
     case RESOLVED_GRAPH_GET_ELEMENT_PROPERTY:
     case RESOLVED_GRAPH_MAKE_ELEMENT:
+    case RESOLVED_GRAPH_INSERT_ELEMENT:
     // See above reasoning for subquery + aggregation
     case RESOLVED_ARRAY_AGGREGATE:
       return false;

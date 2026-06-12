@@ -27,8 +27,8 @@ option java_outer_classname = "GoogleSQLOptions";
 // See (broken link) for more detail.
 //
 // A language version defines a stable set of features and required semantics.
-// LanguageVersion VERSION_x_y implicitly includes the LanguageFeatures below
-// named FEATURE_V_x_y_*.
+// LanguageVersion VERSION_x_y implicitly includes the LanguageFeatures with
+// `language_version=VERSION_x_y` and lower.
 //
 // The features and behavior supported by an engine can be expressed as a
 // LanguageVersion plus a set of LanguageFeatures added on top of that version.
@@ -59,7 +59,10 @@ enum LanguageVersion {
 
   VERSION_1_3 = 13000;  // Version 1.3, frozen May 2022.
 
-  VERSION_1_4 = 14000;  // Version 1.4, not yet frozen.
+  VERSION_1_4 = 14000;  // Version 1.4, frozen February 2026.
+
+  // WARNING: Using this version means query behavior will change under you.
+  VERSION_1_5 = 15000;  // Version 1.5, not yet frozen.
 
   // User code that switches on this enum must have a default case so
   // builds won't break if new enums get added.
@@ -115,27 +118,14 @@ message LanguageFeatureOptions {
 //
 // All optional features are off by default.  Some features have a negative
 // meaning, so turning them on will remove a feature or enable an error.
-// Next ID: 154
+//
+// It's deprecated to use an enum ID which corresponds to a version. All new
+// enum names should use the next available ID starting from 0.
+// Next ID: 173
 enum LanguageFeature {
-  // Aliases are allowed because we are including aliases for legacy feature
-  // names that had version numbers (V_1_3) in the enum name. This means the
-  // proto compiler won't detect collisions, so we check for that in
-  // `language_options_test`.
-  //
-  // The versioned names are deprecated but have not been removed yet. They may
-  // still be referenced by googlesql oss users.
-  // New features should not add the versioned feature aliases.
-  //
-  // For new versioned features, the enums must look like:
-  //   FEATURE_FOO = 14001
-  //     [(language_feature_options).language_version = VERSION_1_4)];
-  //
-  // TODO: Complete this migration and turn off allow_alias.
-  option allow_alias = true;
-
-  reserved 4, 36 to 39, 44 to 46, 48, 54, 55, 74, 99, 108, 110, 124, 132, 140,
-      13046, 14001, 14012, 14024, 14040, 14061, 14077, 14082, 14085, 999003,
-      999004, 999005;
+  reserved 3 to 4, 36 to 39, 44 to 46, 48, 54, 55, 74, 99, 107, 108, 110, 124,
+      132, 134, 140, 13003, 13046, 14001, 14012, 14022, 14024, 14040, 14061,
+      14077, 14081, 14082, 14085, 14129, 999003, 999004, 999005;
 
   // CROSS-VERSION FEATURES
   //
@@ -157,14 +147,6 @@ enum LanguageFeature {
   // See (broken link).
   FEATURE_TABLESAMPLE = 2;
 
-  // If enabled, give an error on GROUP BY, DISTINCT or set operations (other
-  // than UNION ALL) on floating point types. This feature is disabled in the
-  // idealized GoogleSQL (i.e. LanguageOptions::EnableMaximumLanguageFeatures)
-  // because enabling it turns off support for a feature that is normally on by
-  // default.
-  FEATURE_DISALLOW_GROUP_BY_FLOAT = 3
-      [(language_feature_options).ideally_enabled = false];
-
   // If enabled, treats TIMESTAMP literal as 9 digits (nanos) precision.
   // Otherwise TIMESTAMP has 6 digits (micros) precision.
   // In general, a TIMESTAMP value has only 6 digits precision. This feature
@@ -183,6 +165,25 @@ enum LanguageFeature {
   // for precision and timezone.
   FEATURE_PARSE_TIMESTAMP_WITH_PRECISION_AND_TIMEZONE = 14112
       [(language_feature_options).language_version = VERSION_1_4];
+
+  // If enabled, type modifier such as timestamp precision, string collation etc
+  // are allowed in more contexts such as ARRAY/STRUCT literal construction, as
+  // function parameter/return types etc.
+  // See (broken link).
+  FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF = 157 [
+    (language_feature_options).language_version = VERSION_1_5,
+    // TODO: b/490102087 - remove this and ensure RQG coverage once the feature
+    // is implemented.
+    (language_feature_options).in_development = true
+  ];
+
+  // If enabled, hints can be specified without a value, in which case they
+  // default to the value 'true'.  For example, @{hint_name} is equivalent to
+  // @{hint_name=true}.
+  // TODO: This feature currently has no effect, roll forward once
+  // issues are resolved.
+  FEATURE_HINTS_WITH_IMPLICIT_TRUE = 170
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enable support for JOINs in UPDATE statements, see
   // (broken link).
@@ -298,9 +299,9 @@ enum LanguageFeature {
   FEATURE_ANONYMIZATION_THRESHOLDING = 83
       [(language_feature_options).in_development = true];
 
-  // Treat anonymization options case-insensitively. Previously,
-  // anonymization options were treated case-sensitively in parts of the code,
-  // so the options were not correctly validated.
+  // Treat anonymization options case-insensitively. Previously, (prior to
+  // (broken link)) anonymization options were treated case-sensitively in parts
+  // of the code, so the options were not correctly validated.
   FEATURE_ANONYMIZATION_CASE_INSENSITIVE_OPTIONS = 85
       [(language_feature_options).ideally_enabled = true];
 
@@ -336,8 +337,18 @@ enum LanguageFeature {
   FEATURE_DIFFERENTIAL_PRIVACY_MIN_PRIVACY_UNITS_PER_GROUP = 104
       [(language_feature_options).in_development = true];
 
-  // Enables support for Vector Search TVF.
-  FEATURE_VECTOR_SEARCH_TVF = 146
+  // Enables support for Batch Vector Search TVF with engine supplied
+  // proto options.
+  // See (broken link) for details.
+  FEATURE_VECTOR_SEARCH_TVF = 146;
+
+  // Enables support for single, hybrid vector search TVF with engine supplied
+  // proto options and JSON options. Note that JSON options for Batch Vector
+  // Search TVF is also enabled by this feature.
+  // Batch Vector Search TVF with engine supplied proto options is still enabled
+  // by FEATURE_VECTOR_SEARCH_TVF flag.
+  // See (broken link) for details.
+  FEATURE_SINGLE_HYBRID_VECTOR_SEARCH_TVF = 166
       [(language_feature_options).in_development = true];
 
   // Enables the differential privacy option group_selection_epsilon and the
@@ -371,10 +382,8 @@ enum LanguageFeature {
   // Enables legacy behavior for CONCAT (||) operator where variadic operands
   // will be analyzed into nested binary CONCAT function calls, instead of a
   // single variadic CONCAT function call.
-  FEATURE_LEGACY_BINARY_CONCAT = 149 [(language_feature_options) = {
-    in_development: true,
-    ideally_enabled: false
-  }];
+  FEATURE_LEGACY_BINARY_CONCAT = 149
+      [(language_feature_options) = { ideally_enabled: false }];
 
   // Enables SELECT WITH AGGREGATION_THRESHOLD syntax,
   // see: (broken link).
@@ -654,7 +663,7 @@ enum LanguageFeature {
   // Enables RADIANS and DEGREES functions.
   FEATURE_RADIANS_DEGREES_FUNCTIONS = 14109 [
     (language_feature_options).in_development = true,
-    (language_feature_options).language_version = VERSION_1_4
+    (language_feature_options).language_version = VERSION_1_5
   ];
 
   // Enable support for Spanner-specific DDL syntax.
@@ -792,6 +801,11 @@ enum LanguageFeature {
   // if SupportedStatementKinds includes ResolvedGeneralizedQueryStmt.
   FEATURE_PIPE_INSERT = 133;
 
+  // Enables FINISH terminal pipe operator. See (broken link).
+  // This operator is allowed only if SupportedStatementKinds includes
+  // ResolvedTerminalQueryStmt.
+  FEATURE_PIPE_FINISH = 164;
+
   // Enables WITH DIFFERENTIAL_PRIVACY modifier on pipe AGGREGATE operator.
   // See (broken link).
   FEATURE_PIPE_AGGREGATE_WITH_DIFFERENTIAL_PRIVACY = 142
@@ -815,13 +829,6 @@ enum LanguageFeature {
   // Example:
   // ALTER TABLE table ALTER COLUMN col SET GENERATED AS IDENTITY();
   FEATURE_ALTER_COLUMN_SET_GENERATED_AS_IDENTITY = 141;
-
-  // DEPRECATED: Textmapper is the default parser in all engines. This will
-  // become a NOOP soon.
-  // Prevents the TextMapper-generated parser from being used, and resorts to
-  // the Bison-generated parser instead.
-  FEATURE_DISABLE_TEXTMAPPER_PARSER = 107
-      [(language_feature_options).ideally_enabled = false, deprecated = true];
 
   // Enables support for IDENTITY columns in CREATE TABLE.
   // Example:
@@ -868,6 +875,17 @@ enum LanguageFeature {
   // Enables equality comparison and ordering for the JSON type.
   FEATURE_JSON_TYPE_COMPARISON = 139;
 
+  // Enables the support for fetching options from a struct expression.
+  // Example: CREATE TABLE T OPTIONS (FROM struct_expr, a = 1);
+  // See (broken link) for more details.
+  FEATURE_OPTIONS_FROM_STRUCT = 156;
+
+  // Enables casting SQL types to the JSON type.
+  FEATURE_CAST_TO_JSON_TYPE = 154;
+
+  // Enables implicit coercion to JSON when comparing JSON to non-JSON values.
+  FEATURE_JSON_TYPE_COMPARISON_COERCION = 159;
+
   // Enables support for TIMESTAMP_FROM_UNIX_MICROS/MILLIS/SECONDS functions
   // with UINT64 arguments.
   FEATURE_TIMESTAMP_FROM_UNIX_FUNCTIONS_WITH_UINT64 = 126;
@@ -890,16 +908,9 @@ enum LanguageFeature {
   FEATURE_TABLE_SYNTAX_RESOLVE_ARGUMENT_LAST = 127
       [(language_feature_options).ideally_enabled = false];
 
-  // Disable validation that builtin rewriters refer only to builtin Catalog
-  // objects.
-  // See (broken link).
-  FEATURE_DISABLE_VALIDATE_REWRITERS_REFER_TO_BUILTINS = 134
-      [(language_feature_options).ideally_enabled = false];
-
   // Enable CREATE PROCEDURE statements in modules.
   // See (broken link).
-  FEATURE_PROCEDURES_IN_MODULES = 150
-      [(language_feature_options).in_development = true];
+  FEATURE_PROCEDURES_IN_MODULES = 150;
 
   // This enables pipe operator suffixes on most statements that could
   // potentially return tables, including auxiliary statements where the
@@ -925,14 +936,47 @@ enum LanguageFeature {
   // See (broken link).
   FEATURE_ENABLE_ALTER_TABLE_ADD_COLUMN_GENERATED_EXPR = 153;
 
+  // Enable CREATE VIEW statements in modules.
+  // See (broken link).
+  FEATURE_VIEWS_IN_MODULES = 155;
+
+  // Enable the GoogleSQL standard version of the AI.IF function.
+  // Prevents naming conflicts since some engines already have their own version
+  // of AI.IF.
+  FEATURE_AI_IF = 163 [
+    // This feature will continue to remain in development until the function
+    // signature is finalized and MODEL references for scalar functions are
+    // supported as arguments (b/456818445).
+    (language_feature_options).in_development = true
+  ];
+
+  // Enable the ALIGN Operator ((broken link)).
+  // TODO: b/451574497 - Remove in_development flag.
+  FEATURE_ALIGN_OPERATOR = 165
+      [(language_feature_options).in_development = true];
+
+  // Enables the creation of Format Preserving Encryption (FPE) key type using
+  // KEYS.NEW_KEYSET and KEYS.NEW_WRAPPED_KEYSET functions.
+  FEATURE_FPE_NEW_KEYSET = 168
+      [(language_feature_options).in_development = true];
+
+  // Enable the Declarative Type Framework.
+  FEATURE_DECLARATIVE_TYPE_FRAMEWORK = 169
+      [(language_feature_options).in_development = true];
+
+  // Enable TABLE type. See (broken link).
+  // This is experimental and not ready to use yet.
+  FEATURE_TABLE_TYPE = 172 [(language_feature_options).in_development = true];
+
   // -> Add more cross-version features here.
   // -> DO NOT add more versioned features into versions that are frozen.
   //    New features should be added for the *next* version number.
 
   // VERSIONED FEATURES
   // These are features or changes as of some version.
-  // Each should start with a prefix FEATURE_V_x_y_.  The feature will be
-  // included in the default set enabled for LanguageVersion VERSION_x_y.
+  // Each should specify language_version=VERSION_x_y. The feature will be
+  // included in the default set enabled for LanguageVersion VERSION_x_y and
+  // higher.
   //
   // Features that will remain optional for compliance, and are not expected to
   // be implemented in all engines, should be added as cross-version features
@@ -948,62 +992,51 @@ enum LanguageFeature {
   // Enable ORDER BY COLLATE.  See (broken link).
   FEATURE_ORDER_BY_COLLATE = 11001
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_ORDER_BY_COLLATE = 11001 [deprecated = true];
 
   // Enable WITH clause on subqueries.  Without this, WITH is allowed
   // only at the top level.  The WITH subqueries still cannot be
   // correlated subqueries.
   FEATURE_WITH_ON_SUBQUERY = 11002
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_WITH_ON_SUBQUERY = 11002 [deprecated = true];
 
   // Enable the SELECT * EXCEPT and SELECT * REPLACE features.
   // See (broken link).
   FEATURE_SELECT_STAR_EXCEPT_REPLACE = 11003
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_SELECT_STAR_EXCEPT_REPLACE = 11003 [deprecated = true];
 
   // Enable the ORDER BY in aggregate functions.
   // See (broken link)
   FEATURE_ORDER_BY_IN_AGGREGATE = 11004
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_ORDER_BY_IN_AGGREGATE = 11004 [deprecated = true];
 
   // Enable casting between different array types.
   FEATURE_CAST_DIFFERENT_ARRAY_TYPES = 11005
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_CAST_DIFFERENT_ARRAY_TYPES = 11005 [deprecated = true];
 
   // Enable comparing array equality.
   FEATURE_ARRAY_EQUALITY = 11006
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_ARRAY_EQUALITY = 11006 [deprecated = true];
 
   // Enable LIMIT in aggregate functions.
   FEATURE_LIMIT_IN_AGGREGATE = 11007
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_LIMIT_IN_AGGREGATE = 11007 [deprecated = true];
 
   // Enable HAVING modifier in aggregate functions.
   FEATURE_HAVING_IN_AGGREGATE = 11008
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_HAVING_IN_AGGREGATE = 11008 [deprecated = true];
 
   // Enable IGNORE/RESPECT NULLS modifier in analytic functions.
   FEATURE_NULL_HANDLING_MODIFIER_IN_ANALYTIC = 11009
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_ANALYTIC = 11009 [deprecated = true];
 
   // Enable IGNORE/RESPECT NULLS modifier in aggregate functions.
   FEATURE_NULL_HANDLING_MODIFIER_IN_AGGREGATE = 11010
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_AGGREGATE = 11010 [deprecated = true];
 
   // Enable FOR SYSTEM_TIME AS OF (time travel).
   // See (broken link).
   FEATURE_FOR_SYSTEM_TIME_AS_OF = 11011
       [(language_feature_options).language_version = VERSION_1_1];
-  FEATURE_V_1_1_FOR_SYSTEM_TIME_AS_OF = 11011 [deprecated = true];
 
   // Version 1.2 features
   // * Frozen in January 2018.
@@ -1012,33 +1045,27 @@ enum LanguageFeature {
   // Enable TIME and DATETIME types and related functions.
   FEATURE_CIVIL_TIME = 12001
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_CIVIL_TIME = 12001 [deprecated = true];
 
   // Enable SAFE mode function calls.  e.g. SAFE.FUNC(...) for FUNC(...).
   // (broken link).
   FEATURE_SAFE_FUNCTION_CALL = 12002
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_SAFE_FUNCTION_CALL = 12002 [deprecated = true];
 
   // Enable support for GROUP BY STRUCT.
   FEATURE_GROUP_BY_STRUCT = 12003
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_GROUP_BY_STRUCT = 12003 [deprecated = true];
 
   // Enable use of proto extensions with NEW.
   FEATURE_PROTO_EXTENSIONS_WITH_NEW = 12004
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_PROTO_EXTENSIONS_WITH_NEW = 12004 [deprecated = true];
 
   // Enable support for GROUP BY ARRAY.
   FEATURE_GROUP_BY_ARRAY = 12005
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_GROUP_BY_ARRAY = 12005 [deprecated = true];
 
   // Enable use of proto extensions with UPDATE ... SET.
   FEATURE_PROTO_EXTENSIONS_WITH_SET = 12006
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_PROTO_EXTENSIONS_WITH_SET = 12006 [deprecated = true];
 
   // Allows nested DML statements to refer to names defined in the parent
   // scopes. Without this, a nested DML statement can only refer to names
@@ -1050,30 +1077,25 @@ enum LanguageFeature {
   //   UPDATE Table t SET (INSERT t.ArrayColumn SELECT t.OtherColumn)
   FEATURE_CORRELATED_REFS_IN_NESTED_DML = 12007
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_CORRELATED_REFS_IN_NESTED_DML = 12007 [deprecated = true];
 
   // Enable use of WEEK(<Weekday>) with the functions that support it.
   FEATURE_WEEK_WITH_WEEKDAY = 12008
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_WEEK_WITH_WEEKDAY = 12008 [deprecated = true];
 
   // Enable use of array element [] syntax in targets with UPDATE ... SET.
   // For example, allow UPDATE T SET a.b[OFFSET(0)].c = 5.
   FEATURE_ARRAY_ELEMENTS_WITH_SET = 12009
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_ARRAY_ELEMENTS_WITH_SET = 12009 [deprecated = true];
 
   // Enable nested updates/deletes of the form
   // UPDATE/DELETE ... WITH OFFSET AS ... .
   FEATURE_NESTED_UPDATE_DELETE_WITH_OFFSET = 12010
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_NESTED_UPDATE_DELETE_WITH_OFFSET = 12010 [deprecated = true];
 
   // Enable Generated Columns on CREATE and ALTER TABLE statements.
   // See (broken link).
   FEATURE_GENERATED_COLUMNS = 12011
       [(language_feature_options).language_version = VERSION_1_2];
-  FEATURE_V_1_2_GENERATED_COLUMNS = 12011 [deprecated = true];
 
   // Version 1.3 features
 
@@ -1081,7 +1103,6 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_PROTO_DEFAULT_IF_NULL = 13001
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_PROTO_DEFAULT_IF_NULL = 13001 [deprecated = true];
 
   // Enables support for proto field pseudo-accessors in the EXTRACT function.
   // For example, EXTRACT(FIELD(x) from foo) will extract the value of the field
@@ -1095,20 +1116,6 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_EXTRACT_FROM_PROTO = 13002
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_EXTRACT_FROM_PROTO = 13002 [deprecated = true];
-
-  // If enabled, the analyzer will return an error when attempting to check
-  // if a proto3 scalar field has been explicitly set (e.g.,
-  // proto3.has_scalar_field and EXTRACT(HAS(scalar_field) from proto3)).
-  // This feature is deprecated and should not be used, since proto3 now
-  // supports scalar field presence testing. Eventually we will remove this
-  // feature and the underlying code.
-  FEATURE_DEPRECATED_DISALLOW_PROTO3_HAS_SCALAR_FIELD = 13003 [
-    (language_feature_options).ideally_enabled = false,
-    (language_feature_options).language_version = VERSION_1_3
-  ];
-  FEATURE_V_1_3_DEPRECATED_DISALLOW_PROTO3_HAS_SCALAR_FIELD = 13003
-      [deprecated = true];
 
   // Enable array ordering (and non-equality comparisons).  This enables
   // arrays in the ORDER BY of a query, as well as in aggregate and analytic
@@ -1121,14 +1128,12 @@ enum LanguageFeature {
   // Spec:  (broken link)
   FEATURE_ARRAY_ORDERING = 13004
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ARRAY_ORDERING = 13004 [deprecated = true];
 
   // Allow omitting column and value lists in INSERT statement and INSERT clause
   // of MERGE statement.
   // Spec: (broken link)
   FEATURE_OMIT_INSERT_COLUMN_LIST = 13005
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_OMIT_INSERT_COLUMN_LIST = 13005 [deprecated = true];
 
   // If enabled, the 'use_defaults' and 'use_field_defaults' annotations are
   // ignored for proto scalar fields with implicit presence. This results in the
@@ -1148,7 +1153,6 @@ enum LanguageFeature {
   // Reference: https://protobuf.dev/programming-guides/field_presence/
   FEATURE_IGNORE_PROTO3_USE_DEFAULTS = 13006
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_IGNORE_PROTO3_USE_DEFAULTS = 13006 [deprecated = true];
 
   // Enables support for the REPLACE_FIELDS() function. REPLACE_FIELDS(p,
   // <value> AS <field_path>) returns the proto obtained by setting p.field_path
@@ -1161,12 +1165,10 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_REPLACE_FIELDS = 13007
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_REPLACE_FIELDS = 13007 [deprecated = true];
 
   // Enable NULLS FIRST/NULLS LAST in ORDER BY expressions.
   FEATURE_NULLS_FIRST_LAST_IN_ORDER_BY = 13008
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_NULLS_FIRST_LAST_IN_ORDER_BY = 13008 [deprecated = true];
 
   // Allows dashes in the first part of multi-part table name. This is to
   // accommodate GCP project names which use dashes instead of underscores, e.g.
@@ -1176,7 +1178,6 @@ enum LanguageFeature {
   // unquoted, i.e. SELECT * FROM crafty-tractor-287.dataset.table
   FEATURE_ALLOW_DASHES_IN_TABLE_NAME = 13009
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ALLOW_DASHES_IN_TABLE_NAME = 13009 [deprecated = true];
 
   // CONCAT allows arguments of different types, automatically coerced to
   // STRING for FN_CONCAT_STRING signature. Only types which have CAST to
@@ -1184,23 +1185,19 @@ enum LanguageFeature {
   // should match FN_CONCAT_BYTES signature).
   FEATURE_CONCAT_MIXED_TYPES = 13010
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_CONCAT_MIXED_TYPES = 13010 [deprecated = true];
 
   // Enable WITH RECURSIVE ((broken link))
   FEATURE_WITH_RECURSIVE = 13011
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_WITH_RECURSIVE = 13011 [deprecated = true];
 
   // Support maps in protocol buffers. ((broken link))
   FEATURE_PROTO_MAPS = 13012
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_PROTO_MAPS = 13012 [deprecated = true];
 
   // Enables support for the ENUM_VALUE_DESCRIPTOR_PROTO() function, see
   // (broken link)
   FEATURE_ENUM_VALUE_DESCRIPTOR_PROTO = 13013
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ENUM_VALUE_DESCRIPTOR_PROTO = 13013 [deprecated = true];
 
   // Allows DECIMAL as an alias of NUMERIC type, and BIGDECIMAL as an alias
   // of BIGNUMERIC type. By itself, this feature does not enable NUMERIC type
@@ -1208,72 +1205,60 @@ enum LanguageFeature {
   // FEATURE_BIGNUMERIC_TYPE.
   FEATURE_DECIMAL_ALIAS = 13014
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_DECIMAL_ALIAS = 13014 [deprecated = true];
 
   // Support UNNEST and FLATTEN on paths through arrays.
   // ((broken link))
   FEATURE_UNNEST_AND_FLATTEN_ARRAYS = 13015
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_UNNEST_AND_FLATTEN_ARRAYS = 13015 [deprecated = true];
 
   // Allows consecutive ON/USING clauses for JOINs, such as
   //    t1 JOIN t2 JOIN t3 ON cond1 USING (col2)
   FEATURE_ALLOW_CONSECUTIVE_ON = 13016
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ALLOW_CONSECUTIVE_ON = 13016 [deprecated = true];
 
   // Enables support for optional parameters position and occurrence in
   // REGEXP_EXTRACT. In addition, allows alias REGEXP_SUBSTR.
   // ((broken link))
   FEATURE_ALLOW_REGEXP_EXTRACT_OPTIONALS = 13017
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ALLOW_REGEXP_EXTRACT_OPTIONALS = 13017 [deprecated = true];
 
   // Additional signatures for DATE, TIMESTAMP, TIME, DATETIME and STRING
   // constructor functions.
   FEATURE_DATE_TIME_CONSTRUCTORS = 13018
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_DATE_TIME_CONSTRUCTORS = 13018 [deprecated = true];
 
   // Enables DATE +/- INT64 arithmetics.
   // ((broken link))
   FEATURE_DATE_ARITHMETICS = 13019
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_DATE_ARITHMETICS = 13019 [deprecated = true];
 
   // Enable support for additional string functions.
   FEATURE_ADDITIONAL_STRING_FUNCTIONS = 13020
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ADDITIONAL_STRING_FUNCTIONS = 13020 [deprecated = true];
 
   // Enable support for aggregate functions with WITH GROUP ROWS syntax.
   FEATURE_WITH_GROUP_ROWS = 13021 [
-    (language_feature_options).language_version = VERSION_1_3,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_3_WITH_GROUP_ROWS = 13021 [deprecated = true];
 
   // Additional signatures for [DATE|DATETIME|TIMESTAMP]_[ADD|SUB|DIFF|TRUNC]
   // functions. ((broken link)).
   FEATURE_EXTENDED_DATE_TIME_SIGNATURES = 13022
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_EXTENDED_DATE_TIME_SIGNATURES = 13022 [deprecated = true];
 
   // Additional signatures for ST_GeogFromText/FromGeoJson/From* functions.
   // ((broken link)).
   FEATURE_EXTENDED_GEOGRAPHY_PARSERS = 13023
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_EXTENDED_GEOGRAPHY_PARSERS = 13023 [deprecated = true];
 
   // Inline lambda function argument. (broken link)
   FEATURE_INLINE_LAMBDA_ARGUMENT = 13024
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_INLINE_LAMBDA_ARGUMENT = 13024 [deprecated = true];
 
   // PIVOT clause ((broken link)).
   FEATURE_PIVOT = 13025
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_PIVOT = 13025 [deprecated = true];
 
   // This flag enables propagation of annotation during query analysis. See
   // public/types/annotation.h for the introduction of annotation framework.
@@ -1281,20 +1266,17 @@ enum LanguageFeature {
   // feature or passing in engine defined AnnotationSpec.
   FEATURE_ANNOTATION_FRAMEWORK = 13026
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ANNOTATION_FRAMEWORK = 13026 [deprecated = true];
 
   // Enables collation annotation support.
   // TODO: Remove "in_development" flag.
   FEATURE_COLLATION_SUPPORT = 13027 [
     (language_feature_options).in_development = true,
-    (language_feature_options).language_version = VERSION_1_3
+    (language_feature_options).language_version = VERSION_1_5
   ];
-  FEATURE_V_1_3_COLLATION_SUPPORT = 13027 [deprecated = true];
 
   // IS [NOT] DISTINCT FROM ((broken link)).
   FEATURE_IS_DISTINCT = 13028
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_IS_DISTINCT = 13028 [deprecated = true];
 
   // If true, FORMAT clause is supported in CAST().
   // Fully implemented:
@@ -1306,17 +1288,14 @@ enum LanguageFeature {
   //   NUMBER => STRING
   FEATURE_FORMAT_IN_CAST = 13029
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_FORMAT_IN_CAST = 13029 [deprecated = true];
 
   // UNPIVOT clause ((broken link)).
   FEATURE_UNPIVOT = 13030
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_UNPIVOT = 13030 [deprecated = true];
 
   // If true, dml returning is supported ((broken link))
   FEATURE_DML_RETURNING = 13031
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_DML_RETURNING = 13031 [deprecated = true];
 
   // Enables support for the FILTER_FIELDS() function.
   //    FILTER_FIELDS(p, <-|+><field_path>, ...)
@@ -1325,30 +1304,25 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_FILTER_FIELDS = 13032
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_FILTER_FIELDS = 13032 [deprecated = true];
 
   // QUALIFY clause ((broken link)).
   FEATURE_QUALIFY = 13033
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_QUALIFY = 13033 [deprecated = true];
 
   // Enable support for REPEAT...UNTIL...END REPEAT statement.
   // (broken link)
   FEATURE_REPEAT = 13034
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_REPEAT = 13034 [deprecated = true];
 
   // Enables column DEFAULT clause in CREATE and ALTER TABLE statements.
   // See (broken link)
   FEATURE_COLUMN_DEFAULT_VALUE = 13035
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_COLUMN_DEFAULT_VALUE = 13035 [deprecated = true];
 
   // Enable support for FOR...IN...DO...END FOR statement.  // NOTYPO
   // (broken link)
   FEATURE_FOR_IN = 13036
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_FOR_IN = 13036 [deprecated = true];
 
   // Enables support for initializing KLLs with weights as an additional
   // parameter. Support for this feature in addition to the weighting
@@ -1356,54 +1330,49 @@ enum LanguageFeature {
   // argument must be named. (broken link).
   FEATURE_KLL_WEIGHTS = 13037
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_KLL_WEIGHTS = 13037 [deprecated = true];
 
   // LIKE ANY/SOME/ALL support.
   // (broken link)
   FEATURE_LIKE_ANY_SOME_ALL = 13038
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_LIKE_ANY_SOME_ALL = 13038 [deprecated = true];
 
   // Enable support for CASE...WHEN...THEN...END CASE statement.
   // (broken link)
   FEATURE_CASE_STMT = 13039
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_CASE_STMT = 13039 [deprecated = true];
 
   // Support for table names that start with slash and contain slashes, dashes,
   // and colons before the first dot: /span/test/my-grp:db.Table.
   // (broken link)
   FEATURE_ALLOW_SLASH_PATHS = 13040
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ALLOW_SLASH_PATHS = 13040 [deprecated = true];
 
   // Enable the TYPEOF(expr) debugging and exploration function.
   FEATURE_TYPEOF_FUNCTION = 13041
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_TYPEOF_FUNCTION = 13041 [deprecated = true];
 
   // Enable support for SCRIPT LABELS (e.g. L1: BEGIN...END)
   // (broken link)
   FEATURE_SCRIPT_LABEL = 13042
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_SCRIPT_LABEL = 13042 [deprecated = true];
 
   // Enable support for remote function (e.g. CREATE FUNCTION ... REMOTE ...)
   // (broken link)
   FEATURE_REMOTE_FUNCTION = 13043
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_REMOTE_FUNCTION = 13043 [deprecated = true];
+
+  // Enables ARG_TYPE_STRING_ANY templated argument kind.
+  FEATURE_ANY_STRING_TEMPLATED_ARGUMENT = 161
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // If Array ordering is enabled, this flag enables arrays for GREATEST/LEAST.
   FEATURE_ARRAY_GREATEST_LEAST = 13044
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_ARRAY_GREATEST_LEAST = 13044 [deprecated = true];
 
   // Enables braced constructors for protocol buffers.
   // See (broken link)
   FEATURE_BRACED_PROTO_CONSTRUCTORS = 13045
       [(language_feature_options).language_version = VERSION_1_3];
-  FEATURE_V_1_3_BRACED_PROTO_CONSTRUCTORS = 13045 [deprecated = true];
 
   // Version 1.4 features
 
@@ -1415,52 +1384,44 @@ enum LanguageFeature {
   // Allow WITH-expressions. See (broken link).
   FEATURE_WITH_EXPRESSION = 14000
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_WITH_EXPRESSION = 14000 [deprecated = true];
 
   // Allow ordered elements in primary key definition.
   // See (broken link).
   FEATURE_ORDERED_PRIMARY_KEYS = 14002 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_ORDERED_PRIMARY_KEYS = 14002 [deprecated = true];
 
   // Allow TTL clauses (ROW DELETION POLICY). See (broken link).
   FEATURE_TTL = 14003 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_TTL = 14003 [deprecated = true];
 
   // Allow bare array access like a[0]. See (broken link)
   FEATURE_BARE_ARRAY_ACCESS = 14004
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_BARE_ARRAY_ACCESS = 14004 [deprecated = true];
 
   // Enable builtin functions ARRAY_SUM and ARRAY_AVG.
   FEATURE_ARRAY_AGGREGATION_FUNCTIONS = 14005
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_ARRAY_AGGREGATION_FUNCTIONS = 14005 [deprecated = true];
 
   // Enable builtin array find functions, including ARRAY_OFFSET(S), ARRAY_FIND,
   // and ARRAY_FIND_ALL. These functions have both non-lambda and lambda
   // signatures.
   FEATURE_ARRAY_FIND_FUNCTIONS = 14006
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_ARRAY_FIND_FUNCTIONS = 14006 [deprecated = true];
 
   // Enable SAFE mode for function calls with lambda arguments,
   // e.g. SAFE.ARRAY_TRANSFORM(array_input, e -> 1 /e )
   // (broken link).
   FEATURE_SAFE_FUNCTION_CALL_WITH_LAMBDA_ARGS = 14007
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SAFE_FUNCTION_CALL_WITH_LAMBDA_ARGS = 14007 [deprecated = true];
 
   // Enable GRAPH_TABLE() queries.
   // See (broken link):googlesql-impl-strategy
   FEATURE_SQL_GRAPH = 14008
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH = 14008 [deprecated = true];
 
   // Enable advanced graph query capabilities, namely:
   //  * Advanced graph query operators (RETURN, FILTER, LET, ORDER BY)
@@ -1470,13 +1431,11 @@ enum LanguageFeature {
   // REQUIRES: SQL_GRAPH feature to be enabled first.
   FEATURE_SQL_GRAPH_ADVANCED_QUERY = 14036
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_ADVANCED_QUERY = 14036 [deprecated = true];
 
   // Enables GraphElementType outside of GRAPH_TABLE.
   // REQUIRES: SQL_GRAPH feature to be enabled first.
   FEATURE_SQL_GRAPH_EXPOSE_GRAPH_ELEMENT = 14041
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_EXPOSE_GRAPH_ELEMENT = 14041 [deprecated = true];
 
   // Enables bounded path quantification in graph query
   // and access to group variables produced by a quantified path.
@@ -1485,16 +1444,12 @@ enum LanguageFeature {
   // REQUIRES: SQL_GRAPH feature to be enabled first
   FEATURE_SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION = 14059
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION = 14059
-      [deprecated = true];
 
   // Enables unbounded path quantification in graph query.
   // See (broken link):unbounded-path-quantification for more details.
   // REQUIRES: SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION feature to be enabled first
-  FEATURE_SQL_GRAPH_UNBOUNDED_PATH_QUANTIFICATION = 14107 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
+  FEATURE_SQL_GRAPH_UNBOUNDED_PATH_QUANTIFICATION = 14107
+      [(language_feature_options).language_version = VERSION_1_4];
 
   // Enables extensions to graph RETURN operator, namely:
   //  * WITH is a new primitive operator that can be used in place of
@@ -1505,83 +1460,67 @@ enum LanguageFeature {
   // REQUIRES: SQL_GRAPH and SQL_GRAPH_ADVANCED_QUERY to be enabled first.
   FEATURE_SQL_GRAPH_RETURN_EXTENSIONS = 14069
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_RETURN_EXTENSIONS = 14069 [deprecated = true];
 
   // Enables graph path type and variables.
   // REQUIRES: SQL_GRAPH feature to be enabled first.
   FEATURE_SQL_GRAPH_PATH_TYPE = 14062
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_PATH_TYPE = 14062 [deprecated = true];
 
   // Enables grouping by graph paths.
   // REQUIRES: SQL_GRAPH_PATH_TYPE feature to be enabled first.
   FEATURE_GROUP_BY_GRAPH_PATH = 14067
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_GROUP_BY_GRAPH_PATH = 14067 [deprecated = true];
 
   // Enables path search prefix path count (e.g., SHORTEST K, ANY K).
   // See details at (broken link):path-search-prefix-shortest-k.
   // REQUIRES: SQL_GRAPH feature to be enabled.
   FEATURE_SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT = 14092
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_PATH_SEARCH_PREFIX_PATH_COUNT = 14092
-      [deprecated = true];
 
   // Enables path modes in graph queries.
   // See details at (broken link):gql-trail-path-mode.
   // REQUIRES: SQL_GRAPH feature to be enabled.
   FEATURE_SQL_GRAPH_PATH_MODE = 14063
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_PATH_MODE = 14063 [deprecated = true];
 
   // Enables dynamic graph element type in GQL.
   // REQUIRES: SQL_GRAPH and JSON_TYPE feature to be enabled.
   FEATURE_SQL_GRAPH_DYNAMIC_ELEMENT_TYPE = 14072
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_DYNAMIC_ELEMENT_TYPE = 14072 [deprecated = true];
 
   // Enables dynamic label and properties in Graph DDL.
   // REQUIRES: SQL_GRAPH feature to be enabled.
   FEATURE_SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL = 14078
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL = 14078
-      [deprecated = true];
 
   // Extends dynamic label and properties in Graph DDL by allowing mixing static
   // nodes with dynamic edges and vice versa.
   // REQUIRES: SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL feature to be enabled.
   FEATURE_SQL_GRAPH_DYNAMIC_LABEL_EXTENSION_IN_DDL = 14095
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_DYNAMIC_LABEL_EXTENSION_IN_DDL = 14095
-      [deprecated = true];
 
   // Extends dynamic label in Graph DDL by allowing dynamic label to be an
   // array of strings for nodes.
   // REQUIRES: SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL feature to be enabled.
   FEATURE_SQL_GRAPH_DYNAMIC_MULTI_LABEL_NODES = 14099 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_SQL_GRAPH_DYNAMIC_MULTI_LABEL_NODES = 14099 [deprecated = true];
 
   FEATURE_SQL_GRAPH_ELEMENT_DEFINITION_NAME_IN_JSON_RESULT = 14087 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_SQL_GRAPH_ELEMENT_DEFINITION_NAME_IN_JSON_RESULT = 14087
-      [deprecated = true];
 
   // Enables CHEAPEST path search prefix and the COST clause on graph
   // edge patterns.
   // REQUIRES: SQL_GRAPH feature to be enabled.
   FEATURE_SQL_GRAPH_CHEAPEST_PATH = 14091
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_CHEAPEST_PATH = 14091 [deprecated = true];
 
   //  Enables CALL on subqueries and TVFs, which acts like a LATERAL JOIN.
   FEATURE_SQL_GRAPH_CALL = 14100
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SQL_GRAPH_CALL = 14100 [deprecated = true];
 
   // REQUIRES: SQL_GRAPH feature to be enabled.
   // Enables the column propagation mode for graph set operation.
@@ -1598,8 +1537,26 @@ enum LanguageFeature {
 
   // Enables MEASURE in Graph DDL.
   // See (broken link):graph-measures-ddl for more details.
-  FEATURE_SQL_GRAPH_MEASURE_DDL = 14125 [
-    (language_feature_options).language_version = VERSION_1_4,
+  FEATURE_SQL_GRAPH_MEASURE_DDL = 14125
+      [(language_feature_options).language_version = VERSION_1_4];
+
+  // When enabled, table columns can be directly used in graph measure
+  // expressions without creating a property first.
+  // See (broken link):graph-measures-ddl for more details.
+  // REQUIRES: SQL_GRAPH_MEASURE_DDL feature to be enabled.
+  FEATURE_SQL_GRAPH_MEASURE_ALLOW_COLUMNS = 14128
+      [(language_feature_options).language_version = VERSION_1_4];
+
+  // Enables SAFE mode function calls for the graph functions SAME and
+  // ALL_DIFFERENT.
+  FEATURE_SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT = 158
+      [(language_feature_options).language_version = VERSION_1_5];
+
+  // Enables terminal DML on graph queries.
+  // See (broken link):dml-insert.
+  // REQUIRES: SQL_GRAPH feature to be enabled.
+  FEATURE_SQL_GRAPH_TERMINAL_DML = 160 [
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
@@ -1607,90 +1564,67 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_REMOTE_MODEL = 14009
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_REMOTE_MODEL = 14009 [deprecated = true];
 
   // Allow struct field access like s[OFFSET(0)].
   // See (broken link)
   FEATURE_STRUCT_POSITIONAL_ACCESSOR = 14010
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_STRUCT_POSITIONAL_ACCESSOR = 14010 [deprecated = true];
 
   // Allow unnesting singleton un-correlated array path expression to have table
   // name as path prefix in FROM clause.
   // See (broken link)
   FEATURE_SINGLE_TABLE_NAME_ARRAY_PATH = 14011
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SINGLE_TABLE_NAME_ARRAY_PATH = 14011 [deprecated = true];
 
   // Enables collation in WITH RECURSIVE
   // TODO: Remove "in_development" flag.
   FEATURE_COLLATION_IN_WITH_RECURSIVE = 14013 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_COLLATION_IN_WITH_RECURSIVE = 14013 [deprecated = true];
 
   // Enables collation in type string in explicit CAST
   // TODO: Remove "in_development" flag.
   FEATURE_COLLATION_IN_EXPLICIT_CAST = 14014 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_COLLATION_IN_EXPLICIT_CAST = 14014 [deprecated = true];
 
   // Enables load to partitions
   FEATURE_LOAD_DATA_PARTITIONS = 14015
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_LOAD_DATA_PARTITIONS = 14015 [deprecated = true];
 
   // Enables CREATE MODEL statement to support one or more aliased queries as
   // input.
   // See (broken link).
   FEATURE_CREATE_MODEL_WITH_ALIASED_QUERY_LIST = 14016
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_CREATE_MODEL_WITH_ALIASED_QUERY_LIST = 14016
-      [deprecated = true];
 
   // Enables load to temp tables
   FEATURE_LOAD_DATA_TEMP_TABLE = 14017
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_LOAD_DATA_TEMP_TABLE = 14017 [deprecated = true];
 
   // Enables the basic CORRESPONDING set operations.
   // (broken link)
   FEATURE_CORRESPONDING = 14018
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_CORRESPONDING = 14018 [deprecated = true];
 
   // Enables sequence arguments.
   // (broken link)
   // TODO: Remove "in_development" flag.
   FEATURE_SEQUENCE_ARG = 14019 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_SEQUENCE_ARG = 14019 [deprecated = true];
 
   // Enables grouping builtin function for grouping sets ((broken link))
   FEATURE_GROUPING_BUILTIN = 14020
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_GROUPING_BUILTIN = 14020 [deprecated = true];
 
   // Enables group by grouping sets/cube (see (broken link))
   // This will also enable GROUP BY ().
   FEATURE_GROUPING_SETS = 14021
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_GROUPING_SETS = 14021 [deprecated = true];
-
-  // Preserve the original annotation when adding implicit CAST over the
-  // expression inside scan.
-  // TODO: Remove "in_development" flag.
-  FEATURE_PRESERVE_ANNOTATION_IN_IMPLICIT_CAST_IN_SCAN = 14022 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
-  FEATURE_V_1_4_PRESERVE_ANNOTATION_IN_IMPLICIT_CAST_IN_SCAN = 14022
-      [deprecated = true];
 
   // Enables all the features of CORRESPONDING, including outer and strict modes
   // (FULL/LEFT/STRICT) and CORRESPONDING_BY.
@@ -1698,7 +1632,6 @@ enum LanguageFeature {
   // (broken link)
   FEATURE_CORRESPONDING_FULL = 14023
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_CORRESPONDING_FULL = 14023 [deprecated = true];
 
   // Enables BY NAME on set operations as an alias for CORRESPONDING modes.
   // This just enables the alternate syntax.  The behavior still depends on
@@ -1707,54 +1640,38 @@ enum LanguageFeature {
   // See (broken link).
   FEATURE_BY_NAME = 14070
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_BY_NAME = 14070 [deprecated = true];
 
   // Supporting LIKE ANY/SOME/ALL with array of elements.
   // (broken link)
-  // TODO: Remove "in_development" when array support
-  // for LIKE ANY/SOME/ALL is launched.
   // NOTE: This feature flag must be used in conjunction with
   // FEATURE_LIKE_ANY_SOME_ALL flag.
-  FEATURE_LIKE_ANY_SOME_ALL_ARRAY = 14025 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
-  FEATURE_V_1_4_LIKE_ANY_SOME_ALL_ARRAY = 14025 [deprecated = true];
+  FEATURE_LIKE_ANY_SOME_ALL_ARRAY = 14025
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Supporting LIKE ANY/SOME/ALL with subquery.
   // (broken link)
-  // TODO: Remove "in_development" when subquery support
-  // for LIKE ANY/SOME/ALL is launched.
   // NOTE: This feature flag must be used in conjunction with
   // FEATURE_LIKE_ANY_SOME_ALL flag.
-  FEATURE_LIKE_ANY_SOME_ALL_SUBQUERY = 14026 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
-  FEATURE_V_1_4_LIKE_ANY_SOME_ALL_SUBQUERY = 14026 [deprecated = true];
+  FEATURE_LIKE_ANY_SOME_ALL_SUBQUERY = 14026
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enables ARRAY_FIRST_N, ARRAY_LAST_N, ARRAY_REMOVE_FIRST_N, and
   // ARRAY_REMOVE_LAST_N function signatures.
   FEATURE_FIRST_AND_LAST_N = 14027
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_FIRST_AND_LAST_N = 14027 [deprecated = true];
 
   // Enables NULLIFZERO and ZEROIFNULL function signatures.
   FEATURE_NULLIFZERO_ZEROIFNULL = 14028
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_NULLIFZERO_ZEROIFNULL = 14028 [deprecated = true];
 
   // Enables PI, PI_NUMERIC, and PI_BIGNUMERIC function signatures.
   FEATURE_PI_FUNCTIONS = 14029
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_PI_FUNCTIONS = 14029 [deprecated = true];
 
   // Supporting CREATE FUNCTION LANGUAGE x WITH CONNECTION connection_name.
   // (broken link)
   FEATURE_CREATE_FUNCTION_LANGUAGE_WITH_CONNECTION = 14030
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_CREATE_FUNCTION_LANGUAGE_WITH_CONNECTION = 14030
-      [deprecated = true];
 
   // Enables inferring column alias for explicit UNNEST with only one argument
   // when none of the trailing alias or column alias is used: `UNNEST(arg)`
@@ -1762,87 +1679,73 @@ enum LanguageFeature {
   // inferred alias, which might break name resolution.
   // See (broken link)
   FEATURE_SINGLETON_UNNEST_INFERS_ALIAS = 14031 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_SINGLETON_UNNEST_INFERS_ALIAS = 14031 [deprecated = true];
 
   // Enables the ARRAY_ZIP function, which has both non-lambda and lambda
   // signatures.
   // See (broken link).
   FEATURE_ARRAY_ZIP = 14032
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_ARRAY_ZIP = 14032 [deprecated = true];
 
   // Enables explicit UNNEST with multiple arguments in FROM clause.
   // See (broken link)
   FEATURE_MULTIWAY_UNNEST = 14033
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_MULTIWAY_UNNEST = 14033 [deprecated = true];
 
   // Enables generating operation collation for NULLIF function.
   // TODO: Remove "in_development" flag.
   FEATURE_USE_OPERATION_COLLATION_FOR_NULLIF = 14034 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_USE_OPERATION_COLLATION_FOR_NULLIF = 14034 [deprecated = true];
 
   // Enable EDIT_DISTANCE(BYTES, BYTES, max_distance => INT64) signature.
   // TODO: Remove "in_development" flag.
   FEATURE_ENABLE_EDIT_DISTANCE_BYTES = 14035 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_ENABLE_EDIT_DISTANCE_BYTES = 14035 [deprecated = true];
 
   // Enables the following float32 signatures:
   // * COSINE_DISTANCE(ARRAY<FLOAT>, ARRAY<FLOAT>)
   // * EUCLIDEAN_DISTANCE(ARRAY<FLOAT>, ARRAY<FLOAT>)
   FEATURE_ENABLE_FLOAT_DISTANCE_FUNCTIONS = 14037
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_ENABLE_FLOAT_DISTANCE_FUNCTIONS = 14037 [deprecated = true];
 
   // Enables MEASURE syntax.  See (broken link).
   FEATURE_ENABLE_MEASURES = 14038
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_ENABLE_MEASURES = 14038 [deprecated = true];
 
   // Enables standalone GROUP BY ALL clause that is mutually exclusive with all
   // the other GROUP BY <grouping items> syntax.
   // (broken link)
   FEATURE_GROUP_BY_ALL = 14039
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_GROUP_BY_ALL = 14039 [deprecated = true];
 
   // Allows general expression arguments to LIMIT and OFFSET.
   FEATURE_LIMIT_OFFSET_EXPRESSIONS = 14042
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_LIMIT_OFFSET_EXPRESSIONS = 14042 [deprecated = true];
 
   // MAP datatype. (broken link)
-  FEATURE_MAP_TYPE = 14043 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
-  FEATURE_V_1_4_MAP_TYPE = 14043 [deprecated = true];
+  FEATURE_MAP_TYPE = 14043
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Disables the FLOAT32 type. See (broken link).
   // FLOAT32 type is expected to be enabled by default in all the engines, so
   // this feature should only be used when the engine does not want to support
   // the type. Hence this feature should NOT be `ideally_enabled`.
   FEATURE_DISABLE_FLOAT32 = 14044 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true,
     (language_feature_options).ideally_enabled = false
   ];
-  FEATURE_V_1_4_DISABLE_FLOAT32 = 14044 [deprecated = true];
 
   // Enables string & bytes literal concatenation.
   // See (broken link)
   FEATURE_LITERAL_CONCATENATION = 14045
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_LITERAL_CONCATENATION = 14045 [deprecated = true];
 
   // Enables the following DOT_PRODUCT function signatures:
   // * DOT_PRODUCT(ARRAY<INT64>, ARRAY<INT64>)
@@ -1850,15 +1753,12 @@ enum LanguageFeature {
   // * DOT_PRODUCT(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
   FEATURE_DOT_PRODUCT = 14046
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_DOT_PRODUCT = 14046 [deprecated = true];
 
   // TODO: Remove this flag once its cleaned up in engine code.
   FEATURE_OPT_IN_NEW_BEHAVIOR_NOT_LIKE_ANY_SOME_ALL = 14047 [
     (language_feature_options).language_version = VERSION_1_4,
     deprecated = true
   ];
-  FEATURE_V_1_4_OPT_IN_NEW_BEHAVIOR_NOT_LIKE_ANY_SOME_ALL = 14047
-      [deprecated = true];
 
   // Enables the following MANHATTAN_DISTANCE function signatures:
   // * MANHATTAN_DISTANCE(ARRAY<INT64>, ARRAY<INT64>)
@@ -1866,7 +1766,6 @@ enum LanguageFeature {
   // * MANHATTAN_DISTANCE(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
   FEATURE_MANHATTAN_DISTANCE = 14048
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_MANHATTAN_DISTANCE = 14048 [deprecated = true];
 
   // Enables the following L1_NORM function signatures:
   // * L1_NORM(ARRAY<INT64>)
@@ -1874,7 +1773,6 @@ enum LanguageFeature {
   // * L1_NORM(ARRAY<DOUBLE>)
   FEATURE_L1_NORM = 14049
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_L1_NORM = 14049 [deprecated = true];
 
   // Enables the following L1_NORM function signatures:
   // * L2_NORM(ARRAY<INT64>)
@@ -1882,22 +1780,19 @@ enum LanguageFeature {
   // * L2_NORM(ARRAY<DOUBLE>)
   FEATURE_L2_NORM = 14050
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_L2_NORM = 14050 [deprecated = true];
 
   // REQUIRES: FEATURE_BRACED_PROTO_CONSTRUCTORS must be enabled.
   // Enables braced STRUCT constructor: STRUCT {a:1, b:2}.
   // TODO: Remove "in_development" flag.
   FEATURE_STRUCT_BRACED_CONSTRUCTORS = 14051 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_STRUCT_BRACED_CONSTRUCTORS = 14051 [deprecated = true];
 
   // Enable WITH RECURSIVE DEPTH modifier.
   // See (broken link):explicit-recursion-depth.
   FEATURE_WITH_RECURSIVE_DEPTH_MODIFIER = 14052
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_WITH_RECURSIVE_DEPTH_MODIFIER = 14052 [deprecated = true];
 
   // Enables the following JSON functions:
   // * BOOL_ARRAY, FLOAT64_ARRAY, INT64_ARRAY, STRING_ARRAY
@@ -1908,18 +1803,15 @@ enum LanguageFeature {
   //
   FEATURE_JSON_ARRAY_VALUE_EXTRACTION_FUNCTIONS = 14053
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_JSON_ARRAY_VALUE_EXTRACTION_FUNCTIONS = 14053
-      [deprecated = true];
 
   // Ensures that computations properly defer side effects such as errors when
   // they get separated from larger expressions with conditional operators,
   // to fulfill the language spec on conditional evaluation.
   // See (broken link)
   FEATURE_ENFORCE_CONDITIONAL_EVALUATION = 14054 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_ENFORCE_CONDITIONAL_EVALUATION = 14054 [deprecated = true];
 
   // Enables the following JSON functions:
   // * FLOAT32, INT32, UINT64, UINT32
@@ -1939,31 +1831,24 @@ enum LanguageFeature {
   //
   FEATURE_JSON_MORE_VALUE_EXTRACTION_FUNCTIONS = 14055
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_JSON_MORE_VALUE_EXTRACTION_FUNCTIONS = 14055
-      [deprecated = true];
 
   // Enables implicit coercion to BYTES for STRING literal containing only
   // characters [0-127].
   // See (broken link).
   FEATURE_IMPLICIT_COERCION_STRING_LITERAL_TO_BYTES = 14056
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_IMPLICIT_COERCION_STRING_LITERAL_TO_BYTES = 14056
-      [deprecated = true];
 
   // Enables UUID datatype.
   FEATURE_UUID_TYPE = 14057
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_UUID_TYPE = 14057 [deprecated = true];
 
   // Enables support for multi-level aggregation.
   FEATURE_MULTILEVEL_AGGREGATION = 14058
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_MULTILEVEL_AGGREGATION = 14058 [deprecated = true];
 
   // Enables individual filtering clauses for aggregate functions.
   FEATURE_AGGREGATE_FILTERING = 14073
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_AGGREGATE_FILTERING = 14073 [deprecated = true];
 
   // Allow multiple fields of a oneof in REPLACE_FIELDS.
   //
@@ -1973,12 +1858,10 @@ enum LanguageFeature {
   // REPLACE_FIELDS(REPLACE_FIELDS(x, a as oneof_a), b as oneof_b).
   FEATURE_REPLACE_FIELDS_ALLOW_MULTI_ONEOF = 14060
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_REPLACE_FIELDS_ALLOW_MULTI_ONEOF = 14060 [deprecated = true];
 
   // Enables FOR UPDATE syntax support in SELECT queries.
   FEATURE_FOR_UPDATE = 14065
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_FOR_UPDATE = 14065 [deprecated = true];
 
   // Register KLL_QUANTILES functions with _FLOAT64 suffixed function names as
   // primary and _DOUBLE suffixed function names as alias in internal mode. This
@@ -1986,8 +1869,6 @@ enum LanguageFeature {
   // Spanner.
   FEATURE_KLL_FLOAT64_PRIMARY_WITH_DOUBLE_ALIAS = 14064
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_KLL_FLOAT64_PRIMARY_WITH_DOUBLE_ALIAS = 14064
-      [deprecated = true];
 
   // Disallows PIVOT and UNPIVOT on array scans.
   // This should always be the case but as per b/359591559, existing code used
@@ -1996,18 +1877,14 @@ enum LanguageFeature {
   // TODO: remove this flag and always generate an error.
   FEATURE_DISALLOW_PIVOT_AND_UNPIVOT_ON_ARRAY_SCANS = 14066
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_DISALLOW_PIVOT_AND_UNPIVOT_ON_ARRAY_SCANS = 14066
-      [deprecated = true];
 
   // Allow MATCH_RECOGNIZE clause.
   // See (broken link).
   FEATURE_MATCH_RECOGNIZE = 14068
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_MATCH_RECOGNIZE = 14068 [deprecated = true];
 
   FEATURE_INSERT_ON_CONFLICT_CLAUSE = 14071
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_INSERT_ON_CONFLICT_CLAUSE = 14071 [deprecated = true];
 
   // Enables the following bitwise aggregate function signatures:
   // - BIT_AND(BYTES[,mode => BitwiseAggMode])
@@ -2015,20 +1892,17 @@ enum LanguageFeature {
   // - BIT_XOR(BYTES[,mode => BitwiseAggMode])
   FEATURE_BITWISE_AGGREGATE_BYTES_SIGNATURES = 14074
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_BITWISE_AGGREGATE_BYTES_SIGNATURES = 14074 [deprecated = true];
 
   // Enables RECURSIVE UNION pipe operator. (broken link)
   FEATURE_PIPE_RECURSIVE_UNION = 14075
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_PIPE_RECURSIVE_UNION = 14075 [deprecated = true];
 
   // Enables update constructor for protocol buffers.
   // See (broken link)
   FEATURE_UPDATE_CONSTRUCTOR = 14079 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_UPDATE_CONSTRUCTOR = 14079 [deprecated = true];
 
   // Enables aliases for the following string and date functions:
   // * UCASE for UPPER
@@ -2037,19 +1911,9 @@ enum LanguageFeature {
   // * SUBDATE for DATE_SUB
   // *
   FEATURE_ALIASES_FOR_STRING_AND_DATE_FUNCTIONS = 14080 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_ALIASES_FOR_STRING_AND_DATE_FUNCTIONS = 14080
-      [deprecated = true];
-
-  // Enable CREATE VIEW statements in modules.
-  // See (broken link).
-  FEATURE_VIEWS_IN_MODULES = 14081 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
-  FEATURE_V_1_4_VIEWS_IN_MODULES = 14081 [deprecated = true];
 
   // Enables GROUP BY clause directly on a UDA function call.
   FEATURE_MULTILEVEL_AGGREGATION_ON_UDAS = 143;
@@ -2059,7 +1923,6 @@ enum LanguageFeature {
   // Spec: (broken link)=id.oeed8g5t7zw1
   FEATURE_FROM_AND_TO_PROTO_INTERVAL = 14083
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_FROM_AND_TO_PROTO_INTERVAL = 14083 [deprecated = true];
 
   // Enables a simplified rewrite of PIVOT that produces smaller resolved ASTs
   // without many subqueries.
@@ -2067,13 +1930,11 @@ enum LanguageFeature {
   // rewrite.
   FEATURE_SIMPLIFY_PIVOT_REWRITE = 14084
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_SIMPLIFY_PIVOT_REWRITE = 14084 [deprecated = true];
 
   // Enables named windows in pipe SELECT and EXTEND.
   // This is an incremental feature that should be enabled if PIPES is enabled.
   FEATURE_PIPE_NAMED_WINDOWS = 14086
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_PIPE_NAMED_WINDOWS = 14086 [deprecated = true];
 
   // Enables access to pseudo columns from TABLE arguments in the body of TVFs.
   // See (broken link).
@@ -2084,47 +1945,40 @@ enum LanguageFeature {
   //       into TVFs.
   FEATURE_TVF_PSEUDO_COLUMNS = 14088
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_TVF_PSEUDO_COLUMNS = 14088 [deprecated = true];
 
   // Enables LATERAL joins.
   // See (broken link)
   FEATURE_LATERAL_JOIN = 14089
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_LATERAL_JOIN = 14089 [deprecated = true];
 
   // Enables chained function calls, like (abc).def().ghi().
   // Also enables APPLY(value, lambda) function.
   // See (broken link).
   FEATURE_CHAINED_FUNCTION_CALLS = 14090
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_CHAINED_FUNCTION_CALLS = 14090 [deprecated = true];
 
   // Enables precision on the TIMESTAMP type, for example:
   //  CAST(col AS TIMESTAMP(3))
   // See (broken link).
   FEATURE_TIMESTAMP_PRECISION = 14093
       [(language_feature_options).language_version = VERSION_1_4];
-  FEATURE_V_1_4_TIMESTAMP_PRECISION = 14093 [deprecated = true];
 
   FEATURE_TIMESTAMP_PRECISION_ANNOTATION = 14096 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_TIMESTAMP_PRECISION_ANNOTATION = 14096 [deprecated = true];
 
   // Allows for the use of analysis time constant in struct positional accessor.
   // See: (broken link):analysis-const
   FEATURE_ANALYSIS_CONSTANT_STRUCT_POSITIONAL_ACCESSOR = 14094 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
-  FEATURE_V_1_4_ANALYSIS_CONSTANT_STRUCT_POSITIONAL_ACCESSOR = 14094
-      [deprecated = true];
 
   // Allows for the use of analysis time constants in function arguments options
   // See: (broken link):analysis-const
   FEATURE_ANALYSIS_CONSTANT_FUNCTION_ARGUMENT = 14103 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
@@ -2132,20 +1986,27 @@ enum LanguageFeature {
   // clause.
   FEATURE_ANALYSIS_CONSTANT_PIVOT_COLUMN = 14102 [
     (language_feature_options).in_development = true,
-    (language_feature_options).language_version = VERSION_1_4
+    (language_feature_options).language_version = VERSION_1_5
   ];
 
   // Allows for string named constants in interval constructor.
   // see: (broken link)
   FEATURE_ANALYSIS_CONSTANT_INTERVAL_CONSTRUCTOR = 14104 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
   // Allows for named constants as report format argument in DP functions.
   // see: (broken link)
   FEATURE_REPORT_FORMAT_CONSTANT_ARGUMENT = 14108 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
+    (language_feature_options).in_development = true
+  ];
+
+  // Allows for query constant expressions in window framing clauses.
+  // See: (broken link)
+  FEATURE_QUERY_CONSTANT_WINDOW_FRAME_EXPRESSIONS = 15001 [
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
@@ -2163,14 +2024,14 @@ enum LanguageFeature {
       [(language_feature_options).language_version = VERSION_1_4];
 
   FEATURE_RELAXED_WITH_RECURSIVE = 14106 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
   // Enables RUN statement that allows for inclusion of statements from another
   // script. See (broken link) for more details.
   FEATURE_RUN_STATEMENT = 14110 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
@@ -2178,16 +2039,14 @@ enum LanguageFeature {
   // as the LIMIT argument. Both operate as if the LIMIT does not exist.
   // See (broken link).
   FEATURE_LIMIT_ALL = 14113 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
   // Enables ADD_MONTHS, NEXT_DAY, and MONTHS_BETWEEN function signatures.
   // See (broken link).
-  FEATURE_ADDITIONAL_DATE_TIME_FUNCTIONS = 14114 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
+  FEATURE_ADDITIONAL_DATE_TIME_FUNCTIONS = 14114
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enables KLL_QUANTILES.EXTRACT_RELATIVE_RANK and
   // KLL_QUANTILES.MERGE_RELATIVE_RANK functions.
@@ -2204,32 +2063,33 @@ enum LanguageFeature {
   // did not enforce the target collation, and instead leaked from its inputs.
   // This should *NOT* be enabled, and is there only for engines that already
   // have this bug, to aid in their transition to the correct behavior.
-  // See b/816380184.
-  FEATURE_BUGGY_LEAK_ANNOTATIONS_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE = 14117 [
+  // See b/448431895.
+  FEATURE_BUGGY_LEAK_COLLATION_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE = 14117 [
     (language_feature_options).language_version = VERSION_1_4,
     (language_feature_options).ideally_enabled = false
   ];
 
   // Enables lateral column references to SELECT list columns in subsequent
   // SELECT expressions, or in the WHERE clause.
-  FEATURE_LATERAL_COLUMN_REFERENCES = 14118 [
-    (language_feature_options).in_development = true,
-    (language_feature_options).ideally_enabled = false
-  ];
+  FEATURE_LATERAL_COLUMN_REFERENCES = 14118
+      [(language_feature_options).ideally_enabled = false];
 
   // Enable ROW type. See (broken link).
-  // This is experimental and not ready to use yet.
-  FEATURE_ROW_TYPE = 14119 [
-    (language_feature_options).language_version = VERSION_1_4,
-    (language_feature_options).in_development = true
-  ];
+  // TODO: b/452955184 - Remove in_development when ready to use.
+  FEATURE_ROW_TYPE = 14119 [(language_feature_options).in_development = true];
 
   // Enables MEASURE in the output of a TVFScan.
   FEATURE_MEASURES_TVF = 14122
       [(language_feature_options).language_version = VERSION_1_4];
 
   FEATURE_ARRAY_DISTINCT = 14123 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
+    (language_feature_options).in_development = true
+  ];
+
+  // Enables support for MEASURE in STRUCT.
+  FEATURE_MEASURES_IN_STRUCT = 14133 [
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
@@ -2243,23 +2103,68 @@ enum LanguageFeature {
   FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS = 14124
       [(language_feature_options).language_version = VERSION_1_4];
 
-  // Enables general quantified comparisons like =ANY, >ALL, etc.
+  // Enables CREATE LIVE TABLE statement.
   // See (broken link) for more details.
-  FEATURE_GENERAL_QUANTIFIED_COMPARISONS = 14127 [
-    (language_feature_options).language_version = VERSION_1_4,
+  FEATURE_CREATE_LIVE_TABLE = 14131 [
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
+
+  // Enables general quantified comparisons like =ANY, >ALL, etc.
+  // See (broken link) for more details.
+  FEATURE_GENERAL_QUANTIFIED_COMPARISONS = 14127
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enables syntax for updating MAP values via key subscript in an
   // UPDATE ... SET.
   FEATURE_MAP_SUBSCRIPT_WITH_SET = 14126 [
-    (language_feature_options).language_version = VERSION_1_4,
+    (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
 
-  // EXPERIMENTAL FEATURES -
-  //    Do not add features in this section. Use the in_development annotation
-  //    instead.
+  // Enables MAP braced constructor literal syntax.
+  // See (broken link):map_literal for more details.
+  // REQUIRES: FEATURE_MAP_TYPE feature to be enabled first.
+  // TODO: b/490428363 - Remove in_development
+  FEATURE_MAP_LITERAL = 14132 [
+    (language_feature_options).language_version = VERSION_1_5,
+    (language_feature_options).in_development = true
+  ];
+
+  // The following NET functions are only available internally, this feature
+  // flag marks them available externally: NET.FORMAT_IP, NET.PARSE_IP,
+  // NET.FORMAT_PACKED_IP, NET.PARSE_PACKED_IP, NET.IP_IN_NET and NET.MAKE_NET.
+  FEATURE_EXTENDED_PUBLIC_NET_FUNCTIONS = 14130
+      [(language_feature_options).language_version = VERSION_1_4];
+
+  // Enables support for function-typed arguments (lambdas) in
+  // SQL UDFs, UDAs and TVFs. ((broken link))
+  FEATURE_UDF_LAMBDA_ARGUMENTS = 162
+      [(language_feature_options).in_development = true];
+
+  // Enables support for arrays of arrays.
+  FEATURE_ARRAY_OF_ARRAY = 15000 [
+    (language_feature_options).in_development = true,
+    (language_feature_options).language_version = VERSION_1_5
+  ];
+
+  FEATURE_SECURE_CONTEXT = 167
+      [(language_feature_options).in_development = true];
+
+  // Enable Version-aware DML (requires FEATURE_ANNOTATION_FRAMEWORK).
+  // See (broken link).
+  FEATURE_VERSION_AWARE_DML = 171 [
+    (language_feature_options).in_development = true,
+    (language_feature_options).language_version = VERSION_1_5
+  ];
+
+  // Enable correlated WITH on subqueries.
+  // TODO: Implement feature under this flag. Remove in_development
+  // when ready.
+  FEATURE_CORRELATED_WITH_ON_SUBQUERY = 15002 [
+    (language_feature_options).in_development = true,
+    (language_feature_options).language_version = VERSION_1_5
+  ];
 
   // Enable GoogleSQL modules. This feature will be turned on when analyzing
   // module contents and must be turned on when analyzing statements that may
@@ -2267,6 +2172,8 @@ enum LanguageFeature {
   // when users might be aware of modules because it changes error message
   // strings to mention modules like "keyword SUCH_AND_SUCH can only be used
   // inside a module".
+  //
+  // Note: "Experimental" in the name is outdated, this is a normal feature.
   FEATURE_EXPERIMENTAL_MODULES = 999002;
 
   // These are not real features. They are just for unit testing the handling of
@@ -2300,7 +2207,6 @@ message ResolvedASTRewriteOptions {
 // We support these rewrites to allow syntactic improvements which generate new
 // node types to be quickly and easily available to engines without needing each
 // engine to implement support for the new node types.
-// Next ID: 42
 enum ResolvedASTRewrite {
   reserved 13, 15, 21;
 
@@ -2410,19 +2316,16 @@ enum ResolvedASTRewrite {
       [(rewrite_options).default_enabled = true];
 
   // Inline SQL Views.
-  // Experimental. Functionality may change before generally available.
-  // Views that are added to the Catalog that are subtypes of
-  // SQLView will be inlined if SQLView::enable_view_inline returns true.
-  // That removes the ResolvedTableScan and replaces it with an expression that
-  // evaluates the view body, much as if the view was written inline.
-  // TODO Enable native implementation in Reference Impl and
-  //     RQG testing before removing "in_development"
-  // TODO: Add an assertion that the catalog doesn't supply illegal
-  //     view forms, particularly recursive shapes.
-  REWRITE_INLINE_SQL_VIEWS = 17 [
-    (rewrite_options).default_enabled = true,
-    (rewrite_options).in_development = true
-  ];
+  // Views that are added to the Catalog that are subtypes of SQLView will be
+  // inlined if SQLView::enable_view_inline returns true. Inlining removes the
+  // ResolvedTableScan and replaces it with an expression that evaluates the
+  // view body, much as if the view was written inline.
+  // TODO: b/202167428 - Enable native implementation in Reference Impl and RQG
+  // testing.
+  // TODO: b/202167428 - Add an assertion that the catalog doesn't supply
+  // illegal view forms, particularly recursive shapes.
+  // TODO: b/509666619 - Fix invalid AST with multiple references and grouping.
+  REWRITE_INLINE_SQL_VIEWS = 17 [(rewrite_options).default_enabled = true];
 
   // Inline SQL Aggregate Functions.
   // Aggregate functions that are added to the `Catalog` that are subtypes of
@@ -2434,20 +2337,13 @@ enum ResolvedASTRewrite {
   REWRITE_INLINE_SQL_UDAS = 22 [(rewrite_options).default_enabled = false];
 
   // Rewrites rollup and cube to grouping sets, more specifically rewrites
-  // ResolvedRollup and ResolvedCube to ResolvedGroupingSet. This rewriter is
-  // supposed to be enabled by default.
-  REWRITE_GROUPING_SET = 23 [
-    (rewrite_options).default_enabled = true,
-    (rewrite_options).in_development = true
-  ];
+  // ResolvedRollup and ResolvedCube to ResolvedGroupingSet.
+  REWRITE_GROUPING_SET = 23 [(rewrite_options).default_enabled = true];
 
   REWRITE_INSERT_DML_VALUES = 24 [(rewrite_options).default_enabled = false];
 
   // Rewrite multiway UNNEST to joins against singleton UNNEST.
-  REWRITE_MULTIWAY_UNNEST = 25 [
-    (rewrite_options).default_enabled = false,
-    (rewrite_options).in_development = true
-  ];
+  REWRITE_MULTIWAY_UNNEST = 25 [(rewrite_options).default_enabled = false];
 
   // Supports rewriting ResolvedAggregationThresholdAggregateScan.
   // See (broken link).
@@ -2535,15 +2431,25 @@ enum ResolvedASTRewrite {
   // Further rewrites will convert that to other simpler statement types.
   REWRITE_SUBPIPELINE_STMT = 39 [(rewrite_options).default_enabled = true];
 
-  // Rewrite ROW types.  The ROW types and all references to them are
-  // replaced with STRUCTs.
+  // Rewrite ROW and TABLE types. The ROW and TABLE types, and all references to
+  // them, are replaced with STRUCTs.
   // This depends on REWRITE_FLATTEN happening first.
-  REWRITE_ROW_TYPE = 40 [(rewrite_options).default_enabled = true];
+  REWRITE_ROW_TYPE = 40 [
+    (rewrite_options).default_enabled = true,
+    (rewrite_options).in_development = true
+  ];
 
   // Expands function signatures for variadic functions like MAP_INSERT,
   // MAP_INSERT_OR_REPLACE, MAP_REPLACE, and MAP_DELETE, to prepare them for
   // inlining via REWRITE_BUILTIN_FUNCTION_INLINER.
   REWRITE_VARIADIC_FUNCTION_SIGNATURE_EXPANDER = 41
+      [(rewrite_options).default_enabled = true];
+
+  // Rewrite quantified comparisons (operator with ANY/ALL quantifier), e.g.,
+  //   val > ALL (a,b,c)
+  //   val = ANY UNNEST(array)
+  // See (broken link).
+  REWRITE_QUANTIFIED_COMPARISONS = 42
       [(rewrite_options).default_enabled = true];
 
   // These are not real rewriters. They are just for unit testing.

@@ -610,19 +610,19 @@ std::vector<FunctionTestCall> GetFunctionTestsRegexp2(
   };
 
   std::vector<FunctionTestCall> legacy_position_arg_behavior_tests = {
-      {"regexp_extract", {"xyzabc", "^abc", 4ll}, "abc"},
-      {"regexp_extract", {"xyzabc-abcz", "^abc", 4ll, 1ll}, "abc"},
-      {"regexp_extract", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, Bytes("abc")},
+      {"regexp_extract", {"xyzabc", "^abc", 4ll}, NullString()},
+      {"regexp_extract", {"xyzabc-abcz", "^abc", 4ll, 1ll}, NullString()},
+      {"regexp_extract", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, NullBytes()},
       {"regexp_extract",
        {Bytes("xyzabc-abcz"), Bytes("^abc."), 4ll, 2ll},
        NullBytes()},
 
-      {"regexp_substr", {"xyzabc", "^abc", 4ll}, "abc"},
-      {"regexp_substr", {"xyzabc-abcz", "^abc", 4ll, 1ll}, "abc"},
-      {"regexp_substr", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, Bytes("abc")},
+      {"regexp_substr", {"xyzabc", "^abc", 4ll}, NullString()},
+      {"regexp_substr", {"xyzabc-abcz", "^abc", 4ll, 1ll}, NullString()},
+      {"regexp_substr", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, NullBytes()},
       {"regexp_substr",
        {Bytes("xyzabc-abcz"), Bytes("^abc"), 4ll, 1ll},
-       Bytes("abc")},
+       NullBytes()},
   };
   test_calls.insert(test_calls.end(),
                     legacy_position_arg_behavior_tests.begin(),
@@ -1098,12 +1098,12 @@ std::vector<FunctionTestCall> GetFunctionTestsRegexpInstr() {
   };
 
   std::vector<FunctionTestCall> legacy_position_arg_behavior_tests = {
-      {"regexp_instr", {"xyzabc", "^abc", 4ll}, 4ll},
-      {"regexp_instr", {"xyzabc-abcz", "^abc.", 4ll, 1ll}, 4ll},
-      {"regexp_instr", {"xyzabc-abcz", "^abc.", 8ll, 1ll}, 8ll},
-      {"regexp_instr", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, 4ll},
-      {"regexp_instr", {Bytes("xyzabc-abcz"), Bytes("^abc."), 4ll, 1ll}, 4ll},
-      {"regexp_instr", {Bytes("xyzabc-abcz"), Bytes("^abc."), 8ll, 1ll}, 8ll},
+      {"regexp_instr", {"xyzabc", "^abc", 4ll}, 0ll},
+      {"regexp_instr", {"xyzabc-abcz", "^abc.", 4ll, 1ll}, 0ll},
+      {"regexp_instr", {"xyzabc-abcz", "^abc.", 8ll, 1ll}, 0ll},
+      {"regexp_instr", {Bytes("xyzabc"), Bytes("^abc"), 4ll}, 0ll},
+      {"regexp_instr", {Bytes("xyzabc-abcz"), Bytes("^abc."), 4ll, 1ll}, 0ll},
+      {"regexp_instr", {Bytes("xyzabc-abcz"), Bytes("^abc."), 8ll, 1ll}, 0ll},
   };
   test_calls.insert(test_calls.end(),
                     legacy_position_arg_behavior_tests.begin(),

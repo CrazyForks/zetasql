@@ -1,0 +1,1974 @@
+[default language_features=MAXIMUM,+ARRAY_OF_ARRAY]
+[default enabled_ast_rewrites=DEFAULTS]
+SELECT ARRAY<ARRAY<INT64>>[[1, 2], [3, 4]]
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[enabled_ast_rewrites=DEFAULTS]
+SELECT TYPEOF(ARRAY<ARRAY<INT64>>[[1]])
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:typeof(ARRAY<ARRAY<INT64>>) -> STRING)
+    |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:if(BOOL, STRING, STRING) -> STRING)
+    |     +-Literal(type=BOOL, value=true, has_explicit_type=TRUE)
+    |     +-Literal(type=STRING, value="ARRAY<ARRAY<INT64>>", has_explicit_type=TRUE)
+    |     +-Cast(BOOL -> STRING)
+    |       +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT CAST(NULL AS ARRAY<ARRAY<STRING>>)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<STRING>>, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT CAST([["a"], ["b"]] AS ARRAY<ARRAY<STRING>>)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<STRING>>, value=[["a"], ["b"]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT CAST([[1], [2]] AS ARRAY<INT64>)
+--
+ERROR: Casting between arrays with incompatible element types is not supported: Invalid cast from ARRAY<ARRAY<INT64>> to ARRAY<INT64> [at 1:13]
+SELECT CAST([[1], [2]] AS ARRAY<INT64>)
+            ^
+==
+
+SELECT CAST([["1"], ["2"]] AS ARRAY<ARRAY<INT64>>)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1], [2]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT CAST([["1"], ["2"]] AS ARRAY<INT64>)
+--
+ERROR: Casting between arrays with incompatible element types is not supported: Invalid cast from ARRAY<ARRAY<STRING>> to ARRAY<INT64> [at 1:13]
+SELECT CAST([["1"], ["2"]] AS ARRAY<INT64>)
+            ^
+==
+
+# Ensure that ARRAY_TRANSFORM applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_TRANSFORM(arr1, e1 -> e1) AS arr_transform_identity
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_transform_identity#3 AS arr_transform_identity [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_transform_identity#3]
+    +-expr_list=
+    | +-arr_transform_identity#3 :=
+    |   +-FunctionCall(GoogleSQL:array_transform(ARRAY<ARRAY<INT64>> array_to_transform, FUNCTION<ARRAY<INT64>->ARRAY<INT64>> transformation) -> ARRAY<ARRAY<INT64>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-FunctionArgument
+    |       +-inline_lambda=
+    |         +-InlineLambda
+    |           +-argument_list=[$lambda_arg.e1#2]
+    |           +-body=
+    |             +-ColumnRef(type=ARRAY<INT64>, column=$lambda_arg.e1#2)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_transform_identity#3 AS arr_transform_identity [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_transform_identity#3]
+    +-expr_list=
+    | +-arr_transform_identity#3 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#8]
+    |         +-expr_list=
+    |         | +-$col1#8 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4)
+    |         |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<INT64>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$expr_subquery.$col1#7]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ProjectScan
+    |         |           |   +-column_list=[$array.element#5, $array_offset.off#6, $expr_subquery.$col1#7]
+    |         |           |   +-expr_list=
+    |         |           |   | +-$col1#7 := ColumnRef(type=ARRAY<INT64>, column=$array.element#5)
+    |         |           |   +-input_scan=
+    |         |           |     +-ArrayScan
+    |         |           |       +-column_list=[$array.element#5, $array_offset.off#6]
+    |         |           |       +-array_expr_list=
+    |         |           |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4, is_correlated=TRUE)
+    |         |           |       +-element_column_list=[$array.element#5]
+    |         |           |       +-array_offset_column=
+    |         |           |         +-ColumnHolder(column=$array_offset.off#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$array_offset.off#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$subquery1.array_to_transform#4]
+    |             +-expr_list=
+    |             | +-array_to_transform#4 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_TRANSFORM applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_TRANSFORM(arr1, e1 -> [e1]) AS arr_transform
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_transform#3 AS arr_transform [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_transform#3]
+    +-expr_list=
+    | +-arr_transform#3 :=
+    |   +-FunctionCall(GoogleSQL:array_transform(ARRAY<ARRAY<INT64>> array_to_transform, FUNCTION<ARRAY<INT64>->ARRAY<ARRAY<INT64>>> transformation) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-FunctionArgument
+    |       +-inline_lambda=
+    |         +-InlineLambda
+    |           +-argument_list=[$lambda_arg.e1#2]
+    |           +-body=
+    |             +-FunctionCall(GoogleSQL:$make_array(repeated(1) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |               +-ColumnRef(type=ARRAY<INT64>, column=$lambda_arg.e1#2)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_transform#3 AS arr_transform [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_transform#3]
+    +-expr_list=
+    | +-arr_transform#3 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#8]
+    |         +-expr_list=
+    |         | +-$col1#8 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4)
+    |         |     +-Literal(type=ARRAY<ARRAY<ARRAY<INT64>>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$expr_subquery.$col1#7]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ProjectScan
+    |         |           |   +-column_list=[$array.element#5, $array_offset.off#6, $expr_subquery.$col1#7]
+    |         |           |   +-expr_list=
+    |         |           |   | +-$col1#7 :=
+    |         |           |   |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |         |           |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.element#5)
+    |         |           |   +-input_scan=
+    |         |           |     +-ArrayScan
+    |         |           |       +-column_list=[$array.element#5, $array_offset.off#6]
+    |         |           |       +-array_expr_list=
+    |         |           |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_transform#4, is_correlated=TRUE)
+    |         |           |       +-element_column_list=[$array.element#5]
+    |         |           |       +-array_offset_column=
+    |         |           |         +-ColumnHolder(column=$array_offset.off#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$array_offset.off#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$subquery1.array_to_transform#4]
+    |             +-expr_list=
+    |             | +-array_to_transform#4 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_ZIP applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_ZIP(arr1, arr2) AS arr_zip
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_zip#3 AS arr_zip [ARRAY<STRUCT<arr1 ARRAY<INT64>, arr2 ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_zip#3]
+    +-expr_list=
+    | +-arr_zip#3 :=
+    |   +-FunctionCall(GoogleSQL:array_zip(ARRAY<ARRAY<INT64>> input_array_1, ARRAY<ARRAY<INT64>> input_array_2, optional(1) ENUM<ARRAY_ZIP_MODE> mode) -> ARRAY<STRUCT<arr1 ARRAY<INT64>, arr2 ARRAY<INT64>>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     | +-argument_alias="arr1"
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     | +-argument_alias="arr2"
+    |     +-FunctionArgument
+    |       +-expr=
+    |         +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_zip#3 AS arr_zip [ARRAY<STRUCT<arr1 ARRAY<INT64>, arr2 ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_zip#3]
+    +-expr_list=
+    | +-arr_zip#3 :=
+    |   +-Cast(ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>> -> ARRAY<STRUCT<arr1 ARRAY<INT64>, arr2 ARRAY<INT64>>>)
+    |     +-SubqueryExpr
+    |       +-type=ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>
+    |       +-subquery_type=SCALAR
+    |       +-parameter_list=
+    |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |       +-subquery=
+    |         +-ProjectScan
+    |           +-column_list=[$expr_subquery.$col1#23]
+    |           +-expr_list=
+    |           | +-$col1#23 :=
+    |           |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>, ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>) -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(2) BOOL) -> BOOL)
+    |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |           |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4)
+    |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |           |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5)
+    |           |     | +-FunctionCall(GoogleSQL:$is_null(ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+    |           |     |   +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#6)
+    |           |     +-Literal(type=ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>, value=NULL)
+    |           |     +-FunctionCall(GoogleSQL:$case_with_value(ENUM<ARRAY_ZIP_MODE>, repeated(3) ENUM<ARRAY_ZIP_MODE>, repeated(3) ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>, ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>) -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |       +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#6)
+    |           |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |           |       +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>, ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>) -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+    |           |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |           |       | | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4)
+    |           |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |           |       | |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5)
+    |           |       | +-Cast(ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>> -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |       | | +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |       | |   +-Literal(type=STRING, value="Unequal array length in ARRAY_ZIP using STRICT mode")
+    |           |       | +-SubqueryExpr
+    |           |       |   +-type=ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>
+    |           |       |   +-subquery_type=ARRAY
+    |           |       |   +-parameter_list=
+    |           |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4)
+    |           |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5)
+    |           |       |   +-subquery=
+    |           |       |     +-OrderByScan
+    |           |       |       +-column_list=[$expr_subquery.$col1#11]
+    |           |       |       +-is_ordered=TRUE
+    |           |       |       +-input_scan=
+    |           |       |       | +-ProjectScan
+    |           |       |       |   +-column_list=[$array.e1#7, $array_offset.offset#8, $array.e2#9, $array_offset.offset#10, $expr_subquery.$col1#11]
+    |           |       |       |   +-expr_list=
+    |           |       |       |   | +-$col1#11 :=
+    |           |       |       |   |   +-MakeStruct
+    |           |       |       |   |     +-type=STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>
+    |           |       |       |   |     +-field_list=
+    |           |       |       |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#7)
+    |           |       |       |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#9)
+    |           |       |       |   +-input_scan=
+    |           |       |       |     +-ArrayScan
+    |           |       |       |       +-column_list=[$array.e1#7, $array_offset.offset#8, $array.e2#9, $array_offset.offset#10]
+    |           |       |       |       +-input_scan=
+    |           |       |       |       | +-ArrayScan
+    |           |       |       |       |   +-column_list=[$array.e1#7, $array_offset.offset#8]
+    |           |       |       |       |   +-array_expr_list=
+    |           |       |       |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4, is_correlated=TRUE)
+    |           |       |       |       |   +-element_column_list=[$array.e1#7]
+    |           |       |       |       |   +-array_offset_column=
+    |           |       |       |       |     +-ColumnHolder(column=$array_offset.offset#8)
+    |           |       |       |       +-array_expr_list=
+    |           |       |       |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5, is_correlated=TRUE)
+    |           |       |       |       +-element_column_list=[$array.e2#9]
+    |           |       |       |       +-array_offset_column=
+    |           |       |       |       | +-ColumnHolder(column=$array_offset.offset#10)
+    |           |       |       |       +-join_expr=
+    |           |       |       |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |           |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#8)
+    |           |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+    |           |       |       +-order_by_item_list=
+    |           |       |         +-OrderByItem
+    |           |       |           +-column_ref=
+    |           |       |             +-ColumnRef(type=INT64, column=$array_offset.offset#8)
+    |           |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=TRUNCATE)
+    |           |       +-SubqueryExpr
+    |           |       | +-type=ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>
+    |           |       | +-subquery_type=ARRAY
+    |           |       | +-parameter_list=
+    |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4)
+    |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5)
+    |           |       | +-subquery=
+    |           |       |   +-OrderByScan
+    |           |       |     +-column_list=[$expr_subquery.$col1#16]
+    |           |       |     +-is_ordered=TRUE
+    |           |       |     +-input_scan=
+    |           |       |     | +-ProjectScan
+    |           |       |     |   +-column_list=[$array.e1#12, $array_offset.offset#13, $array.e2#14, $array_offset.offset#15, $expr_subquery.$col1#16]
+    |           |       |     |   +-expr_list=
+    |           |       |     |   | +-$col1#16 :=
+    |           |       |     |   |   +-MakeStruct
+    |           |       |     |   |     +-type=STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>
+    |           |       |     |   |     +-field_list=
+    |           |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#12)
+    |           |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#14)
+    |           |       |     |   +-input_scan=
+    |           |       |     |     +-ArrayScan
+    |           |       |     |       +-column_list=[$array.e1#12, $array_offset.offset#13, $array.e2#14, $array_offset.offset#15]
+    |           |       |     |       +-input_scan=
+    |           |       |     |       | +-ArrayScan
+    |           |       |     |       |   +-column_list=[$array.e1#12, $array_offset.offset#13]
+    |           |       |     |       |   +-array_expr_list=
+    |           |       |     |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4, is_correlated=TRUE)
+    |           |       |     |       |   +-element_column_list=[$array.e1#12]
+    |           |       |     |       |   +-array_offset_column=
+    |           |       |     |       |     +-ColumnHolder(column=$array_offset.offset#13)
+    |           |       |     |       +-array_expr_list=
+    |           |       |     |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5, is_correlated=TRUE)
+    |           |       |     |       +-element_column_list=[$array.e2#14]
+    |           |       |     |       +-array_offset_column=
+    |           |       |     |       | +-ColumnHolder(column=$array_offset.offset#15)
+    |           |       |     |       +-join_expr=
+    |           |       |     |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |           |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
+    |           |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#15)
+    |           |       |     +-order_by_item_list=
+    |           |       |       +-OrderByItem
+    |           |       |         +-column_ref=
+    |           |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
+    |           |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
+    |           |       +-SubqueryExpr
+    |           |       | +-type=ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>
+    |           |       | +-subquery_type=ARRAY
+    |           |       | +-parameter_list=
+    |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4)
+    |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5)
+    |           |       | +-subquery=
+    |           |       |   +-OrderByScan
+    |           |       |     +-column_list=[$expr_subquery.$col1#22]
+    |           |       |     +-is_ordered=TRUE
+    |           |       |     +-input_scan=
+    |           |       |     | +-ProjectScan
+    |           |       |     |   +-column_list=[$array.e1#17, $array_offset.offset#18, $array.e2#19, $array_offset.offset#20, $full_join.offset#21, $expr_subquery.$col1#22]
+    |           |       |     |   +-expr_list=
+    |           |       |     |   | +-$col1#22 :=
+    |           |       |     |   |   +-MakeStruct
+    |           |       |     |   |     +-type=STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>
+    |           |       |     |   |     +-field_list=
+    |           |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#17)
+    |           |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#19)
+    |           |       |     |   +-input_scan=
+    |           |       |     |     +-ProjectScan
+    |           |       |     |       +-column_list=[$array.e1#17, $array_offset.offset#18, $array.e2#19, $array_offset.offset#20, $full_join.offset#21]
+    |           |       |     |       +-expr_list=
+    |           |       |     |       | +-offset#21 :=
+    |           |       |     |       |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+    |           |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#18)
+    |           |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#20)
+    |           |       |     |       +-input_scan=
+    |           |       |     |         +-JoinScan
+    |           |       |     |           +-column_list=[$array.e1#17, $array_offset.offset#18, $array.e2#19, $array_offset.offset#20]
+    |           |       |     |           +-join_type=FULL
+    |           |       |     |           +-left_scan=
+    |           |       |     |           | +-ArrayScan
+    |           |       |     |           |   +-column_list=[$array.e1#17, $array_offset.offset#18]
+    |           |       |     |           |   +-array_expr_list=
+    |           |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#4, is_correlated=TRUE)
+    |           |       |     |           |   +-element_column_list=[$array.e1#17]
+    |           |       |     |           |   +-array_offset_column=
+    |           |       |     |           |     +-ColumnHolder(column=$array_offset.offset#18)
+    |           |       |     |           +-right_scan=
+    |           |       |     |           | +-ArrayScan
+    |           |       |     |           |   +-column_list=[$array.e2#19, $array_offset.offset#20]
+    |           |       |     |           |   +-array_expr_list=
+    |           |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#5, is_correlated=TRUE)
+    |           |       |     |           |   +-element_column_list=[$array.e2#19]
+    |           |       |     |           |   +-array_offset_column=
+    |           |       |     |           |     +-ColumnHolder(column=$array_offset.offset#20)
+    |           |       |     |           +-join_expr=
+    |           |       |     |           | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |           |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#18)
+    |           |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#20)
+    |           |       |     |           +-has_using=TRUE
+    |           |       |     +-order_by_item_list=
+    |           |       |       +-OrderByItem
+    |           |       |         +-column_ref=
+    |           |       |           +-ColumnRef(type=INT64, column=$full_join.offset#21)
+    |           |       +-Cast(ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>> -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |         +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<STRUCT<e1 ARRAY<INT64>, e2 ARRAY<INT64>>>)
+    |           |           +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |           |             +-Literal(type=STRING, value="Unrecognized mode: ")
+    |           |             +-Cast(ENUM<ARRAY_ZIP_MODE> -> STRING)
+    |           |               +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#6)
+    |           +-input_scan=
+    |             +-ProjectScan
+    |               +-column_list=$subquery1.[input_array_1#4, input_array_2#5, mode#6]
+    |               +-expr_list=
+    |               | +-input_array_1#4 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |               | +-input_array_2#5 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2, is_correlated=TRUE)
+    |               | +-mode#6 := Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |               +-input_scan=
+    |                 +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_ZIP with lambda applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_ZIP(arr1, arr2, (e1, e2) -> [e1, e2]) AS arr_zip
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_zip#5 AS arr_zip [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_zip#5]
+    +-expr_list=
+    | +-arr_zip#5 :=
+    |   +-FunctionCall(GoogleSQL:array_zip(ARRAY<ARRAY<INT64>> input_array_1, ARRAY<ARRAY<INT64>> input_array_2, FUNCTION<(ARRAY<INT64>, ARRAY<INT64>)->ARRAY<ARRAY<INT64>>> transformation, optional(1) ENUM<ARRAY_ZIP_MODE> mode) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-FunctionArgument
+    |     | +-inline_lambda=
+    |     |   +-InlineLambda
+    |     |     +-argument_list=$lambda_arg.[e1#3, e2#4]
+    |     |     +-body=
+    |     |       +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |     |         +-ColumnRef(type=ARRAY<INT64>, column=$lambda_arg.e1#3)
+    |     |         +-ColumnRef(type=ARRAY<INT64>, column=$lambda_arg.e2#4)
+    |     +-FunctionArgument
+    |       +-expr=
+    |         +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_zip#5 AS arr_zip [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_zip#5]
+    +-expr_list=
+    | +-arr_zip#5 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#25]
+    |         +-expr_list=
+    |         | +-$col1#25 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(2) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+    |         |     |   +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#8)
+    |         |     +-Literal(type=ARRAY<ARRAY<ARRAY<INT64>>>, value=NULL)
+    |         |     +-FunctionCall(GoogleSQL:$case_with_value(ENUM<ARRAY_ZIP_MODE>, repeated(3) ENUM<ARRAY_ZIP_MODE>, repeated(3) ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |       +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#8)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |         |       +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+    |         |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |       | | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6)
+    |         |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |       | |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7)
+    |         |       | +-Cast(ARRAY<ARRAY<ARRAY<INT64>>> -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |       | | +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |       | |   +-Literal(type=STRING, value="Unequal array length in ARRAY_ZIP using STRICT mode")
+    |         |       | +-SubqueryExpr
+    |         |       |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       |   +-subquery_type=ARRAY
+    |         |       |   +-parameter_list=
+    |         |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6)
+    |         |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7)
+    |         |       |   +-subquery=
+    |         |       |     +-OrderByScan
+    |         |       |       +-column_list=[$expr_subquery.$col1#13]
+    |         |       |       +-is_ordered=TRUE
+    |         |       |       +-input_scan=
+    |         |       |       | +-ProjectScan
+    |         |       |       |   +-column_list=[$array.e1#9, $array_offset.offset#10, $array.e2#11, $array_offset.offset#12, $expr_subquery.$col1#13]
+    |         |       |       |   +-expr_list=
+    |         |       |       |   | +-$col1#13 :=
+    |         |       |       |   |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |         |       |       |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#9)
+    |         |       |       |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#11)
+    |         |       |       |   +-input_scan=
+    |         |       |       |     +-ArrayScan
+    |         |       |       |       +-column_list=[$array.e1#9, $array_offset.offset#10, $array.e2#11, $array_offset.offset#12]
+    |         |       |       |       +-input_scan=
+    |         |       |       |       | +-ArrayScan
+    |         |       |       |       |   +-column_list=[$array.e1#9, $array_offset.offset#10]
+    |         |       |       |       |   +-array_expr_list=
+    |         |       |       |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6, is_correlated=TRUE)
+    |         |       |       |       |   +-element_column_list=[$array.e1#9]
+    |         |       |       |       |   +-array_offset_column=
+    |         |       |       |       |     +-ColumnHolder(column=$array_offset.offset#10)
+    |         |       |       |       +-array_expr_list=
+    |         |       |       |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7, is_correlated=TRUE)
+    |         |       |       |       +-element_column_list=[$array.e2#11]
+    |         |       |       |       +-array_offset_column=
+    |         |       |       |       | +-ColumnHolder(column=$array_offset.offset#12)
+    |         |       |       |       +-join_expr=
+    |         |       |       |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+    |         |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+    |         |       |       +-order_by_item_list=
+    |         |       |         +-OrderByItem
+    |         |       |           +-column_ref=
+    |         |       |             +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=TRUNCATE)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       | +-subquery_type=ARRAY
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6)
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7)
+    |         |       | +-subquery=
+    |         |       |   +-OrderByScan
+    |         |       |     +-column_list=[$expr_subquery.$col1#18]
+    |         |       |     +-is_ordered=TRUE
+    |         |       |     +-input_scan=
+    |         |       |     | +-ProjectScan
+    |         |       |     |   +-column_list=[$array.e1#14, $array_offset.offset#15, $array.e2#16, $array_offset.offset#17, $expr_subquery.$col1#18]
+    |         |       |     |   +-expr_list=
+    |         |       |     |   | +-$col1#18 :=
+    |         |       |     |   |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#14)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#16)
+    |         |       |     |   +-input_scan=
+    |         |       |     |     +-ArrayScan
+    |         |       |     |       +-column_list=[$array.e1#14, $array_offset.offset#15, $array.e2#16, $array_offset.offset#17]
+    |         |       |     |       +-input_scan=
+    |         |       |     |       | +-ArrayScan
+    |         |       |     |       |   +-column_list=[$array.e1#14, $array_offset.offset#15]
+    |         |       |     |       |   +-array_expr_list=
+    |         |       |     |       |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6, is_correlated=TRUE)
+    |         |       |     |       |   +-element_column_list=[$array.e1#14]
+    |         |       |     |       |   +-array_offset_column=
+    |         |       |     |       |     +-ColumnHolder(column=$array_offset.offset#15)
+    |         |       |     |       +-array_expr_list=
+    |         |       |     |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7, is_correlated=TRUE)
+    |         |       |     |       +-element_column_list=[$array.e2#16]
+    |         |       |     |       +-array_offset_column=
+    |         |       |     |       | +-ColumnHolder(column=$array_offset.offset#17)
+    |         |       |     |       +-join_expr=
+    |         |       |     |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#15)
+    |         |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#17)
+    |         |       |     +-order_by_item_list=
+    |         |       |       +-OrderByItem
+    |         |       |         +-column_ref=
+    |         |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#15)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       | +-subquery_type=ARRAY
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6)
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7)
+    |         |       | +-subquery=
+    |         |       |   +-OrderByScan
+    |         |       |     +-column_list=[$expr_subquery.$col1#24]
+    |         |       |     +-is_ordered=TRUE
+    |         |       |     +-input_scan=
+    |         |       |     | +-ProjectScan
+    |         |       |     |   +-column_list=[$array.e1#19, $array_offset.offset#20, $array.e2#21, $array_offset.offset#22, $full_join.offset#23, $expr_subquery.$col1#24]
+    |         |       |     |   +-expr_list=
+    |         |       |     |   | +-$col1#24 :=
+    |         |       |     |   |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e1#19)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<INT64>, column=$array.e2#21)
+    |         |       |     |   +-input_scan=
+    |         |       |     |     +-ProjectScan
+    |         |       |     |       +-column_list=[$array.e1#19, $array_offset.offset#20, $array.e2#21, $array_offset.offset#22, $full_join.offset#23]
+    |         |       |     |       +-expr_list=
+    |         |       |     |       | +-offset#23 :=
+    |         |       |     |       |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+    |         |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#20)
+    |         |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#22)
+    |         |       |     |       +-input_scan=
+    |         |       |     |         +-JoinScan
+    |         |       |     |           +-column_list=[$array.e1#19, $array_offset.offset#20, $array.e2#21, $array_offset.offset#22]
+    |         |       |     |           +-join_type=FULL
+    |         |       |     |           +-left_scan=
+    |         |       |     |           | +-ArrayScan
+    |         |       |     |           |   +-column_list=[$array.e1#19, $array_offset.offset#20]
+    |         |       |     |           |   +-array_expr_list=
+    |         |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_1#6, is_correlated=TRUE)
+    |         |       |     |           |   +-element_column_list=[$array.e1#19]
+    |         |       |     |           |   +-array_offset_column=
+    |         |       |     |           |     +-ColumnHolder(column=$array_offset.offset#20)
+    |         |       |     |           +-right_scan=
+    |         |       |     |           | +-ArrayScan
+    |         |       |     |           |   +-column_list=[$array.e2#21, $array_offset.offset#22]
+    |         |       |     |           |   +-array_expr_list=
+    |         |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array_2#7, is_correlated=TRUE)
+    |         |       |     |           |   +-element_column_list=[$array.e2#21]
+    |         |       |     |           |   +-array_offset_column=
+    |         |       |     |           |     +-ColumnHolder(column=$array_offset.offset#22)
+    |         |       |     |           +-join_expr=
+    |         |       |     |           | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#20)
+    |         |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#22)
+    |         |       |     |           +-has_using=TRUE
+    |         |       |     +-order_by_item_list=
+    |         |       |       +-OrderByItem
+    |         |       |         +-column_ref=
+    |         |       |           +-ColumnRef(type=INT64, column=$full_join.offset#23)
+    |         |       +-Cast(ARRAY<ARRAY<ARRAY<INT64>>> -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |         +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |           +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |         |             +-Literal(type=STRING, value="Unrecognized mode: ")
+    |         |             +-Cast(ENUM<ARRAY_ZIP_MODE> -> STRING)
+    |         |               +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input_array_1#6, input_array_2#7, mode#8]
+    |             +-expr_list=
+    |             | +-input_array_1#6 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             | +-input_array_2#7 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2, is_correlated=TRUE)
+    |             | +-mode#8 := Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_INCLUDES applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_INCLUDES([arr1, arr2], e1 -> ARRAY_INCLUDES_ALL(e1, [[1, 2], [3, 4]])) AS arr_includes
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_includes#4 AS arr_includes [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_includes#4]
+    +-expr_list=
+    | +-arr_includes#4 :=
+    |   +-FunctionCall(GoogleSQL:array_includes(ARRAY<ARRAY<ARRAY<INT64>>> array_to_search, FUNCTION<ARRAY<ARRAY<INT64>>->BOOL> condition) -> BOOL)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-FunctionArgument
+    |       +-inline_lambda=
+    |         +-InlineLambda
+    |           +-argument_list=[$lambda_arg.e1#3]
+    |           +-body=
+    |             +-FunctionCall(GoogleSQL:array_includes_all(ARRAY<ARRAY<INT64>> array_to_search, ARRAY<ARRAY<INT64>> search_values) -> BOOL)
+    |               +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$lambda_arg.e1#3)
+    |               +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_includes#4 AS arr_includes [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_includes#4]
+    +-expr_list=
+    | +-arr_includes#4 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#13]
+    |         +-expr_list=
+    |         | +-$col1#13 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<INT64>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.array_to_search#10)
+    |         |     +-Literal(type=BOOL, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=BOOL
+    |         |       +-subquery_type=EXISTS
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.array_to_search#10)
+    |         |       +-subquery=
+    |         |         +-ProjectScan
+    |         |           +-column_list=[$expr_subquery.$col1#12]
+    |         |           +-expr_list=
+    |         |           | +-$col1#12 := Literal(type=INT64, value=1)
+    |         |           +-input_scan=
+    |         |             +-FilterScan
+    |         |               +-column_list=[$array.element#11]
+    |         |               +-input_scan=
+    |         |               | +-ArrayScan
+    |         |               |   +-column_list=[$array.element#11]
+    |         |               |   +-array_expr_list=
+    |         |               |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.array_to_search#10, is_correlated=TRUE)
+    |         |               |   +-element_column_list=[$array.element#11]
+    |         |               +-filter_expr=
+    |         |                 +-SubqueryExpr
+    |         |                   +-type=BOOL
+    |         |                   +-subquery_type=SCALAR
+    |         |                   +-parameter_list=
+    |         |                   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.element#11)
+    |         |                   +-subquery=
+    |         |                     +-ProjectScan
+    |         |                       +-column_list=[$expr_subquery.$col1#14]
+    |         |                       +-expr_list=
+    |         |                       | +-$col1#14 :=
+    |         |                       |   +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |                       |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |                       |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |                       |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15)
+    |         |                       |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |                       |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |                       |     +-Literal(type=BOOL, value=NULL)
+    |         |                       |     +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |                       |       +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |                       |       | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |                       |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |                       |       | +-Literal(type=INT64, value=0)
+    |         |                       |       +-Literal(type=BOOL, value=true)
+    |         |                       |       +-SubqueryExpr
+    |         |                       |         +-type=BOOL
+    |         |                       |         +-subquery_type=SCALAR
+    |         |                       |         +-parameter_list=
+    |         |                       |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15)
+    |         |                       |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |                       |         +-subquery=
+    |         |                       |           +-ProjectScan
+    |         |                       |             +-column_list=[$aggregate.$agg1#17]
+    |         |                       |             +-input_scan=
+    |         |                       |               +-AggregateScan
+    |         |                       |                 +-column_list=[$aggregate.$agg1#17]
+    |         |                       |                 +-input_scan=
+    |         |                       |                 | +-ArrayScan
+    |         |                       |                 |   +-column_list=[$array.element#18]
+    |         |                       |                 |   +-array_expr_list=
+    |         |                       |                 |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16, is_correlated=TRUE)
+    |         |                       |                 |   +-element_column_list=[$array.element#18]
+    |         |                       |                 +-aggregate_list=
+    |         |                       |                   +-$agg1#17 :=
+    |         |                       |                     +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |                       |                       +-FunctionCall(GoogleSQL:ifnull(BOOL, BOOL) -> BOOL)
+    |         |                       |                         +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |                       |                         | +-ColumnRef(type=ARRAY<INT64>, column=$array.element#18)
+    |         |                       |                         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15, is_correlated=TRUE)
+    |         |                       |                         +-Literal(type=BOOL, value=false)
+    |         |                       +-input_scan=
+    |         |                         +-ProjectScan
+    |         |                           +-column_list=$subquery1.[array_to_search#15, search_values#16]
+    |         |                           +-expr_list=
+    |         |                           | +-array_to_search#15 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.element#11, is_correlated=TRUE)
+    |         |                           | +-search_values#16 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |         |                           +-input_scan=
+    |         |                             +-SingleRowScan
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$subquery1.array_to_search#10]
+    |             +-expr_list=
+    |             | +-array_to_search#10 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_FIRST_N applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_FIRST_N(arr1, 2) AS arr_first
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_first#3 AS arr_first [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_first#3]
+    +-expr_list=
+    | +-arr_first#3 :=
+    |   +-FunctionCall(GoogleSQL:array_first_n(ARRAY<ARRAY<INT64>> input_array, INT64 n) -> ARRAY<ARRAY<INT64>>)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-Literal(type=INT64, value=2)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_first#3 AS arr_first [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_first#3]
+    +-expr_list=
+    | +-arr_first#3 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#8]
+    |         +-expr_list=
+    |         | +-$col1#8 :=
+    |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(2) BOOL, repeated(2) ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
+    |         |     |   +-ColumnRef(type=INT64, column=$subquery1.n#5)
+    |         |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=NULL)
+    |         |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+    |         |     | +-ColumnRef(type=INT64, column=$subquery1.n#5)
+    |         |     | +-Literal(type=INT64, value=0)
+    |         |     +-Cast(ARRAY<ARRAY<INT64>> -> ARRAY<ARRAY<INT64>>)
+    |         |     | +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<INT64>>)
+    |         |     |   +-Literal(type=STRING, value="The n argument to ARRAY_FIRST_N must not be negative.")
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<INT64>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4)
+    |         |       | +-ColumnRef(type=INT64, column=$subquery1.n#5)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$array.e#6]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-FilterScan
+    |         |           |   +-column_list=[$array.e#6, $array_offset.offset#7]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$array.e#6, $array_offset.offset#7]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$array.e#6]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$array_offset.offset#7)
+    |         |           |   +-filter_expr=
+    |         |           |     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+    |         |           |       +-ColumnRef(type=INT64, column=$array_offset.offset#7)
+    |         |           |       +-ColumnRef(type=INT64, column=$subquery1.n#5, is_correlated=TRUE)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$array_offset.offset#7)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input_array#4, n#5]
+    |             +-expr_list=
+    |             | +-input_array#4 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             | +-n#5 := Literal(type=INT64, value=2)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_CONCAT applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_CONCAT(arr1, arr2) AS arr_concat
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_concat#3 AS arr_concat [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_concat#3]
+    +-expr_list=
+    | +-arr_concat#3 :=
+    |   +-FunctionCall(GoogleSQL:array_concat(ARRAY<ARRAY<INT64>>, repeated(1) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Ensure that ARRAY_MIN applies correctly to nested ARRAYs.
+SELECT
+  ARRAY_MIN(arr1) AS arr_min
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_min#2 AS arr_min [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_min#2]
+    +-expr_list=
+    | +-arr_min#2 :=
+    |   +-FunctionCall(GoogleSQL:array_min(ARRAY<ARRAY<INT64>> input_array) -> ARRAY<INT64>)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_min#2 AS arr_min [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_min#2]
+    +-expr_list=
+    | +-arr_min#2 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#6]
+    |         +-expr_list=
+    |         | +-$col1#6 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#3)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=SCALAR
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#3)
+    |         |       +-subquery=
+    |         |         +-LimitOffsetScan
+    |         |           +-column_list=[$array.e#4]
+    |         |           +-input_scan=
+    |         |           | +-OrderByScan
+    |         |           |   +-column_list=[$array.e#4]
+    |         |           |   +-is_ordered=TRUE
+    |         |           |   +-input_scan=
+    |         |           |   | +-FilterScan
+    |         |           |   |   +-column_list=[$array.e#4, $array_offset.idx#5]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$array.e#4, $array_offset.idx#5]
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#3, is_correlated=TRUE)
+    |         |           |   |   |   +-element_column_list=[$array.e#4]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$array_offset.idx#5)
+    |         |           |   |   +-filter_expr=
+    |         |           |   |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |           |   |       +-FunctionCall(GoogleSQL:$is_null(ARRAY<INT64>) -> BOOL)
+    |         |           |   |         +-ColumnRef(type=ARRAY<INT64>, column=$array.e#4)
+    |         |           |   +-order_by_item_list=
+    |         |           |     +-OrderByItem
+    |         |           |     | +-column_ref=
+    |         |           |     |   +-ColumnRef(type=ARRAY<INT64>, column=$array.e#4)
+    |         |           |     +-OrderByItem
+    |         |           |       +-column_ref=
+    |         |           |         +-ColumnRef(type=INT64, column=$array_offset.idx#5)
+    |         |           +-limit=
+    |         |             +-Literal(type=INT64, value=1)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$subquery1.input_array#3]
+    |             +-expr_list=
+    |             | +-input_array#3 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$subquery1.arr1#1]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# ARRAY_FIND
+SELECT
+  ARRAY_FIND(arr1, [1,2]) AS arr_find
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_find#3 AS arr_find [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find#3]
+    +-expr_list=
+    | +-arr_find#3 :=
+    |   +-FunctionCall(GoogleSQL:array_find(ARRAY<ARRAY<INT64>> input_array, ARRAY<INT64> target_element, optional(1) ENUM<ARRAY_FIND_MODE> find_mode) -> ARRAY<INT64>)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-Literal(type=ARRAY<INT64>, value=[1, 2])
+    |     +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_find#3 AS arr_find [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find#3]
+    +-expr_list=
+    | +-arr_find#3 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#11]
+    |         +-expr_list=
+    |         | +-$col1#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(2) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#5)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<INT64>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#6)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ENUM<ARRAY_FIND_MODE>) -> BOOL)
+    |         |     |   +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#4)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-FunctionCall(GoogleSQL:$case_with_value(ENUM<ARRAY_FIND_MODE>, repeated(2) ENUM<ARRAY_FIND_MODE>, repeated(2) ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |       +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#4)
+    |         |       +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<INT64>
+    |         |       | +-subquery_type=SCALAR
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#5)
+    |         |       | | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#6)
+    |         |       | +-subquery=
+    |         |       |   +-LimitOffsetScan
+    |         |       |     +-column_list=[$array.e#7]
+    |         |       |     +-input_scan=
+    |         |       |     | +-OrderByScan
+    |         |       |     |   +-column_list=[$array.e#7]
+    |         |       |     |   +-is_ordered=TRUE
+    |         |       |     |   +-input_scan=
+    |         |       |     |   | +-FilterScan
+    |         |       |     |   |   +-column_list=[$array.e#7, $array_offset.offset#8]
+    |         |       |     |   |   +-input_scan=
+    |         |       |     |   |   | +-ArrayScan
+    |         |       |     |   |   |   +-column_list=[$array.e#7, $array_offset.offset#8]
+    |         |       |     |   |   |   +-array_expr_list=
+    |         |       |     |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#5, is_correlated=TRUE)
+    |         |       |     |   |   |   +-element_column_list=[$array.e#7]
+    |         |       |     |   |   |   +-array_offset_column=
+    |         |       |     |   |   |     +-ColumnHolder(column=$array_offset.offset#8)
+    |         |       |     |   |   +-filter_expr=
+    |         |       |     |   |     +-FunctionCall(GoogleSQL:$equal(ARRAY<INT64>, ARRAY<INT64>) -> BOOL)
+    |         |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e#7)
+    |         |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#6, is_correlated=TRUE)
+    |         |       |     |   +-order_by_item_list=
+    |         |       |     |     +-OrderByItem
+    |         |       |     |       +-column_ref=
+    |         |       |     |         +-ColumnRef(type=INT64, column=$array_offset.offset#8)
+    |         |       |     +-limit=
+    |         |       |       +-Literal(type=INT64, value=1)
+    |         |       +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=LAST)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<INT64>
+    |         |       | +-subquery_type=SCALAR
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#5)
+    |         |       | | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#6)
+    |         |       | +-subquery=
+    |         |       |   +-LimitOffsetScan
+    |         |       |     +-column_list=[$array.e#9]
+    |         |       |     +-input_scan=
+    |         |       |     | +-OrderByScan
+    |         |       |     |   +-column_list=[$array.e#9]
+    |         |       |     |   +-is_ordered=TRUE
+    |         |       |     |   +-input_scan=
+    |         |       |     |   | +-FilterScan
+    |         |       |     |   |   +-column_list=[$array.e#9, $array_offset.offset#10]
+    |         |       |     |   |   +-input_scan=
+    |         |       |     |   |   | +-ArrayScan
+    |         |       |     |   |   |   +-column_list=[$array.e#9, $array_offset.offset#10]
+    |         |       |     |   |   |   +-array_expr_list=
+    |         |       |     |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#5, is_correlated=TRUE)
+    |         |       |     |   |   |   +-element_column_list=[$array.e#9]
+    |         |       |     |   |   |   +-array_offset_column=
+    |         |       |     |   |   |     +-ColumnHolder(column=$array_offset.offset#10)
+    |         |       |     |   |   +-filter_expr=
+    |         |       |     |   |     +-FunctionCall(GoogleSQL:$equal(ARRAY<INT64>, ARRAY<INT64>) -> BOOL)
+    |         |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e#9)
+    |         |       |     |   |       +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#6, is_correlated=TRUE)
+    |         |       |     |   +-order_by_item_list=
+    |         |       |     |     +-OrderByItem
+    |         |       |     |       +-column_ref=
+    |         |       |     |       | +-ColumnRef(type=INT64, column=$array_offset.offset#10)
+    |         |       |     |       +-is_descending=TRUE
+    |         |       |     +-limit=
+    |         |       |       +-Literal(type=INT64, value=1)
+    |         |       +-Cast(ARRAY<INT64> -> ARRAY<INT64>)
+    |         |         +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<INT64>)
+    |         |           +-FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
+    |         |             +-Literal(type=STRING, value="ARRAY_FIND_MODE ")
+    |         |             +-Cast(ENUM<ARRAY_FIND_MODE> -> STRING)
+    |         |             | +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#4)
+    |         |             +-Literal(type=STRING, value=" ARRAY_FIND_MODE in ARRAY_FIND is unsupported.")
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[find_mode#4, input_array#5, target_element#6]
+    |             +-expr_list=
+    |             | +-find_mode#4 := Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    |             | +-input_array#5 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             | +-target_element#6 := Literal(type=ARRAY<INT64>, value=[1, 2])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# ARRAY_FIND_ALL
+SELECT
+  ARRAY_FIND_ALL(arr1, [1,2]) AS arr_find_all
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_all#3 AS arr_find_all [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_all#3]
+    +-expr_list=
+    | +-arr_find_all#3 :=
+    |   +-FunctionCall(GoogleSQL:array_find_all(ARRAY<ARRAY<INT64>> input_array, ARRAY<INT64> target_element) -> ARRAY<ARRAY<INT64>>)
+    |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-Literal(type=ARRAY<INT64>, value=[1, 2])
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_all#3 AS arr_find_all [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_all#3]
+    +-expr_list=
+    | +-arr_find_all#3 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#8]
+    |         +-expr_list=
+    |         | +-$col1#8 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<INT64>) -> BOOL)
+    |         |     |   +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#5)
+    |         |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<INT64>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4)
+    |         |       | +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#5)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$array.e#6]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-FilterScan
+    |         |           |   +-column_list=[$array.e#6, $array_offset.offset#7]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$array.e#6, $array_offset.offset#7]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.input_array#4, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$array.e#6]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$array_offset.offset#7)
+    |         |           |   +-filter_expr=
+    |         |           |     +-FunctionCall(GoogleSQL:$equal(ARRAY<INT64>, ARRAY<INT64>) -> BOOL)
+    |         |           |       +-ColumnRef(type=ARRAY<INT64>, column=$array.e#6)
+    |         |           |       +-ColumnRef(type=ARRAY<INT64>, column=$subquery1.target_element#5, is_correlated=TRUE)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$array_offset.offset#7)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input_array#4, target_element#5]
+    |             +-expr_list=
+    |             | +-input_array#4 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             | +-target_element#5 := Literal(type=ARRAY<INT64>, value=[1, 2])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# ARRAY_FIND with lambda
+SELECT
+  ARRAY_FIND([arr1, arr2], e1 -> ARRAY_INCLUDES_ALL(e1, [[1, 2], [3, 4]])) AS arr_find_lambda
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_lambda#4 AS arr_find_lambda [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_lambda#4]
+    +-expr_list=
+    | +-arr_find_lambda#4 :=
+    |   +-FunctionCall(GoogleSQL:array_find(ARRAY<ARRAY<ARRAY<INT64>>> input_array, FUNCTION<ARRAY<ARRAY<INT64>>->BOOL> condition, optional(1) ENUM<ARRAY_FIND_MODE> find_mode) -> ARRAY<ARRAY<INT64>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-FunctionArgument
+    |     | +-inline_lambda=
+    |     |   +-InlineLambda
+    |     |     +-argument_list=[$lambda_arg.e1#3]
+    |     |     +-body=
+    |     |       +-FunctionCall(GoogleSQL:array_includes_all(ARRAY<ARRAY<INT64>> array_to_search, ARRAY<ARRAY<INT64>> search_values) -> BOOL)
+    |     |         +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$lambda_arg.e1#3)
+    |     |         +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |     +-FunctionArgument
+    |       +-expr=
+    |         +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_lambda#4 AS arr_find_lambda [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_lambda#4]
+    +-expr_list=
+    | +-arr_find_lambda#4 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#16]
+    |         +-expr_list=
+    |         | +-$col1#16 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<INT64>>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#11)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ENUM<ARRAY_FIND_MODE>) -> BOOL)
+    |         |     |   +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#10)
+    |         |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=NULL)
+    |         |     +-FunctionCall(GoogleSQL:$case_with_value(ENUM<ARRAY_FIND_MODE>, repeated(2) ENUM<ARRAY_FIND_MODE>, repeated(2) ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |       +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#10)
+    |         |       +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<INT64>>
+    |         |       | +-subquery_type=SCALAR
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#11)
+    |         |       | +-subquery=
+    |         |       |   +-LimitOffsetScan
+    |         |       |     +-column_list=[$array.e#12]
+    |         |       |     +-input_scan=
+    |         |       |     | +-OrderByScan
+    |         |       |     |   +-column_list=[$array.e#12]
+    |         |       |     |   +-is_ordered=TRUE
+    |         |       |     |   +-input_scan=
+    |         |       |     |   | +-FilterScan
+    |         |       |     |   |   +-column_list=[$array.e#12, $array_offset.offset#13]
+    |         |       |     |   |   +-input_scan=
+    |         |       |     |   |   | +-ArrayScan
+    |         |       |     |   |   |   +-column_list=[$array.e#12, $array_offset.offset#13]
+    |         |       |     |   |   |   +-array_expr_list=
+    |         |       |     |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#11, is_correlated=TRUE)
+    |         |       |     |   |   |   +-element_column_list=[$array.e#12]
+    |         |       |     |   |   |   +-array_offset_column=
+    |         |       |     |   |   |     +-ColumnHolder(column=$array_offset.offset#13)
+    |         |       |     |   |   +-filter_expr=
+    |         |       |     |   |     +-SubqueryExpr
+    |         |       |     |   |       +-type=BOOL
+    |         |       |     |   |       +-subquery_type=SCALAR
+    |         |       |     |   |       +-parameter_list=
+    |         |       |     |   |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#12)
+    |         |       |     |   |       +-subquery=
+    |         |       |     |   |         +-ProjectScan
+    |         |       |     |   |           +-column_list=[$expr_subquery.$col1#17]
+    |         |       |     |   |           +-expr_list=
+    |         |       |     |   |           | +-$col1#17 :=
+    |         |       |     |   |           |   +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |       |     |   |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#18)
+    |         |       |     |   |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#19)
+    |         |       |     |   |           |     +-Literal(type=BOOL, value=NULL)
+    |         |       |     |   |           |     +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |       +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |   |           |       | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |       |     |   |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#19)
+    |         |       |     |   |           |       | +-Literal(type=INT64, value=0)
+    |         |       |     |   |           |       +-Literal(type=BOOL, value=true)
+    |         |       |     |   |           |       +-SubqueryExpr
+    |         |       |     |   |           |         +-type=BOOL
+    |         |       |     |   |           |         +-subquery_type=SCALAR
+    |         |       |     |   |           |         +-parameter_list=
+    |         |       |     |   |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#18)
+    |         |       |     |   |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#19)
+    |         |       |     |   |           |         +-subquery=
+    |         |       |     |   |           |           +-ProjectScan
+    |         |       |     |   |           |             +-column_list=[$aggregate.$agg1#20]
+    |         |       |     |   |           |             +-input_scan=
+    |         |       |     |   |           |               +-AggregateScan
+    |         |       |     |   |           |                 +-column_list=[$aggregate.$agg1#20]
+    |         |       |     |   |           |                 +-input_scan=
+    |         |       |     |   |           |                 | +-ArrayScan
+    |         |       |     |   |           |                 |   +-column_list=[$array.element#21]
+    |         |       |     |   |           |                 |   +-array_expr_list=
+    |         |       |     |   |           |                 |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#19, is_correlated=TRUE)
+    |         |       |     |   |           |                 |   +-element_column_list=[$array.element#21]
+    |         |       |     |   |           |                 +-aggregate_list=
+    |         |       |     |   |           |                   +-$agg1#20 :=
+    |         |       |     |   |           |                     +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |       |     |   |           |                       +-FunctionCall(GoogleSQL:ifnull(BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |                         +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |                         | +-ColumnRef(type=ARRAY<INT64>, column=$array.element#21)
+    |         |       |     |   |           |                         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#18, is_correlated=TRUE)
+    |         |       |     |   |           |                         +-Literal(type=BOOL, value=false)
+    |         |       |     |   |           +-input_scan=
+    |         |       |     |   |             +-ProjectScan
+    |         |       |     |   |               +-column_list=$subquery1.[array_to_search#18, search_values#19]
+    |         |       |     |   |               +-expr_list=
+    |         |       |     |   |               | +-array_to_search#18 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#12, is_correlated=TRUE)
+    |         |       |     |   |               | +-search_values#19 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |         |       |     |   |               +-input_scan=
+    |         |       |     |   |                 +-SingleRowScan
+    |         |       |     |   +-order_by_item_list=
+    |         |       |     |     +-OrderByItem
+    |         |       |     |       +-column_ref=
+    |         |       |     |         +-ColumnRef(type=INT64, column=$array_offset.offset#13)
+    |         |       |     +-limit=
+    |         |       |       +-Literal(type=INT64, value=1)
+    |         |       +-Literal(type=ENUM<ARRAY_FIND_MODE>, value=LAST)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<INT64>>
+    |         |       | +-subquery_type=SCALAR
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#11)
+    |         |       | +-subquery=
+    |         |       |   +-LimitOffsetScan
+    |         |       |     +-column_list=[$array.e#14]
+    |         |       |     +-input_scan=
+    |         |       |     | +-OrderByScan
+    |         |       |     |   +-column_list=[$array.e#14]
+    |         |       |     |   +-is_ordered=TRUE
+    |         |       |     |   +-input_scan=
+    |         |       |     |   | +-FilterScan
+    |         |       |     |   |   +-column_list=[$array.e#14, $array_offset.offset#15]
+    |         |       |     |   |   +-input_scan=
+    |         |       |     |   |   | +-ArrayScan
+    |         |       |     |   |   |   +-column_list=[$array.e#14, $array_offset.offset#15]
+    |         |       |     |   |   |   +-array_expr_list=
+    |         |       |     |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#11, is_correlated=TRUE)
+    |         |       |     |   |   |   +-element_column_list=[$array.e#14]
+    |         |       |     |   |   |   +-array_offset_column=
+    |         |       |     |   |   |     +-ColumnHolder(column=$array_offset.offset#15)
+    |         |       |     |   |   +-filter_expr=
+    |         |       |     |   |     +-SubqueryExpr
+    |         |       |     |   |       +-type=BOOL
+    |         |       |     |   |       +-subquery_type=SCALAR
+    |         |       |     |   |       +-parameter_list=
+    |         |       |     |   |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#14)
+    |         |       |     |   |       +-subquery=
+    |         |       |     |   |         +-ProjectScan
+    |         |       |     |   |           +-column_list=[$expr_subquery.$col1#22]
+    |         |       |     |   |           +-expr_list=
+    |         |       |     |   |           | +-$col1#22 :=
+    |         |       |     |   |           |   +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |       |     |   |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#23)
+    |         |       |     |   |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#24)
+    |         |       |     |   |           |     +-Literal(type=BOOL, value=NULL)
+    |         |       |     |   |           |     +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |       +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |   |           |       | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |       |     |   |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#24)
+    |         |       |     |   |           |       | +-Literal(type=INT64, value=0)
+    |         |       |     |   |           |       +-Literal(type=BOOL, value=true)
+    |         |       |     |   |           |       +-SubqueryExpr
+    |         |       |     |   |           |         +-type=BOOL
+    |         |       |     |   |           |         +-subquery_type=SCALAR
+    |         |       |     |   |           |         +-parameter_list=
+    |         |       |     |   |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#23)
+    |         |       |     |   |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#24)
+    |         |       |     |   |           |         +-subquery=
+    |         |       |     |   |           |           +-ProjectScan
+    |         |       |     |   |           |             +-column_list=[$aggregate.$agg1#25]
+    |         |       |     |   |           |             +-input_scan=
+    |         |       |     |   |           |               +-AggregateScan
+    |         |       |     |   |           |                 +-column_list=[$aggregate.$agg1#25]
+    |         |       |     |   |           |                 +-input_scan=
+    |         |       |     |   |           |                 | +-ArrayScan
+    |         |       |     |   |           |                 |   +-column_list=[$array.element#26]
+    |         |       |     |   |           |                 |   +-array_expr_list=
+    |         |       |     |   |           |                 |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#24, is_correlated=TRUE)
+    |         |       |     |   |           |                 |   +-element_column_list=[$array.element#26]
+    |         |       |     |   |           |                 +-aggregate_list=
+    |         |       |     |   |           |                   +-$agg1#25 :=
+    |         |       |     |   |           |                     +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |       |     |   |           |                       +-FunctionCall(GoogleSQL:ifnull(BOOL, BOOL) -> BOOL)
+    |         |       |     |   |           |                         +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |       |     |   |           |                         | +-ColumnRef(type=ARRAY<INT64>, column=$array.element#26)
+    |         |       |     |   |           |                         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#23, is_correlated=TRUE)
+    |         |       |     |   |           |                         +-Literal(type=BOOL, value=false)
+    |         |       |     |   |           +-input_scan=
+    |         |       |     |   |             +-ProjectScan
+    |         |       |     |   |               +-column_list=$subquery1.[array_to_search#23, search_values#24]
+    |         |       |     |   |               +-expr_list=
+    |         |       |     |   |               | +-array_to_search#23 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#14, is_correlated=TRUE)
+    |         |       |     |   |               | +-search_values#24 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |         |       |     |   |               +-input_scan=
+    |         |       |     |   |                 +-SingleRowScan
+    |         |       |     |   +-order_by_item_list=
+    |         |       |     |     +-OrderByItem
+    |         |       |     |       +-column_ref=
+    |         |       |     |       | +-ColumnRef(type=INT64, column=$array_offset.offset#15)
+    |         |       |     |       +-is_descending=TRUE
+    |         |       |     +-limit=
+    |         |       |       +-Literal(type=INT64, value=1)
+    |         |       +-Cast(ARRAY<ARRAY<INT64>> -> ARRAY<ARRAY<INT64>>)
+    |         |         +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<INT64>>)
+    |         |           +-FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
+    |         |             +-Literal(type=STRING, value="ARRAY_FIND_MODE ")
+    |         |             +-Cast(ENUM<ARRAY_FIND_MODE> -> STRING)
+    |         |             | +-ColumnRef(type=ENUM<ARRAY_FIND_MODE>, column=$subquery1.find_mode#10)
+    |         |             +-Literal(type=STRING, value=" ARRAY_FIND_MODE in ARRAY_FIND is unsupported.")
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[find_mode#10, input_array#11]
+    |             +-expr_list=
+    |             | +-find_mode#10 := Literal(type=ENUM<ARRAY_FIND_MODE>, value=FIRST)
+    |             | +-input_array#11 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# ARRAY_FIND_ALL with lambda
+SELECT
+  ARRAY_FIND_ALL([arr1, arr2], e1 -> ARRAY_INCLUDES_ALL(e1, [[1, 2], [3, 4]])) AS arr_find_all_lambda
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_all_lambda#4 AS arr_find_all_lambda [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_all_lambda#4]
+    +-expr_list=
+    | +-arr_find_all_lambda#4 :=
+    |   +-FunctionCall(GoogleSQL:array_find_all(ARRAY<ARRAY<ARRAY<INT64>>> input_array, FUNCTION<ARRAY<ARRAY<INT64>>->BOOL> condition) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-FunctionArgument
+    |       +-inline_lambda=
+    |         +-InlineLambda
+    |           +-argument_list=[$lambda_arg.e1#3]
+    |           +-body=
+    |             +-FunctionCall(GoogleSQL:array_includes_all(ARRAY<ARRAY<INT64>> array_to_search, ARRAY<ARRAY<INT64>> search_values) -> BOOL)
+    |               +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$lambda_arg.e1#3)
+    |               +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr_find_all_lambda#4 AS arr_find_all_lambda [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr_find_all_lambda#4]
+    +-expr_list=
+    | +-arr_find_all_lambda#4 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+    |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#13]
+    |         +-expr_list=
+    |         | +-$col1#13 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<INT64>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#10)
+    |         |     +-Literal(type=ARRAY<ARRAY<ARRAY<INT64>>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#10)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$array.e#11]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-FilterScan
+    |         |           |   +-column_list=[$array.e#11, $array_offset.offset#12]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$array.e#11, $array_offset.offset#12]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$subquery1.input_array#10, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$array.e#11]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$array_offset.offset#12)
+    |         |           |   +-filter_expr=
+    |         |           |     +-SubqueryExpr
+    |         |           |       +-type=BOOL
+    |         |           |       +-subquery_type=SCALAR
+    |         |           |       +-parameter_list=
+    |         |           |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#11)
+    |         |           |       +-subquery=
+    |         |           |         +-ProjectScan
+    |         |           |           +-column_list=[$expr_subquery.$col1#14]
+    |         |           |           +-expr_list=
+    |         |           |           | +-$col1#14 :=
+    |         |           |           |   +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |           |           |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |           |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |           |           |     | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15)
+    |         |           |           |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |           |           |     |   +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |           |           |     +-Literal(type=BOOL, value=NULL)
+    |         |           |           |     +-FunctionCall(GoogleSQL:if(BOOL, BOOL, BOOL) -> BOOL)
+    |         |           |           |       +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |           |           |       | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<INT64>>) -> INT64)
+    |         |           |           |       | | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |           |           |       | +-Literal(type=INT64, value=0)
+    |         |           |           |       +-Literal(type=BOOL, value=true)
+    |         |           |           |       +-SubqueryExpr
+    |         |           |           |         +-type=BOOL
+    |         |           |           |         +-subquery_type=SCALAR
+    |         |           |           |         +-parameter_list=
+    |         |           |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15)
+    |         |           |           |         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16)
+    |         |           |           |         +-subquery=
+    |         |           |           |           +-ProjectScan
+    |         |           |           |             +-column_list=[$aggregate.$agg1#17]
+    |         |           |           |             +-input_scan=
+    |         |           |           |               +-AggregateScan
+    |         |           |           |                 +-column_list=[$aggregate.$agg1#17]
+    |         |           |           |                 +-input_scan=
+    |         |           |           |                 | +-ArrayScan
+    |         |           |           |                 |   +-column_list=[$array.element#18]
+    |         |           |           |                 |   +-array_expr_list=
+    |         |           |           |                 |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.search_values#16, is_correlated=TRUE)
+    |         |           |           |                 |   +-element_column_list=[$array.element#18]
+    |         |           |           |                 +-aggregate_list=
+    |         |           |           |                   +-$agg1#17 :=
+    |         |           |           |                     +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |           |           |                       +-FunctionCall(GoogleSQL:ifnull(BOOL, BOOL) -> BOOL)
+    |         |           |           |                         +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |           |           |                         | +-ColumnRef(type=ARRAY<INT64>, column=$array.element#18)
+    |         |           |           |                         | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.array_to_search#15, is_correlated=TRUE)
+    |         |           |           |                         +-Literal(type=BOOL, value=false)
+    |         |           |           +-input_scan=
+    |         |           |             +-ProjectScan
+    |         |           |               +-column_list=$subquery1.[array_to_search#15, search_values#16]
+    |         |           |               +-expr_list=
+    |         |           |               | +-array_to_search#15 := ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$array.e#11, is_correlated=TRUE)
+    |         |           |               | +-search_values#16 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |         |           |               +-input_scan=
+    |         |           |                 +-SingleRowScan
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$array_offset.offset#12)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$subquery1.input_array#10]
+    |             +-expr_list=
+    |             | +-input_array#10 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=$subquery1.[arr1#1, arr2#2]
+        +-expr_list=
+        | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        +-input_scan=
+          +-SingleRowScan
+==
+
+# Test aggregate functions
+SELECT
+  ARRAY_AGG(arr1) AS arr_agg
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+
+QueryStmt
++-output_column_list=
+| +-$aggregate.arr_agg#3 AS arr_agg [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.arr_agg#3]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.arr_agg#3]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=$subquery1.[arr1#1, arr2#2]
+        |   +-expr_list=
+        |   | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        |   | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        |   +-input_scan=
+        |     +-SingleRowScan
+        +-aggregate_list=
+          +-arr_agg#3 :=
+            +-AggregateFunctionCall(GoogleSQL:array_agg(ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+              +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+==
+
+# Test aggregate functions
+SELECT
+  ARRAY_AGG(max([arr1, arr2]) GROUP BY [arr2][OFFSET(0)]) AS multilevel_agg
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.multilevel_agg#5 AS multilevel_agg [ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.multilevel_agg#5]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.multilevel_agg#5]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=$subquery1.[arr1#1, arr2#2]
+        |   +-expr_list=
+        |   | +-arr1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        |   | +-arr2#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[5, 6], [7, 8]])
+        |   +-input_scan=
+        |     +-SingleRowScan
+        +-aggregate_list=
+          +-multilevel_agg#5 :=
+            +-AggregateFunctionCall(GoogleSQL:array_agg(ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>)
+              +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$aggregate.$agg1#4)
+              +-group_by_list=
+              | +-$groupbymod#3 :=
+              |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<ARRAY<ARRAY<INT64>>>, INT64) -> ARRAY<ARRAY<INT64>>)
+              |     +-FunctionCall(GoogleSQL:$make_array(repeated(1) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+              |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)
+              |     +-Literal(type=INT64, value=0)
+              +-group_by_aggregate_list=
+                +-$agg1#4 :=
+                  +-AggregateFunctionCall(GoogleSQL:max(ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+                    +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+                      +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr1#1)
+                      +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$subquery1.arr2#2)

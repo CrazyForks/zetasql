@@ -5784,3 +5784,25 @@ QueryStmt
     |     +-type_modifiers=type_parameters:(precision=12)
     +-input_scan=
       +-SingleRowScan
+==
+
+# b/485307992: where different TypeParameters are mistakingly comparing equal
+[language_features=MAXIMUM,+NUMERIC_TYPE]
+SELECT CAST(x AS NUMERIC)
+FROM UNNEST(['1']) AS x
+GROUP BY CAST(x AS NUMERIC(5,2))
+--
+ERROR: SELECT list expression references table alias x which is neither grouped nor aggregated [at 1:13]
+SELECT CAST(x AS NUMERIC)
+            ^
+==
+
+# This query correctly gives an error
+[language_features=MAXIMUM,+NUMERIC_TYPE]
+SELECT CAST(x AS NUMERIC(5,2))
+FROM UNNEST(['1']) AS x
+GROUP BY CAST(x AS NUMERIC)
+--
+ERROR: SELECT list expression references table alias x which is neither grouped nor aggregated [at 1:13]
+SELECT CAST(x AS NUMERIC(5,2))
+            ^

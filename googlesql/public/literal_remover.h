@@ -48,11 +48,19 @@ struct LiteralReplacementOptions {
   // Set of option names to ignore in literal replacements.
   IgnoredOptionNames ignored_option_names;
 
+  // Ignore all options in literal replacements. If true, ignored_option_names
+  // is ignored.
+  bool ignore_all_options = false;
+
   // Scrub literals in the LIMIT, OFFSET clauses.
   bool scrub_limit_offset = true;
 
+  // Include the type in the generated parameter names.
+  bool include_type_in_parameter_name = true;
+
   // If non-null, this callback will be invoked for each literal to allow
-  // overriding the default parameter name generation.
+  // overriding the default parameter name generation. Using this callback
+  // ignores other parameter name generation options.
   ParameterNameOverrideCallback parameter_name_override_callback = nullptr;
 };
 

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "googlesql/tools/formatter/internal/chunk.h"
+#include "googlesql/tools/formatter/internal/procedural_block_def.h"
 #include "googlesql/tools/formatter/internal/token.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -27,6 +28,21 @@
 namespace googlesql::formatter::internal {
 
 namespace {
+
+// Determines if a procedural continuer keyword should be indented relative to
+// its block opener (e.g., WHEN in a CASE statement).
+bool ShouldIndentProceduralContinuer(const Chunk& chunk) {
+  Chunk* opener = chunk.MatchingOpeningChunk();
+  if (opener == nullptr) return false;
+
+  const ProceduralBlockDef* def = GetProceduralBlockDef(opener->FirstKeyword());
+  if (def == nullptr) return false;
+
+  const ProceduralContinuerDef* continuer =
+      def->FindContinuer(chunk.FirstKeyword());
+  return continuer != nullptr &&
+         continuer->indent_behavior == ProceduralIndentBehavior::INDENTED;
+}
 
 void AddBlockForTopLevelClause(ChunkBlock* const chunk_block,
                                Chunk* top_level_chunk) {
@@ -43,7 +59,10 @@ void AddBlockForTopLevelClause(ChunkBlock* const chunk_block,
            !chunk->HasMatchingClosingChunk()) ||
           // Sometimes, user omit parentheses after DEFINE MACRO, but we should
           // indent nevertheless.
-          chunk->IsStartOfDefineMacroStatement()) {
+          chunk->IsStartOfDefineMacroStatement() ||
+          // Indent if we are inside a procedural block (which contains nested
+          // statements).
+          chunk->FirstToken().IsProceduralOpenerOrContinuer()) {
         (*i)->AddIndentedChunk(top_level_chunk);
         return;
       } else if (chunk->IsTopLevelClauseChunk()) {
@@ -76,7 +95,10 @@ void AddBlockForPipeOperator(ChunkBlock* const chunk_block, Chunk* pipe_chunk) {
       if ((chunk->OpensParenBlock() && !chunk->HasMatchingClosingChunk()) ||
           // Sometimes, users omit parentheses after DEFINE MACRO, but we should
           // indent nevertheless.
-          chunk->IsStartOfDefineMacroStatement()) {
+          chunk->IsStartOfDefineMacroStatement() ||
+          // Indent if we are inside a procedural block (which contains nested
+          // statements).
+          chunk->FirstToken().IsProceduralOpenerOrContinuer()) {
         (*i)->AddIndentedChunk(pipe_chunk);
         return;
       } else if (chunk->FirstKeyword() == "|>") {
@@ -155,6 +177,11 @@ void AddBlockForSetOperator(ChunkBlock* const chunk_block,
           (*i)->AddIndentedChunk(set_operator_chunk);
           return;
         }
+        // If the set operator follows a pipe, indent it.
+        if (chunk->FirstKeyword() == "|>") {
+          (*i)->AddIndentedChunk(set_operator_chunk);
+          return;
+        }
         // Chain of set operators should be on the same level.
         if (chunk->IsSetOperator() || chunk->IsStartOfNewQuery()) {
           t->AddChildChunk(set_operator_chunk);
@@ -212,7 +239,7 @@ void AddBlockFollowingAComma(Chunk* const previous_chunk, Chunk* comma_chunk) {
       continue;
     }
     Chunk* chunk = (*previous_leaf)->Chunk();
-    if (chunk->IsTopLevelClauseChunk() ||
+    if (chunk->IsTopLevelClauseChunk() || chunk->IsSetOperator() ||
         (chunk->OpensParenOrBracketBlock() &&
          !chunk->HasMatchingClosingChunk()) ||
         ChunkStartsUnfinishedTypeDeclarationExpression(*chunk) ||
@@ -361,6 +388,63 @@ void AddBlockForWhenElseEndKeywords(ChunkBlock* const chunk_block,
   // This will only trigger if the query is not syntax correct, so it's the best
   // we can do.
   chunk_block->AddIndentedChunk(new_chunk);
+}
+
+void AddBlockForProceduralContinuerOrCloser(ChunkBlock* const chunk_block,
+                                            Chunk* new_chunk) {
+  Chunk* matching_opener = new_chunk->MatchingOpeningChunk();
+  if (matching_opener == nullptr) {
+    chunk_block->AddIndentedChunk(new_chunk);
+    return;
+  }
+
+  // For block closers (like END IF) and continuers that align with the opener
+  // (like ELSE or ELSEIF), simply add them at the same indentation level as
+  // the matching opener.
+  if (new_chunk->FirstToken().Is(Token::Type::PROCEDURAL_BLOCK_CLOSER) ||
+      !ShouldIndentProceduralContinuer(*new_chunk)) {
+    matching_opener->ChunkBlock()->AddSameLevelChunk(new_chunk);
+    return;
+  }
+
+  // Traverse backwards to find the most recent chunk that belongs to this same
+  // procedural block. We stop when we find a structural chunk (like WHEN, ELSE,
+  // or the opening IF/CASE) but skip over body starters (like THEN or DO)
+  // because we want to align/indent relative to the branch divider itself.
+  Chunk* target = new_chunk->PreviousChunk();
+  while (target != matching_opener) {
+    // A chunk is considered structural if it belongs to the same block and
+    // is not a body-starter (like THEN).
+    const bool is_structural_chunk =
+        target->MatchingOpeningChunk() == matching_opener &&
+        !target->IsProceduralBodyStarter();
+    if (is_structural_chunk) {
+      break;
+    }
+    target = target->PreviousChunk();
+  }
+
+  // If the target is an indented continuer (like WHEN) and the new chunk is
+  // a branch divider (like another WHEN or ELSE), align them at the same
+  // level. Otherwise, indent the new chunk relative to the target.
+  if (ShouldIndentProceduralContinuer(*target) &&
+      new_chunk->IsProceduralBranchDivider()) {
+    target->ChunkBlock()->AddSameLevelChunk(new_chunk);
+  } else {
+    target->ChunkBlock()->AddIndentedChunk(new_chunk);
+  }
+}
+
+void AddBlockForProceduralKeyword(ChunkBlock* const chunk_block,
+                                  Chunk* new_chunk) {
+  if (new_chunk->FirstToken().Is(Token::Type::PROCEDURAL_BLOCK_OPENER)) {
+    // Procedural block openers (like IF or CASE) share the same grouping and
+    // indentation logic as top-level clauses (like SELECT). Reusing
+    // AddBlockForTopLevelClause avoids duplicating tree traversal logic.
+    AddBlockForTopLevelClause(chunk_block, new_chunk);
+  } else {
+    AddBlockForProceduralContinuerOrCloser(chunk_block, new_chunk);
+  }
 }
 
 void AddBlockForThenKeyword(ChunkBlock* const chunk_block, Chunk* new_chunk) {
@@ -977,8 +1061,14 @@ absl::Status ComputeChunkBlocksForChunks(ChunkBlockFactory* block_factory,
     if (chunk.IsImport()) {
       top->AddIndentedChunk(&chunk);
     } else if (previous_chunk.IsSetOperator()) {
-      // SET operators always introduce a new sibling chunk.
-      chunk_block->AddSameLevelChunk(&chunk);
+      // If the set operator follows a pipe operator, the following query is
+      // indented. Otherwise, it is on the same level.
+      const Chunk* prev_prev = previous_chunk.PreviousNonCommentChunk();
+      if (prev_prev != nullptr && prev_prev->FirstKeyword() == "|>") {
+        chunk_block->AddIndentedChunk(&chunk);
+      } else {
+        chunk_block->AddSameLevelChunk(&chunk);
+      }
     } else if (chunk.IsSetOperator()) {
       AddBlockForSetOperator(chunk_block, &chunk);
     } else if (chunk.IsStartOfNewQuery()) {
@@ -987,6 +1077,8 @@ absl::Status ComputeChunkBlocksForChunks(ChunkBlockFactory* block_factory,
       AddBlockForClosingBracket(&previous_chunk, &chunk);
     } else if (chunk.IsCreateOrExportIndentedClauseChunk()) {
       AddBlockForCreateOrExportIndentedClause(&previous_chunk, &chunk);
+    } else if (chunk.FirstToken().IsProceduralKeyword()) {
+      AddBlockForProceduralKeyword(chunk_block, &chunk);
     } else if (chunk.IsTopLevelClauseChunk()) {
       AddBlockForTopLevelClause(chunk_block, &chunk);
     } else if (chunk.FirstKeyword() == "|>") {

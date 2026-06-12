@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "googlesql/common/errors.h"
+#include "googlesql/common/graph_element_utils.h"
 #include "googlesql/public/cast.h"
 #include "googlesql/public/functions/json.h"
 #include "googlesql/public/functions/json_format.h"
@@ -40,12 +41,13 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 namespace {

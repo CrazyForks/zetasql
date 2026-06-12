@@ -27,7 +27,9 @@
 #include "googlesql/public/id_string.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.h"
+#include "googlesql/public/types/annotation.h"
 #include "googlesql/public/value.h"
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"
@@ -54,7 +56,26 @@ class TVFRelation;
 class InputArgumentType {
  public:
   // Same as InputArgumentType::UntypedNull(). Consider using the latter.
-  InputArgumentType() : type_(types::Int64Type()), category_(kUntypedNull) {}
+  InputArgumentType() : category_(kUntypedNull) {
+    // We do not allocate `data_` on the default constructor, to avoid
+    // memory fragmentation.
+  }
+
+  // Constructor for literal arguments without an explicit type.
+  // <literal_value> cannot be nullptr.
+  // A Value can be either a NULL or non-NULL Value of any GoogleSQL Type.
+  // The <literal_value> is not owned and must outlive all referencing
+  // InputArgumentTypes. A true <is_default_argument_value> indicates that the
+  // related function call argument was unspecified by the user, and
+  // <literal_value> was injected as the default value for the unspecified
+  // argument.
+  ABSL_DEPRECATED(
+      "Use InputArgumentType(literal_value, const AnnotationMap*, ...) "
+      "instead.")
+  explicit InputArgumentType(const Value& literal_value,
+                             bool is_default_argument_value = false)
+      : InputArgumentType(literal_value, /*annotation_map=*/nullptr,
+                          is_default_argument_value) {}
 
   // Constructor for literal arguments without an explicit type.
   // <literal_value> cannot be nullptr.
@@ -65,6 +86,7 @@ class InputArgumentType {
   // <literal_value> was injected as the default value for the unspecified
   // argument.
   explicit InputArgumentType(const Value& literal_value,
+                             const AnnotationMap* annotation_map,
                              bool is_default_argument_value = false);
 
   // Constructor for query parameters, non-literals, and literals with
@@ -74,7 +96,21 @@ class InputArgumentType {
   // `is_literal_for_constness` should be used to provide a separate signal
   // for whether the argument is a literal for the sake of constness, and can
   // be checked with `is_literal_for_constness()`.
+  ABSL_DEPRECATED("Use InputArgumentType(AnnotatedType, ...) instead.")
   explicit InputArgumentType(const Type* type, bool is_query_parameter = false,
+                             bool is_literal_for_constness = false)
+      : InputArgumentType(AnnotatedType(type, /*annotation_map=*/nullptr),
+                          is_query_parameter, is_literal_for_constness) {}
+
+  // Constructor for query parameters, non-literals, and literals with
+  // an explicit type.
+  // WARNING: `is_literal()` will return false for any InputArgumentTypes that
+  // use this constructor, including literals with an explicit type.
+  // `is_literal_for_constness` should be used to provide a separate signal
+  // for whether the argument is a literal for the sake of constness, and can
+  // be checked with `is_literal_for_constness()`.
+  explicit InputArgumentType(AnnotatedType annotated_type,
+                             bool is_query_parameter = false,
                              bool is_literal_for_constness = false);
 
   // Constructor for STRUCT arguments that can have a mix of literal and
@@ -82,7 +118,9 @@ class InputArgumentType {
   // non-literal fields, then the previous constructors can be used.
   InputArgumentType(const StructType* type,
                     const std::vector<InputArgumentType>& field_types)
-      : type_(type), category_(kTypedExpression) {
+      : category_(kTypedExpression) {
+    EnsureData().annotated_type =
+        AnnotatedType(type, /*annotation_map=*/nullptr);
     EnsureData().field_types = field_types;
   }
 
@@ -100,7 +138,11 @@ class InputArgumentType {
   ~InputArgumentType() = default;
 
   // This may return nullptr (such as for lambda).
-  const Type* type() const { return type_; }
+  const Type* type() const { return annotated_type().type; }
+  const AnnotationMap* annotation_map() const {
+    return annotated_type().annotation_map;
+  }
+  AnnotatedType annotated_type() const { return ReadOnlyData().annotated_type; }
 
   const std::vector<InputArgumentType>& field_types() const;
   size_t field_types_size() const;
@@ -215,19 +257,21 @@ class InputArgumentType {
   // Represents an argument type for untyped NULL that is coercible to any other
   // type. By convention, <type_> defaults to INT64.
   static InputArgumentType UntypedNull() {
-    return InputArgumentType(kUntypedNull, types::Int64Type());
+    return InputArgumentType(kUntypedNull, AnnotatedType(types::Int64Type()));
   }
 
   // Represents an argument type for untyped empty array that is coercible to
   // any other array type. By convention, <type_> defaults to ARRAY<INT64>.
   static InputArgumentType UntypedEmptyArray() {
-    return InputArgumentType(kUntypedEmptyArray, types::Int64ArrayType());
+    return InputArgumentType(kUntypedEmptyArray,
+                             AnnotatedType(types::Int64ArrayType()));
   }
 
   // Represents an argument type for untyped query parameters that is coercible
   // to any other type. <type_> defaults to INT64.
   static InputArgumentType UntypedQueryParameter() {
-    return InputArgumentType(kUntypedParameter, types::Int64Type());
+    return InputArgumentType(kUntypedParameter,
+                             AnnotatedType(types::Int64Type()));
   }
 
   // Constructor for relation arguments. Only for use when analyzing
@@ -289,9 +333,11 @@ class InputArgumentType {
 
   // Determines equality/inequality of two InputArgumentTypes, considering Type
   // equality via Type::Equals() and whether they are literal or NULL.
+  // Ignores type annotations as this equality check is for supertyping, which
+  // happens before considering type annotations.
   // The comparison between non-null literal InputArgumentTypes does not
   // consider their Values so they are considered equal here.
-  bool operator==(const InputArgumentType& type) const;
+  bool operator==(const InputArgumentType& rhs) const;
 
  private:
   enum Category : uint8_t {
@@ -310,8 +356,10 @@ class InputArgumentType {
     kGraph,
   };
 
-  explicit InputArgumentType(Category category, const Type* type)
-      : type_(type), category_(category) {}
+  InputArgumentType(Category category, AnnotatedType type)
+      : category_(category) {
+    EnsureData().annotated_type = type;
+  }
 
   struct Data {
     // TODO: b/277365877 - Deprecate this in favor of `constant_value`.
@@ -350,6 +398,14 @@ class InputArgumentType {
     // The alias of the argument this InputArgumentType corresponds to. If the
     // argument does not support aliases, `argument_alias` = std::nullopt.
     std::optional<IdString> argument_alias;
+
+    // Default ctor doesn't allocate `data_`, to avoid memory fragmentation.
+    // Note: type_ is filled in by use of the default constructor under
+    // factory methods for categories that shouldn't have types.
+    // This would ideally be fixed but some function resolving code
+    // currently looks at types and fails if they aren't present.
+    AnnotatedType annotated_type{/*type=*/types::Int64Type(),
+                                 /*annotation_map=*/nullptr};
   };
 
   // Mutating functions must use this function to ensure that `data_` is
@@ -364,12 +420,6 @@ class InputArgumentType {
   // Returns a reference to the Data struct if it has been initialized,
   // otherwise returns a reference to a default Data struct.
   const Data& ReadOnlyData() const;
-
-  // Note: type_ is filled in by use of the default constructor under
-  // factory methods for categories that shouldn't have types.
-  // This would ideally be fixed but some function resolving code
-  // currently looks at types and fails if they aren't present.
-  const Type* type_ = nullptr;
 
   std::unique_ptr<Data> data_;
 

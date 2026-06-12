@@ -46,15 +46,16 @@
 #include "absl/flags/flag.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(bool, googlesql_validate_resolved_ast, true,
           "Run validator on resolved AST before returning it.");
@@ -566,6 +567,10 @@ absl::Status AnalyzerOptions::Serialize(FileDescriptorSetMap* map,
   proto->set_log_impact_of_lateral_column_references(
       data_->log_impact_of_lateral_column_references);
 
+  if (constant_evaluator() != nullptr) {
+    proto->set_use_constant_evaluator(true);
+  }
+
   return absl::OkStatus();
 }
 
@@ -798,9 +803,9 @@ absl::btree_set<ResolvedASTRewrite> AnalyzerOptions::DefaultRewrites() {
     const google::protobuf::EnumValueDescriptor* value_descriptor = descriptor->value(i);
     const ResolvedASTRewrite rewrite =
         static_cast<ResolvedASTRewrite>(value_descriptor->number());
-    if (value_descriptor->options()
-            .GetExtension(rewrite_options)
-            .default_enabled()) {
+    const googlesql::ResolvedASTRewriteOptions& rewrite_opts =
+        value_descriptor->options().GetExtension(rewrite_options);
+    if (rewrite_opts.default_enabled() && !rewrite_opts.in_development()) {
       default_rewrites.insert(rewrite);
     }
   }

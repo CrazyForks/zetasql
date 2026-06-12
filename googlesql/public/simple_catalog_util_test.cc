@@ -38,9 +38,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/status_macros.h"
 
 using ::testing::HasSubstr;
 using ::testing::MatchesRegex;
@@ -362,10 +362,13 @@ AnalyzeCreateTableStmt(absl::string_view sql, AnalyzerOptions& options,
                        Catalog& catalog, TypeFactory& type_factory) {
   options.mutable_language()->AddSupportedStatementKind(
       RESOLVED_CREATE_TABLE_STMT);
+  options.mutable_language()->AddSupportedStatementKind(
+      RESOLVED_CREATE_TABLE_AS_SELECT_STMT);
   std::unique_ptr<const AnalyzerOutput> analyzer_output;
   GOOGLESQL_RETURN_IF_ERROR(AnalyzeStatement(sql, options, &catalog, &type_factory,
                                    &analyzer_output));
-  if (!analyzer_output->resolved_statement()->Is<ResolvedCreateTableStmt>()) {
+  if (!analyzer_output->resolved_statement()
+           ->Is<ResolvedCreateTableStmtBase>()) {
     return absl::InvalidArgumentError(
         "Statement is not a CREATE TABLE statement");
   }
@@ -415,7 +418,11 @@ TEST_P(MakeTableFromCreateTableTest, MakeTableFromCreateTable) {
 
   const auto* stmt = (*analyzer_output)
                          ->resolved_statement()
-                         ->GetAs<ResolvedCreateTableStmt>();
+                         ->GetAs<ResolvedCreateTableStmtBase>();
+
+  if (stmt->Is<ResolvedCreateTableAsSelectStmt>()) {
+    stmt->GetAs<ResolvedCreateTableAsSelectStmt>()->MarkFieldsAccessed();
+  }
 
   absl::StatusOr<std::unique_ptr<SimpleTable>> table =
       MakeTableFromCreateTable(*stmt);
@@ -428,6 +435,12 @@ TEST_P(MakeTableFromCreateTableTest, MakeTableFromCreateTable) {
     return;
   }
   GOOGLESQL_ASSERT_OK(table);
+
+  if (params.name == "ValueTable") {
+    EXPECT_TRUE((*table)->IsValueTable());
+  } else {
+    EXPECT_FALSE((*table)->IsValueTable());
+  }
 
   if (params.expected_primary_key.has_value()) {
     EXPECT_TRUE((*table)->PrimaryKey().has_value());
@@ -484,6 +497,11 @@ INSTANTIATE_TEST_SUITE_P(
             .expected_analysis_status = absl::InvalidArgumentError(
                 "Unsupported primary key column non_existent either does not "
                 "exist or is a pseudocolumn"),
+        },
+        {
+            .name = "ValueTable",
+            .create_sql =
+                "CREATE TABLE t AS (SELECT AS VALUE v FROM UNNEST([1, 2]) v)",
         },
     }),
     [](const ::testing::TestParamInfo<MakeTableFromCreateTableTest::ParamType>&

@@ -1,0 +1,370 @@
+# This test takes an IMPORT statement as input, reads the module contents
+# from the related file (residing in googlesql/testdata/modules),
+# creates a ModuleCatalog from the contents (including nested imports), and
+# then dumps the Catalog - including:
+#   1) nested catalogs
+#   2) functions
+#   3) other (non-catalog function) errors.
+#
+# For this test case, the module imports are:
+#
+#                           import_a1_a2_a3
+#                             /    |    \
+#                           a1    a2    a3
+#                             \  /  \  /
+#                              b1    b2
+#                             /  \  /  \
+#                           c1    c2    c3
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.import_a1_a2_a3
+    AS module_with_dag_imports
+--
+Lazy_resolution_function:func
+  (STRING a) -> STRING
+--
+MODULE A1 imported AS a1 by MODULE main_module
+Module 'A1'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+Module A1;
+
+import module googlesql.testdata.modules.b1_imports_c1_c2 as B1;
+
+create public function a1(a string) as
+(concat(a, ".a1", b1.b1(a)));
+
+Initialized functions:
+Lazy_resolution_function:a1
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE b1 imported AS B1 by MODULE A1
+Module 'b1'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE b1;
+
+IMPORT MODULE googlesql.testdata.modules.c1 as x;
+IMPORT MODULE googlesql.testdata.modules.c2 as y;
+
+create public function b1(b string) as
+(concat(b, ".b1", x.c1(b), y.c2(b)));
+
+Initialized functions:
+Lazy_resolution_function:b1
+  (STRING b) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE c1 imported AS x by MODULE b1
+Module 'c1'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c1;
+
+create public function c1 (a string) as (concat(a, ".c1"));
+
+Initialized functions:
+Lazy_resolution_function:c1
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c2 imported AS y by MODULE b1
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE a2 imported AS a2 by MODULE main_module
+Module 'a2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE a2;
+
+import module googlesql.testdata.modules.b2_imports_c2_c3 as b2;
+import module googlesql.testdata.modules.b1_imports_c1_c2 as b1;
+
+create public function a2(a string) as
+(concat(a, ".a2", b2.b2(a), b1.b1(a)));
+
+Initialized functions:
+Lazy_resolution_function:a2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE b1 imported AS b1 by MODULE a2
+Module 'b1'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE b1;
+
+IMPORT MODULE googlesql.testdata.modules.c1 as x;
+IMPORT MODULE googlesql.testdata.modules.c2 as y;
+
+create public function b1(b string) as
+(concat(b, ".b1", x.c1(b), y.c2(b)));
+
+Initialized functions:
+Lazy_resolution_function:b1
+  (STRING b) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE c1 imported AS x by MODULE b1
+Module 'c1'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c1;
+
+create public function c1 (a string) as (concat(a, ".c1"));
+
+Initialized functions:
+Lazy_resolution_function:c1
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c2 imported AS y by MODULE b1
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE b2 imported AS b2 by MODULE a2
+Module 'b2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE b2;
+
+IMPORT MODULE googlesql.testdata.modules.c2 as x;
+\-- Import the same module as above, but with a different alias.
+IMPORT MODULE googlesql.testdata.modules.c2 as y;
+
+IMPORT MODULE googlesql.testdata.modules.c3 as z;
+
+create public function b2(b string) as
+(concat(b, ".b2", x.c2(b), y.c2(b), z.c3(b)));
+
+Initialized functions:
+Lazy_resolution_function:b2
+  (STRING b) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE c2 imported AS x by MODULE b2
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c2 imported AS y by MODULE b2
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c3 imported AS z by MODULE b2
+Module 'c3'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c3;
+
+create public function c3 (a string) as (concat(a, ".c3"));
+
+Initialized functions:
+Lazy_resolution_function:c3
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE a3 imported AS a3 by MODULE main_module
+Module 'a3'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+module a3;
+
+import module googlesql.testdata.modules.b2_imports_c2_c3 as b2;
+
+create public function a3(a string) as
+(concat(a, ".a3", b2.b2(a)));
+
+
+Initialized functions:
+Lazy_resolution_function:a3
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE b2 imported AS b2 by MODULE a3
+Module 'b2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE b2;
+
+IMPORT MODULE googlesql.testdata.modules.c2 as x;
+\-- Import the same module as above, but with a different alias.
+IMPORT MODULE googlesql.testdata.modules.c2 as y;
+
+IMPORT MODULE googlesql.testdata.modules.c3 as z;
+
+create public function b2(b string) as
+(concat(b, ".b2", x.c2(b), y.c2(b), z.c3(b)));
+
+Initialized functions:
+Lazy_resolution_function:b2
+  (STRING b) -> STRING
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE c2 imported AS x by MODULE b2
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c2 imported AS y by MODULE b2
+Module 'c2'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c2;
+
+create public function c2 (a string) as (concat(a, ".c2"));
+
+Initialized functions:
+Lazy_resolution_function:c2
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>
+
+MODULE c3 imported AS z by MODULE b2
+Module 'c3'
+Module contents:
+\-- A module used in googlesql/common/testdata/dag_imports.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE c3;
+
+create public function c3 (a string) as (concat(a, ".c3"));
+
+Initialized functions:
+Lazy_resolution_function:c3
+  (STRING a) -> STRING
+
+Initialization errors:
+<no errors>

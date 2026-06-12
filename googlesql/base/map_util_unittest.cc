@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/strings/string_view.h"
 #include "googlesql/base/logging.h"
 
 // All of the templates for the tests are defined here.

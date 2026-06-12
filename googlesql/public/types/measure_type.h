@@ -67,7 +67,6 @@ class MeasureType : public ContainerType {
                                  /*use_external_float32=*/false);
   }
 
-  std::string CapitalizedName() const override;
 
   bool SupportsOrdering(const LanguageOptions& language_options,
                         std::string* type_description) const override;
@@ -124,6 +123,9 @@ class MeasureType : public ContainerType {
   absl::Status SerializeToProtoAndDistinctFileDescriptorsImpl(
       const BuildFileDescriptorSetMapOptions& options, TypeProto* type_proto,
       FileDescriptorSetMap* file_descriptor_set_map) const override;
+
+  uint64_t GetValueContentExternallyAllocatedByteSize(
+      const ValueContent& value) const override;
 
   void ClearValueContent(const ValueContent& value) const override;
 

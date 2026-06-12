@@ -30,9 +30,10 @@ result_analyzed:<span class="ast-node">QueryStmt</span>
 │ └─$query.<span class="ast-col dollar_col1_1">$col1#1</span> AS `$col1` [INT64]
 └─query=
   └─<span class="ast-node">ProjectScan</span>
+    ├─<span class="ast-range">parse_location=15-23</span>
     ├─column_list=[$query.<span class="ast-col dollar_col1_1">$col1#1</span>]
     ├─expr_list=
-    │ └─<span class="ast-col-src"><span class="ast-col dollar_col1_1">$col1#1</span></span> := Literal(type=INT64, value=1)
+    │ └─<span class="ast-col-src"><span class="ast-col dollar_col1_1">$col1#1</span></span> := Literal(<span class="ast-range">parse_location=22-23</span>, type=INT64, value=1)
     └─input_scan=
       └─<span class="ast-node">SingleRowScan</span>
 \
@@ -212,13 +213,15 @@ result_analyzed:<span class="ast-node">QueryStmt</span>
 │ └─$query.<span class="ast-col num_square_2">num_square#2</span> AS num_square [INT64]
 └─query=
   └─<span class="ast-node">ProjectScan</span>
+    ├─<span class="ast-range">parse_location=0-36</span>
     ├─column_list=$query.[<span class="ast-col num_1">num#1</span>, <span class="ast-col num_square_2">num_square#2</span>]
     ├─expr_list=
-    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, type=INT64, value=0)
+    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, <span class="ast-range">parse_location=7-8</span>, type=INT64, value=0)
     │ └─<span class="ast-col-src"><span class="ast-col num_square_2">num_square#2</span></span> :=
     │   └─<span class="ast-node">FunctionCall</span>(GoogleSQL:$multiply(INT64, INT64) -&gt; INT64)
-    │     ├─<span class="ast-node">Constant</span>(x, type=INT64, value=0)
-    │     └─<span class="ast-node">Constant</span>(x, type=INT64, value=0)
+    │     ├─<span class="ast-range">parse_location=17-22</span>
+    │     ├─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=17-18</span>, type=INT64, value=0)
+    │     └─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=21-22</span>, type=INT64, value=0)
     └─input_scan=
       └─<span class="ast-node">SingleRowScan</span>
 
@@ -246,13 +249,15 @@ result_analyzed:<span class="ast-node">QueryStmt</span>
 │ └─$query.<span class="ast-col num_square_2">num_square#2</span> AS num_square [INT64]
 └─query=
   └─<span class="ast-node">ProjectScan</span>
+    ├─<span class="ast-range">parse_location=0-36</span>
     ├─column_list=$query.[<span class="ast-col num_1">num#1</span>, <span class="ast-col num_square_2">num_square#2</span>]
     ├─expr_list=
-    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, type=INT64, value=1)
+    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, <span class="ast-range">parse_location=7-8</span>, type=INT64, value=1)
     │ └─<span class="ast-col-src"><span class="ast-col num_square_2">num_square#2</span></span> :=
     │   └─<span class="ast-node">FunctionCall</span>(GoogleSQL:$multiply(INT64, INT64) -&gt; INT64)
-    │     ├─<span class="ast-node">Constant</span>(x, type=INT64, value=1)
-    │     └─<span class="ast-node">Constant</span>(x, type=INT64, value=1)
+    │     ├─<span class="ast-range">parse_location=17-22</span>
+    │     ├─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=17-18</span>, type=INT64, value=1)
+    │     └─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=21-22</span>, type=INT64, value=1)
     └─input_scan=
       └─<span class="ast-node">SingleRowScan</span>
 
@@ -280,13 +285,15 @@ result_analyzed:<span class="ast-node">QueryStmt</span>
 │ └─$query.<span class="ast-col num_square_2">num_square#2</span> AS num_square [INT64]
 └─query=
   └─<span class="ast-node">ProjectScan</span>
+    ├─<span class="ast-range">parse_location=0-36</span>
     ├─column_list=$query.[<span class="ast-col num_1">num#1</span>, <span class="ast-col num_square_2">num_square#2</span>]
     ├─expr_list=
-    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, type=INT64, value=2)
+    │ ├─<span class="ast-col-src"><span class="ast-col num_1">num#1</span></span> := Constant(x, <span class="ast-range">parse_location=7-8</span>, type=INT64, value=2)
     │ └─<span class="ast-col-src"><span class="ast-col num_square_2">num_square#2</span></span> :=
     │   └─<span class="ast-node">FunctionCall</span>(GoogleSQL:$multiply(INT64, INT64) -&gt; INT64)
-    │     ├─<span class="ast-node">Constant</span>(x, type=INT64, value=2)
-    │     └─<span class="ast-node">Constant</span>(x, type=INT64, value=2)
+    │     ├─<span class="ast-range">parse_location=17-22</span>
+    │     ├─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=17-18</span>, type=INT64, value=2)
+    │     └─<span class="ast-node">Constant</span>(x, <span class="ast-range">parse_location=21-22</span>, type=INT64, value=2)
     └─input_scan=
       └─<span class="ast-node">SingleRowScan</span>
 \
@@ -375,6 +382,21 @@ table:<table>
   </tbody>
 </table>
 \
+==
+
+# Duplicate TVF definition
+[mode=analyze,execute]
+[sql_mode=script]
+CREATE TEMP TABLE FUNCTION mytvf() AS (select 1 x);
+CREATE TEMP TABLE FUNCTION mytvf() AS (select 2 y);
+--
+query:CREATE TEMP TABLE FUNCTION mytvf() AS (select 1 x);
+CREATE TEMP TABLE FUNCTION mytvf() AS (select 2 y);
+
+mode_execute
+sql_mode_script
+target_syntax_mode_standard
+error:TVF mytvf already exists
 ==
 
 # Test executed_multi with a mix of successful and failed results.

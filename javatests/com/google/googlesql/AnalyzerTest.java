@@ -470,7 +470,8 @@ public class AnalyzerTest {
     TableValuedFunction tvf =
         new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
             ImmutableList.of("test_tvf"),
-            new FunctionSignature(tableType, ImmutableList.of(tableType), /* contextId= */ -1),
+            ImmutableList.of(
+                new FunctionSignature(tableType, ImmutableList.of(tableType), /* contextId= */ -1)),
             ImmutableList.of(
                 TVFRelation.Column.create(
                     "append_col_1", TypeFactory.createSimpleType(TypeKind.TYPE_INT64)),

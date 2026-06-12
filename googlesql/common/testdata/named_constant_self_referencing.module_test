@@ -1,0 +1,19 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_self_referencing;
+--
+PRIVATE CONSTANT private_bar=Uninitialized value (unknown type)
+ERROR during resolution: Constant private_bar is invalid [at .../googlesql/testdata/modules/named_constant_self_referencing.sqlm:5:25]
+CREATE PRIVATE CONSTANT private_bar = 1 + private_bar;
+                        ^
+The constant named_constant_self_referencing.private_bar is recursive [at .../googlesql/testdata/modules/named_constant_self_referencing.sqlm:5:25]
+CREATE PRIVATE CONSTANT private_bar = 1 + private_bar;
+                        ^
+
+CONSTANT public_bar=Uninitialized value (unknown type)
+ERROR during resolution: Constant public_bar is invalid [at .../googlesql/testdata/modules/named_constant_self_referencing.sqlm:3:24]
+CREATE PUBLIC CONSTANT public_bar = 1 + public_bar;
+                       ^
+The constant named_constant_self_referencing.public_bar is recursive [at .../googlesql/testdata/modules/named_constant_self_referencing.sqlm:3:24]
+CREATE PUBLIC CONSTANT public_bar = 1 + public_bar;
+                       ^

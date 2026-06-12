@@ -174,7 +174,7 @@ QueryStatement [0-61] [SELECT abc...SELECT 777]
           SetOperationType [18-23] [UNION]
           SetOperationAllOrDistinct [24-27] [ALL]
           SetOperationColumnMatchMode [28-44] [CORRESPONDING BY]
-          ColumnList [45-50] [(abc)]
+          ExpressionList [45-50] [(abc)]
             Identifier(abc) [46-49] [abc]
       Select [0-17] [SELECT abc FROM T]
         SelectList [7-10] [abc]
@@ -212,7 +212,7 @@ QueryStatement [0-66] [SELECT abc...SELECT 777]
           SetOperationType [18-23] [UNION]
           SetOperationAllOrDistinct [24-27] [ALL]
           SetOperationColumnMatchMode [28-44] [CORRESPONDING BY]
-          ColumnList [45-55] [(abc, def)]
+          ExpressionList [45-55] [(abc, def)]
             Identifier(abc) [46-49] [abc]
             Identifier(def) [51-54] [def]
       Select [0-17] [SELECT abc FROM T]
@@ -262,6 +262,31 @@ SELECT *
 ^
 ==
 
+# parentheses around column names are not allowed for CORRESPONDING BY.
+SELECT *
+FROM A
+INTERSECT ALL CORRESPONDING BY ((a))
+SELECT *
+FROM B
+
+--
+ERROR: Syntax error: Unexpected "(" [at 3:33]
+INTERSECT ALL CORRESPONDING BY ((a))
+                                ^
+==
+
+SELECT *
+FROM A
+INTERSECT ALL CORRESPONDING BY (a, (b))
+SELECT *
+FROM B
+
+--
+ERROR: Syntax error: Unexpected "(" [at 3:36]
+INTERSECT ALL CORRESPONDING BY (a, (b))
+                                   ^
+==
+
 # STRICT mode
 SELECT *
 FROM A
@@ -278,7 +303,7 @@ QueryStatement [0-70] [SELECT * FROM...ELECT * FROM B]
           SetOperationAllOrDistinct [23-26] [ALL]
           SetOperationColumnMatchMode [34-50] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [27-33] [STRICT]
-          ColumnList [51-54] [(a)]
+          ExpressionList [51-54] [(a)]
             Identifier(a) [52-53] [a]
       Select [0-15] [SELECT * FROM A]
         SelectList [7-8] [*]
@@ -327,14 +352,14 @@ QueryStatement [0-123] [SELECT * FROM...ELECT * FROM C]
           SetOperationAllOrDistinct [22-25] [ALL]
           SetOperationColumnMatchMode [33-49] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [26-32] [STRICT]
-          ColumnList [50-53] [(a)]
+          ExpressionList [50-53] [(a)]
             Identifier(a) [51-52] [a]
         SetOperationMetadata [70-107] [UNION ALL...RRESPONDING BY (a)]
           SetOperationType [70-75] [UNION]
           SetOperationAllOrDistinct [76-79] [ALL]
           SetOperationColumnMatchMode [87-103] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [80-86] [STRICT]
-          ColumnList [104-107] [(a)]
+          ExpressionList [104-107] [(a)]
             Identifier(a) [105-106] [a]
       Select [0-15] [SELECT * FROM A]
         SelectList [7-8] [*]
@@ -637,7 +662,7 @@ QueryStatement [0-147] [SELECT * FROM...ELECT * FROM C]
           SetOperationAllOrDistinct [27-35] [DISTINCT]
           SetOperationColumnMatchMode [36-52] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [16-20] [LEFT]
-          ColumnList [53-62] [(a, b, c)]
+          ExpressionList [53-62] [(a, b, c)]
             Identifier(a) [54-55] [a]
             Identifier(b) [57-58] [b]
             Identifier(c) [60-61] [c]
@@ -646,7 +671,7 @@ QueryStatement [0-147] [SELECT * FROM...ELECT * FROM C]
           SetOperationAllOrDistinct [96-104] [DISTINCT]
           SetOperationColumnMatchMode [105-121] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [79-89] [LEFT OUTER]
-          ColumnList [122-131] [(a, b, c)]
+          ExpressionList [122-131] [(a, b, c)]
             Identifier(a) [123-124] [a]
             Identifier(b) [126-127] [b]
             Identifier(c) [129-130] [c]
@@ -769,14 +794,14 @@ QueryStatement [0-136] [SELECT 1 AS...B, 1 AS A]
           SetOperationAllOrDistinct [26-29] [ALL]
           SetOperationColumnMatchMode [30-46] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [14-19] [OUTER]
-          ColumnList [47-50] [(A)]
+          ExpressionList [47-50] [(A)]
             Identifier(A) [48-49] [A]
         SetOperationMetadata [73-114] [FULL OUTER...RESPONDING BY (A)]
           SetOperationType [84-89] [UNION]
           SetOperationAllOrDistinct [90-93] [ALL]
           SetOperationColumnMatchMode [94-110] [CORRESPONDING BY]
           SetOperationColumnPropagationMode [73-83] [FULL OUTER]
-          ColumnList [111-114] [(A)]
+          ExpressionList [111-114] [(A)]
             Identifier(A) [112-113] [A]
       Select [0-13] [SELECT 1 AS A]
         SelectList [7-13] [1 AS A]

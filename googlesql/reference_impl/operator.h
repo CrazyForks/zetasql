@@ -52,6 +52,7 @@
 
 #include "googlesql/base/logging.h"
 #include "googlesql/public/catalog.h"
+#include "googlesql/public/collator.h"
 #include "googlesql/public/evaluator_table_iterator.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/functions/match_recognize/compiled_pattern.h"
@@ -84,8 +85,8 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql {
 
@@ -107,6 +108,16 @@ class ValueExpr;
 // -------------------------------------------------------
 // Base classes
 // -------------------------------------------------------
+
+struct CollatorInfo {
+  std::unique_ptr<const GoogleSqlCollator> collator;
+  const Type* collation_key_type;
+};
+
+struct CollatorPtrInfo {
+  const GoogleSqlCollator* collator = nullptr;
+  const Type* collation_key_type = nullptr;
+};
 
 // Abstract base class for operator arguments. The implementation is designed to
 // make it easy to deal with ExprArgs and RelationalArgs since those are the
@@ -285,15 +296,39 @@ class KeyArg final : public ExprArg {
   KeyArg(const KeyArg&) = delete;
   KeyArg& operator=(const KeyArg&) = delete;
 
-  void set_collation(std::unique_ptr<ValueExpr> collation) {
+  void set_collation(CollatorInfo collation) {
+    ABSL_DCHECK(collation_name_ == nullptr);
     collation_ = std::move(collation);
+  }
+  void set_collation_name(std::unique_ptr<ValueExpr> collation_name) {
+    ABSL_DCHECK(collation_.collator == nullptr);
+    collation_name_ = std::move(collation_name);
   }
 
   SortOrder order() const { return order_; }
   bool is_descending() const { return order_ == kDescending; }
   NullOrder null_order() const { return null_order_; }
-  const ValueExpr* collation() const { return collation_.get(); }
-  ValueExpr* mutable_collation() { return collation_.get(); }
+
+  const CollatorInfo& collation() const {
+    ABSL_DCHECK(collation_name_ == nullptr);
+    return collation_;
+  }
+  const ValueExpr* collation_name() const {
+    ABSL_DCHECK(collation_.collator == nullptr || collation_name_ == nullptr);
+    return collation_name_.get();
+  }
+  ValueExpr* mutable_collation_name() {
+    ABSL_DCHECK(collation_.collator == nullptr);
+    return collation_name_.get();
+  }
+
+  // Gets the GoogleSqlCollator for this key. Handles lazy creation
+  // from collation_name_expr() if needed. The result is cached in
+  // runtime_collator_.
+  // Returns nullptr if no collation is applicable.
+  absl::StatusOr<CollatorPtrInfo> GetCollator(
+      EvaluationContext* context,
+      absl::Span<const TupleData* const> params) const;
 
   std::string DebugInternal(const std::string& indent,
                             bool verbose) const override;
@@ -301,9 +336,16 @@ class KeyArg final : public ExprArg {
  private:
   SortOrder order_;
   NullOrder null_order_;
-  // <collation> indicates the COLLATE specific rules to sort the string fields.
-  // If nullptr, then strings are compared based on their UTF-8 encoding.
-  std::unique_ptr<ValueExpr> collation_;
+  // <collation> indicates the COLLATE specific rules to sort the fields.
+  // If nullptr, then elements are compared based on their default behavior.
+  // Mutable because we may need to create the collator at evaluation time if
+  // supplied through collation_name_ - and we do not want to evaluate it
+  // every time.
+  mutable CollatorInfo collation_;
+  // If instead a "collation_name" that is a parameter was given, we have to
+  // wait until evaluation time to create the collator.
+  // This field is mutually exclusive with `collation_`.
+  mutable std::unique_ptr<ValueExpr> collation_name_;
 };
 
 struct AnalyticWindow {
@@ -690,18 +732,19 @@ class AggregateArg final : public ExprArg {
           ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
       std::unique_ptr<ValueExpr> filter = nullptr,
       std::unique_ptr<ValueExpr> having_filter = nullptr,
-      const std::vector<ResolvedCollation>& collation_list = {},
+      std::vector<CollatorInfo> collation_list = {},
       const VariableId& side_effects_variable = VariableId());
 
   // Sets the schemas used in CreateAccumulator/EvalAgg.
   absl::Status SetSchemasForEvaluation(
       const TupleSchema& group_schema,
-      absl::Span<const TupleSchema* const> params_schemas);
+      absl::Span<const TupleSchema* const> params_schemas,
+      const TupleSchema* grouping_keys_schema = nullptr);
 
   // Returns an accumulator corresponding this aggregation operations.
   absl::StatusOr<std::unique_ptr<AggregateArgAccumulator>> CreateAccumulator(
-      absl::Span<const TupleData* const> params,
-      EvaluationContext* context) const;
+      absl::Span<const TupleData* const> params, EvaluationContext* context,
+      const TupleData* group_keys = nullptr) const;
 
   // Convenience method that creates an accumulator, accumulates all the rows
   // in 'group', and then returns the result.
@@ -731,7 +774,7 @@ class AggregateArg final : public ExprArg {
                ResolvedFunctionCallBase::ErrorMode error_mode,
                std::unique_ptr<ValueExpr> filter,
                std::unique_ptr<ValueExpr> having_filter,
-               const std::vector<ResolvedCollation>& collation_list,
+               std::vector<CollatorInfo> collation_list,
                const VariableId& side_effects_variable);
 
   AggregateArg(const AggregateArg&) = delete;
@@ -775,7 +818,7 @@ class AggregateArg final : public ExprArg {
   const ValueExpr* filter() const;
   ValueExpr* mutable_filter();
 
-  const std::vector<ResolvedCollation>& collation_list() const {
+  const std::vector<CollatorInfo>& collation_list() const {
     return collation_list_;
   }
 
@@ -792,7 +835,7 @@ class AggregateArg final : public ExprArg {
   std::unique_ptr<const TupleSchema> group_schema_;
   std::unique_ptr<ValueExpr> filter_;
   std::unique_ptr<ValueExpr> having_filter_;
-  const std::vector<ResolvedCollation> collation_list_;
+  const std::vector<CollatorInfo> collation_list_;
   const VariableId side_effects_variable_;
 };
 
@@ -1338,6 +1381,9 @@ class TableValuedFunctionBody {
 
   virtual std::string debug_name() const = 0;
 
+  // The returned iterator must return columns in the same order as the TVF's
+  // output schema, because positional indices are used to project selected
+  // columns.
   virtual absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>
   CreateEvaluator(std::vector<TableValuedFunction::TvfEvaluatorArg> args,
                   std::shared_ptr<FunctionSignature> function_call_signature,
@@ -1799,6 +1845,87 @@ class AggregateOp final : public RelationalOp {
   std::vector<int64_t> grouping_sets_;
 };
 
+// Partitions the input using 'keys', and for each group, evaluates 'for_expr'
+// and 'pivot_aggregators' to produce pivoted columns.
+class PivotOp final : public RelationalOp {
+ public:
+  PivotOp(const PivotOp&) = delete;
+  PivotOp& operator=(const PivotOp&) = delete;
+
+  static absl::StatusOr<std::unique_ptr<PivotOp>> Create(
+      std::vector<std::unique_ptr<KeyArg>> keys,
+      std::unique_ptr<ValueExpr> for_expr,
+      std::vector<std::unique_ptr<ExprArg>> pivot_values,
+      std::vector<std::unique_ptr<AggregateArg>> aggregators,
+      std::unique_ptr<RelationalOp> input);
+
+  absl::Status SetSchemasForEvaluation(
+      absl::Span<const TupleSchema* const> params_schemas) override;
+
+  absl::StatusOr<std::unique_ptr<TupleIterator>> CreateIterator(
+      absl::Span<const TupleData* const> params, int num_extra_slots,
+      EvaluationContext* context) const override;
+
+  std::unique_ptr<TupleSchema> CreateOutputSchema() const override;
+
+  std::string IteratorDebugString() const override;
+
+  std::string DebugInternal(const std::string& indent,
+                            bool verbose) const override;
+
+ private:
+  enum ArgKind { kKey, kForExpr, kPivotValue, kPivotAggregator, kInput };
+
+  PivotOp(std::vector<std::unique_ptr<KeyArg>> keys,
+          std::unique_ptr<ValueExpr> for_expr,
+          std::vector<std::unique_ptr<ExprArg>> pivot_values,
+          std::vector<std::unique_ptr<AggregateArg>> aggregators,
+          std::unique_ptr<RelationalOp> input);
+};
+
+// Produces multiple rows for each input row by unpivoting 'unpivot_columns'
+// into 'value_columns' and 'label_column'.
+class UnpivotOp final : public RelationalOp {
+ public:
+  UnpivotOp(const UnpivotOp&) = delete;
+  UnpivotOp& operator=(const UnpivotOp&) = delete;
+
+  static absl::StatusOr<std::unique_ptr<UnpivotOp>> Create(
+      std::vector<std::unique_ptr<ExprArg>> projected_input_columns,
+      std::vector<VariableId> value_columns, VariableId label_column,
+      std::vector<Value> label_values,
+      std::vector<std::unique_ptr<ExprArg>> unpivot_columns,
+      std::unique_ptr<RelationalOp> input, bool include_nulls);
+
+  absl::Status SetSchemasForEvaluation(
+      absl::Span<const TupleSchema* const> params_schemas) override;
+
+  absl::StatusOr<std::unique_ptr<TupleIterator>> CreateIterator(
+      absl::Span<const TupleData* const> params, int num_extra_slots,
+      EvaluationContext* context) const override;
+
+  std::unique_ptr<TupleSchema> CreateOutputSchema() const override;
+
+  std::string IteratorDebugString() const override;
+
+  std::string DebugInternal(const std::string& indent,
+                            bool verbose) const override;
+
+ private:
+  enum ArgKind { kProjectedInputColumn, kUnpivotColumn, kInput };
+
+  UnpivotOp(std::vector<std::unique_ptr<ExprArg>> projected_input_columns,
+            std::vector<VariableId> value_columns, VariableId label_column,
+            std::vector<Value> label_values,
+            std::vector<std::unique_ptr<ExprArg>> unpivot_columns,
+            std::unique_ptr<RelationalOp> input, bool include_nulls);
+
+  const std::vector<VariableId> value_columns_;
+  const VariableId label_column_;
+  const std::vector<Value> label_values_;
+  const bool include_nulls_;
+};
+
 // Represents scan operator for returning all rows corresponding to the current
 // group, before these rows are aggregated.
 class GroupRowsOp : public RelationalOp {
@@ -1810,7 +1937,8 @@ class GroupRowsOp : public RelationalOp {
       absl::string_view input_iter_debug_string);
 
   static absl::StatusOr<std::unique_ptr<GroupRowsOp>> Create(
-      std::vector<std::unique_ptr<ExprArg>> columns);
+      std::vector<std::unique_ptr<ExprArg>> columns,
+      VariableId input_rows_lookup_key);
 
   absl::Status SetSchemasForEvaluation(
       absl::Span<const TupleSchema* const> params_schemas) override;
@@ -1831,9 +1959,15 @@ class GroupRowsOp : public RelationalOp {
  private:
   enum ArgKind { kColumn };
 
-  explicit GroupRowsOp(std::vector<std::unique_ptr<ExprArg>> columns);
+  explicit GroupRowsOp(std::vector<std::unique_ptr<ExprArg>> columns,
+                       VariableId input_rows_lookup_key);
 
+  // Output columns from GroupRowsOp.
   absl::Span<const ExprArg* const> columns() const;
+
+  // The VariableId of the grouping column used as a key to look up the
+  // accumulated group rows.
+  VariableId input_rows_lookup_key_;
 };
 
 // A placeholder RelationalOp for returning an iterator to the current rows
@@ -2822,6 +2956,44 @@ class BarrierScanOp final : public RelationalOp {
   RelationalOp* mutable_input();
 };
 
+// FinishOp consumes its input and returns no rows.
+class FinishOp final : public RelationalOp {
+ public:
+  FinishOp(const FinishOp&) = delete;
+  FinishOp& operator=(const FinishOp&) = delete;
+
+  static std::string GetIteratorDebugString(
+      absl::string_view input_iterator_debug_string);
+
+  static absl::StatusOr<std::unique_ptr<FinishOp>> Create(
+      std::unique_ptr<RelationalOp> input);
+
+  absl::Status SetSchemasForEvaluation(
+      absl::Span<const TupleSchema* const> params_schemas) override;
+
+  absl::StatusOr<std::unique_ptr<TupleIterator>> CreateIterator(
+      absl::Span<const TupleData* const> params, int num_extra_slots,
+      EvaluationContext* context) const override;
+
+  std::unique_ptr<TupleSchema> CreateOutputSchema() const override;
+
+  std::string IteratorDebugString() const override;
+
+  std::string DebugInternal(const std::string& indent,
+                            bool verbose) const override;
+
+ private:
+  enum ArgKind {
+    kInput,
+  };
+
+  explicit FinishOp(std::unique_ptr<RelationalOp> input);
+
+  const RelationalOp* input() const;
+
+  RelationalOp* mutable_input();
+};
+
 // -------------------------------------------------------
 // Value expressions
 // -------------------------------------------------------
@@ -3328,6 +3500,36 @@ class ConstExpr final : public ValueExpr {
   TupleSlot slot_;
 };
 
+// Evaluates 'input' and discards the result, returning an invalid Value().
+// Used for terminal queries to execute the query for side-effects/errors
+// but return "no table" (represented by invalid Value).
+class DiscardResultExpr final : public ValueExpr {
+ public:
+  DiscardResultExpr(const DiscardResultExpr&) = delete;
+  DiscardResultExpr& operator=(const DiscardResultExpr&) = delete;
+
+  static absl::StatusOr<std::unique_ptr<DiscardResultExpr>> Create(
+      std::unique_ptr<ValueExpr> input);
+
+  absl::Status SetSchemasForEvaluation(
+      absl::Span<const TupleSchema* const> params_schemas) override;
+
+  bool Eval(absl::Span<const TupleData* const> params,
+            EvaluationContext* context, VirtualTupleSlot* result,
+            absl::Status* status) const override;
+
+  std::string DebugInternal(const std::string& indent,
+                            bool verbose) const override;
+
+  const ValueExpr* input() const;
+  ValueExpr* mutable_input();
+
+ private:
+  explicit DiscardResultExpr(std::unique_ptr<ValueExpr> input);
+
+  enum ArgKind { kInput };
+};
+
 // Produces a single value from the variable ranging over the given 'input'
 // relation, or NULL if the 'input' is empty. Sets an error if the 'input' has
 // more than one element.
@@ -3503,7 +3705,7 @@ class AggregateFunctionBody : public FunctionBody {
   virtual absl::StatusOr<std::unique_ptr<AggregateAccumulator>>
   CreateAccumulator(absl::Span<const Value> args,
                     absl::Span<const TupleData* const> params,
-                    CollatorList collator_list,
+                    std::vector<CollatorPtrInfo> collator_list,
                     EvaluationContext* context) const = 0;
 
  private:
@@ -3578,7 +3780,8 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
       std::vector<TvfAlgebraArgument> arguments,
       std::vector<TVFSchemaColumn> output_columns,
       std::vector<VariableId> variables,
-      std::shared_ptr<FunctionSignature> function_call_signature);
+      std::shared_ptr<FunctionSignature> function_call_signature,
+      std::vector<int> output_column_indices);
 
   absl::Status SetSchemasForEvaluation(
       absl::Span<const TupleSchema* const> params_schemas) override;
@@ -3600,7 +3803,8 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
       std::vector<TvfAlgebraArgument> arguments,
       std::vector<TVFSchemaColumn> output_columns,
       std::vector<VariableId> variables,
-      std::shared_ptr<FunctionSignature> function_call_signature);
+      std::shared_ptr<FunctionSignature> function_call_signature,
+      std::vector<int> output_column_indices);
 
   TableValuedFunctionCallExpr(const TableValuedFunctionCallExpr&) = delete;
   TableValuedFunctionCallExpr& operator=(const TableValuedFunctionCallExpr&) =
@@ -3616,6 +3820,8 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
   const std::vector<VariableId> variables_;
   // Signature of the invocation
   const std::shared_ptr<FunctionSignature> function_call_signature_;
+  // Positional indices of the TVF output column list.
+  const std::vector<int> output_column_indices_;
 };
 
 // Defines an aggregate function call with the given 'exprs' and 'arguments'.
@@ -4474,6 +4680,10 @@ class DMLUpdateValueExpr final : public DMLValueExpr {
     absl::StatusOr<Value> GetNewValue(const Value& original_value,
                                       EvaluationContext* context) const;
 
+    // Returns true if this node or any of its descendants has a leaf value that
+    // is not a SQL NULL.
+    bool HasAnySqlNonNullLeaf() const;
+
    private:
     // Same as GetNewValue(), but specifically for an UpdateNode that represents
     // a proto.
@@ -4809,7 +5019,15 @@ class DMLInsertValueExpr final : public DMLValueExpr {
       const InsertColumnMap& insert_column_map,
       std::vector<std::vector<Value>>& rows_to_insert,
       std::vector<std::vector<Value>>& dml_returning_rows,
-      EvaluationContext* context, PrimaryKeyRowMap* row_map) const;
+      absl::Span<const TupleData* const> params, EvaluationContext* context,
+      PrimaryKeyRowMap* row_map) const;
+
+  // Evaluates the returning clause when an INSERT OR UPDATE DML query
+  // updates an existing row. The expressions values are computed after the
+  // update is applied to the existing row.
+  absl::StatusOr<std::vector<Value>> EvalReturningClauseForUpdateAction(
+      const std::vector<Value>& row, absl::Span<const TupleData* const> params,
+      EvaluationContext* context) const;
 
   // Returns the DML output value corresponding to the arguments.
   absl::StatusOr<Value> GetDMLOutputValue(
@@ -5088,6 +5306,7 @@ class QuantifiedGraphPathOp final : public RelationalOp {
   };
 
   static absl::StatusOr<std::unique_ptr<QuantifiedGraphPathOp>> Create(
+      std::unique_ptr<RelationalOp> starting_node_op,
       std::unique_ptr<RelationalOp> path_primary_op, VariablesInfo variables,
       std::unique_ptr<ValueExpr> lower_bound,
       std::unique_ptr<ValueExpr> upper_bound, const GraphPathType* path_type,
@@ -5122,12 +5341,15 @@ class QuantifiedGraphPathOp final : public RelationalOp {
 
  private:
   explicit QuantifiedGraphPathOp(
+      std::unique_ptr<RelationalOp> starting_node_op,
       std::unique_ptr<RelationalOp> path_primary_op, VariablesInfo variables,
       std::unique_ptr<ValueExpr> lower_bound,
       std::unique_ptr<ValueExpr> upper_bound, const GraphPathType* path_type,
       const Type* cost_type,
       std::unique_ptr<GraphPathPrefixInfo> path_prefix_info);
 
+  // The operator for populating starting node iff the lower bound is zero.
+  std::unique_ptr<RelationalOp> starting_node_op_;
   // The operator representing the contained path primary.
   std::unique_ptr<RelationalOp> path_primary_op_;
 

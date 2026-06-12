@@ -19,7 +19,7 @@ package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.testing.SerializableTester;
@@ -148,44 +148,26 @@ public class SimpleTableTest {
     assertThat(table1.getColumnCount()).isEqualTo(7);
     assertThat(table1.getColumn(5).serialize(descriptor).equals(column1.serialize(descriptor)))
         .isTrue();
-    try {
-      table1.addSimpleColumn("cadd", type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Duplicate column in t1: cadd");
-    }
-    try {
-      table1.addSimpleColumn("cADD", type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Duplicate column in t1: cADD");
-    }
-    try {
-      table1.addSimpleColumn("add", type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Duplicate column in t1: add");
-    }
-    try {
-      table1.addSimpleColumn("aDD", type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Duplicate column in t1: aDD");
-    }
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn("cadd", type));
+    assertThat(e).hasMessageThat().isEqualTo("Duplicate column in t1: cadd");
+    IllegalArgumentException e2 =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn("cADD", type));
+    assertThat(e2).hasMessageThat().isEqualTo("Duplicate column in t1: cADD");
+    IllegalArgumentException e3 =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn("add", type));
+    assertThat(e3).hasMessageThat().isEqualTo("Duplicate column in t1: add");
+    IllegalArgumentException e4 =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn("aDD", type));
+    assertThat(e4).hasMessageThat().isEqualTo("Duplicate column in t1: aDD");
 
-    try {
-      table1.addSimpleColumn("", type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Empty column names not allowed");
-    }
+    IllegalArgumentException e5 =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn("", type));
+    assertThat(e5).hasMessageThat().isEqualTo("Empty column names not allowed");
 
-    try {
-      table1.addSimpleColumn(null, type);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Empty column names not allowed");
-    }
+    IllegalArgumentException e6 =
+        assertThrows(IllegalArgumentException.class, () -> table1.addSimpleColumn(null, type));
+    assertThat(e6).hasMessageThat().isEqualTo("Empty column names not allowed");
   }
 
   @Test
@@ -196,11 +178,7 @@ public class SimpleTableTest {
     assertThat(table.allowAnonymousColumnName()).isFalse();
     assertThat(table.getColumnCount()).isEqualTo(0);
     SimpleColumn column = new SimpleColumn("Table", /* name= */ "", intType);
-    try {
-      table.addSimpleColumn(column);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> table.addSimpleColumn(column));
     assertThat(table.getColumnCount()).isEqualTo(0);
     table.setAllowAnonymousColumnName(true);
     assertThat(table.allowAnonymousColumnName()).isTrue();
@@ -225,12 +203,9 @@ public class SimpleTableTest {
     assertThat(table.findColumnByName("col")).isSameInstanceAs(column1);
 
     SimpleColumn column2 = new SimpleColumn("Table", "col", stringType);
-    try {
-      table.addSimpleColumn(column2);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Duplicate column in Table: col");
-    }
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> table.addSimpleColumn(column2));
+    assertThat(e).hasMessageThat().isEqualTo("Duplicate column in Table: col");
     assertThat(table.getColumnCount()).isEqualTo(1);
     assertThat(table.findColumnByName("col")).isSameInstanceAs(column1);
 
@@ -257,12 +232,10 @@ public class SimpleTableTest {
     table1.setPrimaryKey(ImmutableList.of(1, 2));
     assertThat(table1.getPrimaryKey().get()).containsExactly(1, 2).inOrder();
 
-    try {
-      table1.setPrimaryKey(ImmutableList.of(1, 5));
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Invalid column index 5 in primary key");
-    }
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> table1.setPrimaryKey(ImmutableList.of(1, 5)));
+    assertThat(e).hasMessageThat().isEqualTo("Invalid column index 5 in primary key");
     assertThat(table1.getPrimaryKey().get()).containsExactly(1, 2).inOrder();
   }
 
@@ -279,12 +252,10 @@ public class SimpleTableTest {
     assertThat(table1.getRowIdentityColumns().get()).containsExactly(0, 1).inOrder();
     assertThat(table1.getPrimaryKey().get()).containsExactly(1);
 
-    try {
-      table1.setRowIdentity(ImmutableList.of(1, 5));
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessageThat().isEqualTo("Invalid column index 5 in row identity");
-    }
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> table1.setRowIdentity(ImmutableList.of(1, 5)));
+    assertThat(e).hasMessageThat().isEqualTo("Invalid column index 5 in row identity");
 
     assertThat(table1.getRowIdentityColumns().get()).containsExactly(0, 1).inOrder();
     assertThat(table1.getPrimaryKey().get()).containsExactly(1);
@@ -380,12 +351,11 @@ public class SimpleTableTest {
             + "  }\n"
             + "}",
         builder);
-    try {
-      SimpleTable.deserialize(
-          builder.build(), descriptor.getDescriptorPools(), TypeFactory.nonUniqueNames());
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            SimpleTable.deserialize(
+                builder.build(), descriptor.getDescriptorPools(), TypeFactory.nonUniqueNames()));
   }
 
   @Test
@@ -444,27 +414,24 @@ public class SimpleTableTest {
         .isEqualTo(column3.getType().asProto().getDescriptor().toProto().toString());
 
     // Test bad proto
-    try {
-      SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable1.class));
-      fail();
-    } catch (SqlException expected) {
-      assertThat(expected).hasMessageThat().contains("PROTO<googlesql_test.InvalidSQLTable1>");
-      assertThat(expected).hasMessageThat().contains("decodes to non-struct type");
-    }
+    SqlException expected =
+        assertThrows(
+            SqlException.class,
+            () -> SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable1.class)));
+    assertThat(expected).hasMessageThat().contains("PROTO<googlesql_test.InvalidSQLTable1>");
+    assertThat(expected).hasMessageThat().contains("decodes to non-struct type");
 
-    try {
-      SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable2.class));
-      fail();
-    } catch (SqlException expected) {
-      assertThat(expected).hasMessageThat().contains("has anonymous fields");
-    }
+    SqlException expected2 =
+        assertThrows(
+            SqlException.class,
+            () -> SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable2.class)));
+    assertThat(expected2).hasMessageThat().contains("has anonymous fields");
 
-    try {
-      SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable3.class));
-      fail();
-    } catch (SqlException expected) {
-      assertThat(expected).hasMessageThat().contains("Duplicate column");
-    }
+    SqlException expected3 =
+        assertThrows(
+            SqlException.class,
+            () -> SimpleTable.tableFromProto(factory.createProtoType(InvalidSQLTable3.class)));
+    assertThat(expected3).hasMessageThat().contains("Duplicate column");
   }
 
   @Test

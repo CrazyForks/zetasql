@@ -27,8 +27,8 @@
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/status/status.h"
-#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 

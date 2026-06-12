@@ -1,0 +1,8 @@
+-- A module used in
+-- googlesql/common/testdata/nested_warnings.module_test
+-- See the file comments at the top of that file for how this module interacts
+-- with other modules involved in that test case.
+
+MODULE import_warnings_d;
+
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());

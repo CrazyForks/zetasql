@@ -41,12 +41,12 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -237,36 +237,41 @@ OrderByAndLimitInAggregateRewriterVisitor::PostVisitResolvedAggregateScan(
   for (auto& aggregate_computed_column : builder.release_aggregate_list()) {
     ResolvedColumn result_column = aggregate_computed_column->column();
     seen_columns.insert(result_column);
-    GOOGLESQL_RET_CHECK(
-        aggregate_computed_column->expr()->Is<ResolvedAggregateFunctionCall>());
-    if (!aggregate_computed_column->Is<ResolvedComputedColumn>()) {
-      // TODO: Today in the ResolvedAST the only place we can put
-      // side effecting columns (ResolvedComputedColumnBase) is in
-      // ResolvedAggregateScanBase (and child classes) but here we want to move
-      // a side-effecting column from an aggregation into an ARRAY subquery.
-      return absl::UnimplementedError(
-          "ResolvedDeferredComputedColumn is not supported in "
-          "ORDER_BY_AND_LIMIT_IN_AGGREGATE rewriter");
-    }
-    ResolvedComputedColumnBuilder computed_column_builder =
-        ToBuilder(GetAsResolvedNode<ResolvedComputedColumn>(
-            std::move(aggregate_computed_column)));
-    GOOGLESQL_ASSIGN_OR_RETURN(AggregateFunctionCallRewriteResult result,
-                     HandleAggregateFunctionCall(absl::WrapUnique(
-                         const_cast<ResolvedExpr*>(
-                             computed_column_builder.release_expr().release())
-                             ->GetAs<ResolvedAggregateFunctionCall>())));
-    if (result.is_rewritten) {
-      any_rewritten = true;
-      builder.add_column_list(result.array_column);
-      builder.add_aggregate_list(MakeResolvedComputedColumn(
-          result.array_column, std::move(result.array_of_struct)));
-      project_scan_builder.add_expr_list(
-          MakeResolvedComputedColumn(result_column, std::move(result.result)));
+    if (aggregate_computed_column->expr()
+            ->Is<ResolvedAggregateFunctionCall>()) {
+      if (!aggregate_computed_column->Is<ResolvedComputedColumn>()) {
+        // TODO: Today in the ResolvedAST the only place we can put
+        // side effecting columns (ResolvedComputedColumnBase) is in
+        // ResolvedAggregateScanBase (and child classes) but here we want to
+        // move a side-effecting column from an aggregation into an ARRAY
+        // subquery.
+        return absl::UnimplementedError(
+            "ResolvedDeferredComputedColumn is not supported in "
+            "ORDER_BY_AND_LIMIT_IN_AGGREGATE rewriter");
+      }
+      ResolvedComputedColumnBuilder computed_column_builder =
+          ToBuilder(GetAsResolvedNode<ResolvedComputedColumn>(
+              std::move(aggregate_computed_column)));
+      GOOGLESQL_ASSIGN_OR_RETURN(AggregateFunctionCallRewriteResult result,
+                       HandleAggregateFunctionCall(absl::WrapUnique(
+                           const_cast<ResolvedExpr*>(
+                               computed_column_builder.release_expr().release())
+                               ->GetAs<ResolvedAggregateFunctionCall>())));
+      if (result.is_rewritten) {
+        any_rewritten = true;
+        builder.add_column_list(result.array_column);
+        builder.add_aggregate_list(MakeResolvedComputedColumn(
+            result.array_column, std::move(result.array_of_struct)));
+        project_scan_builder.add_expr_list(MakeResolvedComputedColumn(
+            result_column, std::move(result.result)));
+      } else {
+        builder.add_column_list(result_column);
+        builder.add_aggregate_list(MakeResolvedComputedColumn(
+            result_column, std::move(result.array_of_struct)));
+      }
     } else {
-      builder.add_column_list(result_column);
-      builder.add_aggregate_list(MakeResolvedComputedColumn(
-          result_column, std::move(result.array_of_struct)));
+      // This is a with group rows subquery.
+      GOOGLESQL_RET_CHECK(aggregate_computed_column->expr()->Is<ResolvedSubqueryExpr>());
     }
   }
   // The rewrite relevance checker may have told us to run on the query but

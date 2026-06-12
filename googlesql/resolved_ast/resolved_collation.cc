@@ -27,12 +27,12 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -49,34 +49,7 @@ ResolvedCollation ResolvedCollation::MakeScalar(
 absl::StatusOr<ResolvedCollation> ResolvedCollation::MakeResolvedCollation(
     const AnnotationMap& annotation_map) {
   ResolvedCollation resolved_collation;
-  if (annotation_map.IsStructMap()) {
-    bool empty = true;
-    for (int i = 0; i < annotation_map.AsStructMap()->num_fields(); i++) {
-      const AnnotationMap* field = annotation_map.AsStructMap()->field(i);
-      ResolvedCollation child;
-      if (field != nullptr) {
-        GOOGLESQL_ASSIGN_OR_RETURN(child, MakeResolvedCollation(*field));
-        if (!child.Empty()) {
-          empty = false;
-        }
-      }
-      resolved_collation.child_list_.push_back(std::move(child));
-    }
-    // The ResolvedCollation for a struct is set to empty if the struct only has
-    // empty children.
-    if (empty) {
-      resolved_collation.child_list_.resize(0);
-    }
-  } else if (annotation_map.IsArrayMap()) {
-    const AnnotationMap* element = annotation_map.AsStructMap()->field(0);
-    if (element != nullptr) {
-      GOOGLESQL_ASSIGN_OR_RETURN(ResolvedCollation child,
-                       MakeResolvedCollation(*element));
-      if (!child.Empty()) {
-        resolved_collation.child_list_.push_back(std::move(child));
-      }
-    }
-  } else {
+  if (!annotation_map.IsStructMap()) {
     const SimpleValue* collation_name = annotation_map.GetAnnotation(
         static_cast<int>(AnnotationKind::kCollation));
     if (collation_name != nullptr) {
@@ -85,6 +58,25 @@ absl::StatusOr<ResolvedCollation> ResolvedCollation::MakeResolvedCollation(
         resolved_collation.collation_name_ = *collation_name;
       }
     }
+    return resolved_collation;
+  }
+
+  bool empty = true;
+  for (int i = 0; i < annotation_map.AsStructMap()->num_fields(); i++) {
+    const AnnotationMap* field = annotation_map.AsStructMap()->field(i);
+    ResolvedCollation child;
+    if (field != nullptr) {
+      GOOGLESQL_ASSIGN_OR_RETURN(child, MakeResolvedCollation(*field));
+      if (!child.Empty()) {
+        empty = false;
+      }
+    }
+    resolved_collation.child_list_.push_back(std::move(child));
+  }
+  // The ResolvedCollation for a composite or container type is set to empty if
+  // it only has empty children.
+  if (empty) {
+    resolved_collation.child_list_.resize(0);
   }
   return resolved_collation;
 }
@@ -171,4 +163,23 @@ std::string ResolvedCollation::ToString(
       });
   return absl::StrCat("[", joined, "]");
 }
+
+void ResolvedCollation::PopulateAnnotationMap(AnnotationMap* map) const {
+  if (map == nullptr) return;
+
+  if (HasCollation()) {
+    // Scalar type possessing a collation at the current level.
+    map->SetAnnotation(static_cast<int>(AnnotationKind::kCollation),
+                       SimpleValue::String(std::string(CollationName())));
+  } else if (map->IsStructMap()) {
+    // Composite type (STRUCT or ARRAY) mapping whose fields or element types
+    // carry the nested collations.
+    auto* struct_map = map->AsStructMap();
+    for (int i = 0; i < child_list().size() && i < struct_map->num_fields();
+         ++i) {
+      child(i).PopulateAnnotationMap(struct_map->mutable_field(i));
+    }
+  }
+}
+
 }  // namespace googlesql

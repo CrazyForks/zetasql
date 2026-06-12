@@ -33,6 +33,8 @@ message ConstnessLevelProto {
     FOREVER_CONST = 1;
     ANALYSIS_CONST = 2;
     IMMUTABLE_CONST = 3;
+    STABLE_CONST = 4;
+    QUERY_CONST = 5;
 
     // TODO: b/277365877 - Deprecate the legacy constness level.
     // Currently, this means the argument must be a literal or parameter.

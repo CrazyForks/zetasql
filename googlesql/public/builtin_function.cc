@@ -35,10 +35,10 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -269,10 +269,15 @@ absl::Status GetBuiltinFunctionsAndTypes(
   GetMapCoreFunctions(&type_factory, options, &functions);
   GetMeasureFunctions(&type_factory, options, &functions);
   GetMatchRecognizeFunctions(&type_factory, options, &functions);
+
+  // Adding TVFs here.
   GOOGLESQL_RETURN_IF_ERROR(GetVectorSearchTableValuedFunctions(
       &type_factory, options, &table_valued_functions, output_properties));
   GOOGLESQL_RETURN_IF_ERROR(GetTimeSeriesTableValuedFunctions(&type_factory, options,
                                                     &table_valued_functions));
+  GOOGLESQL_RETURN_IF_ERROR(GetKMeansTableValuedFunction(&type_factory, options,
+                                               &table_valued_functions));
+  GOOGLESQL_RETURN_IF_ERROR(GetAIFunctions(&type_factory, options, &functions));
 
   return ValidateBuiltinFunctionsAgainstOptions(options, output_properties);
 }

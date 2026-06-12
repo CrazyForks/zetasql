@@ -274,7 +274,7 @@ TEST(SetFoldLiteralCastFromFlags, FoldLiteralCast) {
 
 TEST(SetParseLocationRecordTypeFromFlags, ParseLocationRecordType) {
   absl::FlagSaver fs;
-  auto CheckFlag = [](const std::string& flag_value,
+  auto CheckFlag = [](absl::string_view flag_value,
                       ParseLocationRecordType expected_value) {
     absl::SetFlag(&FLAGS_parse_location_record_type, flag_value);
     ExecuteQueryConfig config;

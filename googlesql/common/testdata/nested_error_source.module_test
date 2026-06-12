@@ -1,0 +1,98 @@
+# This module calls a template function that ends up calling a 26-long chain of
+# template functions before getting to an innermost template with a compile
+# error due to the argument.
+#
+# This repro's b/460140787. Before that bug was fixed, this would generate an
+# error with 2**(2*26) ErrorSources attached to it causing a timeout.
+[error_message_mode=WITH_PAYLOAD]
+MODULE m;
+
+IMPORT MODULE googlesql.testdata.modules.nested_error_source;
+
+CREATE PUBLIC FUNCTION main() AS (
+  nested_error_source.nested_error_a(STRUCT(1 AS non_matching_field))
+);
+--
+Lazy_resolution_function:main
+ERROR: Function main is invalid [at 5:24]; Invalid function nested_error_a [at 6:3]; Analysis of function Templated_SQL_Function:nested_error_a failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:5:3]; Invalid function nested_error_b [at .../googlesql/testdata/modules/nested_error_source.sqlm:5:3]; Analysis of function Templated_SQL_Function:nested_error_b failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:10:3]; Invalid function nested_error_c [at .../googlesql/testdata/modules/nested_error_source.sqlm:10:3]; Analysis of function Templated_SQL_Function:nested_error_c failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:15:3]; Invalid function nested_error_d [at .../googlesql/testdata/modules/nested_error_source.sqlm:15:3]; Analysis of function Templated_SQL_Function:nested_error_d failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:20:3]; Invalid function nested_error_e [at .../googlesql/testdata/modules/nested_error_source.sqlm:20:3]; Analysis of function Templated_SQL_Function:nested_error_e failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:25:3]; Invalid function nested_error_f [at .../googlesql/testdata/modules/nested_error_source.sqlm:25:3]; Analysis of function Templated_SQL_Function:nested_error_f failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:30:3]; Invalid function nested_error_g [at .../googlesql/testdata/modules/nested_error_source.sqlm:30:3]; Analysis of function Templated_SQL_Function:nested_error_g failed [at .../googlesql/testdata/modules/nested_error_source.sqlm:35:7]; Field name nonexistent does not exist in STRUCT<non_matching_field INT64> [at .../googlesql/testdata/modules/nested_error_source.sqlm:35:7]
+--
+MODULE googlesql.testdata.modules.nested_error_source imported AS nested_error_source by MODULE m
+Module 'googlesql.testdata.modules.nested_error_source'
+Module contents:
+MODULE googlesql.testdata.modules.nested_error_source;
+
+CREATE PUBLIC FUNCTION nested_error_a(arg ANY TYPE)
+AS (
+  nested_error_b(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_b(arg ANY TYPE)
+AS (
+  nested_error_c(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_c(arg ANY TYPE)
+AS (
+  nested_error_d(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_d(arg ANY TYPE)
+AS (
+  nested_error_e(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_e(arg ANY TYPE)
+AS (
+  nested_error_f(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_f(arg ANY TYPE)
+AS (
+  nested_error_g(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_g(arg ANY TYPE)
+AS (
+  arg.nonexistent
+);
+
+CREATE PUBLIC FUNCTION nested_error_h(arg ANY TYPE)
+AS (
+  nested_error_i(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_i(arg ANY TYPE)
+AS (
+  arg.nonexistent
+);
+
+Initialized functions:
+Templated_SQL_Function:nested_error_a
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_b
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_c
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_d
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_e
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_f
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_g
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_h
+  (ANY TYPE arg) -> ANY TYPE
+
+Templated_SQL_Function:nested_error_i
+  (ANY TYPE arg) -> ANY TYPE
+
+Initialization errors:
+<no errors>

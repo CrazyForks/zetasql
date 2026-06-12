@@ -1682,3 +1682,634 @@ CreateIndexStatement(SEARCH) [0-107] [create search..., k3=v3)))]
 --
 CREATE SEARCH INDEX i1 ON t1(ALL COLUMNS WITH COLUMN OPTIONS(c1 OPTIONS(k1 = v1), c2 OPTIONS(k2 = v2,
   k3 = v3)))
+==
+
+# CREATE AI INDEX combinations with optional OR REPLACE and IF NOT EXISTS.
+{{CREATE|CREATE OR REPLACE}} AI INDEX {{|IF NOT EXISTS}} idx ON tbl(col);
+--
+ALTERNATION GROUP: CREATE,
+--
+CreateIndexStatement(AI) [0-32] [CREATE AI...ON tbl(col)]
+  PathExpression [17-20] [idx]
+    Identifier(idx) [17-20] [idx]
+  PathExpression [24-27] [tbl]
+    Identifier(tbl) [24-27] [tbl]
+  IndexItemList [27-32] [(col)]
+    OrderingExpression(ASC) [28-31] [col]
+      PathExpression [28-31] [col]
+        Identifier(col) [28-31] [col]
+--
+CREATE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: CREATE,IF NOT EXISTS
+--
+CreateIndexStatement(AI) [0-45] [CREATE AI...ON tbl(col)]
+  PathExpression [30-33] [idx]
+    Identifier(idx) [30-33] [idx]
+  PathExpression [37-40] [tbl]
+    Identifier(tbl) [37-40] [tbl]
+  IndexItemList [40-45] [(col)]
+    OrderingExpression(ASC) [41-44] [col]
+      PathExpression [41-44] [col]
+        Identifier(col) [41-44] [col]
+--
+CREATE AI INDEX IF NOT EXISTS idx ON tbl(col)
+--
+ALTERNATION GROUP: CREATE OR REPLACE,
+--
+CreateIndexStatement(AI) [0-43] [CREATE OR...ON tbl(col)]
+  PathExpression [28-31] [idx]
+    Identifier(idx) [28-31] [idx]
+  PathExpression [35-38] [tbl]
+    Identifier(tbl) [35-38] [tbl]
+  IndexItemList [38-43] [(col)]
+    OrderingExpression(ASC) [39-42] [col]
+      PathExpression [39-42] [col]
+        Identifier(col) [39-42] [col]
+--
+CREATE OR REPLACE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: CREATE OR REPLACE,IF NOT EXISTS
+--
+CreateIndexStatement(AI) [0-56] [CREATE OR...ON tbl(col)]
+  PathExpression [41-44] [idx]
+    Identifier(idx) [41-44] [idx]
+  PathExpression [48-51] [tbl]
+    Identifier(tbl) [48-51] [tbl]
+  IndexItemList [51-56] [(col)]
+    OrderingExpression(ASC) [52-55] [col]
+      PathExpression [52-55] [col]
+        Identifier(col) [52-55] [col]
+--
+CREATE OR REPLACE AI INDEX IF NOT EXISTS idx ON tbl(col)
+==
+
+# CREATE AI INDEX tests for simple vs path expressions for index and table names.
+CREATE AI INDEX {{idx|`idx`|a.b.c}} ON {{tbl|`tbl`|d.e.f}}(col);
+--
+ALTERNATION GROUP: idx,tbl
+--
+CreateIndexStatement(AI) [0-31] [CREATE AI...ON tbl(col)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-31] [(col)]
+    OrderingExpression(ASC) [27-30] [col]
+      PathExpression [27-30] [col]
+        Identifier(col) [27-30] [col]
+--
+CREATE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: idx,`tbl`
+--
+CreateIndexStatement(AI) [0-33] [CREATE AI...`tbl`(col)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-28] [`tbl`]
+    Identifier(tbl) [23-28] [`tbl`]
+  IndexItemList [28-33] [(col)]
+    OrderingExpression(ASC) [29-32] [col]
+      PathExpression [29-32] [col]
+        Identifier(col) [29-32] [col]
+--
+CREATE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: idx,d.e.f
+--
+CreateIndexStatement(AI) [0-33] [CREATE AI...d.e.f(col)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-28] [d.e.f]
+    Identifier(d) [23-24] [d]
+    Identifier(e) [25-26] [e]
+    Identifier(f) [27-28] [f]
+  IndexItemList [28-33] [(col)]
+    OrderingExpression(ASC) [29-32] [col]
+      PathExpression [29-32] [col]
+        Identifier(col) [29-32] [col]
+--
+CREATE AI INDEX idx ON d.e.f(col)
+--
+ALTERNATION GROUP: `idx`,tbl
+--
+CreateIndexStatement(AI) [0-33] [CREATE AI...ON tbl(col)]
+  PathExpression [16-21] [`idx`]
+    Identifier(idx) [16-21] [`idx`]
+  PathExpression [25-28] [tbl]
+    Identifier(tbl) [25-28] [tbl]
+  IndexItemList [28-33] [(col)]
+    OrderingExpression(ASC) [29-32] [col]
+      PathExpression [29-32] [col]
+        Identifier(col) [29-32] [col]
+--
+CREATE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: `idx`,`tbl`
+--
+CreateIndexStatement(AI) [0-35] [CREATE AI...`tbl`(col)]
+  PathExpression [16-21] [`idx`]
+    Identifier(idx) [16-21] [`idx`]
+  PathExpression [25-30] [`tbl`]
+    Identifier(tbl) [25-30] [`tbl`]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+--
+CREATE AI INDEX idx ON tbl(col)
+--
+ALTERNATION GROUP: `idx`,d.e.f
+--
+CreateIndexStatement(AI) [0-35] [CREATE AI...d.e.f(col)]
+  PathExpression [16-21] [`idx`]
+    Identifier(idx) [16-21] [`idx`]
+  PathExpression [25-30] [d.e.f]
+    Identifier(d) [25-26] [d]
+    Identifier(e) [27-28] [e]
+    Identifier(f) [29-30] [f]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+--
+CREATE AI INDEX idx ON d.e.f(col)
+--
+ALTERNATION GROUP: a.b.c,tbl
+--
+CreateIndexStatement(AI) [0-33] [CREATE AI...ON tbl(col)]
+  PathExpression [16-21] [a.b.c]
+    Identifier(a) [16-17] [a]
+    Identifier(b) [18-19] [b]
+    Identifier(c) [20-21] [c]
+  PathExpression [25-28] [tbl]
+    Identifier(tbl) [25-28] [tbl]
+  IndexItemList [28-33] [(col)]
+    OrderingExpression(ASC) [29-32] [col]
+      PathExpression [29-32] [col]
+        Identifier(col) [29-32] [col]
+--
+CREATE AI INDEX a.b.c ON tbl(col)
+--
+ALTERNATION GROUP: a.b.c,`tbl`
+--
+CreateIndexStatement(AI) [0-35] [CREATE AI...`tbl`(col)]
+  PathExpression [16-21] [a.b.c]
+    Identifier(a) [16-17] [a]
+    Identifier(b) [18-19] [b]
+    Identifier(c) [20-21] [c]
+  PathExpression [25-30] [`tbl`]
+    Identifier(tbl) [25-30] [`tbl`]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+--
+CREATE AI INDEX a.b.c ON tbl(col)
+--
+ALTERNATION GROUP: a.b.c,d.e.f
+--
+CreateIndexStatement(AI) [0-35] [CREATE AI...d.e.f(col)]
+  PathExpression [16-21] [a.b.c]
+    Identifier(a) [16-17] [a]
+    Identifier(b) [18-19] [b]
+    Identifier(c) [20-21] [c]
+  PathExpression [25-30] [d.e.f]
+    Identifier(d) [25-26] [d]
+    Identifier(e) [27-28] [e]
+    Identifier(f) [29-30] [f]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+--
+CREATE AI INDEX a.b.c ON d.e.f(col)
+==
+
+# AI INDEX with AUTO COLUMNS and optional WITH CONNECTION clause.
+CREATE AI INDEX idx ON tbl({{col1, col2|AUTO COLUMNS}}) {{|WITH CONNECTION conn}};
+--
+ALTERNATION GROUP: col1, col2,
+--
+CreateIndexStatement(AI) [0-38] [CREATE AI...col1, col2)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-38] [(col1, col2)]
+    OrderingExpression(ASC) [27-31] [col1]
+      PathExpression [27-31] [col1]
+        Identifier(col1) [27-31] [col1]
+    OrderingExpression(ASC) [33-37] [col2]
+      PathExpression [33-37] [col2]
+        Identifier(col2) [33-37] [col2]
+--
+CREATE AI INDEX idx ON tbl(col1, col2)
+--
+ALTERNATION GROUP: col1, col2,WITH CONNECTION conn
+--
+CreateIndexStatement(AI) [0-59] [CREATE AI...CONNECTION conn]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-38] [(col1, col2)]
+    OrderingExpression(ASC) [27-31] [col1]
+      PathExpression [27-31] [col1]
+        Identifier(col1) [27-31] [col1]
+    OrderingExpression(ASC) [33-37] [col2]
+      PathExpression [33-37] [col2]
+        Identifier(col2) [33-37] [col2]
+  WithConnectionClause [39-59] [WITH CONNECTION conn]
+    ConnectionClause [44-59] [CONNECTION conn]
+      PathExpression [55-59] [conn]
+        Identifier(conn) [55-59] [conn]
+--
+CREATE AI INDEX idx ON tbl(col1, col2)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: AUTO COLUMNS,
+--
+CreateIndexStatement(AI) [0-40] [CREATE AI...AUTO COLUMNS)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-40] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [26-40] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [26-40] [(AUTO COLUMNS)]
+--
+CREATE AI INDEX idx ON tbl(AUTO COLUMNS)
+--
+ALTERNATION GROUP: AUTO COLUMNS,WITH CONNECTION conn
+--
+CreateIndexStatement(AI) [0-61] [CREATE AI...CONNECTION conn]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-40] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [26-40] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [26-40] [(AUTO COLUMNS)]
+  WithConnectionClause [41-61] [WITH CONNECTION conn]
+    ConnectionClause [46-61] [CONNECTION conn]
+      PathExpression [57-61] [conn]
+        Identifier(conn) [57-61] [conn]
+--
+CREATE AI INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION conn
+==
+
+# AI INDEX with complex CONNECTION path and OPTIONS.
+CREATE AI INDEX idx ON tbl(col)
+WITH CONNECTION {{project.dataset.conn|DEFAULT}}
+{{|OPTIONS(task_type='search', foo=bar)}};
+--
+ALTERNATION GROUP: project.dataset.conn,
+--
+CreateIndexStatement(AI) [0-68] [CREATE AI...dataset.conn]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-31] [(col)]
+    OrderingExpression(ASC) [27-30] [col]
+      PathExpression [27-30] [col]
+        Identifier(col) [27-30] [col]
+  WithConnectionClause [32-68] [WITH CONNECTION...dataset.conn]
+    ConnectionClause [37-68] [CONNECTION...dataset.conn]
+      PathExpression [48-68] [project.dataset.conn]
+        Identifier(project) [48-55] [project]
+        Identifier(dataset) [56-63] [dataset]
+        Identifier(conn) [64-68] [conn]
+--
+CREATE AI INDEX idx ON tbl(col)
+WITH CONNECTION project.dataset.conn
+--
+ALTERNATION GROUP: project.dataset.conn,OPTIONS(task_type='search', foo=bar)
+--
+CreateIndexStatement(AI) [0-105] [CREATE AI..., foo=bar)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-31] [(col)]
+    OrderingExpression(ASC) [27-30] [col]
+      PathExpression [27-30] [col]
+        Identifier(col) [27-30] [col]
+  WithConnectionClause [32-68] [WITH CONNECTION...dataset.conn]
+    ConnectionClause [37-68] [CONNECTION...dataset.conn]
+      PathExpression [48-68] [project.dataset.conn]
+        Identifier(project) [48-55] [project]
+        Identifier(dataset) [56-63] [dataset]
+        Identifier(conn) [64-68] [conn]
+  OptionsList [76-105] [(task_type='search', foo=bar)]
+    OptionsEntry [77-95] [task_type='search']
+      Identifier(task_type) [77-86] [task_type]
+      StringLiteral [87-95] ['search']
+        StringLiteralComponent('search') [87-95] ['search']
+    OptionsEntry [97-104] [foo=bar]
+      Identifier(foo) [97-100] [foo]
+      PathExpression [101-104] [bar]
+        Identifier(bar) [101-104] [bar]
+--
+CREATE AI INDEX idx ON tbl(col)
+WITH CONNECTION project.dataset.conn
+OPTIONS(task_type = 'search', foo = bar)
+--
+ALTERNATION GROUP: DEFAULT,
+--
+CreateIndexStatement(AI) [0-55] [CREATE AI...CONNECTION DEFAULT]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-31] [(col)]
+    OrderingExpression(ASC) [27-30] [col]
+      PathExpression [27-30] [col]
+        Identifier(col) [27-30] [col]
+  WithConnectionClause [32-55] [WITH CONNECTION DEFAULT]
+    ConnectionClause [37-55] [CONNECTION DEFAULT]
+      DefaultLiteral [48-55] [DEFAULT]
+--
+CREATE AI INDEX idx ON tbl(col)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: DEFAULT,OPTIONS(task_type='search', foo=bar)
+--
+CreateIndexStatement(AI) [0-92] [CREATE AI..., foo=bar)]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-26] [tbl]
+    Identifier(tbl) [23-26] [tbl]
+  IndexItemList [26-31] [(col)]
+    OrderingExpression(ASC) [27-30] [col]
+      PathExpression [27-30] [col]
+        Identifier(col) [27-30] [col]
+  WithConnectionClause [32-55] [WITH CONNECTION DEFAULT]
+    ConnectionClause [37-55] [CONNECTION DEFAULT]
+      DefaultLiteral [48-55] [DEFAULT]
+  OptionsList [63-92] [(task_type='search', foo=bar)]
+    OptionsEntry [64-82] [task_type='search']
+      Identifier(task_type) [64-73] [task_type]
+      StringLiteral [74-82] ['search']
+        StringLiteralComponent('search') [74-82] ['search']
+    OptionsEntry [84-91] [foo=bar]
+      Identifier(foo) [84-87] [foo]
+      PathExpression [88-91] [bar]
+        Identifier(bar) [88-91] [bar]
+--
+CREATE AI INDEX idx ON tbl(col)
+WITH CONNECTION DEFAULT
+OPTIONS(task_type = 'search', foo = bar)
+==
+
+# Test existing index types with new keywords (AUTO COLUMNS and WITH CONNECTION).
+CREATE {{|SEARCH|VECTOR}} INDEX idx ON tbl({{col|AUTO COLUMNS}}) WITH CONNECTION {{conn|DEFAULT}};
+--
+ALTERNATION GROUP: col,conn
+--
+CreateIndexStatement [0-50] [CREATE  INDEX...ONNECTION conn]
+  PathExpression [14-17] [idx]
+    Identifier(idx) [14-17] [idx]
+  PathExpression [21-24] [tbl]
+    Identifier(tbl) [21-24] [tbl]
+  IndexItemList [24-29] [(col)]
+    OrderingExpression(ASC) [25-28] [col]
+      PathExpression [25-28] [col]
+        Identifier(col) [25-28] [col]
+  WithConnectionClause [30-50] [WITH CONNECTION conn]
+    ConnectionClause [35-50] [CONNECTION conn]
+      PathExpression [46-50] [conn]
+        Identifier(conn) [46-50] [conn]
+--
+CREATE INDEX idx ON tbl(col)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: col,DEFAULT
+--
+CreateIndexStatement [0-53] [CREATE  INDEX...ECTION DEFAULT]
+  PathExpression [14-17] [idx]
+    Identifier(idx) [14-17] [idx]
+  PathExpression [21-24] [tbl]
+    Identifier(tbl) [21-24] [tbl]
+  IndexItemList [24-29] [(col)]
+    OrderingExpression(ASC) [25-28] [col]
+      PathExpression [25-28] [col]
+        Identifier(col) [25-28] [col]
+  WithConnectionClause [30-53] [WITH CONNECTION DEFAULT]
+    ConnectionClause [35-53] [CONNECTION DEFAULT]
+      DefaultLiteral [46-53] [DEFAULT]
+--
+CREATE INDEX idx ON tbl(col)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: AUTO COLUMNS,conn
+--
+CreateIndexStatement [0-59] [CREATE  INDEX...ONNECTION conn]
+  PathExpression [14-17] [idx]
+    Identifier(idx) [14-17] [idx]
+  PathExpression [21-24] [tbl]
+    Identifier(tbl) [21-24] [tbl]
+  IndexItemList [24-38] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [24-38] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [24-38] [(AUTO COLUMNS)]
+  WithConnectionClause [39-59] [WITH CONNECTION conn]
+    ConnectionClause [44-59] [CONNECTION conn]
+      PathExpression [55-59] [conn]
+        Identifier(conn) [55-59] [conn]
+--
+CREATE INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: AUTO COLUMNS,DEFAULT
+--
+CreateIndexStatement [0-62] [CREATE  INDEX...ECTION DEFAULT]
+  PathExpression [14-17] [idx]
+    Identifier(idx) [14-17] [idx]
+  PathExpression [21-24] [tbl]
+    Identifier(tbl) [21-24] [tbl]
+  IndexItemList [24-38] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [24-38] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [24-38] [(AUTO COLUMNS)]
+  WithConnectionClause [39-62] [WITH CONNECTION DEFAULT]
+    ConnectionClause [44-62] [CONNECTION DEFAULT]
+      DefaultLiteral [55-62] [DEFAULT]
+--
+CREATE INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: SEARCH,col,conn
+--
+CreateIndexStatement(SEARCH) [0-56] [CREATE SEARCH...ONNECTION conn]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+  WithConnectionClause [36-56] [WITH CONNECTION conn]
+    ConnectionClause [41-56] [CONNECTION conn]
+      PathExpression [52-56] [conn]
+        Identifier(conn) [52-56] [conn]
+--
+CREATE SEARCH INDEX idx ON tbl(col)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: SEARCH,col,DEFAULT
+--
+CreateIndexStatement(SEARCH) [0-59] [CREATE SEARCH...ECTION DEFAULT]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+  WithConnectionClause [36-59] [WITH CONNECTION DEFAULT]
+    ConnectionClause [41-59] [CONNECTION DEFAULT]
+      DefaultLiteral [52-59] [DEFAULT]
+--
+CREATE SEARCH INDEX idx ON tbl(col)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: SEARCH,AUTO COLUMNS,conn
+--
+CreateIndexStatement(SEARCH) [0-65] [CREATE SEARCH...ONNECTION conn]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-44] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [30-44] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [30-44] [(AUTO COLUMNS)]
+  WithConnectionClause [45-65] [WITH CONNECTION conn]
+    ConnectionClause [50-65] [CONNECTION conn]
+      PathExpression [61-65] [conn]
+        Identifier(conn) [61-65] [conn]
+--
+CREATE SEARCH INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: SEARCH,AUTO COLUMNS,DEFAULT
+--
+CreateIndexStatement(SEARCH) [0-68] [CREATE SEARCH...ECTION DEFAULT]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-44] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [30-44] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [30-44] [(AUTO COLUMNS)]
+  WithConnectionClause [45-68] [WITH CONNECTION DEFAULT]
+    ConnectionClause [50-68] [CONNECTION DEFAULT]
+      DefaultLiteral [61-68] [DEFAULT]
+--
+CREATE SEARCH INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: VECTOR,col,conn
+--
+CreateIndexStatement(VECTOR) [0-56] [CREATE VECTOR...ONNECTION conn]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+  WithConnectionClause [36-56] [WITH CONNECTION conn]
+    ConnectionClause [41-56] [CONNECTION conn]
+      PathExpression [52-56] [conn]
+        Identifier(conn) [52-56] [conn]
+--
+CREATE VECTOR INDEX idx ON tbl(col)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: VECTOR,col,DEFAULT
+--
+CreateIndexStatement(VECTOR) [0-59] [CREATE VECTOR...ECTION DEFAULT]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-35] [(col)]
+    OrderingExpression(ASC) [31-34] [col]
+      PathExpression [31-34] [col]
+        Identifier(col) [31-34] [col]
+  WithConnectionClause [36-59] [WITH CONNECTION DEFAULT]
+    ConnectionClause [41-59] [CONNECTION DEFAULT]
+      DefaultLiteral [52-59] [DEFAULT]
+--
+CREATE VECTOR INDEX idx ON tbl(col)
+WITH CONNECTION DEFAULT
+--
+ALTERNATION GROUP: VECTOR,AUTO COLUMNS,conn
+--
+CreateIndexStatement(VECTOR) [0-65] [CREATE VECTOR...ONNECTION conn]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-44] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [30-44] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [30-44] [(AUTO COLUMNS)]
+  WithConnectionClause [45-65] [WITH CONNECTION conn]
+    ConnectionClause [50-65] [CONNECTION conn]
+      PathExpression [61-65] [conn]
+        Identifier(conn) [61-65] [conn]
+--
+CREATE VECTOR INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION conn
+--
+ALTERNATION GROUP: VECTOR,AUTO COLUMNS,DEFAULT
+--
+CreateIndexStatement(VECTOR) [0-68] [CREATE VECTOR...ECTION DEFAULT]
+  PathExpression [20-23] [idx]
+    Identifier(idx) [20-23] [idx]
+  PathExpression [27-30] [tbl]
+    Identifier(tbl) [27-30] [tbl]
+  IndexItemList [30-44] [(AUTO COLUMNS)]
+    OrderingExpression(ASC) [30-44] [(AUTO COLUMNS)]
+      IndexAutoColumns(AUTO COLUMNS) [30-44] [(AUTO COLUMNS)]
+  WithConnectionClause [45-68] [WITH CONNECTION DEFAULT]
+    ConnectionClause [50-68] [CONNECTION DEFAULT]
+      DefaultLiteral [61-68] [DEFAULT]
+--
+CREATE VECTOR INDEX idx ON tbl(AUTO COLUMNS)
+WITH CONNECTION DEFAULT
+==
+
+# Mix quoted identifiers in CONNECTION and table names.
+CREATE AI INDEX idx ON `my.table`(col) WITH CONNECTION `my.project`.`my.dataset`.`my.conn`;
+--
+CreateIndexStatement(AI) [0-90] [CREATE AI....`my.conn`]
+  PathExpression [16-19] [idx]
+    Identifier(idx) [16-19] [idx]
+  PathExpression [23-33] [`my.table`]
+    Identifier(`my.table`) [23-33] [`my.table`]
+  IndexItemList [33-38] [(col)]
+    OrderingExpression(ASC) [34-37] [col]
+      PathExpression [34-37] [col]
+        Identifier(col) [34-37] [col]
+  WithConnectionClause [39-90] [WITH CONNECTION....`my.conn`]
+    ConnectionClause [44-90] [CONNECTION....`my.conn`]
+      PathExpression [55-90] [`my.project....`my.conn`]
+        Identifier(`my.project`) [55-67] [`my.project`]
+        Identifier(`my.dataset`) [68-80] [`my.dataset`]
+        Identifier(`my.conn`) [81-90] [`my.conn`]
+--
+CREATE AI INDEX idx ON `my.table`(col)
+WITH CONNECTION `my.project`.`my.dataset`.`my.conn`
+==
+
+# CREATE INDEX without ON clause should fail
+CREATE INDEX i1 (a);
+--
+ERROR: Syntax error: Expected "." or keyword ON but got "(" [at 1:17]
+CREATE INDEX i1 (a);
+                ^

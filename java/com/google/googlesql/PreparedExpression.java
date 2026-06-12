@@ -22,7 +22,6 @@ import static com.google.common.base.Verify.verify;
 import com.google.common.base.Ascii;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
@@ -46,6 +45,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -348,9 +348,9 @@ public class PreparedExpression implements AutoCloseable {
     private final ClientCallStreamObserver<EvaluateRequestBatch> requestObserver;
 
     private Stream() {
-      pending = Queues.newConcurrentLinkedQueue();
+      pending = new ConcurrentLinkedQueue<>();
 
-      batch = Queues.newConcurrentLinkedQueue();
+      batch = new ConcurrentLinkedQueue<>();
       batchCount = new AtomicLong();
       batchSerializedSize = new AtomicLong();
 

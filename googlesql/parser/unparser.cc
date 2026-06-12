@@ -18,11 +18,11 @@
 
 #include <ctype.h>
 
-#include <new>
 #include <set>
 #include <string>
 
 #include "googlesql/common/thread_stack.h"
+#include "googlesql/parser/ast_enums.pb.h"
 #include "googlesql/parser/ast_node_kind.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/public/options.pb.h"
@@ -296,6 +296,9 @@ void Unparser::visitASTTemplatedParameterType(
       break;
     case ASTTemplatedParameterType::ANY_TYPE:
       print("ANY TYPE");
+      break;
+    case ASTTemplatedParameterType::ANY_STRING:
+      print("ANY STRING");
       break;
     case ASTTemplatedParameterType::ANY_PROTO:
       print("ANY PROTO");
@@ -854,6 +857,35 @@ void Unparser::visitASTCreateApproxViewStatement(
   node->query()->Accept(this, data);
 }
 
+void Unparser::visitASTCreateLiveTableStatement(
+    const ASTCreateLiveTableStatement* node, void* data) {
+  print(GetCreateStatementPrefix(node, "LIVE TABLE"));
+  node->name()->Accept(this, data);
+  if (node->table_element_list() != nullptr) {
+    println();
+    node->table_element_list()->Accept(this, data);
+  }
+  if (node->collate() != nullptr) {
+    print("DEFAULT");
+    visitASTCollate(node->collate(), data);
+  }
+  if (node->partition_by() != nullptr) {
+    node->partition_by()->Accept(this, data);
+  }
+  if (node->cluster_by() != nullptr) {
+    node->cluster_by()->Accept(this, data);
+  }
+  if (node->with_connection_clause() != nullptr) {
+    node->with_connection_clause()->Accept(this, data);
+  }
+  if (node->options_list() != nullptr) {
+    print("OPTIONS");
+    node->options_list()->Accept(this, data);
+  }
+  println("AS");
+  node->query()->Accept(this, data);
+}
+
 void Unparser::visitASTCreateMaterializedViewStatement(
     const ASTCreateMaterializedViewStatement* node, void* data) {
   print("CREATE");
@@ -1399,6 +1431,12 @@ void Unparser::visitASTDropVectorIndexStatement(
   VisitASTDropIndexStatement(node, data);
 }
 
+void Unparser::visitASTDropAiIndexStatement(const ASTDropAiIndexStatement* node,
+                                            void* data) {
+  print("DROP AI INDEX");
+  VisitASTDropIndexStatement(node, data);
+}
+
 void Unparser::visitASTDropMaterializedViewStatement(
     const ASTDropMaterializedViewStatement* node, void* data) {
   print("DROP MATERIALIZED VIEW");
@@ -1491,7 +1529,17 @@ void Unparser::visitASTWithClauseEntry(const ASTWithClauseEntry* node,
 
 void Unparser::visitASTAliasedGroupRows(const ASTAliasedGroupRows* node,
                                         void* data) {
-  node->alias()->Accept(this, data);
+  const absl::string_view alias = node->alias()->GetAsIdString().ToStringView();
+
+  // timestamp and version are not permitted as unquoted identifiers in GROUP
+  // ROWS.
+  if (googlesql_base::CaseEqual(alias, "timestamp") ||
+      googlesql_base::CaseEqual(alias, "version")) {
+    print(ToAlwaysQuotedIdentifierLiteral(alias));
+  } else {
+    visitASTIdentifier(node->alias(), data);
+  }
+
   print("() AS GROUP ROWS");
 }
 
@@ -1657,6 +1705,14 @@ void Unparser::visitASTPipeDistinct(const ASTPipeDistinct* node, void* data) {
   // any children.
 }
 
+void Unparser::visitASTPipeFinish(const ASTPipeFinish* node, void* data) {
+  Formatter::PipeAndIndent pipe_and_indent(&formatter_);
+  print("FINISH");
+  if (node->hint() != nullptr) {
+    node->hint()->Accept(this, data);
+  }
+}
+
 void Unparser::visitASTPipeTablesample(const ASTPipeTablesample* node,
                                        void* data) {
   Formatter::PipeAndIndent pipe_and_indent(&formatter_);
@@ -1665,6 +1721,12 @@ void Unparser::visitASTPipeTablesample(const ASTPipeTablesample* node,
 
 void Unparser::visitASTPipeMatchRecognize(const ASTPipeMatchRecognize* node,
                                           void* data) {
+  Formatter::PipeAndIndent pipe_and_indent(&formatter_);
+  visitASTChildren(node, data);
+}
+
+void Unparser::visitASTPipeAlignOperator(const ASTPipeAlignOperator* node,
+                                         void* data) {
   Formatter::PipeAndIndent pipe_and_indent(&formatter_);
   visitASTChildren(node, data);
 }
@@ -1709,7 +1771,7 @@ void Unparser::visitASTPipeLog(const ASTPipeLog* node, void* data) {
 void Unparser::visitASTPipeDrop(const ASTPipeDrop* node, void* data) {
   Formatter::PipeAndIndent pipe_and_indent(&formatter_);
   print("DROP");
-  visitASTChildren(node, data);
+  UnparseChildrenWithSeparator(node, data, ",");
 }
 
 void Unparser::visitASTPipeSetItem(const ASTPipeSetItem* node, void* data) {
@@ -1973,6 +2035,17 @@ void Unparser::visitASTWithOffset(const ASTWithOffset* node, void* data) {
   visitASTChildren(node, data);
 }
 
+void Unparser::visitASTWithTimestamp(const ASTWithTimestamp* node, void* data) {
+  print("WITH TIMESTAMP");
+  visitASTChildren(node, data);
+}
+
+void Unparser::visitASTTemporalAt(const ASTTemporalAt* node, void* data) {
+  print("AT (");
+  visitASTChildren(node, data);
+  print(")");
+}
+
 void Unparser::visitASTUnnestExpression(const ASTUnnestExpression* node,
                                         void* data) {
   print("UNNEST(");
@@ -1999,9 +2072,24 @@ void Unparser::visitASTTablePathExpression(const ASTTablePathExpression* node,
   visitASTChildren(node, data);
 }
 
+void Unparser::visitASTGroupRows(const ASTGroupRows* node, void* data) {
+  print("GROUP ROWS");
+  if (node->alias() != nullptr) {
+    node->alias()->Accept(this, data);
+  }
+  for (const auto* op : node->postfix_operators()) {
+    op->Accept(this, data);
+  }
+}
+
 void Unparser::visitASTPathExpressionList(const ASTPathExpressionList* node,
                                           void* data) {
   UnparseVectorWithSeparator(node->path_expression_list(), data, ", ");
+}
+
+void Unparser::visitASTExpressionList(const ASTExpressionList* node,
+                                      void* data) {
+  UnparseVectorWithSeparator(node->expression_list(), data, ", ");
 }
 
 void Unparser::visitASTForSystemTime(const ASTForSystemTime* node, void* data) {
@@ -2368,7 +2456,15 @@ void Unparser::visitASTBracedConstructorField(
   if (node->braced_constructor_lhs()) {
     node->braced_constructor_lhs()->Accept(this, data);
   }
-  node->value()->Accept(this, data);
+  if (node->value()) {
+    node->value()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTBracedConstructorExtendedExpr(
+    const ASTBracedConstructorExtendedExpr* node, void* data) {
+  node->expr()->Accept(this, data);
+  node->braced_constructor()->Accept(this, data);
 }
 
 void Unparser::visitASTBracedConstructor(const ASTBracedConstructor* node,
@@ -2405,16 +2501,16 @@ void Unparser::visitASTStructBracedConstructor(
   node->braced_constructor()->Accept(this, data);
 }
 
-void Unparser::visitASTExtendedPathExpression(
-    const ASTExtendedPathExpression* node, void* data) {
-  node->parenthesized_path()->Accept(this, data);
-  print(".");
-  node->generalized_path_expression()->Accept(this, data);
+void Unparser::visitASTTypedBracedConstructor(
+    const ASTTypedBracedConstructor* node, void* data) {
+  print("NEW");
+  node->type_name()->Accept(this, data);
+  node->braced_constructor()->Accept(this, data);
 }
 
 void Unparser::visitASTBracedConstructorLhs(const ASTBracedConstructorLhs* node,
                                             void* data) {
-  node->extended_path_expr()->Accept(this, data);
+  node->key_expr()->Accept(this, data);
   switch (node->operation()) {
     case googlesql::ASTBracedConstructorLhs::UPDATE_SINGLE:
       break;
@@ -2429,7 +2525,9 @@ void Unparser::visitASTBracedConstructorLhs(const ASTBracedConstructorLhs* node,
 
 void Unparser::visitASTUpdateConstructor(const ASTUpdateConstructor* node,
                                          void* data) {
-  node->function()->Accept(this, data);
+  print("UPDATE");
+  UnparseFunctionArguments(node->function(), node->function()->arguments(),
+                           data);
   node->braced_constructor()->Accept(this, data);
 }
 
@@ -3017,6 +3115,20 @@ void Unparser::visitASTFunctionCall(const ASTFunctionCall* node, void* data) {
   } else {
     node->function()->Accept(this, data);
   }
+  UnparseFunctionArguments(node, arguments, data);
+  if (node->hint() != nullptr) {
+    node->hint()->Accept(this, data);
+  }
+  PrintCloseParenIfNeeded(node);
+}
+
+void Unparser::UnparseFunctionArguments(
+    const ASTFunctionCall* node,
+    absl::Span<const ASTExpression* const> arguments, void* data) {
+  ABSL_DCHECK(node != nullptr) << "UnparseFunctionArguments called with nullptr";
+  if (node == nullptr) {
+    return;
+  }
   print("(");
   {
     Formatter::Indenter indenter(&formatter_);
@@ -3060,10 +3172,6 @@ void Unparser::visitASTFunctionCall(const ASTFunctionCall* node, void* data) {
     }
   }
   print(")");
-  if (node->hint() != nullptr) {
-    node->hint()->Accept(this, data);
-  }
-  PrintCloseParenIfNeeded(node);
 }
 
 void Unparser::visitASTChainedBaseExpr(const ASTChainedBaseExpr* node,
@@ -3140,7 +3248,16 @@ void Unparser::visitASTOptionsList(const ASTOptionsList* node, void* data) {
 }
 
 void Unparser::visitASTOptionsEntry(const ASTOptionsEntry* node, void* data) {
-  UnparseChildrenWithSeparator(node, data, node->GetSQLForOperator());
+  if (node->assignment_op() == ASTOptionsEntry::FROM) {
+    print("FROM");
+    node->value()->Accept(this, data);
+  } else {
+    if (node->name() != nullptr) {
+      node->name()->Accept(this, data);
+    }
+    print(node->GetSQLForOperator());
+    node->value()->Accept(this, data);
+  }
 }
 
 void Unparser::visitASTMaxLiteral(const ASTMaxLiteral* node, void* data) {
@@ -3372,6 +3489,19 @@ void Unparser::visitASTAnalyticFunctionCall(const ASTAnalyticFunctionCall* node,
   PrintCloseParenIfNeeded(node);
 }
 
+void Unparser::visitASTEstimatorFunctionCall(
+    const ASTEstimatorFunctionCall* node, void* data) {
+  PrintOpenParenIfNeeded(node);
+  node->function()->Accept(this, data);
+  print("WITHIN (");
+  {
+    Formatter::Indenter indenter(&formatter_);
+    node->within_clause()->Accept(this, data);
+  }
+  print(")");
+  PrintCloseParenIfNeeded(node);
+}
+
 void Unparser::visitASTWindowClause(const ASTWindowClause* node, void* data) {
   println();
   print("WINDOW");
@@ -3509,6 +3639,12 @@ void Unparser::visitASTDeleteStatement(const ASTDeleteStatement* node,
   if (node->alias() != nullptr) {
     node->alias()->Accept(this, data);
   }
+  if (node->temporal_at() != nullptr) {
+    node->temporal_at()->Accept(this, data);
+  }
+  if (node->timestamp() != nullptr) {
+    node->timestamp()->Accept(this, data);
+  }
   if (node->offset() != nullptr) {
     node->offset()->Accept(this, data);
   }
@@ -3571,6 +3707,14 @@ void Unparser::visitASTInsertStatement(const ASTInsertStatement* node,
 
   if (node->hint() != nullptr) {
     node->hint()->Accept(this, data);
+  }
+
+  if (node->temporal_at() != nullptr) {
+    node->temporal_at()->Accept(this, data);
+  }
+
+  if (node->timestamp() != nullptr) {
+    node->timestamp()->Accept(this, data);
   }
 
   if (node->column_list() != nullptr) {
@@ -3676,6 +3820,12 @@ void Unparser::visitASTUpdateStatement(const ASTUpdateStatement* node,
   }
   if (node->alias() != nullptr) {
     node->alias()->Accept(this, data);
+  }
+  if (node->temporal_at() != nullptr) {
+    node->temporal_at()->Accept(this, data);
+  }
+  if (node->timestamp() != nullptr) {
+    node->timestamp()->Accept(this, data);
   }
   if (node->offset() != nullptr) {
     node->offset()->Accept(this, data);
@@ -3966,9 +4116,19 @@ void Unparser::visitASTPivotClause(const ASTPivotClause* node, void* data) {
 }
 
 void Unparser::visitASTUnpivotInItem(const ASTUnpivotInItem* node, void* data) {
-  print("(");
-  node->unpivot_columns()->Accept(this, data);
-  print(")");
+  const ASTExpressionList* unpivot_cols = node->unpivot_columns();
+
+  bool requires_parens =
+      unpivot_cols->parenthesized() ||
+      (unpivot_cols->expression_list().size() == 1 &&
+       unpivot_cols->expression_list()[0]->Is<ASTPathExpression>());
+  if (requires_parens) {
+    print("(");
+  }
+  unpivot_cols->Accept(this, data);
+  if (requires_parens) {
+    print(")");
+  }
   if (node->alias() != nullptr) {
     print("AS");
     node->alias()->Accept(this, data);
@@ -3992,11 +4152,16 @@ void Unparser::visitASTUnpivotClause(const ASTUnpivotClause* node, void* data) {
             ? ""
             : absl::StrCat(node->GetSQLForNullFilter(), " "));
   print("(");
-  if (node->unpivot_output_value_columns()->path_expression_list().size() > 1) {
+  const auto& unpivot_output_value_columns =
+      node->unpivot_output_value_columns()->expression_list();
+  bool requires_parens =
+      unpivot_output_value_columns.size() > 1 ||
+      unpivot_output_value_columns[0]->node_kind() == AST_UNPACK_EXPRESSION;
+  if (requires_parens) {
     print("(");
   }
   node->unpivot_output_value_columns()->Accept(this, data);
-  if (node->unpivot_output_value_columns()->path_expression_list().size() > 1) {
+  if (requires_parens) {
     print(")");
   }
   print("FOR");
@@ -4005,6 +4170,112 @@ void Unparser::visitASTUnpivotClause(const ASTUnpivotClause* node, void* data) {
   node->unpivot_in_items()->Accept(this, data);
   print(")");
 
+  if (node->output_alias() != nullptr) {
+    node->output_alias()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTPartitionByWithOptAlias(
+    const ASTPartitionByWithOptAlias* node, void* data) {
+  print("PARTITION BY");
+  UnparseVectorWithSeparator(node->partitioning_exprs(), data, ",");
+}
+
+void Unparser::visitASTAlignWithinBoundExpr(const ASTAlignWithinBoundExpr* node,
+                                            void* data) {
+  switch (node->bound_type()) {
+    case ASTAlignWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ASTAlignWithinBoundExpr::UNBOUNDED_FOLLOWING:
+      print(node->GetAlignWithinBoundTypeString());
+      break;
+    case ASTAlignWithinBoundExpr::PERIOD_PRECEDING:
+    case ASTAlignWithinBoundExpr::PERIOD_FOLLOWING:
+      node->expr()->Accept(this, data);
+      print(node->GetAlignWithinBoundTypeString());
+      break;
+    case ASTAlignWithinBoundExpr::INTERVAL_PRECEDING:
+      node->expr()->Accept(this, data);
+      print("PRECEDING");
+      break;
+    case ASTAlignWithinBoundExpr::INTERVAL_FOLLOWING:
+      node->expr()->Accept(this, data);
+      print("FOLLOWING");
+      break;
+    case ASTAlignWithinBoundExpr::TIMESTAMP:
+      node->expr()->Accept(this, data);
+      break;
+    case ASTAlignWithinBoundExpr::NOT_SET:
+      ABSL_LOG(ERROR) << "WITHIN bound expression type is not set";
+      break;
+  }
+}
+
+void Unparser::visitASTAlignWithinClause(const ASTAlignWithinClause* node,
+                                         void* data) {
+  print("RANGE");
+  if (node->lower_bound() != nullptr) {
+    print("FROM");
+    node->lower_bound()->Accept(this, data);
+  }
+  if (node->upper_bound() != nullptr) {
+    print("TO");
+    node->upper_bound()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTMetricsClause(const ASTMetricsClause* node, void* data) {
+  print("METRICS");
+  Formatter::Indenter indenter(&formatter_);
+  UnparseVectorWithSeparator(node->metrics(), data, ",\n");
+}
+
+void Unparser::visitASTAlignOriginExpression(
+    const ASTAlignOriginExpression* node, void* data) {
+  if (node->is_epoch()) {
+    print("ORIGIN EPOCH");
+  } else {
+    print("ORIGIN");
+    node->expr()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTAlignOperator(const ASTAlignOperator* node, void* data) {
+  println("ALIGN (");
+  {
+    Formatter::Indenter indenter(&formatter_);
+
+    if (node->timestamp_expr() != nullptr) {
+      print("TIMESTAMP");
+      node->timestamp_expr()->Accept(this, data);
+      println();
+    }
+
+    ABSL_DCHECK(node->period() != nullptr);
+    print("PERIOD");
+    node->period()->Accept(this, data);
+    println();
+
+    if (node->origin() != nullptr) {
+      node->origin()->Accept(this, data);
+      println();
+    }
+
+    if (node->output_within_clause() != nullptr) {
+      print("OUTPUT WITHIN");
+      node->output_within_clause()->Accept(this, data);
+      println();
+    }
+
+    if (node->partition_by() != nullptr) {
+      node->partition_by()->Accept(this, data);
+      println();
+    }
+
+    if (node->metrics_clause() != nullptr) {
+      node->metrics_clause()->Accept(this, data);
+    }
+  }
+  println(")");
   if (node->output_alias() != nullptr) {
     node->output_alias()->Accept(this, data);
   }
@@ -4326,6 +4597,9 @@ void Unparser::visitASTAlterIndexStatement(const ASTAlterIndexStatement* node,
     case ASTAlterIndexStatement::IndexType::INDEX_VECTOR:
       print("ALTER VECTOR INDEX");
       break;
+    case ASTAlterIndexStatement::IndexType::INDEX_AI:
+      print("ALTER AI INDEX");
+      break;
     default:
       ABSL_LOG(FATAL) << "Index type is missing or not supported";  // Crash OK
       break;
@@ -4445,19 +4719,6 @@ void Unparser::visitASTAddColumnAction(const ASTAddColumnAction* node,
   if (node->fill_expression()) {
     print("FILL USING");
     node->fill_expression()->Accept(this, data);
-  }
-}
-
-void Unparser::visitASTAddColumnIdentifierAction(
-    const ASTAddColumnIdentifierAction* node, void* data) {
-  print("ADD COLUMN");
-  if (node->is_if_not_exists()) {
-    print("IF NOT EXISTS");
-  }
-  node->column_name()->Accept(this, data);
-  if (node->options_list()) {
-    print("OPTIONS");
-    node->options_list()->Accept(this, data);
   }
 }
 
@@ -4636,6 +4897,7 @@ void Unparser::visitASTCreateIndexStatement(const ASTCreateIndexStatement* node,
   if (node->spanner_is_null_filtered()) print("NULL_FILTERED");
   if (node->is_search()) print("SEARCH");
   if (node->is_vector()) print("VECTOR");
+  if (node->is_ai()) print("AI");
   print("INDEX");
   if (node->is_if_not_exists()) print("IF NOT EXISTS");
   node->name()->Accept(this, data);
@@ -4657,6 +4919,10 @@ void Unparser::visitASTCreateIndexStatement(const ASTCreateIndexStatement* node,
   if (node->optional_partition_by() != nullptr) {
     println();
     node->optional_partition_by()->Accept(this, data);
+  }
+  if (node->with_connection_clause() != nullptr) {
+    println();
+    node->with_connection_clause()->Accept(this, data);
   }
   if (node->options_list() != nullptr) {
     println();
@@ -4776,6 +5042,11 @@ void Unparser::visitASTIndexAllColumns(const ASTIndexAllColumns* node,
     print("WITH COLUMN OPTIONS");
     node->column_options()->Accept(this, data);
   }
+}
+
+void Unparser::visitASTIndexAutoColumns(const ASTIndexAutoColumns* node,
+                                        void* data) {
+  UnparseLeafNode(node);
 }
 
 void Unparser::visitASTIndexItemList(const ASTIndexItemList* node, void* data) {
@@ -5341,6 +5612,59 @@ void Unparser::visitASTGraphElementTable(const ASTGraphElementTable* node,
   if (node->dynamic_properties() != nullptr) {
     visitASTGraphDynamicProperties(node->dynamic_properties(), data);
   }
+  if (!node->inlined_edge_definitions().empty()) {
+    for (const auto* edge_def : node->inlined_edge_definitions()) {
+      visitASTGraphInlinedEdgeDefinition(edge_def, data);
+    }
+  }
+}
+
+void Unparser::visitASTGraphInlinedEdgeDefinition(
+    const ASTGraphInlinedEdgeDefinition* node, void* data) {
+  println();
+  print("EDGE");
+  if (node->edge_alias() != nullptr) {
+    node->edge_alias()->Accept(this, data);
+  }
+
+  {
+    Formatter::Indenter indenter(&formatter_);
+    println();
+    print("JOIN KEY");
+    node->join_keys()->Accept(this, data);
+    print("REFERENCES");
+    node->referenced_table()->Accept(this, data);
+    if (node->dest_element_table_columns() != nullptr) {
+      node->dest_element_table_columns()->Accept(this, data);
+    }
+    switch (node->direction()) {
+      case ASTGraphEdgePatternEnums::RIGHT:
+        print("FORWARDS");
+        break;
+      case ASTGraphEdgePatternEnums::LEFT:
+        print("BACKWARDS");
+        break;
+      default:
+        ABSL_LOG(ERROR) << "Edge orientation is not set";
+        break;
+    }
+    if (node->default_label_options() != nullptr) {
+      println();
+      print("OPTIONS");
+      visitASTOptionsList(node->default_label_options(), data);
+    }
+  }
+  if (node->label_and_properties_list() != nullptr) {
+    println();
+    visitASTGraphElementLabelAndPropertiesList(
+        node->label_and_properties_list(), data);
+  }
+  if (node->dynamic_label() != nullptr) {
+    visitASTGraphDynamicLabel(node->dynamic_label(), data);
+  }
+  if (node->dynamic_properties() != nullptr) {
+    visitASTGraphDynamicProperties(node->dynamic_properties(), data);
+  }
 }
 
 void Unparser::visitASTGraphDynamicLabel(const ASTGraphDynamicLabel* node,
@@ -5477,6 +5801,60 @@ void Unparser::visitASTGqlMatch(const ASTGqlMatch* node, void* data) {
   }
 }
 
+void Unparser::visitASTGqlInsert(const ASTGqlInsert* node, void* data) {
+  print("INSERT");
+  println();
+  {
+    Formatter::Indenter indenter(&formatter_);
+    UnparseVectorWithSeparator(node->path_patterns(), data, ", ");
+  }
+}
+
+void Unparser::visitASTGraphInsertPathPattern(
+    const ASTGraphInsertPathPattern* node, void* data) {
+  UnparseVectorWithSeparator(node->elements(), data, "");
+}
+
+void Unparser::visitASTGraphInsertElementPatternFiller(
+    const ASTGraphInsertElementPatternFiller* node, void* data) {
+  if (node->variable_name() != nullptr) {
+    node->variable_name()->Accept(this, data);
+  }
+  if (node->label_filter() != nullptr) {
+    node->label_filter()->Accept(this, data);
+  }
+  if (node->property_specification() != nullptr) {
+    node->property_specification()->Accept(this, data);
+  }
+}
+
+void Unparser::VisitASTGraphInsertElementPattern(
+    const ASTGraphInsertElementPattern* node, void* data) {
+  node->filler()->Accept(this, data);
+}
+
+void Unparser::visitASTGraphInsertNodePattern(
+    const ASTGraphInsertNodePattern* node, void* data) {
+  print("(");
+  VisitASTGraphInsertElementPattern(node, data);
+  print(")");
+}
+
+void Unparser::visitASTGraphInsertEdgePattern(
+    const ASTGraphInsertEdgePattern* node, void* data) {
+  if (node->orientation() == ASTGraphEdgePattern::LEFT) {
+    print("<-[");
+  } else {
+    print("-[");
+  }
+  VisitASTGraphInsertElementPattern(node, data);
+  if (node->orientation() == ASTGraphEdgePattern::LEFT) {
+    print("]-");
+  } else {
+    print("]->");
+  }
+}
+
 void Unparser::visitASTGqlReturn(const ASTGqlReturn* node, void* data) {
   print("RETURN");
   if (node->select()->hint() != nullptr) {
@@ -5501,6 +5879,9 @@ void Unparser::visitASTGqlWith(const ASTGqlWith* node, void* data) {
     node->select()->hint()->Accept(this, data);
   }
   node->select()->select_list()->Accept(this, data);
+  if (node->select()->group_by() != nullptr) {
+    node->select()->group_by()->Accept(this, data);
+  }
 }
 
 void Unparser::visitASTGqlFor(const ASTGqlFor* node, void* data) {
@@ -5665,7 +6046,7 @@ void Unparser::visitASTGraphTableQuery(const ASTGraphTableQuery* node,
     if (node->graph_table_shape() != nullptr) {
       ABSL_DCHECK(!node->graph_op()->Is<ASTGqlOperatorList>());
       print("COLUMNS(");
-      node->graph_table_shape()->Accept(this, data);
+      node->graph_table_shape()->select_list()->Accept(this, data);
       println();
       println(")");
     }
@@ -5827,7 +6208,6 @@ void Unparser::visitASTGraphRhsHint(const ASTGraphRhsHint* node, void* data) {
 
 void Unparser::visitASTGraphLabelFilter(const ASTGraphLabelFilter* node,
                                         void* data) {
-  println();
   print("IS ");
   node->label_expression()->Accept(this, data);
 }
@@ -6039,7 +6419,9 @@ void Unparser::visitASTSetOperationMetadata(const ASTSetOperationMetadata* node,
     node->column_match_mode()->Accept(this, data);
   }
   if (node->corresponding_by_column_list() != nullptr) {
+    print("(");
     node->corresponding_by_column_list()->Accept(this, data);
+    print(")");
   }
 }
 
@@ -6112,6 +6494,15 @@ void Unparser::visitASTSetOperationColumnPropagationMode(
   }
 }
 
+void Unparser::visitASTUnpackExpression(const ASTUnpackExpression* node,
+                                        void* data) {
+  formatter_.AddUnary("**");
+
+  if (!node->expression()->parenthesized()) print("(");
+  visitASTChildren(node, data);
+  if (!node->expression()->parenthesized()) print(")");
+}
+
 void Unparser::visitASTExpressionWithOptAlias(
     const ASTExpressionWithOptAlias* node, void* data) {
   node->expression()->Accept(this, data);
@@ -6148,6 +6539,15 @@ void Unparser::visitASTPipeRecursiveUnion(const ASTPipeRecursiveUnion* node,
   Formatter::PipeAndIndent pipe_and_indent(&formatter_);
   print("RECURSIVE");
   visitASTChildren(node, data);
+}
+
+void Unparser::visitASTColumnListSpec(const ASTColumnListSpec* node,
+                                      void* data) {
+  if (node->parenthesized()) print("(");
+  print("COLUMNS(");
+  node->column_names()->Accept(this, data);
+  print(")");
+  if (node->parenthesized()) print(")");
 }
 
 void Unparser::visitASTRunStatement(const ASTRunStatement* node, void* data) {

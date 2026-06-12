@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "googlesql/common/errors.h"
 #include "googlesql/common/status_payload_utils.h"
 #include "googlesql/common/testing/proto_matchers.h"
 #include "googlesql/base/testing/status_matchers.h"
@@ -27,14 +28,15 @@
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parser.h"
 #include "googlesql/proto/internal_fix_suggestion.pb.h"
+#include "googlesql/public/error_helpers.h"
+#include "googlesql/public/options.pb.h"
 #include "googlesql/public/parse_location.h"
 #include "googlesql/testdata/test_schema.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "googlesql/base/source_location.h"
-#include "googlesql/base/status.h"
+#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
 
 using ::googlesql::testing::EqualsProto;

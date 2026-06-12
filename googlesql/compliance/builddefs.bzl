@@ -57,7 +57,6 @@ def googlesql_compliance_test(
         **extra_args):
     """Invoke the GoogleSQL compliance test suite against a SQL engine."""
 
-    orig_deps = deps
     if include_gtest_main:
         deps = deps + ["//googlesql/base/testing:googlesql_gtest_main"]
 
@@ -72,9 +71,6 @@ def googlesql_compliance_test(
         tags = tags,
         **extra_args
     )
-
-    driver_deps = {d: True for d in orig_deps}
-    driver_deps["//googlesql/compliance:test_driver"] = True
 
 def sql_e2e_test(
         name,

@@ -33,6 +33,7 @@
 
 #include "googlesql/base/logging.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/common/proto_format_utils.h"
 #include "googlesql/public/civil_time.h"
 #include "googlesql/public/functions/arithmetics.h"
 #include "googlesql/public/functions/date_time_util_internal.h"
@@ -46,6 +47,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -60,7 +62,6 @@
 #include "absl/time/time.h"
 #include "googlesql/base/mathutil.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 #include "googlesql/base/time_proto_util.h"
 
 namespace googlesql {
@@ -961,7 +962,6 @@ static bool AddAtLeastDaysToCivilTime(DateTimestampPart part, int32_t interval,
       break;
     }
     default:
-      ABSL_DCHECK(false) << "Should not reach here";
       return false;
   }
   return true;
@@ -3559,9 +3559,8 @@ absl::Status ConvertProto3TimestampToTimestamp(
     const google::protobuf::Timestamp& input_timestamp, absl::Time* output) {
   auto result_or = googlesql_base::DecodeGoogleApiProto(input_timestamp);
   if (!result_or.ok()) {
-    return MakeEvalError()
-           << "Invalid Proto3 Timestamp input: "
-                        << input_timestamp.DebugString();
+    return MakeEvalError() << "Invalid Proto3 Timestamp input: "
+                           << ToStableDebugString(input_timestamp);
   }
   *output = result_or.value();
   // DecodeGoogleApiProto enforces the same valid timestamp range as GoogleSQL.

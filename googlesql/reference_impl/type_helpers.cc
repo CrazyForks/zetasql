@@ -23,11 +23,11 @@
 #include "googlesql/public/strings.h"
 #include "googlesql/public/type.h"
 #include "googlesql/resolved_ast/resolved_column.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

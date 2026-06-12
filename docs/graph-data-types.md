@@ -22,7 +22,8 @@ including the following GQL-specific data type:
   <td><a href="#graph_element_type">Graph element type</a>
 </td>
   <td>
-    An element in a property graph.<br/>
+    An element in a property graph. Can be a <code>GRAPH_NODE</code> or
+    <code>GRAPH_EDGE</code>.<br/>
     SQL type name: <code>GRAPH_ELEMENT</code>
   </td>
 </tr>
@@ -82,16 +83,18 @@ MATCH (n:Person)
 RETURN TYPEOF(n) AS t
 LIMIT 1
 
-/*----------------------------------------------+
- | t                                            |
- +----------------------------------------------+
- | GRAPH_NODE(FinGraph)<Id INT64, ..., DYNAMIC> |
- +---------------------------------------------*/
+/*-------------------------------------+
+ | t                                   |
+ +-------------------------------------+
+ | GRAPH_NODE(FinGraph)<id INT64, ...> |
+ +-------------------------------------*/
 ```
 
 [graph-query]: https://github.com/google/googlesql/blob/master/docs/graph-intro.md
 
 [fin-graph]: https://github.com/google/googlesql/blob/master/docs/graph-schema-statements.md#fin_graph
+
+[type-of]: https://github.com/google/googlesql/blob/master/docs/utility-functions.md#typeof
 
 [data-types]: https://github.com/google/googlesql/blob/master/docs/data-types.md
 

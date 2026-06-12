@@ -47,13 +47,14 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/substitute.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -512,9 +513,16 @@ absl::StatusOr<std::unique_ptr<ResolvedExpr>> ExpressionSubstitutor::Substitute(
   };
   InternalAnalyzerOptions::SetValidateResolvedAST(options_, false);
   std::unique_ptr<AnalyzerOutput> output;
-  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(
-      sql, options_, catalog_, &type_factory_, target_type, &output))
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      TypeModifiers type_modifiers,
+      TypeModifiers::MakeTypeModifiers(target_type.annotation_map));
+
+  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(sql, options_, catalog_,
+                                            &type_factory_, target_type.type,
+                                            std::move(type_modifiers), &output))
       << "while parsing substitution sql: " << sql;
+
   GOOGLESQL_VLOG(1) << "Initial ast: " << output->resolved_expr()->DebugString();
 
   VariableReplacementInserter replacer(referenced_columns, lambdas,
@@ -570,7 +578,11 @@ absl::Status VariableReplacementInserter::VisitResolvedFunctionCall(
   absl::flat_hash_map<int, const ResolvedColumnRef*> lambda_columns_map;
   for (int i = 0; i < lambda->argument_list_size(); i++) {
     GOOGLESQL_RET_CHECK(node->argument_list(i)->Is<ResolvedColumnRef>())
-        << "Lambda arguments must be a ColumnRef.";
+        << absl::Substitute(
+               "All lambda arguments must be ColumnRef, but got $0 for "
+               "argument $1 of node $2",
+               node->argument_list(i)->node_kind_string(), i,
+               node->DebugString());
     const ResolvedColumnRef* substitution_column =
         node->argument_list(i)->GetAs<ResolvedColumnRef>();
     lambda_columns_map.emplace(lambda->argument_list(i).column_id(),

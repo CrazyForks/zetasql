@@ -18,7 +18,6 @@
 
 #include <memory>
 #include <string>
-#include <string_view>
 
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/property_graph.h"

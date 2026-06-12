@@ -33,8 +33,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
+#include "googlesql/base/status.h"
 
 namespace googlesql {
 

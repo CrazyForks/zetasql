@@ -108,11 +108,9 @@ QueryStatement [34-240] [GRAPH my.graph...id, score2]
 --
 GRAPH my.graph.name
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   -[e1]->
-  (m
-  IS Person)
+  (m IS Person)
   WHERE
     n.id = 1
 LET
@@ -124,8 +122,7 @@ NEXT
 MATCH
   (m)
   -[e2]->
-  (k
-  IS Person)
+  (k IS Person)
 LET
   score2 = score + e2.val
 FILTER
@@ -149,7 +146,7 @@ MATCH (m) -[e2]-> (k:Person)
 LET score2 = score + e2.val
 FILTER score2 > 100
 --
-ERROR: Syntax error: Expected keyword RETURN but got end of statement [at 9:20]
+ERROR: Syntax error: Expected keyword INSERT or keyword RETURN but got end of statement [at 9:20]
 FILTER score2 > 100
                    ^
 
@@ -290,11 +287,9 @@ ExplainStatement [0-112] [EXPLAIN GRAPH...ETURN m, score]
 EXPLAIN
 GRAPH my.graph.name
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   -[e1]->
-  (m
-  IS Person)
+  (m IS Person)
   WHERE
     n.id = 1
 LET
@@ -374,11 +369,9 @@ HintedStatement [0-124] [@{ hint1 =...RETURN m, score]
 @{ hint1 = value1 }
 GRAPH my.graph.name
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   -[e1]->
-  (m
-  IS Person)
+  (m IS Person)
   WHERE
     n.id = 1
 LET
@@ -720,8 +713,7 @@ Script [0-161] [GRAPH my.graph...n.id ) gt;]
 --
 GRAPH my.graph.name
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 LET
   score = n.val
 RETURN
@@ -734,8 +726,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (n
-      IS Person)
+      (n IS Person)
     RETURN
       n.id
   ) AS gt

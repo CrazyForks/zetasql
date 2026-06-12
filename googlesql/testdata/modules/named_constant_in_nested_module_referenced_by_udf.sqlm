@@ -1,0 +1,5 @@
+MODULE named_constant_in_nested_module_referenced_by_udf;
+
+IMPORT MODULE googlesql.testdata.modules.named_constant_in_nested_nested_module_referenced_by_udf AS nested_nested_module;
+
+CREATE PUBLIC CONSTANT baz = 2;

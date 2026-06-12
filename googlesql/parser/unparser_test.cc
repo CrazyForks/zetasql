@@ -14,11 +14,9 @@
 // limitations under the License.
 //
 
-#include "googlesql/parser/unparser.h"
 
 #include <memory>
 #include <string>
-#include <string_view>
 
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/parser/parser.h"

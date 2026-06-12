@@ -31,6 +31,7 @@
 #include "googlesql/resolved_ast/resolved_ast_visitor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -38,7 +39,6 @@
 #include "absl/types/span.h"
 #include "algorithms/partition-selection.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace anonymization {

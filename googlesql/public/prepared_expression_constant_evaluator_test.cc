@@ -28,8 +28,8 @@
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 
 namespace googlesql {
 namespace {

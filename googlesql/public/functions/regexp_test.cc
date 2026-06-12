@@ -102,7 +102,8 @@ TEST_P(RegexpTemplateTest, TestLib) {
         occurrence = args[3].int64_value();
       }
     }
-    bool ok = (*re)->Extract(in, position_unit, position, occurrence, &out,
+    bool ok = (*re)->Extract(in, position_unit, position, occurrence,
+                             /*use_legacy_position_behavior=*/false, &out,
                              &is_null, &status);
     ASSERT_EQ(expected_ok, ok);
     ASSERT_EQ(param.params.status().code(), status.code());
@@ -206,7 +207,8 @@ TEST_P(RegexpInstrTest, TestLib) {
   absl::Status status;
   int64_t out;
   options.out = &out;
-  bool ok = (*re)->Instr(options, &status);
+  bool ok =
+      (*re)->Instr(options, /*use_legacy_position_behavior=*/false, &status);
   ASSERT_EQ(expected_ok, ok);
   ASSERT_EQ(param.params.status().code(), status.code());
   if (ok) {
@@ -388,10 +390,6 @@ TEST_P(RegexpExtractGroupsTest, Test) {
       << out.DebugString() << " vs " << ResultValue().DebugString();
 }
 
-// TODO: b/328210654 - Move these tests to testlib with prohibited feature:
-// FEATURE_LEGACY_REGEXP_POSITION_BEHAVIOR. This is a temporary test set to
-// ensure that the offset is correctly forwarded. This behavior is not yet used
-// by any engine.
 TEST(RegexpExtract, ForwardsOffset) {
   absl::StatusOr<std::unique_ptr<const RegExp>> re;
   absl::Status status;
@@ -455,8 +453,9 @@ TEST(RegexpExtract, NullStringView) {
     absl::Status status;
     absl::string_view out;
     bool is_null;
-    ASSERT_TRUE(
-        regexp->Extract(pattern_and_input.second, &out, &is_null, &status))
+    ASSERT_TRUE(regexp->Extract(pattern_and_input.second,
+                                /*use_legacy_position_behavior=*/false, &out,
+                                &is_null, &status))
         << status;
     EXPECT_NE(nullptr, out.data());
     EXPECT_TRUE(out.empty());

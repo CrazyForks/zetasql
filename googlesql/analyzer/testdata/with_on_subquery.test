@@ -3,7 +3,10 @@
 #
 # with_on_subquery_v1_0.test has the same queries on v1.0, showing errors.
 
-[default language_features=MAXIMUM,+WITH_ON_SUBQUERY]
+# Even with FEATURE_CORRELATED_WITH_ON_SUBQUERY enabled by default for WTIH
+# clauses on subqueries, no implementations exist yet so expected results don't
+# change.
+[default language_features=MAXIMUM,+WITH_ON_SUBQUERY,+CORRELATED_WITH_ON_SUBQUERY]
 
 SELECT * FROM
   (WITH q AS (select 1 x) SELECT x+1 AS y FROM q)

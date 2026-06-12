@@ -37,10 +37,10 @@
 #include "googlesql/public/value_content.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -71,12 +71,6 @@ absl::StatusOr<std::string> RangeType::TypeNameWithModifiers(
               Collation()),
           mode));
   return absl::StrCat("RANGE<", element_type_name, ">");
-}
-
-std::string RangeType::CapitalizedName() const {
-  ABSL_CHECK_EQ(kind(), TYPE_RANGE);  // Crash OK
-  // TODO: Audit use of DebugString. Should this use CapitalizedName?
-  return absl::StrCat("Range<", element_type_->DebugString(), ">");
 }
 
 bool RangeType::IsSupportedType(const LanguageOptions& language_options) const {

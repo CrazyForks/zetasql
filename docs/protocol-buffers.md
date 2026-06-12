@@ -902,6 +902,11 @@ explicitly set. If `has_country` is `NULL`, that means the parent message
 `c.Orders.shipping_address` is `NULL`, and therefore `country` can't be
 considered either set or unset.
 
+Some scalar proto fields are defined to have implicit presence, so you
+can't distinguish whether the field is unset or set-to-default. To reliably
+distinguish when a proto field is unset or set-to-default, enable explicit
+presence on the field.
+
 For more information about default field values, see [Default values and
 `NULL`s][default-values].
 

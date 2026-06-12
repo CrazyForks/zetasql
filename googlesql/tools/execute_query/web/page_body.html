@@ -86,23 +86,29 @@
                   <label for="target-syntax-mode-pipe">Pipe</label>
                 </fieldset>
 
-                <span class="select-options">
-                  <label for="language-features-select">Enabled Language Features:</label>
-                  <select name="language-features" id="language-features-select">
-                    {{#language_features}}
-                    <option value="{{name}}" {{selected}}>{{name}}</option>
-                    {{/language_features}}
-                  </select>
-                </span>
+                <fieldset>
+                  <legend>Enabled Language Features</legend>
+                  <span class="select-options">
+                    <select name="language-features" id="language-features-select">
+                      {{#language_features}}
+                      <option value="{{name}}" {{selected}}>{{name}}</option>
+                      {{/language_features}}
+                    </select>
+                    <input type="text" name="language-features-text" id="language-features-text" value="{{language_features_text}}" placeholder="+FEATURE1,-FEATURE2">
+                  </span>
+                </fieldset>
 
-                <span class="select-options">
-                  <label for="ast-rewrites-select">Enabled AST Rewrites:</label>
-                  <select name="ast-rewrites" id="ast-rewrites-select">
-                    {{#ast_rewrites}}
-                    <option value="{{name}}" {{selected}}>{{name}}</option>
-                    {{/ast_rewrites}}
-                  </select>
-                </span>
+                <fieldset>
+                  <legend>Enabled AST Rewrites</legend>
+                  <span class="select-options">
+                    <select name="ast-rewrites" id="ast-rewrites-select">
+                      {{#ast_rewrites}}
+                      <option value="{{name}}" {{selected}}>{{name}}</option>
+                      {{/ast_rewrites}}
+                    </select>
+                    <input type="text" name="ast-rewrites-text" id="ast-rewrites-text" value="{{ast_rewrites_text}}" placeholder="+REWRITE1,-REWRITE2">
+                  </span>
+                </fieldset>
               </details>
 
             </div>
@@ -133,6 +139,9 @@
                 {{#table}}
                   <pre class="output executed">{{> table}}</pre>
                 {{/table}}
+                {{#message}}
+                  <pre class="output executed">{{message}}</pre>
+                {{/message}}
                 {{#error}}
                   <pre id="error" class="error">{{{error}}}</pre>
                 {{/error}}

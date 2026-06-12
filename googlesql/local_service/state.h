@@ -49,7 +49,7 @@ class SharedStatePool {
       return -1;
     }
 
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     int64_t id = next_id_++;
     if (!state->SetId(id)) {
       return -1;
@@ -69,7 +69,7 @@ class SharedStatePool {
       return -1;
     }
 
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     int64_t id = next_id_++;
     if (!state->SetId(id)) {
       return -1;
@@ -79,14 +79,14 @@ class SharedStatePool {
   }
 
   bool Has(int64_t id) const {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return googlesql_base::ContainsKey(saved_states_, id);
   }
 
   // Get a state object with given id, ownership is shared by the pool and all
   // threads that currently hold the state object.
   std::shared_ptr<T> Get(int64_t id) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     std::shared_ptr<T>* result = googlesql_base::FindOrNull(saved_states_, id);
     if (result == nullptr) {
       return nullptr;
@@ -98,7 +98,7 @@ class SharedStatePool {
   // Removes a state object from the pool. The state will be deleted immediately
   // if not held by any other threads, or after all threads releasing it.
   bool Delete(int64_t id) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (!googlesql_base::ContainsKey(saved_states_, id)) {
       return false;
     }
@@ -107,7 +107,7 @@ class SharedStatePool {
   }
 
   size_t NumSavedStates() {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return saved_states_.size();
   }
 

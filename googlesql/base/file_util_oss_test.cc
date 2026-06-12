@@ -107,8 +107,8 @@ TEST(FileUtilTest, NullFreeString) {
   std::string str;
   GOOGLESQL_EXPECT_OK(NullFreeString("abcd0", &str));
   EXPECT_EQ(str, "abcd0");
-  constexpr absl::string_view v("\0123\0", 5);
-  EXPECT_EQ(v.size(), 5);
+  constexpr absl::string_view v("\0123\0", 3);
+  EXPECT_EQ(v.size(), 3);
   str.clear();
   EXPECT_THAT(NullFreeString(v, &str),
               StatusIs(absl::StatusCode::kInvalidArgument));

@@ -35,7 +35,7 @@ evening. Lots of guests come at 7 PM, and the restaurant is completely empty
 at 1 AM:
 
 <center>
-![Chart shows busyness of a small rest by mapping visitors at specific hours of the day.][dp-chart-a]
+![Chart shows busyness of a small restaurant by mapping visitors at specific hours of the day.][dp-chart-a]
 </center>
 
 This chart looks useful, but there's a catch. When a new guest arrives, this

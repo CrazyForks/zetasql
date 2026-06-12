@@ -167,7 +167,7 @@ CREATE FUNCTION foo(a ANY AS b);
                           ^
 ==
 
-CREATE FUNCTION foo(a ANY {{INTEGER|FLOAT|STRING|something}});
+CREATE FUNCTION foo(a ANY {{INTEGER|FLOAT|BYTES|something}});
 --
 ALTERNATION GROUP: INTEGER
 --
@@ -181,10 +181,10 @@ ERROR: Syntax error: unexpected ANY template type [at 1:27]
 CREATE FUNCTION foo(a ANY FLOAT);
                           ^
 --
-ALTERNATION GROUP: STRING
+ALTERNATION GROUP: BYTES
 --
 ERROR: Syntax error: unexpected ANY template type [at 1:27]
-CREATE FUNCTION foo(a ANY STRING);
+CREATE FUNCTION foo(a ANY BYTES);
                           ^
 --
 ALTERNATION GROUP: something

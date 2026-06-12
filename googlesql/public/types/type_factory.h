@@ -18,6 +18,7 @@
 #define GOOGLESQL_PUBLIC_TYPES_TYPE_FACTORY_H_
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -31,6 +32,7 @@
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/array_type.h"
+#include "googlesql/public/types/declarative_type.h"
 #include "googlesql/public/types/enum_type.h"
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/graph_path_type.h"
@@ -50,6 +52,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
+#include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -60,6 +63,7 @@
 namespace googlesql {
 class Column;
 class TypeFactory;
+class DeclarativeTypeDescriptor;
 }  // namespace googlesql
 
 ABSL_DECLARE_FLAG(int32_t, googlesql_type_factory_nesting_depth_limit);
@@ -178,13 +182,18 @@ class TypeFactory : public TypeFactoryBase {
   // use the parameterized constructors.
   const Type* MakeSimpleType(TypeKind kind);
 
-  // Make an array type.
+  // Make an array type of `element_type`.
   // Arrays of arrays are not supported and will fail with an error.
-  // If <element_type> is not created by this TypeFactory, the TypeFactory that
-  // created the <type> must outlive this TypeFactory.
+  // If `element_type` is not created by this TypeFactory, the TypeFactory that
+  // created `element_type` must outlive this TypeFactory.
+  absl::StatusOr<const ArrayType*> MakeArrayType(const Type* element_type);
+  absl::StatusOr<const ArrayType*> MakeArrayType(
+      const Type* element_type, const LanguageOptions& language_options);
+  ABSL_DEPRECATED("Use MakeArrayType(element_type, language_options) instead.")
+  absl::Status MakeArrayType(const Type* element_type, const Type** result);
+  ABSL_DEPRECATED("Use MakeArrayType(element_type, language_options) instead.")
   absl::Status MakeArrayType(const Type* element_type,
                              const ArrayType** result);
-  absl::Status MakeArrayType(const Type* element_type, const Type** result);
 
   // Make a struct type.
   // The field names must be valid.
@@ -199,7 +208,7 @@ class TypeFactory : public TypeFactoryBase {
   absl::Status MakeStructTypeFromVector(
       std::vector<StructType::StructField> fields, const Type** result);
 
-  // Make a ROW<Table> type (for a non-join RowType).
+  // Make a ROW<Table> type.
   // The `table` must outlive this TypeFactory.
   // `table->FullName()` must be passed as the second argument.
   // This avoids a circular dependency with the Catalog headers.
@@ -208,20 +217,21 @@ class TypeFactory : public TypeFactoryBase {
   absl::Status MakeRowType(const Table* table, const std::string& table_name,
                            const Type** result);
 
-  // Make a ROW<Table> or MULTIROW<Table> for a join RowType.
+  // Make a `TABLE [UNIQUE]<ROW<TableName>>` type for a join column.
+  // The type has UNIQUE if `multi_row` is false.
   // All bound column arguments must be non-empty.
-  absl::Status MakeRowType(const Table* table, const std::string& table_name,
-                           bool multi_row,
-                           std::vector<const Column*> bound_columns,
-                           const Table* bound_source_table,
-                           std::vector<const Column*> bound_source_columns,
-                           const RowType** result);
-  absl::Status MakeRowType(const Table* table, const std::string& table_name,
-                           bool multi_row,
-                           std::vector<const Column*> bound_columns,
-                           const Table* bound_source_table,
-                           std::vector<const Column*> bound_source_columns,
-                           const Type** result);
+  absl::Status MakeTableType(const Table* table, const std::string& table_name,
+                             bool multi_row,
+                             std::vector<const Column*> bound_columns,
+                             const Table* bound_source_table,
+                             std::vector<const Column*> bound_source_columns,
+                             const TableRefType** result);
+  absl::Status MakeTableType(const Table* table, const std::string& table_name,
+                             bool multi_row,
+                             std::vector<const Column*> bound_columns,
+                             const Table* bound_source_table,
+                             std::vector<const Column*> bound_source_columns,
+                             const Type** result);
 
   // Make a proto type.
   // The <descriptor> must outlive this TypeFactory.
@@ -239,6 +249,9 @@ class TypeFactory : public TypeFactoryBase {
       const google::protobuf::Descriptor* descriptor, const Type** result,
       absl::Span<const std::string> catalog_name_path = {});
 
+  // Make a Declarative type based on the given specification.
+  absl::StatusOr<const Type*> MakeDeclarativeType(
+      DeclarativeTypeDescriptor descriptor);
   // Make a range type.
   // <element_type> must be one of Date, DateTime, or Timestamp.
   // If <element_type> is not created by this TypeFactory, the TypeFactory that
@@ -544,6 +557,13 @@ class TypeFactory : public TypeFactoryBase {
       const google::protobuf::FieldDescriptor* field_descr, TypeKind kind,
       absl::Span<const std::string> catalog_name_path, const Type** type);
 
+  // Same as above, but with an option to allow nested arrays.
+  // `allow_array_of_array` should be true only for internal use, such as
+  // when deserializing an array type that was allowed to have nested arrays
+  // under a different set of LanguageOptions.
+  absl::StatusOr<const ArrayType*> MakeArrayType(const Type* element_type,
+                                                 bool allow_array_of_array);
+
   // Returns an ArrayType or RangeType.
   template <class TYPE>
   const auto* MakeTypeWithChildElementType(
@@ -570,6 +590,7 @@ class TypeFactory : public TypeFactoryBase {
       std::set<const google::protobuf::Descriptor*>* ancestor_messages);
 
   friend class internal::TypeFactoryHelper;
+  friend class TypeDeserializer;
 
   absl::flat_hash_map<const Type*, const ArrayType*> cached_array_types_
       ABSL_GUARDED_BY(store_->mutex_);
@@ -603,6 +624,10 @@ class TypeFactory : public TypeFactoryBase {
 
   // Cached extended types.
   TypeFlatHashSet<> cached_extended_types_ ABSL_GUARDED_BY(store_->mutex_);
+
+  // Cached declarative types.
+  absl::flat_hash_map<TypeId, const DeclarativeType*> cached_declarative_types_
+      ABSL_GUARDED_BY(store_->mutex_);
 
   // Set in constructor and never changed.
   const int nesting_depth_limit_;

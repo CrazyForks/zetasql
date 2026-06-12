@@ -35,13 +35,14 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace googlesql {
 

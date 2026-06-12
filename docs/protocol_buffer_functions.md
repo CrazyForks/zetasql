@@ -179,8 +179,11 @@ You can choose the type of information to get with `EXTRACT`. Your choices are:
     protocol buffer field. Raw values
     ignore any GoogleSQL type annotations.
 +  `HAS`: Returns `TRUE` if a protocol buffer field is set in a proto message;
-   otherwise, `FALSE`. Alternatively, use [`has_x`][has-value] to perform this
-   task.
+    otherwise, `FALSE`. Alternatively, use [`has_x`][has-value] to perform this
+    task. Some scalar proto fields are defined to have implicit presence, so you
+    can't distinguish whether the field is unset or set-to-default. To reliably
+    distinguish when a proto field is unset or set-to-default, enable explicit
+    presence on the field.
 +  `ONEOF_CASE`: Returns the name of the set protocol buffer field in a Oneof.
    If no field is set, returns an empty string.
 

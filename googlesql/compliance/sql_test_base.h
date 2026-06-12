@@ -105,14 +105,14 @@
 
 ABSL_DECLARE_FLAG(bool, googlesql_detect_falsly_required_features);
 ABSL_DECLARE_FLAG(bool, googlesql_compliance_write_labels_to_file);
-ABSL_DECLARE_FLAG(bool, googlesql_compliance_accept_all_test_output);
+ABSL_DECLARE_FLAG(bool, googlesql_compliance_only_inspect_test_case);
 
 namespace googlesql {
 class Stats;  // Defined in implementation file.
 class FilebasedSQLTestFileOptions;
 class FilebasedSQLTestCaseOptions;
 
-std::string ScriptResultToString(const ScriptResult& result);
+std::string ScriptResultToString(const MultiStmtResult& result);
 
 // Encapsulates the details of an individual SQL test case.
 class SQLTestCase {
@@ -148,7 +148,7 @@ struct QueryResultStats {
 
 class SQLTestBase : public ::testing::TestWithParam<std::string> {
  public:
-  using ComplianceTestCaseResult = std::variant<Value, ScriptResult>;
+  using ComplianceTestCaseResult = std::variant<Value, MultiStmtResult>;
 
   // Returns a debug string.
   static std::string ToString(
@@ -637,7 +637,7 @@ class SQLTestBase : public ::testing::TestWithParam<std::string> {
   ReferenceDriver* test_setup_driver() { return test_setup_driver_.get(); }
 
   // Check 'feature' to ensure that it is required for evaluating the test case.
-  // This is useful for codebased tests that have an expected result instead of
+  // This is useful for code-based tests that have an expected result instead of
   // an expected golden file output. When 'require_inclusive' is false we are
   // checking if the feature is falsely prohibited. When checking for falsely
   // prohibited features we make sure adding that feature causes the test to
@@ -654,6 +654,9 @@ class SQLTestBase : public ::testing::TestWithParam<std::string> {
   // Since ToString is static, so must be the formatting options.
   static void SetFormatValueContentOptions(
       InternalValue::FormatValueContentOptions options);
+
+  // Sets the float margin to be used for engine evaluation.
+  static void SetEngineEvaluationFloatMargin(FloatMargin float_margin);
 
  private:
   // Accesses ValidateFirstColumnPrimaryKey
@@ -695,6 +698,10 @@ class SQLTestBase : public ::testing::TestWithParam<std::string> {
   FileWorkflow file_workflow_;
 
   StatementWorkflow statement_workflow_ = NORMAL;
+  // The reason can be set when the statement_workflow_ is non-normal to
+  // indicate why the test was skipped or the test output was ignored.
+  std::string test_failure_reason_ = "";
+
   std::string sql_;        // The SQL string
   std::string full_name_;  // <filename>:<statement_name>
   std::string
@@ -793,6 +800,10 @@ class SQLTestBase : public ::testing::TestWithParam<std::string> {
   // The container for CREATE VIEW statements that were executed during
   // a [prepare_database] step.
   std::vector<std::string> view_stmt_cache_;
+  // The container for LanguageFeatures that were required during a
+  // [prepare_database] step as defined by
+  // [prepare_database_additional_features] tag.
+  std::set<LanguageFeature> prepare_database_additional_features_cache_;
 
   // Code-based label set. Use a vector since labels might be added multiple
   // times.

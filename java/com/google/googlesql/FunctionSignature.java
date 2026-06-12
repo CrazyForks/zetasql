@@ -241,6 +241,9 @@ public final class FunctionSignature implements Serializable {
         }
         result.append(")");
       }
+      if (options.getRejectsCollation()) {
+        result.append(" rejects_collation=TRUE");
+      }
     }
 
     return result.toString();

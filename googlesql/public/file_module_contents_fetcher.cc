@@ -31,6 +31,8 @@
 #include "googlesql/public/options.pb.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
@@ -39,7 +41,7 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor_database.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -93,7 +95,7 @@ bool AddToStackIfMissing(const std::string& proto_file_name,
 // If the file cannot be fetched, nullptr is returned. The root cause of the
 // failure may be a (transitive) dependency. The file that caused the failure
 // will be returned in the output parameter failed_file_name.
-const google::protobuf::FileDescriptor* IterativeAddOrFindFile(
+absl::StatusOr<const google::protobuf::FileDescriptor*> IterativeAddOrFindFile(
     const std::string& proto_file_name, google::protobuf::DescriptorPool* descriptor_pool,
     google::protobuf::DescriptorDatabase* descriptor_database,
     google::protobuf::DescriptorPool::ErrorCollector* error_collector,
@@ -128,10 +130,11 @@ const google::protobuf::FileDescriptor* IterativeAddOrFindFile(
       // 3) Add the first children of current_child if missing.
       int current_child = current.next_child;
       current.next_child++;
-      const std::string* dependency;
+      const std::string* dependency = nullptr;
       if (current_child < current.proto.dependency_size()) {
         dependency = &current.proto.dependency(current_child);
       }
+      GOOGLESQL_RET_CHECK_NE(dependency, nullptr);
       if (!AddToStackIfMissing(*dependency, descriptor_pool,
                                descriptor_database, stack)) {
         failed_file_name = *dependency;
@@ -251,9 +254,10 @@ absl::Status FileModuleContentsFetcher::FetchProtoFileDescriptor(
   error_collector_.ClearError();
 
   std::string failed_file_name;
-  *proto_file_descriptor = IterativeAddOrFindFile(
-      proto_file_name, descriptor_pool_, descriptor_database_.get(),
-      &error_collector_, failed_file_name);
+  GOOGLESQL_ASSIGN_OR_RETURN(*proto_file_descriptor,
+                   IterativeAddOrFindFile(proto_file_name, descriptor_pool_,
+                                          descriptor_database_.get(),
+                                          &error_collector_, failed_file_name));
   if (*proto_file_descriptor == nullptr) {
     std::string error_detail;
     if (error_collector_.HasError()) {

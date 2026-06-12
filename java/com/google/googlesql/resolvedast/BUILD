@@ -50,6 +50,7 @@ java_library(
     deps = [
         "//googlesql/proto:function_java_proto",
         "//googlesql/public:annotation_java_proto",
+        "//googlesql/public:collation_java_proto",
         "//googlesql/public:type_modifiers_java_proto",
         "//googlesql/public:type_parameters_java_proto",
         "//googlesql/public:type_proto_java_proto",
@@ -82,6 +83,7 @@ java_library(
     deps = [
         "//googlesql/proto:function_java_proto",
         "//googlesql/public:annotation_java_proto",
+        "//googlesql/public:collation_java_proto",
         "//googlesql/public:type_modifiers_java_proto",
         "//googlesql/public:type_parameters_java_proto",
         "//googlesql/public:type_proto_java_proto",

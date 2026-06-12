@@ -17,21 +17,16 @@
 #ifndef GOOGLESQL_PARSER_LOOKAHEAD_TRANSFORMER_H_
 #define GOOGLESQL_PARSER_LOOKAHEAD_TRANSFORMER_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <stack>
-#include <vector>
 
-#include "googlesql/base/arena.h"
-#include "googlesql/parser/macros/macro_catalog.h"
-#include "googlesql/parser/macros/macro_expander.h"
 #include "googlesql/parser/parser_mode.h"
 #include "googlesql/parser/tm_token.h"
+#include "googlesql/parser/token_stream.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/parse_location.h"
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
@@ -42,12 +37,15 @@
 namespace googlesql {
 namespace parser {
 
+class Parser;  // Forward declaration to avoid a header dependency.
+
 using TokenKind ABSL_DEPRECATED("Inline me!") = Token;
 using Location = ParseLocationRange;
 
-// Represents a token with a possible override_error. We don't use
-// absl::StatusOr because the token location is still needed when an error
-// occurs.
+// Representation of a Token used by the lookahead transfomer's buffers. Lower
+// levels use StatusOr<TokenWithLocation> to propagate errors up. At this layer
+// want a location and a status to be able to exist at the same time so we
+// flatten them into this struct.
 struct TokenWithOverrideError {
   TokenWithLocation token;
 
@@ -55,21 +53,23 @@ struct TokenWithOverrideError {
   // `lookback_token` and typically ignore `token.kind`.
   Token lookback_override = Token::UNAVAILABLE;
 
-  // The lookahead_transformer may want to return an error directly. It does
-  // this by returning EOF to the bison parser, which then may or may not spew
-  // out its own error message. The BisonParser wrapper then grabs the error
-  // from here instead.
+  // An error propagated from a lower layer of the lexer stack.
   absl::Status error = absl::OkStatus();
 };
 
-class LookaheadTransformer final {
+class LookaheadTransformer final : public TokenStream {
  public:
   static absl::StatusOr<std::unique_ptr<LookaheadTransformer>> Create(
-      ParserMode mode, absl::string_view filename, absl::string_view input,
-      int start_offset, const LanguageOptions& language_options,
-      MacroExpansionMode macro_expansion_mode,
-      const macros::MacroCatalog* macro_catalog, googlesql_base::UnsafeArena* arena,
-      StackFrame::StackFrameFactory& stack_frame_factory);
+      ParserMode mode, const LanguageOptions& language_options,
+      TokenStream* input);
+
+  // Register the parser with the lookahead transformer to enable lookaheads
+  // to consider marked states.
+  // See: https://textmapper.org/documentation.html#state-markers
+  //
+  // If the parser is not registered, transformations that depend on
+  // state-markers will not be performed.
+  void SetParser(Parser* parser) { parser_ = parser; }
 
   // Returns the next token id, returning its location in `yylloc` and image in
   // `text`.
@@ -105,21 +105,13 @@ class LookaheadTransformer final {
     return absl::OkStatus();
   }
 
-  // Returns the Bison token id in `token` and the GoogleSQL location
-  // in `location`. Returns an error if the tokenizer sets override_error.
-  absl::Status GetNextToken(ParseLocationRange* location, Token* token);
+  // Returns the next token from the input with its location or an error.
+  absl::StatusOr<TokenWithLocation> GetNextToken() override;
 
   // Indicates that there is no more input. Either GetNextToken already returned
   // EOI, or the next token will be EOI. This function will return false if the
   // current token or the next token (if EOI) has an associated error.
   bool IsAtEoi() const;
-
-  // Some sorts of statements need to change the mode after the parser consumes
-  // the preamble of the statement. DEFINE MACRO is an example, it wants to
-  // consume the macro body as raw tokens.
-  void PushParserMode(ParserMode mode);
-  // Restore the ParserMode to its value before the previous Push.
-  void PopParserMode();
 
   // This function is called by the Bison or Textmapper parsers before they
   // (maybe) consume `expected_next_token` and will set an alternative lookback
@@ -146,14 +138,26 @@ class LookaheadTransformer final {
   // `current_token_` is std::nullopt.
   absl::Status OverrideCurrentTokenLookback(Token new_token_kind);
 
+  // Re-access the most recently returned token.
+  Token LastToken() const;
+
+  // Re-access the text of the most recently returned token.
+  absl::string_view LastTokenText() const;
+
+  // Re-access the location of the most recently returned token.
+  const ParseLocationRange& LastTokenLocation() const;
+
+  // Re-access the location of the second most recently returned token.
+  const ParseLocationRange& LastLastTokenLocation() const;
+
   // Returns the number of lexical tokens returned by the underlying tokenizer.
-  int64_t num_lexical_tokens() const;
+  int num_consumed_tokens() const override;
 
  private:
   using StateType = Token;
 
   LookaheadTransformer(ParserMode mode, const LanguageOptions& language_options,
-                       std::unique_ptr<macros::MacroExpanderBase> expander);
+                       TokenStream* input);
 
   LookaheadTransformer(const LookaheadTransformer&) = delete;
   LookaheadTransformer& operator=(const LookaheadTransformer&) = delete;
@@ -200,9 +204,9 @@ class LookaheadTransformer final {
   // Populates the lookahead buffers if they are nullopt.
   void PopulateLookaheads();
 
-  // Reads the next token from `macro_expander_` and writes it into `next`.
-  // `current` is the token before `next`. The original content in `next` will
-  // be overwritten.
+  // Reads the next token from `input_` and writes it into `next`. `current` is
+  // the token before `next`. The original content in `next` will be
+  // overwritten.
   //
   // When `current` is already YYEOF, this function does not try fetching from
   // the underlying token stream; instead it populates `next` with `current`
@@ -222,32 +226,31 @@ class LookaheadTransformer final {
 
   // Applies a set of rules based on previous and successive token kinds and if
   // any rule matches, returns the token kind specified by the rule.  Otherwise
-  // when no rule matches, returns `token_with_location.kind`.
-  // `token_with_location.location` is used to generate error messages for
-  // `SetOverrideError`.
+  // when no rule matches, returns `token`.
   //
   // Requirements on the rules:
   // - Token::EOI cannot be transformed into any other tokens.
   // - Rules that compare lookaheads with Token::EOI must also check
   //   whether the lookaheads have any errors, because Token::EOI can also
   //   indicate an error rather than the real end of file.
-  Token ApplyTokenDisambiguation(const TokenWithLocation& token_with_location);
+  Token ApplyTokenDisambiguation(Token token);
 
-  // Sets the field `override_error_` and returns the token kind
-  // Token::EOI.
-  ABSL_MUST_USE_RESULT Token SetOverrideErrorAndReturnEof(
-      absl::string_view error_message, const Location& error_location);
+  // Using the current token window and potentially marked states from parser,
+  // decide whether to insert a guidance token into the token stream. A guidance
+  // token helps the parser disambiguate between two different rules that
+  // otherwise have a conflict. A guidance token will have an empty location at
+  // the end of `current_tokens_`s range and empty text.
+  std::optional<Token> GuidanceToken() const;
 
-  // This determines the first token returned to the parser, which determines
-  // the mode that we'll run in.
+  // The parser mode indicates which %input function the parser started from.
+  // The lookahead transformer's behavior can be different depending on which
+  // input function was used.
   ParserMode mode_;
-  std::stack<ParserMode> restore_modes_;
 
   const LanguageOptions& language_options_;
 
-  // The underlying macro expander which feeds tokens to this
-  // lookahead_transformer.
-  std::unique_ptr<macros::MacroExpanderBase> macro_expander_;
+  // The underlying token stream that feeds tokens to the lookahead transformer.
+  TokenStream* input_;
 
   // If this is set to true, the next token returned will be EOF, even if we're
   // not at the end of the input.
@@ -307,6 +310,35 @@ class LookaheadTransformer final {
   // Returns whether the lookahead_transformer is in the `kInTemplatedType`
   // state.
   bool IsInTemplatedTypeState() const;
+  // The parser is in a state always following a '<' token that marks the
+  // beginning of a type template.
+  bool IsInOpenTypeTemplateState() const;
+  // The parser is in a state always following a '>' token that marks the
+  // end of a type template.
+  bool IsInCloseTypeTemplateState() const;
+
+  // The parser is in a state immediately preceding a braced constructor field.
+  // Textproto's colon-less braced constructor field pair syntax causes an
+  // ambiguity between a colon-less field pair and various expressions that
+  // involve a braced suffix such as VALUE { ... }, MAP { ... } or similar.
+  // The state marker gives the lookahead_transformer context to resolve that
+  // ambiguity.
+  bool IsInStartBracedConstructorFieldState() const;
+
+  // The parser is in a state immediately following the "TABLE" keyword in a
+  // DDL statement that modifies either TABLE object or TABLE FUNCTION objects.
+  bool IsInTableFunctionState() const;
+
+  // The parser is in a state after a column name in CREATE TABLE or similar.
+  // At this point, we need to decide if the next token is the start of a column
+  // type or a column attribute.
+  bool IsInAfterColumnNameState() const;
+
+  // Indicates the parser has just seen a "WITH" keyword in a context where a
+  // TIMESTAMP clause may follow. This marker helps resolve the ambiguity with
+  // standard WITH clauses that use "TIMESTAMP" as an alias, ensuring that the
+  // disambiguation logic is restricted to just this specific context.
+  bool IsInPossibleWithTimestampState() const;
 
   // Applies token transformations for `current_token_` and returns the new
   // token kind. Should only be called when `current_token_` holds '.'.
@@ -326,19 +358,23 @@ class LookaheadTransformer final {
   bool FuseExponentPartIntoFloatingPointLiteral();
 
   // The token the lookahead_transformer returned the last time when
-  // GetNextToken was called.
+  // GetNextToken returned a real token. If it returned a guidance token that
+  // will not be reflected in this field.
   std::optional<TokenWithOverrideError> current_token_;
 
   // The token returned before `current_token_`. TokenWithOverrideError is used
   // instead of just the TokenKind to allow easier swap with `current_token_`.
+  // Like current_token_, this will never contain guidance tokens.
   std::optional<TokenWithOverrideError> lookback_1_;
 
   // The token returned before `lookback_1_`. TokenWithOverrideError is used
   // instead of just the TokenKind to allow easier swap with `lookback_1_`.
+  // Like current_token_, this will never contain guidance tokens.
   std::optional<TokenWithOverrideError> lookback_2_;
 
   // The token returned before `lookback_2_`. TokenWithOverrideError is used
   // instead of just the TokenKind to allow easier swap with `lookback_2_`.
+  // Like current_token_, this will never contain guidance tokens.
   std::optional<TokenWithOverrideError> lookback_3_;
 
   // The lookahead_N_ fields implement the token lookahead buffer. There are a
@@ -364,16 +400,8 @@ class LookaheadTransformer final {
   // The lookahead buffer slot for token N+3.
   std::optional<TokenWithOverrideError> lookahead_3_;
 
-  // The TextMapperLexerAdapter allows the lexer state to be
-  // consumed by multiple lookahead streams and replayed by the main parse.
-  //
-  // The first stage of the Textmapper integration re-uses the lexer. This
-  // wrapper allows the lookahead functionality of Textmapper to restart the
-  // lexer. This field is not used at all except in Textmapper lookahead mode.
-  friend class TextMapperLexerAdapter;
-  // This field is entirely consistently maintained by the
-  // TextMapperLexerAdapter class which handles insertion and deletion.
-  std::vector<class TextMapperLexerAdapter*> watching_lexers_;
+  // If set, the lookahead transformer accesses the parser's marked states.
+  const Parser* parser_ = nullptr;
 
   // Stores the special symbols that affect the token disambiguation behaviors.
   //

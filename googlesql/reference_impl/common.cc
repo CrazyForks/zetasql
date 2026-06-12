@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "googlesql/public/collator.h"
 #include "googlesql/public/type.h"
@@ -26,10 +27,11 @@
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/resolved_collation.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -52,9 +54,27 @@ GetCollationNameFromResolvedCollation(
 
 absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>>
 GetCollatorFromResolvedCollation(const ResolvedCollation& resolved_collation) {
-  GOOGLESQL_ASSIGN_OR_RETURN(std::string collation_name,
-                   GetCollationNameFromResolvedCollation(resolved_collation));
-  return MakeSqlCollatorLite(collation_name);
+  if (resolved_collation.Empty()) {
+    return nullptr;
+  }
+  if (resolved_collation.num_children() == 0) {
+    // Leaf node: a simple string collation.
+    if (resolved_collation.Empty() || !resolved_collation.HasCollation() ||
+        resolved_collation.CollationName().empty()) {
+      return nullptr;
+    }
+    return MakeSqlCollatorLite(resolved_collation.CollationName());
+  }
+
+  // Composite node: ARRAY or STRUCT. Recursively build child collators.
+  std::vector<std::unique_ptr<const GoogleSqlCollator>> child_collators;
+
+  for (const auto& child : resolved_collation.child_list()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> child_collator,
+                     GetCollatorFromResolvedCollation(child));
+    child_collators.push_back(std::move(child_collator));
+  }
+  return CompositeGoogleSqlCollator::Create(std::move(child_collators));
 }
 
 absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>>
@@ -71,7 +91,7 @@ absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>>
 GetCollatorFromResolvedCollationValue(const Value& collation_value) {
   ResolvedCollationProto resolved_collation_proto;
   bool is_valid =
-      resolved_collation_proto.ParsePartialFromCord(collation_value.ToCord());
+      resolved_collation_proto.ParsePartialFromString(collation_value.ToCord());
   GOOGLESQL_RET_CHECK(is_valid)
       << "Failed to parse collation_value to ResolvedCollation proto: "
       << collation_value.ToCord();

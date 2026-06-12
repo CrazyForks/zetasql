@@ -19,6 +19,7 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -58,10 +59,10 @@
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 // This provides a way to extract and look at the googlesql resolved AST
 // from within some other test or tool.  It prints to cout rather than logging
@@ -279,7 +280,9 @@ static absl::Status AnalyzeStatementHelper(
 
     GOOGLESQL_RET_CHECK(options->AllArenasAreInitialized());
     std::unique_ptr<const ResolvedStatement> resolved_statement;
-    auto resolver = std::make_unique<Resolver>(catalog, type_factory, options);
+    AnalyzerOutputProperties analyzer_output_properties;
+    auto resolver = std::make_unique<Resolver>(catalog, type_factory, options,
+                                               analyzer_output_properties);
     absl::Status status = FinishResolveStatementImpl(
         sql, ast_statement, resolver.get(), *options, catalog, type_factory,
         &analyzer_runtime_info, &resolved_statement);
@@ -309,6 +312,8 @@ static absl::Status AnalyzeStatementHelper(
             resolver->deprecation_warnings()),
         *type_assignments, resolver->undeclared_positional_parameters(),
         resolver->max_column_id(), resolver->has_graph_references());
+    AnalyzerOutputMutator(*output).TakeOwnership(
+        resolver->release_generated_functions());
     GOOGLESQL_RETURN_IF_ERROR(
         RewriteResolvedAstImpl(*options, sql, catalog, type_factory, **output));
     if (options->fields_accessed_mode() ==
@@ -409,10 +414,10 @@ absl::Status AnalyzeExpression(
   // would create a dependency cycle.
   RegisterBuiltinRewriters();
   std::unique_ptr<AnalyzerOutput> mutable_output;
-  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(
-      sql, options, catalog, type_factory,
-      AnnotatedType(/*type=*/nullptr, /*annotation_map=*/nullptr),
-      &mutable_output));
+  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(sql, options, catalog, type_factory,
+                                            /*target_type=*/nullptr,
+                                            /*type_modifiers=*/std::nullopt,
+                                            &mutable_output));
   GOOGLESQL_ASSIGN_OR_RETURN(*output, AnalyzerOutputMutator::FinalizeAnalyzerOutput(
                                 std::move(mutable_output)));
   return absl::OkStatus();
@@ -422,14 +427,17 @@ absl::Status AnalyzeExpressionForAssignmentToType(
     absl::string_view sql, const AnalyzerOptions& options,
     Catalog* /*absl_nonnull*/ catalog, TypeFactory* /*absl_nonnull*/ type_factory,
     const Type* /*absl_nullable*/ target_type,
+    std::optional<TypeModifiers> target_type_modifiers,
     std::unique_ptr<const AnalyzerOutput>* /*absl_nonnull*/ output) {
+  GOOGLESQL_RET_CHECK(!target_type_modifiers.has_value() || target_type != nullptr)
+      << "target_type_modifiers cannot be set without target_type";
   // The internal analyzer cannot call RegisterBuiltinRewriters because it
   // would create a dependency cycle.
   RegisterBuiltinRewriters();
   std::unique_ptr<AnalyzerOutput> mutable_output;
-  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(
-      sql, options, catalog, type_factory,
-      AnnotatedType(target_type, /*annotation_map=*/nullptr), &mutable_output));
+  GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzeExpression(sql, options, catalog, type_factory,
+                                            target_type, target_type_modifiers,
+                                            &mutable_output));
   GOOGLESQL_ASSIGN_OR_RETURN(*output, AnalyzerOutputMutator::FinalizeAnalyzerOutput(
                                 std::move(mutable_output)));
   return absl::OkStatus();
@@ -458,7 +466,7 @@ absl::Status AnalyzeExpressionFromParserASTForAssignmentToType(
   std::unique_ptr<AnalyzerOutput> mutable_output;
   const absl::Status status = InternalAnalyzeExpressionFromParserAST(
       ast_expression, /*parser_output=*/nullptr, sql, options, catalog,
-      type_factory, AnnotatedType(target_type, /*annotation_map=*/nullptr),
+      type_factory, target_type, /*type_modifiers=*/std::nullopt,
       &mutable_output);
   if (status.ok()) {
     GOOGLESQL_ASSIGN_OR_RETURN(*output, AnalyzerOutputMutator::FinalizeAnalyzerOutput(
@@ -478,7 +486,9 @@ static absl::Status AnalyzeTypeImpl(const std::string& type_name,
   GOOGLESQL_RETURN_IF_ERROR(ValidateAnalyzerOptions(options));
   GOOGLESQL_VLOG(1) << "Resolving type: " << type_name;
 
-  Resolver resolver(catalog, type_factory, &options);
+  AnalyzerOutputProperties analyzer_output_properties;
+  Resolver resolver(catalog, type_factory, &options,
+                    analyzer_output_properties);
   GOOGLESQL_RETURN_IF_ERROR(
       resolver.ResolveTypeName(type_name, output_type, output_type_modifiers));
 

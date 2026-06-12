@@ -25,9 +25,9 @@
 #include "googlesql/public/rewriter_interface.h"
 #include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/resolved_node.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

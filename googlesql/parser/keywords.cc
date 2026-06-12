@@ -26,13 +26,12 @@
 #include <variant>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/parser/tm_token.h"
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
+#include "googlesql/base/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/variant.h"
 #include "googlesql/base/map_util.h"
 
 namespace googlesql {
@@ -79,6 +78,11 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"add", Token::KW_ADD},
     {"after", Token::KW_AFTER},
     {"aggregate", Token::KW_AGGREGATE},
+    {"ai", Token::KW_AI},
+    {"align",
+     ConditionallyReservedToken{Token::KW_ALIGN_RESERVED,
+                                Token::KW_ALIGN_NONRESERVED},
+     kConditionallyReserved},
     {"all", Token::KW_ALL, kReserved},
     {"alter", Token::KW_ALTER},
     {"always", Token::KW_ALWAYS},
@@ -94,6 +98,8 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"assert", Token::KW_ASSERT},
     {"assert_rows_modified", Token::KW_ASSERT_ROWS_MODIFIED, kReserved},
     {"at", Token::KW_AT, kReserved},
+    {"auto", Token::KW_AUTO},
+    {"backwards", Token::KW_BACKWARDS},
     {"batch", Token::KW_BATCH},
     {"begin", Token::KW_BEGIN},
     {"between", Token::KW_BETWEEN, kReserved},
@@ -156,6 +162,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"end", Token::KW_END, kReserved},
     {"enforced", Token::KW_ENFORCED},
     {"enum", Token::KW_ENUM, kReserved},
+    {"epoch", Token::KW_EPOCH},
     {"error", Token::KW_ERROR},
     {"escape", Token::KW_ESCAPE, kReserved},
     {"except", Token::KW_EXCEPT, kReserved},
@@ -173,12 +180,14 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"files", Token::KW_FILES},
     {"fill", Token::KW_FILL},
     {"filter", Token::KW_FILTER},
+    {"finish", Token::KW_FINISH},
     {"first", Token::KW_FIRST},
     {"following", Token::KW_FOLLOWING, kReserved},
     {"for", Token::KW_FOR, kReserved},
     {"foreign", Token::KW_FOREIGN},
     {"fork", Token::KW_FORK},
     {"format", Token::KW_FORMAT},
+    {"forwards", Token::KW_FORWARDS},
     {"from", Token::KW_FROM, kReserved},
     {"full", Token::KW_FULL, kReserved},
     {"function", Token::KW_FUNCTION},
@@ -231,6 +240,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"level", Token::KW_LEVEL},
     {"like", Token::KW_LIKE, kReserved},
     {"limit", Token::KW_LIMIT, kReserved},
+    {"live", Token::KW_LIVE},
     {"load", Token::KW_LOAD},
     {"locality", Token::KW_LOCALITY},
     {"log", Token::KW_LOG},
@@ -251,6 +261,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"merge", Token::KW_MERGE, kReserved},
     {"message", Token::KW_MESSAGE},
     {"metadata", Token::KW_METADATA},
+    {"metrics", Token::KW_METRICS},
     {"min", Token::KW_MIN},
     {"minvalue", Token::KW_MINVALUE},
     {"model", Token::KW_MODEL},
@@ -274,6 +285,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"options", Token::KW_OPTIONS},
     {"or", Token::KW_OR, kReserved},
     {"order", Token::KW_ORDER, kReserved},
+    {"origin", Token::KW_ORIGIN},
     {"out", Token::KW_OUT},
     {"outer", Token::KW_OUTER, kReserved},
     {"output", Token::KW_OUTPUT},
@@ -287,6 +299,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"pattern", Token::KW_PATTERN},
     {"per", Token::KW_PER},
     {"percent", Token::KW_PERCENT},
+    {"period", Token::KW_PERIOD},
     {"pivot", Token::KW_PIVOT},
     {"policies", Token::KW_POLICIES},
     {"policy", Token::KW_POLICY},
@@ -388,6 +401,7 @@ constexpr KeywordInfoPOD kAllKeywords[] = {
     {"value", Token::KW_VALUE},
     {"values", Token::KW_VALUES},
     {"vector", Token::KW_VECTOR},
+    {"version", Token::KW_VERSION},
     {"view", Token::KW_VIEW},
     {"views", Token::KW_VIEWS},
     {"volatile", Token::KW_VOLATILE},
@@ -588,9 +602,15 @@ CreateNonReservedIdentifiersThatMustBeBackquotedTrie() {
   for (const char* keyword : {
            "access",  // DROP `row` `access` `policy` versus DROP ROW ACCESS
                       // POLICY
-           "current_date", "current_datetime", "current_time",
-           "current_timestamp", "current_timestamp_micros",
-           "current_timestamp_millis", "current_timestamp_seconds", "function",
+           "current_date",
+           "current_datetime",
+           "current_time",
+           "current_timestamp",
+           "current_timestamp_micros",
+           "current_timestamp_millis",
+           "current_timestamp_seconds",
+           "epoch",  // ORIGIN EPOCH vs ORIGIN `EPOCH` in ALIGN operator
+           "function",
            "inout",      // See AMBIGUOUS CASE 7 in googlesql.tm
            "out",        // See AMBIGUOUS CASE 7 in googlesql.tm
            "policy",     // DROP `row` `access` `policy` versus DROP ROW ACCESS
@@ -601,6 +621,9 @@ CreateNonReservedIdentifiersThatMustBeBackquotedTrie() {
            "safe_cast",  // SAFE_CAST(...) versus `safe_cast`(3)
            "update",     // INSERT UPDATE versus INSERT `update`
            "clamped",    // See AMBIGUOUS CASE 14 in googlesql.tm
+           // "value", "timestamp", and "version" are also relevant, but not
+           // included here:
+           //
            // "value" is not included because it causes too much escaping for
            // this very commonly used name. The impact of this is small. The
            // only place where this can be interpreted as a keyword is in AS
@@ -610,6 +633,11 @@ CreateNonReservedIdentifiersThatMustBeBackquotedTrie() {
            // generated query to run as SELECT AS VALUE instead of SELECT AS
            // `VALUE`, which would be very likely to fail and cause type
            // mismatches when it is run.
+           //
+           // "timestamp" and "version" are not included for the same reason.
+           // They are commonly used names with a small impact. The only place
+           // timestamp or version could occur where backticks matter is as the
+           // identifier in a WITH function definition (such as GROUP ROWS).
        }) {
     // We don't care about the KeywordInfo, but we have to create one because
     // the trie needs a non-NULL value. We use an arbitrary token.
@@ -649,6 +677,7 @@ GetUserFacingImagesForSpecialKeywordsMap() {
             {"KW_OPEN_INTEGER_HINT", "@ for hint"},
             {"KW_QUALIFY_RESERVED", "QUALIFY"},
             {"KW_TABLE_FOR_TABLE_CLAUSE", "TABLE"},
+            {"KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS", "TIMESTAMP"},
             {"KW_WITH_STARTING_WITH_EXPRESSION", "WITH"},
             {"KW_WITH_STARTING_WITH_GROUP_ROWS", "WITH"},
             {"NOT_SPECIAL", "NOT"},

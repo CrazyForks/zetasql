@@ -32,6 +32,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "googlesql/base/status.h"
 
+#define GOOGLESQL_ASSERT_OBJ_SIZE(obj, size)
+
 namespace googlesql {
 
 // Determine whether there is comfortably enough stack left.

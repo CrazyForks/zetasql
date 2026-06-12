@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/analyzer/expr_resolver_helper.h"
 #include "googlesql/analyzer/function_signature_matcher.h"
 #include "googlesql/analyzer/input_argument_type_resolver_helper.h"
@@ -90,20 +89,22 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/base/case.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -256,7 +257,7 @@ absl::StatusOr<bool> FunctionResolver::SignatureMatches(
           std::unique_ptr<const ResolvedInlineLambda>* resolved_expr_out)
       -> absl::Status {
     ABSL_DCHECK(name_scope != nullptr);
-    GOOGLESQL_RETURN_IF_ERROR(resolver->ResolveLambda(
+    GOOGLESQL_RETURN_IF_ERROR(resolver->ResolveLambdaBeforeAnnotations(
         ast_lambda, arg_names, arg_types, body_result_type,
         allow_argument_coercion, name_scope, resolved_expr_out));
     GOOGLESQL_RET_CHECK(lambda_ast_nodes != nullptr);
@@ -264,11 +265,19 @@ absl::StatusOr<bool> FunctionResolver::SignatureMatches(
                   .second);
     return absl::OkStatus();
   };
+  // Callback to look up a generated proxy function by its name in the
+  // resolver's list of generated functions.
+  LookupGeneratedFunctionCallback lookup_generated_function_callback =
+      [this](IdString name) -> const Function* {
+    return LookupGeneratedFunction(name);
+  };
+
   return FunctionSignatureMatchesWithStatus(
       resolver_->language(), coercer(), arg_ast_nodes, input_arguments,
       signature, allow_argument_coercion, type_factory_,
-      &lambda_resolve_callback, result_signature, signature_match_result,
-      arg_index_mapping, arg_overrides);
+      &lambda_resolve_callback, std::move(lookup_generated_function_callback),
+      result_signature, signature_match_result, arg_index_mapping,
+      arg_overrides);
 }
 
 // Get the parse location from a ResolvedNode, if it has one stored in it.
@@ -830,7 +839,7 @@ FunctionResolver::GenerateErrorMessageWithSupportedSignatures(
 // error message.  Currently, this code takes an early exit if a signature
 // does not match and does not accurately determine how close the signature
 // was, nor does it keep track of the best non-matching signature.
-absl::StatusOr<const FunctionSignature*>
+absl::StatusOr<std::unique_ptr<const FunctionSignature>>
 FunctionResolver::FindMatchingSignature(
     const Function* function, const ASTNode* ast_location,
     const std::vector<const ASTNode*>& arg_locations_in,
@@ -1033,7 +1042,7 @@ FunctionResolver::FindMatchingSignature(
   if (arg_overrides != nullptr) {
     *arg_overrides = std::move(best_result_arg_overrides);
   }
-  return best_result_signature.release();
+  return std::move(best_result_signature);
 }
 
 static void ConvertMakeStructToLiteralIfAllExplicitLiteralFields(
@@ -1135,36 +1144,249 @@ absl::Status ExtractStructFieldLocations(
   return absl::OkStatus();
 }
 
+absl::StatusOr<TypeModifiers> FunctionResolver::AdjustTypeModifiersForCast(
+    const Type* source_type, const Type* target_type,
+    const TypeModifiers& source_type_modifiers) {
+  if (source_type_modifiers.IsEmpty()) {
+    return source_type_modifiers;
+  }
+  std::vector<const Type*> source_component_types =
+      source_type->ComponentTypes();
+  std::vector<const Type*> target_component_types =
+      target_type->ComponentTypes();
+
+  if (source_type->IsGraphElement() || target_type->IsGraphElement()) {
+    GOOGLESQL_RET_CHECK(source_type->IsGraphElement() && target_type->IsGraphElement());
+    const GraphElementType* source_graph_element_type =
+        source_type->AsGraphElement();
+    const GraphElementType* target_graph_element_type =
+        target_type->AsGraphElement();
+    // Check if we can skip adjustment by checking if the source and target
+    // graph element types have the same amount and order of properties.
+    if (source_component_types.size() == target_component_types.size()) {
+      bool all_properties_match = true;
+      for (int i = 0; i < source_component_types.size(); ++i) {
+        if (source_graph_element_type->property_types()[i].name !=
+            target_graph_element_type->property_types()[i].name) {
+          all_properties_match = false;
+          break;
+        }
+      }
+      if (all_properties_match) {
+        return source_type_modifiers;
+      }
+    }
+
+    std::vector<TypeParameters> target_type_params_list;
+    target_type_params_list.reserve(target_component_types.size());
+    bool target_has_type_params = false;
+    std::vector<Collation> target_collations_list;
+    target_collations_list.reserve(target_component_types.size());
+    bool target_has_collations = false;
+    for (int i = 0; i < target_component_types.size(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          Type::FindFieldResult find_field_result,
+          source_type->FindField(
+              target_graph_element_type->property_types()[i].name));
+      bool has_field =
+          find_field_result.has_field != Type::HasFieldResult::HAS_NO_FIELD;
+      if (has_field && !source_type_modifiers.type_parameters().IsEmpty()) {
+        target_has_type_params = true;
+        target_type_params_list.push_back(
+            source_type_modifiers.type_parameters().child(
+                find_field_result.field_id));
+      } else {
+        target_type_params_list.emplace_back();
+      }
+      if (has_field && !source_type_modifiers.collation().Empty()) {
+        target_has_collations = true;
+        target_collations_list.push_back(
+            source_type_modifiers.collation().child(
+                find_field_result.field_id));
+      } else {
+        target_collations_list.emplace_back();
+      }
+    }
+    if (!target_has_type_params && !target_has_collations) {
+      return TypeModifiers();
+    }
+    TypeParameters target_type_params =
+        target_has_type_params
+            ? TypeParameters::MakeTypeParametersWithChildList(
+                  target_type_params_list)
+            : TypeParameters();
+    Collation target_collations =
+        target_has_collations
+            ? Collation::MakeCollationWithChildList(target_collations_list)
+            : Collation();
+    return TypeModifiers::MakeTypeModifiers(std::move(target_type_params),
+                                            std::move(target_collations));
+  }
+  GOOGLESQL_RET_CHECK_EQ(source_component_types.size(), target_component_types.size())
+      << "source type: " << source_type->DebugString()
+      << ", target type: " << target_type->DebugString();
+  if (!target_component_types.empty()) {
+    std::vector<TypeParameters> target_type_params_list;
+    target_type_params_list.reserve(target_component_types.size());
+    bool target_has_type_params = false;
+    std::vector<Collation> target_collations_list;
+    target_collations_list.reserve(target_component_types.size());
+    bool target_has_collations = false;
+    for (int i = 0; i < target_component_types.size(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers source_child_type_modifiers,
+                       source_type_modifiers.GetChild(i));
+      GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers target_child_type_modifiers,
+                       AdjustTypeModifiersForCast(source_component_types[i],
+                                                  target_component_types[i],
+                                                  source_child_type_modifiers));
+      target_type_params_list.push_back(
+          target_child_type_modifiers.type_parameters());
+      if (!target_child_type_modifiers.type_parameters().IsEmpty()) {
+        target_has_type_params = true;
+      }
+      target_collations_list.push_back(target_child_type_modifiers.collation());
+      if (!target_child_type_modifiers.collation().Empty()) {
+        target_has_collations = true;
+      }
+    }
+    TypeParameters target_type_params =
+        target_has_type_params
+            ? TypeParameters::MakeTypeParametersWithChildList(
+                  target_type_params_list)
+            : TypeParameters();
+    Collation target_collations =
+        target_has_collations
+            ? Collation::MakeCollationWithChildList(target_collations_list)
+            : Collation();
+    return TypeModifiers::MakeTypeModifiers(std::move(target_type_params),
+                                            std::move(target_collations));
+  }
+  GOOGLESQL_RET_CHECK(source_type_modifiers.type_parameters().MatchType(target_type))
+      << "target type: " << target_type->DebugString()
+      << ", source type modifiers: " << source_type_modifiers.DebugString();
+  GOOGLESQL_RET_CHECK(
+      source_type_modifiers.collation().HasCompatibleStructure(target_type))
+      << "target type: " << target_type->DebugString()
+      << ", source type modifiers: " << source_type_modifiers.DebugString();
+  return source_type_modifiers;
+}
+
+absl::StatusOr<const AnnotationMap*>
+FunctionResolver::AdjustTypeAnnotationsForCast(
+    const Type* source_type, const Type* target_type,
+    const AnnotationMap* source_annotation_map) const {
+  if (source_annotation_map == nullptr || source_annotation_map->Empty()) {
+    return source_annotation_map;
+  }
+  std::vector<const Type*> source_component_types =
+      source_type->ComponentTypes();
+  std::vector<const Type*> target_component_types =
+      target_type->ComponentTypes();
+
+  if (source_type->IsGraphElement() || target_type->IsGraphElement()) {
+    GOOGLESQL_RET_CHECK(source_type->IsGraphElement() && target_type->IsGraphElement());
+    const GraphElementType* source_graph_element_type =
+        source_type->AsGraphElement();
+    const GraphElementType* target_graph_element_type =
+        target_type->AsGraphElement();
+    // Check if we can skip adjustment by checking if the source and target
+    // graph element types have the same amount and order of properties.
+    if (source_component_types.size() == target_component_types.size()) {
+      bool all_properties_match = true;
+      for (int i = 0; i < source_component_types.size(); ++i) {
+        if (source_graph_element_type->property_types()[i].name !=
+            target_graph_element_type->property_types()[i].name) {
+          all_properties_match = false;
+          break;
+        }
+      }
+      if (all_properties_match) {
+        return source_annotation_map;
+      }
+    }
+
+    GOOGLESQL_RET_CHECK(source_annotation_map->IsStructMap());
+    std::unique_ptr<AnnotationMap> target_annotation_map =
+        AnnotationMap::Create(target_type);
+    GOOGLESQL_RET_CHECK(target_annotation_map->IsStructMap());
+    for (int i = 0; i < target_component_types.size(); ++i) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          Type::FindFieldResult find_field_result,
+          source_type->FindField(
+              target_graph_element_type->property_types()[i].name));
+      if (find_field_result.has_field != Type::HasFieldResult::HAS_NO_FIELD) {
+        GOOGLESQL_RETURN_IF_ERROR(target_annotation_map->AsStructMap()->CloneIntoField(
+            i, source_annotation_map->AsStructMap()->field(
+                   find_field_result.field_id)));
+      }
+    }
+    target_annotation_map->Normalize();
+    if (target_annotation_map->Empty()) {
+      return nullptr;
+    }
+    return type_factory_->TakeOwnership(std::move(target_annotation_map),
+                                        /*normalize=*/false);
+  }
+  GOOGLESQL_RET_CHECK_EQ(source_component_types.size(), target_component_types.size())
+      << "source type: " << source_type->DebugString()
+      << ", target type: " << target_type->DebugString();
+  if (!target_component_types.empty()) {
+    GOOGLESQL_RET_CHECK(source_annotation_map->IsStructMap());
+    std::unique_ptr<AnnotationMap> target_annotation_map =
+        AnnotationMap::Create(target_type);
+    GOOGLESQL_RET_CHECK(target_annotation_map->IsStructMap());
+    for (int i = 0; i < target_component_types.size(); ++i) {
+      const AnnotationMap* source_child_annotation_map =
+          source_annotation_map->AsStructMap()->field(i);
+      GOOGLESQL_ASSIGN_OR_RETURN(const AnnotationMap* target_child_annotation_map,
+                       AdjustTypeAnnotationsForCast(
+                           source_component_types[i], target_component_types[i],
+                           source_child_annotation_map));
+      GOOGLESQL_RETURN_IF_ERROR(target_annotation_map->AsStructMap()->CloneIntoField(
+          i, target_child_annotation_map));
+    }
+    target_annotation_map->Normalize();
+    if (target_annotation_map->Empty()) {
+      return nullptr;
+    }
+    return type_factory_->TakeOwnership(std::move(target_annotation_map),
+                                        /*normalize=*/false);
+  }
+  GOOGLESQL_RET_CHECK(source_annotation_map->HasCompatibleStructure(target_type))
+      << "target type: " << target_type->DebugString()
+      << ", source annotation map: " << source_annotation_map->DebugString();
+  return source_annotation_map;
+}
+
 absl::Status FunctionResolver::AddCastOrConvertLiteral(
-    const ASTNode* ast_location, AnnotatedType annotated_target_type,
+    const ASTNode* ast_location, const Type* target_type,
     std::unique_ptr<const ResolvedExpr> format,
     std::unique_ptr<const ResolvedExpr> time_zone, TypeModifiers type_modifiers,
     const ResolvedScan* scan, bool set_has_explicit_type,
     bool return_null_on_error,
     std::unique_ptr<const ResolvedExpr>* argument) const {
   GOOGLESQL_RET_CHECK_NE(ast_location, nullptr);
-
-  const Type* target_type = annotated_target_type.type;
-  const AnnotationMap* target_type_annotation_map =
-      annotated_target_type.annotation_map;
+  GOOGLESQL_RET_CHECK(argument != nullptr);
+  GOOGLESQL_RET_CHECK(argument->get() != nullptr);
   const TypeParameters& type_parameters = type_modifiers.type_parameters();
   const Collation& collation = type_modifiers.collation();
 
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      bool equals_collation_annotation,
-      collation.EqualsCollationAnnotation(target_type_annotation_map));
-  GOOGLESQL_RET_CHECK(equals_collation_annotation);
+  GOOGLESQL_ASSIGN_OR_RETURN(int64_t default_timestamp_precision,
+                   GetDefaultTimestampPrecision(resolver_->analyzer_options()));
 
   // If this conversion is a no-op we can return early.
-  if (target_type->Equals(argument->get()->type()) && !set_has_explicit_type &&
-      AnnotationMap::Equals(argument->get()->type_annotation_map(),
-                            target_type_annotation_map)) {
-    // These fields should only be used for explicit casts when
-    // set_has_explicit_type is true.
-    GOOGLESQL_RET_CHECK(type_parameters.IsEmpty());
-    GOOGLESQL_RET_CHECK_EQ(format.get(), nullptr);
-    GOOGLESQL_RET_CHECK_EQ(time_zone.get(), nullptr);
-    return absl::OkStatus();
+  if (target_type->Equals(argument->get()->type()) && !set_has_explicit_type) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        bool equals_annotations,
+        type_modifiers.EqualsAnnotations(argument->get()->type_annotation_map(),
+                                         default_timestamp_precision));
+    if (equals_annotations) {
+      // These fields should only be used for explicit casts when
+      // set_has_explicit_type is true.
+      GOOGLESQL_RET_CHECK_EQ(format.get(), nullptr);
+      GOOGLESQL_RET_CHECK_EQ(time_zone.get(), nullptr);
+      return absl::OkStatus();
+    }
   }
 
   // We add the casts field-by-field for struct expressions. We will collapse
@@ -1175,8 +1397,6 @@ absl::Status FunctionResolver::AddCastOrConvertLiteral(
   if (target_type->IsStruct() &&
       argument->get()->node_kind() == RESOLVED_MAKE_STRUCT &&
       ast_location->node_kind() != AST_PATH_EXPRESSION) {
-    GOOGLESQL_RET_CHECK(target_type_annotation_map == nullptr ||
-              target_type_annotation_map->HasCompatibleStructure(target_type));
     // Remove constness so that we can add casts on the field expressions inside
     // the struct.
     ResolvedMakeStruct* struct_expr = const_cast<ResolvedMakeStruct*>(
@@ -1195,14 +1415,17 @@ absl::Status FunctionResolver::AddCastOrConvertLiteral(
     std::vector<std::unique_ptr<const ResolvedExpr>> field_exprs =
         struct_expr->release_field_list();
     for (int i = 0; i < to_struct_type->num_fields(); ++i) {
-      const AnnotationMap* field_type_annotation_map =
-          target_type_annotation_map == nullptr
-              ? nullptr
-              : target_type_annotation_map->AsStructMap()->field(i);
-      if (to_struct_type->field(i).type->Equals(field_exprs[i]->type()) &&
-          AnnotationMap::Equals(field_exprs[i]->type_annotation_map(),
-                                field_type_annotation_map)) {
-        if (field_exprs[i]->node_kind() == RESOLVED_LITERAL &&
+      TypeModifiers field_type_modifers = TypeModifiers::MakeTypeModifiers(
+          type_modifiers.type_parameters().IsEmpty() ? TypeParameters()
+                                                     : type_parameters.child(i),
+          collation.Empty() ? Collation() : collation.child(i));
+      if (to_struct_type->field(i).type->Equals(field_exprs[i]->type())) {
+        GOOGLESQL_ASSIGN_OR_RETURN(bool equals_annotations,
+                         field_type_modifers.EqualsAnnotations(
+                             field_exprs[i]->type_annotation_map(),
+                             default_timestamp_precision));
+        if (equals_annotations &&
+            field_exprs[i]->node_kind() == RESOLVED_LITERAL &&
             set_has_explicit_type &&
             !field_exprs[i]->GetAs<ResolvedLiteral>()->has_explicit_type()) {
           // This field has the same Type, but is a literal that needs to
@@ -1215,17 +1438,10 @@ absl::Status FunctionResolver::AddCastOrConvertLiteral(
         }
       }
 
-      TypeModifiers field_type_modifers = TypeModifiers::MakeTypeModifiers(
-          type_modifiers.type_parameters().IsEmpty() ? TypeParameters()
-                                                     : type_parameters.child(i),
-          collation.Empty() ? Collation() : collation.child(i));
-
       // We pass nullptr for 'format' and 'time_zone' here because there is
       // currently no way to define format strings for individual struct fields.
       const absl::Status cast_status = AddCastOrConvertLiteral(
-          field_arg_locations[i],
-          AnnotatedType(to_struct_type->field(i).type,
-                        field_type_annotation_map),
+          field_arg_locations[i], to_struct_type->field(i).type,
           /*format=*/nullptr, /*time_zone=*/nullptr,
           std::move(field_type_modifers), scan, set_has_explicit_type,
           return_null_on_error, &field_exprs[i]);
@@ -1335,9 +1551,8 @@ absl::Status FunctionResolver::AddCastOrConvertLiteral(
   }
 
   return resolver_->ResolveCastWithResolvedArgument(
-      ast_location, annotated_target_type, std::move(format),
-      std::move(time_zone), std::move(type_modifiers), return_null_on_error,
-      argument);
+      ast_location, target_type, std::move(format), std::move(time_zone),
+      std::move(type_modifiers), return_null_on_error, argument);
 }
 
 absl::Status FunctionResolver::AddCastOrConvertLiteral(
@@ -1348,8 +1563,7 @@ absl::Status FunctionResolver::AddCastOrConvertLiteral(
     bool set_has_explicit_type, bool return_null_on_error,
     std::unique_ptr<const ResolvedExpr>* argument) const {
   return AddCastOrConvertLiteral(
-      ast_location, AnnotatedType(target_type, /*annotation_map=*/nullptr),
-      std::move(format), std::move(time_zone),
+      ast_location, target_type, std::move(format), std::move(time_zone),
       TypeModifiers::MakeTypeModifiers(type_params, Collation()), scan,
       set_has_explicit_type, return_null_on_error, std::move(argument));
 }
@@ -1395,6 +1609,11 @@ absl::Status FunctionResolver::ConvertLiteralToType(
   } else if (argument_value->is_empty_array() &&
              !argument_literal->has_explicit_type() && target_type->IsArray()) {
     // Coerces an untyped empty array to an empty array of the target_type.
+    if (!resolver_->language().LanguageFeatureEnabled(FEATURE_ARRAY_OF_ARRAY) &&
+        target_type->AsArray()->element_type()->IsArray()) {
+      return MakeSqlErrorAt(ast_location)
+             << "Array of array types are not supported";
+    }
     coerced_literal_value =
         Value::Array(target_type->AsArray(), {} /* values */);
   } else if (argument_value->type()->IsStruct()) {
@@ -1887,13 +2106,12 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
   // them if we use other callbacks.
   auto mismatch_errors = std::make_unique<std::vector<std::string>>();
   GOOGLESQL_ASSIGN_OR_RETURN(
-      const FunctionSignature* signature,
+      result_signature,
       FindMatchingSignature(function, ast_location, arg_locations,
                             match_internal_signatures, named_arguments,
                             name_scope, &input_argument_types, &arg_overrides,
                             &arg_reorder_index_mapping, &lambda_ast_nodes,
                             mismatch_errors.get()));
-  result_signature.reset(signature);
 
   if (nullptr == result_signature) {
     GOOGLESQL_ASSIGN_OR_RETURN(
@@ -1928,7 +2146,7 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     if (!result_signature->IsConcrete()) {
       return ::googlesql_base::InternalErrorBuilder()
              << "Non-concrete result signature for non-templated function: "
-             << function->SQLName() << " " << signature->DebugString();
+             << function->SQLName() << " " << result_signature->DebugString();
     }
   }
 
@@ -1946,6 +2164,37 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
         std::unique_ptr<ResolvedFunctionArgument> arg =
             googlesql::MakeResolvedFunctionArgument();
         arg->set_sequence(std::move(resolved_sequence));
+        arg_overrides.push_back(FunctionArgumentOverride{i, std::move(arg)});
+      }
+    } else if (input_arg_type.is_lambda() &&
+               resolver_->language().LanguageFeatureEnabled(
+                   FEATURE_UDF_LAMBDA_ARGUMENTS)) {
+      const ASTNode* arg_ast = arg_locations[i];
+      if (arg_ast->Is<ASTPathExpression>()) {
+        // If the argument is a path expression (referencing a function-typed
+        // parameter), we look up the proxy function generated for it and create
+        // a ResolvedFunctionRef to pass as the argument override.
+        const ASTPathExpression* path_expr =
+            arg_ast->GetAsOrDie<ASTPathExpression>();
+        IdString first_name = path_expr->first_name()->GetAsIdString();
+
+        // Lookup the proxy function generated for the function-typed parameter.
+        const Function* proxy_function = LookupGeneratedFunction(first_name);
+        GOOGLESQL_RET_CHECK(proxy_function != nullptr)
+            << "No proxy function found for lambda argument: " << first_name;
+
+        // Create a ResolvedFunctionRef to represent the lambda argument
+        // reference.
+        GOOGLESQL_RET_CHECK_GT(proxy_function->NumSignatures(), 0);
+        std::unique_ptr<ResolvedFunctionRef> function_ref =
+            googlesql::MakeResolvedFunctionRef(
+                proxy_function, *proxy_function->GetSignature(0));
+
+        // Wrap the function reference in a ResolvedFunctionArgument.
+        std::unique_ptr<ResolvedFunctionArgument> arg =
+            googlesql::MakeResolvedFunctionArgument();
+        arg->set_function_ref(std::move(function_ref));
+
         arg_overrides.push_back(FunctionArgumentOverride{i, std::move(arg)});
       }
     }
@@ -2001,37 +2250,82 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
           << "No arg override found for lambda argument: "
           << arguments[idx]->DebugString();
 
-      const ResolvedInlineLambda* lambda =
-          arg_override->argument->inline_lambda();
       const FunctionArgumentType::ArgumentTypeLambda& concrete_lambda =
           concrete_argument.lambda();
-      GOOGLESQL_RET_CHECK_EQ(lambda->argument_list().size(),
-                   concrete_lambda.argument_types().size());
-      // Check that lambda argument matches concrete argument. This shouldn't
-      // trigger under known use cases. But still doing the check to be safe.
-      // An example is fn_fp_T_LAMBDA_T(1, e->e>0, 1.0) for signature
-      // fn_fp_T_LAMBDA_T(T1, T1->BOOL, T1). e is infered to be INT64 from
-      // argument 1, but T1 is later decided to be DOUBLE.
-      for (int i = 0; i < lambda->argument_list_size(); i++) {
-        GOOGLESQL_RET_CHECK(lambda->argument_list(i).type()->Equals(
-            concrete_lambda.argument_types()[i].type()))
-            << "Failed to infer the type of lambda argument at index " << i
-            << ". It is inferred from arguments preceding the lambda to "
-               "be "
-            << lambda->argument_list(i).type()->ShortTypeName(product_mode)
-            << " but found to be "
-            << concrete_lambda.argument_types()[i].type()->ShortTypeName(
-                   product_mode)
-            << " after considering arguments following the lambda";
-      }
-      // Check that lambda body type matches concrete argument.
-      if (!lambda->body()->type()->Equals(concrete_lambda.body_type().type())) {
-        return MakeSqlErrorAt(arg_locations[idx])
-               << "Lambda body is resolved to have type "
-               << lambda->body()->type()->ShortTypeName(product_mode)
-               << " but the signature requires it to be "
-               << concrete_lambda.body_type().type()->ShortTypeName(
-                      product_mode);
+
+      // If the argument is a function reference (passed transitively),
+      // validate its signature against the expected lambda signature.
+      if (arg_override->argument->function_ref() != nullptr) {
+        const ResolvedFunctionRef* function_ref =
+            arg_override->argument->function_ref();
+        const FunctionSignature& ref_signature = function_ref->signature();
+
+        // Check number of arguments.
+        if (ref_signature.arguments().size() !=
+            concrete_lambda.argument_types().size()) {
+          return MakeSqlErrorAt(arg_locations[idx])
+                 << "Lambda signature mismatch: expected "
+                 << concrete_lambda.argument_types().size()
+                 << " arguments, found " << ref_signature.arguments().size();
+        }
+        // Check argument types.
+        for (int i = 0; i < ref_signature.arguments().size(); ++i) {
+          if (!ref_signature.argument(i).type()->Equals(
+                  concrete_lambda.argument_types()[i].type())) {
+            return MakeSqlErrorAt(arg_locations[idx])
+                   << "Lambda argument type mismatch at index " << i
+                   << ": expected "
+                   << concrete_lambda.argument_types()[i].type()->ShortTypeName(
+                          product_mode)
+                   << ", found "
+                   << ref_signature.argument(i).type()->ShortTypeName(
+                          product_mode);
+          }
+        }
+        // Check result type.
+        if (!ref_signature.result_type().type()->Equals(
+                concrete_lambda.body_type().type())) {
+          return MakeSqlErrorAt(arg_locations[idx])
+                 << "Lambda result type mismatch: expected "
+                 << concrete_lambda.body_type().type()->ShortTypeName(
+                        product_mode)
+                 << ", found "
+                 << ref_signature.result_type().type()->ShortTypeName(
+                        product_mode);
+        }
+      } else {
+        const ResolvedInlineLambda* lambda =
+            arg_override->argument->inline_lambda();
+        GOOGLESQL_RET_CHECK(lambda != nullptr);
+        GOOGLESQL_RET_CHECK_EQ(lambda->argument_list().size(),
+                     concrete_lambda.argument_types().size());
+        // Check that lambda argument matches concrete argument. This shouldn't
+        // trigger under known use cases. But still doing the check to be safe.
+        // An example is fn_fp_T_LAMBDA_T(1, e->e>0, 1.0) for signature
+        // fn_fp_T_LAMBDA_T(T1, T1->BOOL, T1). e is infered to be INT64 from
+        // argument 1, but T1 is later decided to be DOUBLE.
+        for (int i = 0; i < lambda->argument_list_size(); i++) {
+          GOOGLESQL_RET_CHECK(lambda->argument_list(i).type()->Equals(
+              concrete_lambda.argument_types()[i].type()))
+              << "Failed to infer the type of lambda argument at index " << i
+              << ". It is inferred from arguments preceding the lambda to "
+                 "be "
+              << lambda->argument_list(i).type()->ShortTypeName(product_mode)
+              << " but found to be "
+              << concrete_lambda.argument_types()[i].type()->ShortTypeName(
+                     product_mode)
+              << " after considering arguments following the lambda";
+        }
+        // Check that lambda body type matches concrete argument.
+        if (!lambda->body()->type()->Equals(
+                concrete_lambda.body_type().type())) {
+          return MakeSqlErrorAt(arg_locations[idx])
+                 << "Lambda body is resolved to have type "
+                 << lambda->body()->type()->ShortTypeName(product_mode)
+                 << " but the signature requires it to be "
+                 << concrete_lambda.body_type().type()->ShortTypeName(
+                        product_mode);
+        }
       }
       continue;
     } else if (concrete_argument.IsSequence()) {
@@ -2050,15 +2344,95 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
         ast_location, function->SQLName(), /*is_tvf=*/false, arg_locations[idx],
         idx, concrete_argument, arguments[idx].get(), BadArgErrorPrefix));
 
+    if (IsSqlFunction(function)) {
+      if (arguments[idx]->type_annotation_map() != nullptr &&
+          !arguments[idx]->type_annotation_map()->Empty()) {
+        const std::vector<std::string>& arg_names =
+            function->Is<SQLFunctionInterface>()
+                ? function->GetAs<SQLFunctionInterface>()->GetArgumentNames()
+                : function->GetAs<TemplatedSQLFunction>()->GetArgumentNames();
+
+        std::unique_ptr<AnnotationMap> annotations_to_block =
+            arguments[idx]->type_annotation_map()->Clone();
+        // Allow collation if the flag is on. If the flag is off, block all
+        // annotations.
+        if (resolver_->language().LanguageFeatureEnabled(
+                FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+          annotations_to_block
+              ->UnsetAnnotationRecursively<CollationAnnotation>();
+          if (CollationAnnotation::ExistsIn(
+                  arguments[idx]->type_annotation_map())) {
+            resolver_->analyzer_output_properties_.AddFeatureLabel(
+                Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
+          }
+        }
+
+        if (!annotations_to_block->Empty()) {
+          return MakeSqlErrorAt(arg_locations[idx])
+                 << "Annotations on arguments of SQL functions are not "
+                    "supported, but found annotations on argument "
+                 << arg_names[idx];
+        }
+      }
+    }
+
     const Type* target_type = concrete_argument.type();
-    if (!(arguments[idx])->type()->Equals(target_type)) {
-      // We keep the original <type_annotation_map> when coercing function
-      // arguments. These <type_annotation_map> of arguments will be processed
-      // to detemine the <type_annotation_map> of function call in a later
-      // stage.
+
+    bool needs_coercion = !(arguments[idx])->type()->Equals(target_type);
+
+    // Currently, concrete arguments have no way to specify TypeModifiers.
+    // TODO: this code should focus on TypeModifiers, which are
+    // currently empty for concrete arguments. Annotations are to be computed
+    // as outputs.
+    TypeModifiers type_modifiers;
+
+    // Annotations are propagated to the argument into the function is governed
+    // by these rules:
+    // 1. For SQL Functions:
+    //    Templated arguments propagate, while concrete ones already specify
+    //    their target annotations. This rule applies to both templated and
+    //    non-templated SQL functions.
+    // 2. Non-SQL functions:
+    //    a. Templated arguments propagate.
+    //    b. Concrete arguments generally do not propagate, except when marked
+    //       for propagating collation (Other annotations are not yet supported)
+    //       We avoid propagating any other annotations.
+    //    c. Some functions may templating plus custom checks to avoid
+    //       enumerating all signatures. Those functions need to handle
+    //       propagation in their custom code.
+    if (concrete_argument.original_kind() != ARG_TYPE_FIXED) {
+      // TODO: ANY STRING, and such type bounds which
+      // may require coercion need to properly handle that coercion here, so
+      // this may not always be a no-op, and we may need to set
+      // `needs_coercion` to true here in those cases.
+      GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
+                       TypeModifiers::MakeTypeModifiers(
+                           arguments[idx]->type_annotation_map()));
+    } else if (!IsSqlFunction(function) &&
+               concrete_argument.options().argument_collation_mode() !=
+                   FunctionEnums::AFFECTS_NONE) {
+      if (arguments[idx]->type_annotation_map() != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            Collation collation,
+            Collation::MakeCollation(*arguments[idx]->type_annotation_map()));
+        type_modifiers = TypeModifiers::MakeTypeModifiers(TypeParameters(),
+                                                          std::move(collation));
+      }
+    } else {
+      if (arguments[idx]->type_annotation_map() != nullptr &&
+          !arguments[idx]->type_annotation_map()->Empty()) {
+        // Even if the type is the same, we need to coerce to drop the
+        // annotations.
+        needs_coercion = true;
+      }
+    }
+
+    if (needs_coercion) {
+      GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
+                       AdjustTypeModifiersForCast(arguments[idx]->type(),
+                                                  target_type, type_modifiers));
       GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
-          arg_locations[idx],
-          AnnotatedType(target_type, arguments[idx]->type_annotation_map()),
+          arg_locations[idx], target_type, std::move(type_modifiers),
           Resolver::kExplicitCoercion, &arguments[idx]));
       // Update the argument type with the casted one, so that the
       // PostResolutionArgumentConstraintsCallback and the
@@ -2083,7 +2457,6 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
                                                     BadArgErrorPrefix));
     }
   }
-
   GOOGLESQL_RETURN_IF_ERROR(ResolveArgumentAliases(ast_location, arg_locations, function,
                                          result_signature.get(),
                                          input_argument_types));
@@ -2117,34 +2490,6 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     result_signature = std::move(new_signature);
     GOOGLESQL_RET_CHECK(result_signature->IsConcrete())
         << "result_signature: '" << result_signature->DebugString() << "'";
-  }
-
-  if (IsSqlFunction(function)) {
-    const std::vector<std::string>& arg_names =
-        function->Is<SQLFunctionInterface>()
-            ? function->GetAs<SQLFunctionInterface>()->GetArgumentNames()
-            : function->GetAs<TemplatedSQLFunction>()->GetArgumentNames();
-    for (int i = 0; i < input_argument_types.size(); ++i) {
-      if (arguments[i]->type_annotation_map() != nullptr &&
-          !arguments[i]->type_annotation_map()->Empty()) {
-        std::unique_ptr<AnnotationMap> annotations_to_block =
-            arguments[i]->type_annotation_map()->Clone();
-        // Allow collation if the flag is on. If the flag is off, block all
-        // annotations.
-        if (resolver_->language().LanguageFeatureEnabled(
-                FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
-          annotations_to_block
-              ->UnsetAnnotationRecursively<CollationAnnotation>();
-        }
-
-        if (!annotations_to_block->Empty()) {
-          return MakeSqlErrorAt(arg_locations[i])
-                 << "Annotations on arguments of SQL functions are not "
-                    "supported, but found annotations on argument "
-                 << arg_names[i];
-        }
-      }
-    }
   }
 
   std::shared_ptr<ResolvedFunctionCallInfo> function_call_info(
@@ -2210,16 +2555,15 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
         &concat_op_error_mode));
     absl::flat_hash_map<const ResolvedInlineLambda*, const ASTLambda*>
         lambda_ast_nodes;
-    GOOGLESQL_ASSIGN_OR_RETURN(const FunctionSignature* matched_signature,
-                     FindMatchingSignature(
-                         concat_op_function, ast_location, arg_locations_in,
-                         match_internal_signatures, named_arguments,
-                         /*name_scope=*/nullptr, &input_argument_types,
-                         /*arg_overrides=*/nullptr, &arg_reorder_index_mapping,
-                         &lambda_ast_nodes, mismatch_errors.get()));
-    GOOGLESQL_RET_CHECK_NE(matched_signature, nullptr);
-    std::unique_ptr<const FunctionSignature> concat_op_result_signature(
-        matched_signature);
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<const FunctionSignature> concat_op_result_signature,
+        FindMatchingSignature(
+            concat_op_function, ast_location, arg_locations_in,
+            match_internal_signatures, named_arguments,
+            /*name_scope=*/nullptr, &input_argument_types,
+            /*arg_overrides=*/nullptr, &arg_reorder_index_mapping,
+            &lambda_ast_nodes, mismatch_errors.get()));
+    GOOGLESQL_RET_CHECK_NE(concat_op_result_signature, nullptr);
     *resolved_expr_out = MakeResolvedFunctionCall(
         concat_op_result_signature->result_type().type(), concat_op_function,
         *concat_op_result_signature, std::move(arguments),
@@ -2339,6 +2683,15 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
         /*error_location=*/ast_location, (*resolved_expr_out).get()));
   }
 
+  if (IsSqlFunction(function) &&
+      resolver_->language().LanguageFeatureEnabled(
+          FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS) &&
+      CollationAnnotation::ExistsIn(
+          resolved_expr_out->get()->type_annotation_map())) {
+    resolver_->analyzer_output_properties_.AddFeatureLabel(
+        Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
+  }
+
   if (opt_ast_function_call != nullptr) {
     resolver_->MaybeRecordFunctionCallParseLocation(opt_ast_function_call,
                                                     resolved_expr_out->get());
@@ -2352,7 +2705,7 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
       __SignatureArgumentKind__switch_must_have_a_default__);
 
   return absl::OkStatus();
-}
+}  // NOLINT(readability/fn_size)
 
 // This is a helper method when parsing or analyzing the function's SQL
 // expression.  If 'status' is OK, also returns OK. Otherwise, returns a
@@ -2407,8 +2760,9 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
   // TODO: Attach proper error locations to the returned Status.
   GOOGLESQL_RETURN_IF_ERROR(object.DetectCycle("function"));
 
-  // Build a map for the function arguments.
-  IdStringHashMapCase<std::unique_ptr<ResolvedArgumentRef>> function_arguments;
+  // Build the arg_info directly from the concrete signature, preserving full
+  // lambda signatures which would otherwise be lost in a ResolvedArgumentRef.
+  auto arg_info = std::make_unique<FunctionArgumentInfo>();
   GOOGLESQL_RET_CHECK_EQ(function.GetArgumentNames().size(), actual_arguments.size());
   // Templated SQL functions only support one signature for now.
   GOOGLESQL_RET_CHECK_EQ(1, function.NumSignatures());
@@ -2423,53 +2777,80 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
                  __SignatureArgumentKind__switch_must_have_a_default__);
     const IdString arg_name =
         analyzer_options.id_string_pool()->Make(function.GetArgumentNames()[i]);
-    const InputArgumentType& arg_type = actual_arguments[i];
-    if (function_arguments.contains(arg_name)) {
-      // TODO: Attach proper error locations to the returned Status.
+
+    if (arg_info->HasArg(arg_name)) {
       return MakeFunctionExprAnalysisError(
           function,
-          absl::StrCat("Duplicate argument name ", arg_name.ToString()));
+          absl::StrCat("Duplicate UDF argument name ", arg_name.ToString()));
     }
-    // Figure out the argument kind to use depending on whether this is a scalar
-    // or aggregate function and whether the corresponding argument in the
-    // function signature is marked "NOT AGGREGATE".
-    ResolvedArgumentDefEnums::ArgumentKind arg_kind;
-    if (function.IsAggregate()) {
-      if (concrete_signature.argument(i).options().is_not_aggregate()) {
-        arg_kind = ResolvedArgumentDefEnums::NOT_AGGREGATE;
-      } else {
-        arg_kind = ResolvedArgumentDefEnums::AGGREGATE;
-      }
+
+    const FunctionArgumentType& signature_arg = concrete_signature.argument(i);
+
+    // Relation arguments are not supported today, but checked here to be
+    // safe/robust.
+    if (signature_arg.IsRelation()) {
+      GOOGLESQL_RETURN_IF_ERROR(arg_info->AddRelationArg(arg_name, signature_arg));
     } else {
-      arg_kind = ResolvedArgumentDefEnums::SCALAR;
-    }
-    auto arg_ref =
-        MakeResolvedArgumentRef(arg_type.type(), arg_name.ToString(), arg_kind);
-
-    if (argument_list[i]->type_annotation_map() != nullptr &&
-        !argument_list[i]->type_annotation_map()->Empty()) {
-      std::unique_ptr<AnnotationMap> annotations_to_block =
-          argument_list[i]->type_annotation_map()->Clone();
-      // Allow collation if the flag is on. If the flag is off, block all
-      // annotations.
-      if (resolver_->language().LanguageFeatureEnabled(
-              FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
-        annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
+      ResolvedArgumentDefEnums::ArgumentKind arg_kind;
+      if (function.IsAggregate()) {
+        if (signature_arg.options().is_not_aggregate()) {
+          arg_kind = ResolvedArgumentDefEnums::NOT_AGGREGATE;
+        } else {
+          arg_kind = ResolvedArgumentDefEnums::AGGREGATE;
+        }
+      } else {
+        arg_kind = ResolvedArgumentDefEnums::SCALAR;
       }
 
-      if (!annotations_to_block->Empty()) {
-        return MakeFunctionExprAnalysisError(
-            function,
-            absl::StrCat("Annotations on arguments of SQL functions are not "
-                         "supported, but found annotations on argument ",
-                         arg_name.ToStringView()));
+      const AnnotationMap* annotation_map = nullptr;
+      // argument_list[i] can be null if the argument is a function-typed
+      // (lambda) parameter or a sequence argument. These are resolved via
+      // arg_overrides rather than standard expression arguments, so we skip
+      // expression-level annotation checks for them.
+      if (argument_list[i] != nullptr) {
+        if (argument_list[i]->type_annotation_map() != nullptr &&
+            !argument_list[i]->type_annotation_map()->Empty()) {
+          std::unique_ptr<AnnotationMap> annotations_to_block =
+              argument_list[i]->type_annotation_map()->Clone();
+          // Allow collation if the flag is on. If the flag is off, block all
+          // annotations.
+          if (resolver_->language().LanguageFeatureEnabled(
+                  FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+            annotations_to_block
+                ->UnsetAnnotationRecursively<CollationAnnotation>();
+            if (CollationAnnotation::ExistsIn(
+                    argument_list[i]->type_annotation_map())) {
+              resolver_->analyzer_output_properties_.AddFeatureLabel(
+                  Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
+            }
+          }
+
+          if (!annotations_to_block->Empty()) {
+            return MakeFunctionExprAnalysisError(
+                function,
+                absl::StrCat(
+                    "Annotations on arguments of SQL functions are not ",
+                    "supported, but found annotations on argument ",
+                    arg_name.ToStringView()));
+          }
+        }
+        annotation_map = argument_list[i]->type_annotation_map();
       }
+
+      // For lambda arguments (where arg_type is IsLambda()), we must preserve
+      // the full lambda signature from signature_arg (which has the concrete
+      // UDF signature), since lambdas cannot be represented as standard scalar
+      // types inside a ResolvedArgumentRef.
+      FunctionArgumentType arg_type_to_use = signature_arg;
+      if (!resolver_->language().LanguageFeatureEnabled(
+              FEATURE_TEMPLATED_SQL_FUNCTION_RESOLVE_WITH_TYPED_ARGS)) {
+        if (!signature_arg.IsLambda() && !signature_arg.IsRelation()) {
+          arg_type_to_use = FunctionArgumentType(actual_arguments[i].type());
+        }
+      }
+      GOOGLESQL_RETURN_IF_ERROR(arg_info->AddScalarArg(arg_name, arg_kind,
+                                             arg_type_to_use, annotation_map));
     }
-    // Annotations are only propagated for templated arguments.
-    if (argument_original_kind != ARG_TYPE_FIXED) {
-      arg_ref->set_type_annotation_map(argument_list[i]->type_annotation_map());
-    }
-    function_arguments[arg_name] = std::move(arg_ref);
   }
 
   std::unique_ptr<ParserOutput> parser_output_storage;
@@ -2520,8 +2901,9 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
     InternalAnalyzerOptions::SetLookupExpressionCallback(
         options_for_template_analysis, nullptr);
   }
-  auto resolver = std::make_unique<Resolver>(catalog, type_factory_,
-                                             &options_for_template_analysis);
+  auto resolver = std::make_unique<Resolver>(
+      catalog, type_factory_, &options_for_template_analysis,
+      resolver_->analyzer_output_properties_);
 
   NameScope empty_name_scope;
   auto query_resolution_info =
@@ -2540,7 +2922,7 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
       function,
       resolver->ResolveExprWithFunctionArguments(
           function.GetParseResumeLocation().input(), expression,
-          function_arguments, expr_resolution_info.get(), &resolved_sql_body),
+          std::move(arg_info), expr_resolution_info.get(), &resolved_sql_body),
       options_for_template_analysis.error_message_options()));
 
   if (function.IsAggregate()) {
@@ -2569,6 +2951,10 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
           "Collation $0 in return type of user-defined function body is not "
           "allowed",
           resolved_sql_body.get()));
+    } else if (CollationAnnotation::ExistsIn(
+                   resolved_sql_body->type_annotation_map())) {
+      resolver_->analyzer_output_properties_.AddFeatureLabel(
+          Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
     }
 
     std::unique_ptr<AnnotationMap> annotations_to_block =
@@ -2597,7 +2983,10 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
       function.signatures()[0].result_type();
   if (expected_type.kind() == ARG_TYPE_FIXED) {
     if (absl::Status status = resolver_->CoerceExprToType(
-            ast_location, expected_type.type(), Resolver::kImplicitCoercion,
+            ast_location, expected_type.type(),
+            // In the future, add type modifiers when we have them declared on
+            // function signatures.
+            TypeModifiers(), Resolver::kImplicitCoercion,
             "Function declared to return $0 but the function body produces "
             "incompatible type $1",
             &resolved_sql_body);
@@ -2625,7 +3014,25 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
   function_call_info_out->reset(new TemplatedSQLFunctionCall(
       std::move(resolved_sql_body), std::move(aggregate_columns)));
 
+  // Move dynamically generated functions from the child resolver to the parent
+  // resolver to ensure they are kept alive by the final AnalyzerOutput and
+  // don't become dangling pointers.
+  for (auto& generated_function : resolver->release_generated_functions()) {
+    resolver_->generated_functions_.push_back(std::move(generated_function));
+  }
+
   return absl::OkStatus();
+}
+
+// Lookup the proxy function generated for the function-typed parameter.
+Function* FunctionResolver::LookupGeneratedFunction(IdString name) const {
+  absl::string_view name_view = name.ToStringView();
+  for (const auto& f : resolver_->generated_functions_) {
+    if (googlesql_base::CaseEqual(f->Name(), name_view)) {
+      return f.get();
+    }
+  }
+  return nullptr;
 }
 
 namespace {
@@ -2766,6 +3173,12 @@ absl::Status FunctionResolver::CheckArgumentConstraints(
     }
   }
 
+  if (arg_expr->Is<ResolvedLiteral>() &&
+      (concrete_argument.must_be_analysis_constant() ||
+       concrete_argument.must_be_immutable_constant())) {
+    GOOGLESQL_RETURN_IF_ERROR(EnablePreserveInLiteralRemover(arg_expr));
+  }
+
   bool satisfies_non_aggregate_requirement = true;
   if (options.is_not_aggregate()) {
     GOOGLESQL_ASSIGN_OR_RETURN(satisfies_non_aggregate_requirement,
@@ -2776,37 +3189,30 @@ absl::Status FunctionResolver::CheckArgumentConstraints(
     GOOGLESQL_ASSIGN_OR_RETURN(satisfies_constant_requirement,
                      IsConstantFunctionArg(arg_expr));
   }
-  bool satisfies_analysis_constant_requirement = true;
-  if (concrete_argument.must_be_analysis_constant()) {
-    satisfies_analysis_constant_requirement = IsAnalysisConstant(arg_expr);
-    if (arg_expr->Is<ResolvedLiteral>()) {
-      // Ensure it doesn't get replaced by a parameter in tests.
-      const_cast<ResolvedLiteral*>(arg_expr->GetAs<ResolvedLiteral>())
-          ->set_preserve_in_literal_remover(true);
-    }
-  }
-  bool satisfies_immutable_constant_requirement = true;
-  if (concrete_argument.must_be_immutable_constant()) {
-    satisfies_immutable_constant_requirement = IsImmutableConstant(arg_expr);
-    if (arg_expr->Is<ResolvedLiteral>()) {
-      // Ensure it doesn't get replaced by a parameter in tests.
-      const_cast<ResolvedLiteral*>(arg_expr->GetAs<ResolvedLiteral>())
-          ->set_preserve_in_literal_remover(true);
-    }
-  }
-
   // TODO: b/323602106 - Improve correctness of error message
   if (!satisfies_constant_requirement || !satisfies_non_aggregate_requirement) {
     return MakeSqlErrorAt(arg_location)
            << BadArgErrorPrefix(idx) << " must be a literal or query parameter";
   }
-  if (!satisfies_analysis_constant_requirement) {
+  if (concrete_argument.must_be_analysis_constant() &&
+      !IsAnalysisConstant(arg_expr)) {
     return MakeSqlErrorAt(arg_location)
            << BadArgErrorPrefix(idx) << " must be an analysis time constant";
   }
-  if (!satisfies_immutable_constant_requirement) {
+  if (concrete_argument.must_be_immutable_constant() &&
+      !IsImmutableConstant(arg_expr)) {
     return MakeSqlErrorAt(arg_location)
            << BadArgErrorPrefix(idx) << " must be an immutable constant";
+  }
+  if (concrete_argument.must_be_stable_constant() &&
+      !IsStableConstant(arg_expr)) {
+    return MakeSqlErrorAt(arg_location)
+           << BadArgErrorPrefix(idx) << " must be a stable constant";
+  }
+  if (concrete_argument.must_be_query_constant() &&
+      !IsQueryConstant(arg_expr)) {
+    return MakeSqlErrorAt(arg_location)
+           << BadArgErrorPrefix(idx) << " must be a query-level constant";
   }
   return absl::OkStatus();
 }
@@ -3022,10 +3428,19 @@ absl::Status FunctionResolver::ReResolveLambdasIfNecessary(
 
     GOOGLESQL_ASSIGN_OR_RETURN(std::vector<IdString> arg_names,
                      ExtractLambdaArgumentNames(ast_lambda));
+
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        TypeModifiers type_modifiers_for_coercion,
+        TypeModifiers::MakeTypeModifiers(
+            generic_arg->inline_lambda()->body()->type_annotation_map()));
+
+    // In the future, we may need to merge with TypeModifers declared on the
+    // argument declaration itself.
     std::unique_ptr<const ResolvedInlineLambda> re_resolved_lambda;
     GOOGLESQL_RETURN_IF_ERROR(resolver_->ResolveLambdaWithAnnotations(
         ast_lambda, arg_names, lambda_arg_annotated_types,
         result_signature->ConcreteArgument(i).lambda().body_type().type(),
+        std::move(type_modifiers_for_coercion),
         /*allow_argument_coercion=*/false, name_scope, &re_resolved_lambda));
 
     // Replace with the new argument.

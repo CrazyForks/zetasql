@@ -38,9 +38,12 @@
 #include "googlesql/base/logging.h"
 #include "googlesql/analyzer/expr_resolver_helper.h"
 #include "googlesql/common/aggregate_null_handling.h"
+#include "googlesql/common/type_visitors.h"
 #include "googlesql/public/annotation/collation.h"
 #include "googlesql/public/constant_evaluator.h"
 #include "googlesql/public/sql_constant.h"
+#include "googlesql/public/types/annotation.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/measure_type.h"
 #include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
@@ -102,6 +105,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -115,7 +119,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 using googlesql::types::BoolType;
 
@@ -414,6 +417,111 @@ absl::StatusOr<std::unique_ptr<InlineLambdaExpr>> Algebrizer::AlgebrizeLambda(
 }
 
 namespace {
+
+static absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeResolvedCollation(
+    const ResolvedCollation& collation, TypeFactory* type_factory) {
+  ResolvedCollationProto proto;
+  GOOGLESQL_RETURN_IF_ERROR(collation.Serialize(&proto));
+  absl::Cord cord;
+  GOOGLESQL_RET_CHECK(proto.SerializePartialToString(&cord));
+  Value resolved_collation_proto_value = Value::Bytes(cord);
+  return ConstExpr::Create(resolved_collation_proto_value);
+}
+
+static Collation ConvertResolvedCollationToCollation(
+    const ResolvedCollation& resolved_collation) {
+  if (resolved_collation.Empty()) {
+    return Collation();
+  }
+  if (resolved_collation.HasCollation()) {
+    return resolved_collation.CollationName().empty()
+               ? Collation()
+               : Collation::MakeScalar(resolved_collation.CollationName());
+  }
+  std::vector<Collation> child_list;
+  child_list.reserve(resolved_collation.num_children());
+  bool all_empty = true;
+  for (int i = 0; i < resolved_collation.num_children(); ++i) {
+    child_list.push_back(
+        ConvertResolvedCollationToCollation(resolved_collation.child(i)));
+    if (!child_list.back().Empty()) {
+      all_empty = false;
+    }
+  }
+  return all_empty
+             ? Collation()
+             : Collation::MakeCollationWithChildList(std::move(child_list));
+}
+
+static absl::StatusOr<std::unique_ptr<AnnotationMap>>
+CreateEquivalentAnnotationMap(const Type* type,
+                              const ResolvedCollation& collation) {
+  auto annotation_map = AnnotationMap::Create(type);
+  GOOGLESQL_RETURN_IF_ERROR(
+      ConvertResolvedCollationToCollation(collation).PopulateAnnotationMap(
+          *annotation_map));
+  annotation_map->Normalize();
+  return annotation_map;
+}
+
+class CollatedStringToBytesTypeRewriter : public TypeRewriter {
+ public:
+  explicit CollatedStringToBytesTypeRewriter(TypeFactory& type_factory)
+      : TypeRewriter(type_factory) {}
+
+  absl::StatusOr<AnnotatedType> PostVisit(
+      AnnotatedType annotated_type) override {
+    if (!annotated_type.type->IsString() ||
+        !CollationAnnotation::ExistsIn(annotated_type.annotation_map)) {
+      return annotated_type;
+    }
+
+    return AnnotatedType(types::BytesType(), annotated_type.annotation_map);
+  }
+};
+
+// Creates an AnnotatedType by rewriting the input type based on the provided
+// collation. Specifically, if the type is STRING and has a collation, it's
+// rewritten to BYTES.
+static absl::StatusOr<const Type*> CreateCollationKeyType(
+    const Type* type, const ResolvedCollation& collation,
+    TypeFactory* type_factory) {
+  // In the future, we should just have the TypeVisitor & TypeRewriter
+  // include TypeParams.
+  GOOGLESQL_ASSIGN_OR_RETURN(auto collation_as_annotation_map,
+                   CreateEquivalentAnnotationMap(type, collation));
+  CollatedStringToBytesTypeRewriter rewriter(*type_factory);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      AnnotatedType collation_key_type,
+      rewriter.Visit(AnnotatedType(type, collation_as_annotation_map.get())));
+  return collation_key_type.type;
+}
+
+static absl::StatusOr<std::unique_ptr<ValueExpr>> MaybeWrapInCollationKeyCall(
+    std::unique_ptr<ValueExpr> expr, const ResolvedCollation* collation,
+    const LanguageOptions& language_options, TypeFactory* type_factory) {
+  if (collation == nullptr || collation->Empty()) {
+    return expr;
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_collation,
+                   AlgebrizeResolvedCollation(*collation, type_factory));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const Type* collation_key_type,
+      CreateCollationKeyType(expr->output_type(), *collation, type_factory));
+
+  std::vector<std::unique_ptr<AlgebraArg>> collation_key_args;
+  collation_key_args.reserve(2);
+  collation_key_args.push_back(std::make_unique<ExprArg>(std::move(expr)));
+  collation_key_args.push_back(
+      std::make_unique<ExprArg>(std::move(algebrized_collation)));
+
+  return BuiltinScalarFunction::CreateCall(FunctionKind::kCollationKey,
+                                           language_options, collation_key_type,
+                                           std::move(collation_key_args));
+}
+
 constexpr absl::string_view kCollatedFunctionNamePostfix = "_with_collation";
 // Creates function name and arguments with respect to the collations in
 // <collation_list> given original function name <function> and <arguments>.
@@ -421,20 +529,24 @@ absl::Status GetCollatedFunctionNameAndArguments(
     absl::string_view function_name,
     std::vector<std::unique_ptr<AlgebraArg>> arguments,
     absl::Span<const ResolvedCollation> collation_list,
-    const LanguageOptions& language_options,
+    const LanguageOptions& language_options, TypeFactory* type_factory,
     std::string* collated_function_name,
     std::vector<std::unique_ptr<AlgebraArg>>* collated_arguments) {
   // So far we only support functions that takes a single collator.
   GOOGLESQL_RET_CHECK(collation_list.size() == 1)
       << "The collation_list can only contain one element for function "
       << function_name;
-  GOOGLESQL_ASSIGN_OR_RETURN(std::string collation_name,
-                   GetCollationNameFromResolvedCollation(collation_list[0]));
 
   if (function_name == "$greater" || function_name == "$greater_or_equal" ||
       function_name == "$less" || function_name == "$less_or_equal" ||
       function_name == "$equal" || function_name == "$not_equal" ||
       function_name == "$between" || function_name == "$in" ||
+      function_name == "$eq_any" || function_name == "$ne_any" ||
+      function_name == "$gt_any" || function_name == "$ge_any" ||
+      function_name == "$lt_any" || function_name == "$le_any" ||
+      function_name == "$eq_all" || function_name == "$ne_all" ||
+      function_name == "$gt_all" || function_name == "$ge_all" ||
+      function_name == "$lt_all" || function_name == "$le_all" ||
       function_name == "$is_distinct_from" ||
       function_name == "$is_not_distinct_from") {
     // For any binary comparison function listed here, we use
@@ -442,18 +554,12 @@ absl::Status GetCollatedFunctionNameAndArguments(
     // for original left/right argument respectively. The
     // <collated_function_name> is the same as <function_name>.
     *collated_function_name = function_name;
+
     for (int i = 0; i < arguments.size(); ++i) {
-      std::vector<std::unique_ptr<AlgebraArg>> collation_key_args;
-      collation_key_args.reserve(2);
-      collation_key_args.push_back(std::move(arguments[i]));
-      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_name_expr,
-                       ConstExpr::Create(Value::String(collation_name)));
-      collation_key_args.push_back(
-          std::make_unique<ExprArg>(std::move(collation_name_expr)));
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_key,
-                       BuiltinScalarFunction::CreateCall(
-                           FunctionKind::kCollationKey, language_options,
-                           types::StringType(), std::move(collation_key_args)));
+                       MaybeWrapInCollationKeyCall(
+                           arguments[i]->release_value_expr(),
+                           &collation_list[0], language_options, type_factory));
       collated_arguments->push_back(
           std::make_unique<ExprArg>(std::move(collation_key)));
     }
@@ -477,21 +583,36 @@ absl::Status GetCollatedFunctionNameAndArguments(
     if (!absl::StartsWith(*collated_function_name, "$")) {
       *collated_function_name = absl::StrCat("$", *collated_function_name);
     }
+
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<ValueExpr> algebrized_collation,
+        AlgebrizeResolvedCollation(collation_list[0], type_factory));
+
     *collated_arguments = std::move(arguments);
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_name_expr,
-                     ConstExpr::Create(Value::String(collation_name)));
     collated_arguments->insert(
         collated_arguments->cbegin(),
-        std::make_unique<ExprArg>(std::move(collation_name_expr)));
+        std::make_unique<ExprArg>(std::move(algebrized_collation)));
   } else if (function_name == "$case_with_value" ||
-             function_name == "$in_array" || function_name == "array_min" ||
+             function_name == "$in_array" || function_name == "$eq_any_array" ||
+             function_name == "$ne_any_array" ||
+             function_name == "$gt_any_array" ||
+             function_name == "$ge_any_array" ||
+             function_name == "$lt_any_array" ||
+             function_name == "$le_any_array" ||
+             function_name == "$eq_all_array" ||
+             function_name == "$ne_all_array" ||
+             function_name == "$gt_all_array" ||
+             function_name == "$ge_all_array" ||
+             function_name == "$lt_all_array" ||
+             function_name == "$le_all_array" || function_name == "array_min" ||
              function_name == "array_max" || function_name == "array_offset" ||
              function_name == "array_find" ||
              function_name == "array_offsets" ||
              function_name == "array_find_all" ||
              function_name == "array_includes" ||
              function_name == "array_includes_all" ||
-             function_name == "array_includes_any") {
+             function_name == "array_includes_any" ||
+             function_name == "array_distinct") {
     // For these functions, we do not make changes to arguments or the function
     // name here. The arguments may be transformed at a later stage.
     // TODO: Replace hard-coded function name list with builtin
@@ -764,7 +885,7 @@ Algebrizer::AlgebrizeBuiltinFunctionCallWithAlgebrizedArguments(
     std::vector<std::unique_ptr<AlgebraArg>> collated_arguments;
     GOOGLESQL_RETURN_IF_ERROR(GetCollatedFunctionNameAndArguments(
         name, std::move(arguments), function_call->collation_list(),
-        language_options_, &collated_name, &collated_arguments));
+        language_options_, type_factory_, &collated_name, &collated_arguments));
     name = collated_name;
     arguments = std::move(collated_arguments);
   }
@@ -829,10 +950,65 @@ Algebrizer::AlgebrizeBuiltinFunctionCallWithAlgebrizedArguments(
     GOOGLESQL_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ValueExpr>> argument_exprs,
                      ConvertAlgebraArgsToValueExprs(std::move(arguments)));
     return AlgebrizeWithSideEffects(std::move(argument_exprs));
-  } else if (name == "$in") {
+  } else if (name == "$in" || name == "$eq_any" || name == "$ne_any" ||
+             name == "$gt_any" || name == "$ge_any" || name == "$lt_any" ||
+             name == "$le_any" || name == "$eq_all" || name == "$ne_all" ||
+             name == "$gt_all" || name == "$ge_all" || name == "$lt_all" ||
+             name == "$le_all") {
     GOOGLESQL_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ValueExpr>> argument_exprs,
                      ConvertAlgebraArgsToValueExprs(std::move(arguments)));
-    return AlgebrizeIn(function_call->type(), std::move(argument_exprs));
+    FunctionKind comparison_kind;
+    FunctionKind aggregate_kind;
+    bool negate_comparison = false;
+    bool swap_arguments = false;
+
+    if (name == "$in" || name == "$eq_any") {
+      comparison_kind = FunctionKind::kEqual;
+      aggregate_kind = FunctionKind::kOr;
+    } else if (name == "$ne_any") {
+      comparison_kind = FunctionKind::kEqual;
+      aggregate_kind = FunctionKind::kOr;
+      negate_comparison = true;
+    } else if (name == "$gt_any") {
+      comparison_kind = FunctionKind::kLess;
+      aggregate_kind = FunctionKind::kOr;
+      swap_arguments = true;
+    } else if (name == "$ge_any") {
+      comparison_kind = FunctionKind::kLessOrEqual;
+      aggregate_kind = FunctionKind::kOr;
+      swap_arguments = true;
+    } else if (name == "$lt_any") {
+      comparison_kind = FunctionKind::kLess;
+      aggregate_kind = FunctionKind::kOr;
+    } else if (name == "$le_any") {
+      comparison_kind = FunctionKind::kLessOrEqual;
+      aggregate_kind = FunctionKind::kOr;
+    } else if (name == "$eq_all") {
+      comparison_kind = FunctionKind::kEqual;
+      aggregate_kind = FunctionKind::kAnd;
+    } else if (name == "$ne_all") {
+      comparison_kind = FunctionKind::kEqual;
+      aggregate_kind = FunctionKind::kAnd;
+      negate_comparison = true;
+    } else if (name == "$gt_all") {
+      comparison_kind = FunctionKind::kLess;
+      aggregate_kind = FunctionKind::kAnd;
+      swap_arguments = true;
+    } else if (name == "$ge_all") {
+      comparison_kind = FunctionKind::kLessOrEqual;
+      aggregate_kind = FunctionKind::kAnd;
+      swap_arguments = true;
+    } else if (name == "$lt_all") {
+      comparison_kind = FunctionKind::kLess;
+      aggregate_kind = FunctionKind::kAnd;
+    } else {  // "$le_all"
+      comparison_kind = FunctionKind::kLessOrEqual;
+      aggregate_kind = FunctionKind::kAnd;
+    }
+
+    return AlgebrizeQuantifiedComparisonList(
+        function_call->type(), std::move(argument_exprs), comparison_kind,
+        aggregate_kind, negate_comparison, swap_arguments);
   } else if (name == "$between") {
     GOOGLESQL_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ValueExpr>> argument_exprs,
                      ConvertAlgebraArgsToValueExprs(std::move(arguments)));
@@ -844,15 +1020,50 @@ Algebrizer::AlgebrizeBuiltinFunctionCallWithAlgebrizedArguments(
                      NewArrayExpr::Create(function_call->type()->AsArray(),
                                           std::move(argument_exprs)));
     return new_array_expr;
-  } else if (name == "$in_array") {
+  } else if (name == "$in_array" || name == "$eq_any_array" ||
+             name == "$ne_any_array" || name == "$gt_any_array" ||
+             name == "$ge_any_array" || name == "$lt_any_array" ||
+             name == "$le_any_array" || name == "$eq_all_array" ||
+             name == "$ne_all_array" || name == "$gt_all_array" ||
+             name == "$ge_all_array" || name == "$lt_all_array" ||
+             name == "$le_all_array") {
+    ResolvedSubqueryExpr::SubqueryType subquery_type;
+    if (name == "$in_array") {
+      subquery_type = ResolvedSubqueryExpr::IN;
+    } else if (name == "$eq_any_array") {
+      subquery_type = ResolvedSubqueryExpr::EQ_ANY;
+    } else if (name == "$ne_any_array") {
+      subquery_type = ResolvedSubqueryExpr::NE_ANY;
+    } else if (name == "$gt_any_array") {
+      subquery_type = ResolvedSubqueryExpr::GT_ANY;
+    } else if (name == "$ge_any_array") {
+      subquery_type = ResolvedSubqueryExpr::GE_ANY;
+    } else if (name == "$lt_any_array") {
+      subquery_type = ResolvedSubqueryExpr::LT_ANY;
+    } else if (name == "$le_any_array") {
+      subquery_type = ResolvedSubqueryExpr::LE_ANY;
+    } else if (name == "$eq_all_array") {
+      subquery_type = ResolvedSubqueryExpr::EQ_ALL;
+    } else if (name == "$ne_all_array") {
+      subquery_type = ResolvedSubqueryExpr::NE_ALL;
+    } else if (name == "$gt_all_array") {
+      subquery_type = ResolvedSubqueryExpr::GT_ALL;
+    } else if (name == "$ge_all_array") {
+      subquery_type = ResolvedSubqueryExpr::GE_ALL;
+    } else if (name == "$lt_all_array") {
+      subquery_type = ResolvedSubqueryExpr::LT_ALL;
+    } else if (name == "$le_all_array") {
+      subquery_type = ResolvedSubqueryExpr::LE_ALL;
+    }
     const std::vector<ResolvedCollation>& collation_list =
         function_call->collation_list();
     GOOGLESQL_RET_CHECK_LE(collation_list.size(), 1);
     GOOGLESQL_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ValueExpr>> argument_exprs,
                      ConvertAlgebraArgsToValueExprs(std::move(arguments)));
-    return AlgebrizeInArray(
+    return AlgebrizeQuantifiedComparisonArray(
         std::move(argument_exprs[0]), std::move(argument_exprs[1]),
-        collation_list.empty() ? ResolvedCollation() : collation_list[0]);
+        collation_list.empty() ? ResolvedCollation() : collation_list[0],
+        subquery_type);
   } else if (name == "float64") {
     kind = FunctionKind::kDouble;
   } else if (auto mapped_kind = kSignatureIdToKindMap.find(
@@ -871,9 +1082,9 @@ Algebrizer::AlgebrizeBuiltinFunctionCallWithAlgebrizedArguments(
 
   static const auto* const kScalarArrayFunctions =
       new absl::flat_hash_set<absl::string_view>{
-          "array_min",          "array_max",         "array_offset",
-          "array_find",         "array_offsets",     "array_find_all",
-          "array_includes_all", "array_includes_any"};
+          "array_min",          "array_max",          "array_offset",
+          "array_find",         "array_offsets",      "array_find_all",
+          "array_includes_all", "array_includes_any", "array_distinct"};
   // TODO: Refactor out AlgebrizeScalarArrayFunctionWithCollation
   // to provide a standard solution to scalar function with collation.
   if (kScalarArrayFunctions->contains(name) ||
@@ -991,7 +1202,7 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeCaseWithValue(
       std::vector<std::unique_ptr<AlgebraArg>> collated_cond_arguments;
       GOOGLESQL_RETURN_IF_ERROR(GetCollatedFunctionNameAndArguments(
           "$equal", ConvertValueExprsToAlgebraArgs(std::move(cond_args)),
-          collation_list, language_options_, &collated_name,
+          collation_list, language_options_, type_factory_, &collated_name,
           &collated_cond_arguments));
       GOOGLESQL_RET_CHECK_EQ(collated_name, "$equal");
       GOOGLESQL_ASSIGN_OR_RETURN(cond_args, ConvertAlgebraArgsToValueExprs(
@@ -1212,36 +1423,79 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeCoalesce(
   return result;
 }
 
-// In(v, v1, v2, ...) = WithExpr(x:=v, Or(x=v1, x=v2, ...))
-absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeIn(
-    const Type* output_type, std::vector<std::unique_ptr<ValueExpr>> args) {
+// Algebrizes <lhs> <comparison_kind> <quantifier> (<v1>, <v2>, ...),
+// e.g., x = ANY (1, 2, 3).
+//
+// This is transformed into:
+//   WithExpr(x_var := args[0],
+//            aggregate_kind(
+//              comparison_kind(x_var, args[1]),
+//              comparison_kind(x_var, args[2]),
+//              ...
+//            ))
+//
+// where aggregate_kind is kOr for ANY and kAnd for ALL.
+absl::StatusOr<std::unique_ptr<ValueExpr>>
+Algebrizer::AlgebrizeQuantifiedComparisonList(
+    const Type* output_type, std::vector<std::unique_ptr<ValueExpr>> args,
+    FunctionKind comparison_kind, FunctionKind aggregate_kind,
+    bool negate_comparison, bool swap_arguments) {
   GOOGLESQL_RET_CHECK_GE(args.size(), 2);
   const VariableId x = variable_gen_->GetNewVariableName("x");
-  std::vector<std::unique_ptr<ValueExpr>> or_args;
+  std::vector<std::unique_ptr<ValueExpr>> aggregate_args;
+
   for (int i = 0; i < args.size() - 1; ++i) {
-    GOOGLESQL_ASSIGN_OR_RETURN(auto deref_x, DerefExpr::Create(x, output_type));
+    GOOGLESQL_ASSIGN_OR_RETURN(auto deref_x,
+                     DerefExpr::Create(x, args[0]->output_type()));
 
-    std::vector<std::unique_ptr<ValueExpr>> or_arg_args;
-    or_arg_args.push_back(std::move(deref_x));
-    or_arg_args.push_back(std::move(args[i + 1]));
+    std::vector<std::unique_ptr<AlgebraArg>> comparison_args;
+    if (swap_arguments) {
+      comparison_args.push_back(
+          std::make_unique<ExprArg>(std::move(args[i + 1])));
+      comparison_args.push_back(std::make_unique<ExprArg>(std::move(deref_x)));
+    } else {
+      comparison_args.push_back(std::make_unique<ExprArg>(std::move(deref_x)));
+      comparison_args.push_back(
+          std::make_unique<ExprArg>(std::move(args[i + 1])));
+    }
 
-    GOOGLESQL_ASSIGN_OR_RETURN(auto or_arg,
+    GOOGLESQL_ASSIGN_OR_RETURN(auto comparison_expr,
                      BuiltinScalarFunction::CreateCall(
-                         FunctionKind::kEqual, language_options_, BoolType(),
-                         ConvertValueExprsToAlgebraArgs(std::move(or_arg_args)),
+                         comparison_kind, language_options_, BoolType(),
+                         std::move(comparison_args),
                          ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
-    or_args.push_back(std::move(or_arg));
+
+    if (negate_comparison) {
+      std::vector<std::unique_ptr<ValueExpr>> negate_args;
+      negate_args.push_back(std::move(comparison_expr));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          comparison_expr,
+          BuiltinScalarFunction::CreateCall(
+              FunctionKind::kNot, language_options_, BoolType(),
+              ConvertValueExprsToAlgebraArgs(std::move(negate_args)),
+              ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
+    }
+    aggregate_args.push_back(std::move(comparison_expr));
   }
-  GOOGLESQL_ASSIGN_OR_RETURN(auto or_op,
-                   BuiltinScalarFunction::CreateCall(
-                       FunctionKind::kOr, language_options_, BoolType(),
-                       ConvertValueExprsToAlgebraArgs(std::move(or_args)),
-                       ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
+
+  if (aggregate_args.empty()) {
+    // Empty list on the RHS. <op> ANY on <empty list> returns false, <op> ALL
+    // on <empty list> returns true.
+    return ConstExpr::Create(Value::Bool(aggregate_kind == FunctionKind::kAnd));
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto aggregate_op,
+      BuiltinScalarFunction::CreateCall(
+          aggregate_kind, language_options_, BoolType(),
+          ConvertValueExprsToAlgebraArgs(std::move(aggregate_args)),
+          ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
 
   std::vector<std::unique_ptr<ExprArg>> let_assign;
   let_assign.push_back(std::make_unique<ExprArg>(x, std::move(args[0])));
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> with_expr,
-                   WithExpr::Create(std::move(let_assign), std::move(or_op)));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ValueExpr> with_expr,
+      WithExpr::Create(std::move(let_assign), std::move(aggregate_op)));
   return with_expr;
 }
 
@@ -1292,21 +1546,6 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeBetween(
   return with_expr;
 }
 
-namespace {
-static absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeResolvedCollation(
-    const ResolvedCollation& collation, TypeFactory* type_factory) {
-  const ProtoType* proto_type;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeProtoType(
-      ResolvedCollationProto::descriptor(), &proto_type));
-  ResolvedCollationProto proto;
-  GOOGLESQL_RETURN_IF_ERROR(collation.Serialize(&proto));
-  absl::Cord cord;
-  GOOGLESQL_RET_CHECK(proto.SerializePartialToCord(&cord));
-  Value resolved_collation_proto_value = Value::Proto(proto_type, cord);
-  return ConstExpr::Create(resolved_collation_proto_value);
-}
-}  // namespace
-
 absl::StatusOr<std::unique_ptr<AggregateArg>> Algebrizer::AlgebrizeAggregateFn(
     const VariableId& variable,
     std::optional<AnonymizationOptions> anonymization_options,
@@ -1339,10 +1578,16 @@ absl::StatusOr<std::unique_ptr<AggregateArg>> Algebrizer::AlgebrizeAggregateFn(
                          ResolvedCollation::MakeResolvedCollation(
                              *computed_column->expr()->type_annotation_map()));
         GOOGLESQL_ASSIGN_OR_RETURN(
-            std::unique_ptr<ValueExpr> group_by_collation,
-            AlgebrizeResolvedCollation(resolved_collation, type_factory_));
+            std::unique_ptr<const GoogleSqlCollator> group_by_collator,
+            GetCollatorFromResolvedCollation(resolved_collation));
+
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            const Type* collation_key_type,
+            CreateCollationKeyType(computed_column->column().type(),
+                                   resolved_collation, type_factory_));
+
         inner_grouping_keys.back()->set_collation(
-            std::move(group_by_collation));
+            {std::move(group_by_collator), collation_key_type});
       }
     }
     for (const auto& computed_column_base :
@@ -1403,6 +1648,263 @@ absl::StatusOr<std::unique_ptr<AggregateArg>> Algebrizer::AlgebrizeAggregateFn(
       std::move(arguments), std::move(inner_grouping_keys),
       std::move(inner_aggregators), side_effects_variable, /*order_by_keys=*/{},
       measure_expr);
+}
+
+absl::Status Algebrizer::PopulateArgumentsFromColumnList(
+    absl::Span<const ResolvedColumn> column_list,
+    std::vector<std::unique_ptr<ValueExpr>>& arguments) {
+  for (const auto& column : column_list) {
+    GOOGLESQL_ASSIGN_OR_RETURN(VariableId arg_variable,
+                     column_to_variable_->LookupVariableNameForColumn(column));
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> arg,
+                     DerefExpr::Create(arg_variable, column.type()));
+    arguments.push_back(std::move(arg));
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<AggregateArg>>
+Algebrizer::AlgebrizeAggregateSubquery(
+    const VariableId& variable, const ResolvedSubqueryExpr* subquery_expr) {
+  // Access 'parameters' to suppress the resolver check for non-accessed
+  // expressions.
+  for (const auto& parameter : subquery_expr->parameter_list()) {
+    parameter->column();
+  }
+
+  // Algebrize the subquery.
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> group_rows_subquery,
+                   AlgebrizeScan(subquery_expr->subquery()));
+
+  // The evaluation strategy for subqueries is to:
+  // 1. Run the subquery as a relational scan (yielding multiple rows of output
+  //    columns).
+  // 2. Apply an aggregate function over those rows to produce a single value
+  //    (e.g., a single scalar, a single array, etc...).
+  //
+  // Prepare the output columns from the subquery to be fed as input into the
+  // aggregate function.
+  std::vector<std::unique_ptr<ValueExpr>> arguments;
+  FunctionKind function_kind;
+  const Type* function_input_type;
+  switch (subquery_expr->subquery_type()) {
+    case ResolvedSubqueryExpr::ARRAY:
+      // For ARRAY, provide the subquery output columns as arguments, and use
+      // kArrayAgg function to aggregate all rows into an array.
+      function_kind = FunctionKind::kArrayAgg;
+      function_input_type = subquery_expr->type()->AsArray()->element_type();
+      GOOGLESQL_RETURN_IF_ERROR(PopulateArgumentsFromColumnList(
+          subquery_expr->subquery()->column_list(), arguments));
+      break;
+    case ResolvedSubqueryExpr::SCALAR:
+      // For SCALAR, provide the subquery output columns as arguments, and use
+      // kScalarSubqueryValue function to produce the single value (errors if >1
+      // row).
+      function_kind = FunctionKind::kScalarSubqueryValue;
+      function_input_type = subquery_expr->type();
+      GOOGLESQL_RETURN_IF_ERROR(PopulateArgumentsFromColumnList(
+          subquery_expr->subquery()->column_list(), arguments));
+      break;
+    case ResolvedSubqueryExpr::EXISTS: {
+      // For EXISTS, provide a true bool constant that will appear in every row
+      // (if any), and use kOrAgg function to produce the final result.
+      function_kind = FunctionKind::kOrAgg;
+      function_input_type = BoolType();
+      GOOGLESQL_ASSIGN_OR_RETURN(auto true_arg, ConstExpr::Create(Value::Bool(true)));
+      arguments.push_back(std::move(true_arg));
+      break;
+    }
+    case ResolvedSubqueryExpr::IN:
+    case ResolvedSubqueryExpr::EQ_ANY:
+    case ResolvedSubqueryExpr::NE_ANY:
+    case ResolvedSubqueryExpr::LT_ANY:
+    case ResolvedSubqueryExpr::LE_ANY:
+    case ResolvedSubqueryExpr::GT_ANY:
+    case ResolvedSubqueryExpr::GE_ANY:
+    case ResolvedSubqueryExpr::LIKE_ANY:
+    case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+    case ResolvedSubqueryExpr::EQ_ALL:
+    case ResolvedSubqueryExpr::NE_ALL:
+    case ResolvedSubqueryExpr::LT_ALL:
+    case ResolvedSubqueryExpr::LE_ALL:
+    case ResolvedSubqueryExpr::GT_ALL:
+    case ResolvedSubqueryExpr::GE_ALL:
+    case ResolvedSubqueryExpr::LIKE_ALL:
+    case ResolvedSubqueryExpr::NOT_LIKE_ALL: {
+      switch (subquery_expr->subquery_type()) {
+        case ResolvedSubqueryExpr::IN:
+        case ResolvedSubqueryExpr::EQ_ANY:
+        case ResolvedSubqueryExpr::NE_ANY:
+        case ResolvedSubqueryExpr::LT_ANY:
+        case ResolvedSubqueryExpr::LE_ANY:
+        case ResolvedSubqueryExpr::GT_ANY:
+        case ResolvedSubqueryExpr::GE_ANY:
+        case ResolvedSubqueryExpr::LIKE_ANY:
+        case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+          function_kind = FunctionKind::kOrAgg;
+          break;
+        default:
+          function_kind = FunctionKind::kAndAgg;
+          break;
+      }
+      function_input_type = BoolType();
+
+      // Populate arguments with the deref of the subquery output column.
+      GOOGLESQL_RET_CHECK_EQ(subquery_expr->subquery()->column_list().size(), 1);
+      GOOGLESQL_RETURN_IF_ERROR(PopulateArgumentsFromColumnList(
+          subquery_expr->subquery()->column_list(), arguments));
+
+      // Algebrize the needle (LHS of IN).
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> in_value,
+                       AlgebrizeExpression(subquery_expr->in_expr()));
+
+      // Prepare arguments for the equality comparison: needle == haystack.
+      std::vector<std::unique_ptr<ValueExpr>> compare_args;
+      compare_args.push_back(std::move(in_value));
+      compare_args.push_back(std::move(arguments[0]));
+
+      std::string function_name;
+      bool negate_comparison = false;
+      bool swap_arguments = false;
+
+      switch (subquery_expr->subquery_type()) {
+        case ResolvedSubqueryExpr::IN:
+        case ResolvedSubqueryExpr::EQ_ANY:
+        case ResolvedSubqueryExpr::EQ_ALL:
+          function_name = "$equal";
+          break;
+        case ResolvedSubqueryExpr::NE_ANY:
+        case ResolvedSubqueryExpr::NE_ALL:
+          function_name = "$equal";
+          negate_comparison = true;
+          break;
+        case ResolvedSubqueryExpr::LT_ANY:
+        case ResolvedSubqueryExpr::LT_ALL:
+          function_name = "$less";
+          break;
+        case ResolvedSubqueryExpr::LE_ANY:
+        case ResolvedSubqueryExpr::LE_ALL:
+          function_name = "$less_or_equal";
+          break;
+        case ResolvedSubqueryExpr::GT_ANY:
+        case ResolvedSubqueryExpr::GT_ALL:
+          function_name = "$less";
+          swap_arguments = true;
+          break;
+        case ResolvedSubqueryExpr::GE_ANY:
+        case ResolvedSubqueryExpr::GE_ALL:
+          function_name = "$less_or_equal";
+          swap_arguments = true;
+          break;
+        case ResolvedSubqueryExpr::LIKE_ANY:
+        case ResolvedSubqueryExpr::LIKE_ALL:
+          function_name = "$like";
+          break;
+        case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+        case ResolvedSubqueryExpr::NOT_LIKE_ALL:
+          function_name = "$like";
+          negate_comparison = true;
+          break;
+        default:
+          GOOGLESQL_RET_CHECK_FAIL() << "Unexpected subquery_type: "
+                           << subquery_expr->subquery_type();
+      }
+
+      if (swap_arguments) {
+        std::swap(compare_args[0], compare_args[1]);
+      }
+
+      if (!subquery_expr->in_collation().Empty()) {
+        std::string collated_fn_name;
+        std::vector<std::unique_ptr<AlgebraArg>> collated_compare_args;
+        GOOGLESQL_RETURN_IF_ERROR(GetCollatedFunctionNameAndArguments(
+            function_name,
+            ConvertValueExprsToAlgebraArgs(std::move(compare_args)),
+            {subquery_expr->in_collation()}, language_options_, type_factory_,
+            &collated_fn_name, &collated_compare_args));
+        function_name = std::move(collated_fn_name);
+        GOOGLESQL_ASSIGN_OR_RETURN(compare_args, ConvertAlgebraArgsToValueExprs(
+                                           std::move(collated_compare_args)));
+      }
+
+      FunctionKind compare_fn;
+      GOOGLESQL_ASSIGN_OR_RETURN(compare_fn,
+                       BuiltinFunctionCatalog::GetKindByName(function_name));
+
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          auto comparison_expr,
+          BuiltinScalarFunction::CreateCall(
+              compare_fn, language_options_, BoolType(),
+              ConvertValueExprsToAlgebraArgs(std::move(compare_args)),
+              ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
+
+      if (negate_comparison) {
+        std::vector<std::unique_ptr<ValueExpr>> negate_args;
+        negate_args.push_back(std::move(comparison_expr));
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            comparison_expr,
+            BuiltinScalarFunction::CreateCall(
+                FunctionKind::kNot, language_options_, BoolType(),
+                ConvertValueExprsToAlgebraArgs(std::move(negate_args)),
+                ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
+      }
+
+      arguments[0] = std::move(comparison_expr);
+      break;
+    }
+    default:
+      GOOGLESQL_RET_CHECK_FAIL() << "Unsupported subquery type in AggregateScan: "
+                       << subquery_expr->subquery_type();
+  }
+
+  // For ANY and ALL subqueries, we must not ignore NULLs. If we did, the
+  // underlying kOrAgg/kAndAgg function would not see NULLs and would
+  // incorrectly return FALSE/TRUE instead of NULL when there are no matches
+  // but the haystack contains NULLs.
+  bool ignores_null = true;
+  switch (subquery_expr->subquery_type()) {
+    case ResolvedSubqueryExpr::IN:
+    case ResolvedSubqueryExpr::EQ_ANY:
+    case ResolvedSubqueryExpr::NE_ANY:
+    case ResolvedSubqueryExpr::LT_ANY:
+    case ResolvedSubqueryExpr::LE_ANY:
+    case ResolvedSubqueryExpr::GT_ANY:
+    case ResolvedSubqueryExpr::GE_ANY:
+    case ResolvedSubqueryExpr::LIKE_ANY:
+    case ResolvedSubqueryExpr::NOT_LIKE_ANY:
+    case ResolvedSubqueryExpr::EQ_ALL:
+    case ResolvedSubqueryExpr::NE_ALL:
+    case ResolvedSubqueryExpr::LT_ALL:
+    case ResolvedSubqueryExpr::LE_ALL:
+    case ResolvedSubqueryExpr::GT_ALL:
+    case ResolvedSubqueryExpr::GE_ALL:
+    case ResolvedSubqueryExpr::LIKE_ALL:
+    case ResolvedSubqueryExpr::NOT_LIKE_ALL:
+      ignores_null = false;
+      break;
+    default:
+      ignores_null = true;
+      break;
+  }
+
+  // Create an aggregate function call.
+  std::unique_ptr<AggregateFunctionBody> function_body =
+      std::make_unique<BuiltinAggregateFunction>(
+          function_kind, subquery_expr->type(), arguments.size(),
+          function_input_type, ignores_null);
+
+  // Create aggregate arg with group rows subquery and wrapping function.
+  return AggregateArg::Create(
+      variable, std::move(function_body), std::move(arguments),
+      AggregateArg::kAll,
+      /*having_expr=*/nullptr, AggregateArg::kHavingNone,
+      /*order_by_keys=*/{},
+      /*limit=*/nullptr, std::move(group_rows_subquery),
+      /*inner_grouping_keys=*/{},
+      /*inner_aggregators=*/{}, ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
+      /*filter=*/nullptr,
+      /*having_filter=*/nullptr,
+      /*collation_list=*/{}, /*side_effects_variable=*/VariableId());
 }
 
 absl::StatusOr<VariableId> Algebrizer::AddUdaArgumentVariable(
@@ -2064,13 +2566,27 @@ Algebrizer::AlgebrizeAggregateFnWithAlgebrizedArguments(
            << " without DISTINCT";
   }
 
+  // In all the functions we have so far, the collation corresponds to the type
+  // of the 1st argument and we only ever have one collation.
+  GOOGLESQL_ASSIGN_OR_RETURN(CollatorList collation_list,
+                   MakeCollatorList(aggregate_function->collation_list()));
+  std::vector<CollatorInfo> collator_info_list;
+  for (int i = 0; i < aggregate_function->collation_list_size(); ++i) {
+    GOOGLESQL_ASSIGN_OR_RETURN(const Type* collation_key_type,
+                     CreateCollationKeyType(
+                         aggregate_function->argument_list(i)->type(),
+                         aggregate_function->collation_list(i), type_factory_));
+    collator_info_list.push_back(
+        {std::move(collation_list[i]), collation_key_type});
+  }
+
   return AggregateArg::Create(
       variable, std::move(function), std::move(arguments), distinctness,
       std::move(having_expr), having_kind, std::move(order_by_keys),
       std::move(limit), /*group_rows_subquery=*/nullptr,
       std::move(inner_grouping_keys), std::move(inner_aggregators),
       aggregate_function->error_mode(), std::move(filter),
-      std::move(having_filter), aggregate_function->collation_list(),
+      std::move(having_filter), std::move(collator_info_list),
       side_effects_variable);
 }
 
@@ -2396,6 +2912,18 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeSubqueryExpr(
       return nest_expr;
     }
     case ResolvedSubqueryExpr::IN:
+    case ResolvedSubqueryExpr::EQ_ANY:
+    case ResolvedSubqueryExpr::EQ_ALL:
+    case ResolvedSubqueryExpr::NE_ANY:
+    case ResolvedSubqueryExpr::NE_ALL:
+    case ResolvedSubqueryExpr::LT_ANY:
+    case ResolvedSubqueryExpr::LT_ALL:
+    case ResolvedSubqueryExpr::LE_ANY:
+    case ResolvedSubqueryExpr::LE_ALL:
+    case ResolvedSubqueryExpr::GT_ANY:
+    case ResolvedSubqueryExpr::GT_ALL:
+    case ResolvedSubqueryExpr::GE_ANY:
+    case ResolvedSubqueryExpr::GE_ALL:
     case ResolvedSubqueryExpr::LIKE_ANY:
     case ResolvedSubqueryExpr::LIKE_ALL:
     case ResolvedSubqueryExpr::NOT_LIKE_ANY:
@@ -2410,7 +2938,7 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeSubqueryExpr(
       std::move(restore_original_column_to_variable_map).Invoke();
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> in_value,
                        AlgebrizeExpression(subquery_expr->in_expr()));
-      return AlgebrizeInLikeAnyLikeAllRelation(
+      return AlgebrizeQuantifiedComparisonRelation(
           std::move(in_value), subquery_expr->subquery_type(), haystack_var,
           std::move(relation), subquery_expr->in_collation());
     }
@@ -2441,9 +2969,11 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeWithExpr(
   return WithExpr::Create(std::move(assignments), std::move(expr));
 }
 
-absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeInArray(
+absl::StatusOr<std::unique_ptr<ValueExpr>>
+Algebrizer::AlgebrizeQuantifiedComparisonArray(
     std::unique_ptr<ValueExpr> in_value, std::unique_ptr<ValueExpr> array_value,
-    const ResolvedCollation& collation) {
+    const ResolvedCollation& collation,
+    ResolvedSubqueryExpr::SubqueryType subquery_type) {
   const VariableId haystack_var =
       variable_gen_->GetNewVariableName("_in_element");
   GOOGLESQL_ASSIGN_OR_RETURN(
@@ -2451,57 +2981,127 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeInArray(
       ArrayScanOp::Create(haystack_var, VariableId(), /* position */
                           {},                         /* fields */
                           std::move(array_value)));
-  return AlgebrizeInLikeAnyLikeAllRelation(
-      std::move(in_value), ResolvedSubqueryExpr::IN, haystack_var,
-      std::move(haystack_rel), collation);
+  return AlgebrizeQuantifiedComparisonRelation(
+      std::move(in_value), subquery_type, haystack_var, std::move(haystack_rel),
+      collation);
 }
 
-// Algebrizes (lhs [IN | LIKE ANY | LIKE ALL | NOT LIKE ANY | NOT LIKE ALL]
-// haystack_rel)
+// Algebrizes quantified comparison expressions where the right-hand side is a
+// relation (haystack_rel). This includes:
+// lhs IN haystack_rel
+// lhs [NOT] LIKE [ANY | ALL] haystack_rel
+// lhs [= | != | < | <= | > | >=] [ANY | ALL] haystack_rel
 //
-// The core logic is to transform the expression into:
+// The core strategy is to transform the expression into a form where we
+// aggregate the results of applying a base comparison between the lhs (needle)
+// and each item in the rhs relation (haystack).
+//
+// General form:
 // LetOp{$_needle := lhs}(
 //   SingleValueExpr(_matches,
 //     AggregateOp{_matches := AGG_FN( COMPARISON_EXPR )}(haystack_rel)))
 //
-// Where AGG_FN and COMPARISON_EXPR depend on the subquery_type:
+// The choice of AGG_FN (Aggregate Function) and COMPARISON_EXPR depends on the
+// subquery_type:
 //
-// subquery_type   | AGG_FN   | COMPARISON_EXPR
-// ----------------|----------|----------------------------------
-// IN              | OR_AGG   | $_needle = $haystack
-// LIKE_ANY        | OR_AGG   | $_needle LIKE $haystack
-// LIKE_ALL        | AND_AGG  | $_needle LIKE $haystack
-// NOT_LIKE_ANY    | OR_AGG   | NOT ($_needle LIKE $haystack)
-// NOT_LIKE_ALL    | AND_AGG  | NOT ($_needle LIKE $haystack)
+// - IN and ANY types (e.g., IN, LIKE_ANY, =, !=, <, <=, >, >= ANY): These types
+//   use OR_AGG because the overall expression is true if the base comparison
+//   is true for at least one element in the haystack.
+//
+// - ALL types (e.g., LIKE_ALL, =, !=, <, <=, >, >= ALL): These types use
+//   AND_AGG because the overall expression is true only if the base comparison
+//   is true for all elements in the haystack.
+//
+// - Base Comparison (COMPARISON_EXPR): The base comparison is either
+//   $_needle = $haystack or $_needle LIKE $haystack.
+//   - For NOT LIKE types, the result of the LIKE comparison is negated.
+//   - For NE types, the result of the = comparison is negated.
+//   - For GT and GE types, the comparison swaps arguments to compare
+//   $haystack < $_needle and $haystack <= $_needle respectively.
 absl::StatusOr<std::unique_ptr<ValueExpr>>
-Algebrizer::AlgebrizeInLikeAnyLikeAllRelation(
+Algebrizer::AlgebrizeQuantifiedComparisonRelation(
     std::unique_ptr<ValueExpr> lhs,
     ResolvedSubqueryExpr::SubqueryType subquery_type,
     const VariableId& haystack_var, std::unique_ptr<RelationalOp> haystack_rel,
     const ResolvedCollation& collation) {
-  FunctionKind compare_fn;
+  std::string function_name;
   FunctionKind aggregate_fn;
   bool negate_comparison = false;
+  bool swap_arguments = false;
   switch (subquery_type) {
     case ResolvedSubqueryExpr::IN:
-      compare_fn = FunctionKind::kEqual;
+      function_name = "$equal";
       aggregate_fn = FunctionKind::kOrAgg;
       break;
+    case ResolvedSubqueryExpr::EQ_ANY:
+      function_name = "$equal";
+      aggregate_fn = FunctionKind::kOrAgg;
+      break;
+    case ResolvedSubqueryExpr::EQ_ALL:
+      function_name = "$equal";
+      aggregate_fn = FunctionKind::kAndAgg;
+      break;
+    case ResolvedSubqueryExpr::NE_ANY:
+      function_name = "$equal";
+      aggregate_fn = FunctionKind::kOrAgg;
+      negate_comparison = true;
+      break;
+    case ResolvedSubqueryExpr::NE_ALL:
+      function_name = "$equal";
+      aggregate_fn = FunctionKind::kAndAgg;
+      negate_comparison = true;
+      break;
+    case ResolvedSubqueryExpr::LT_ANY:
+      function_name = "$less";
+      aggregate_fn = FunctionKind::kOrAgg;
+      break;
+    case ResolvedSubqueryExpr::LT_ALL:
+      function_name = "$less";
+      aggregate_fn = FunctionKind::kAndAgg;
+      break;
+    case ResolvedSubqueryExpr::LE_ANY:
+      function_name = "$less_or_equal";
+      aggregate_fn = FunctionKind::kOrAgg;
+      break;
+    case ResolvedSubqueryExpr::LE_ALL:
+      function_name = "$less_or_equal";
+      aggregate_fn = FunctionKind::kAndAgg;
+      break;
+    case ResolvedSubqueryExpr::GT_ANY:
+      function_name = "$less";
+      aggregate_fn = FunctionKind::kOrAgg;
+      swap_arguments = true;
+      break;
+    case ResolvedSubqueryExpr::GT_ALL:
+      function_name = "$less";
+      aggregate_fn = FunctionKind::kAndAgg;
+      swap_arguments = true;
+      break;
+    case ResolvedSubqueryExpr::GE_ANY:
+      function_name = "$less_or_equal";
+      aggregate_fn = FunctionKind::kOrAgg;
+      swap_arguments = true;
+      break;
+    case ResolvedSubqueryExpr::GE_ALL:
+      function_name = "$less_or_equal";
+      aggregate_fn = FunctionKind::kAndAgg;
+      swap_arguments = true;
+      break;
     case ResolvedSubqueryExpr::LIKE_ANY:
-      compare_fn = FunctionKind::kLike;
+      function_name = "$like";
       aggregate_fn = FunctionKind::kOrAgg;
       break;
     case ResolvedSubqueryExpr::LIKE_ALL:
-      compare_fn = FunctionKind::kLike;
+      function_name = "$like";
       aggregate_fn = FunctionKind::kAndAgg;
       break;
     case ResolvedSubqueryExpr::NOT_LIKE_ANY:
-      compare_fn = FunctionKind::kLike;
+      function_name = "$like";
       aggregate_fn = FunctionKind::kOrAgg;
       negate_comparison = true;
       break;
     case ResolvedSubqueryExpr::NOT_LIKE_ALL:
-      compare_fn = FunctionKind::kLike;
+      function_name = "$like";
       aggregate_fn = FunctionKind::kAndAgg;
       negate_comparison = true;
       break;
@@ -2518,40 +3118,47 @@ Algebrizer::AlgebrizeInLikeAnyLikeAllRelation(
   GOOGLESQL_ASSIGN_OR_RETURN(auto deref_haystack_var,
                    DerefExpr::Create(haystack_var, lhs->output_type()));
 
-  std::vector<std::unique_ptr<ValueExpr>> equal_args;
-  equal_args.push_back(std::move(deref_needle_var));
-  equal_args.push_back(std::move(deref_haystack_var));
+  std::vector<std::unique_ptr<ValueExpr>> compare_args;
+  if (swap_arguments) {
+    compare_args.push_back(std::move(deref_haystack_var));
+    compare_args.push_back(std::move(deref_needle_var));
+  } else {
+    compare_args.push_back(std::move(deref_needle_var));
+    compare_args.push_back(std::move(deref_haystack_var));
+  }
+  // If there is a collation, we need to adjust the function name and arguments
+  // to propagate the attribute.
   if (!collation.Empty()) {
-    GOOGLESQL_RET_CHECK(compare_fn == FunctionKind::kEqual);
     std::string collated_fn_name;
-    std::vector<std::unique_ptr<AlgebraArg>> collated_equal_args;
+    std::vector<std::unique_ptr<AlgebraArg>> collated_compare_args;
     GOOGLESQL_RETURN_IF_ERROR(GetCollatedFunctionNameAndArguments(
-        "$equal", ConvertValueExprsToAlgebraArgs(std::move(equal_args)),
-        {collation}, language_options_, &collated_fn_name,
-        &collated_equal_args));
-    GOOGLESQL_RET_CHECK_EQ(collated_fn_name, "$equal");
-    GOOGLESQL_ASSIGN_OR_RETURN(equal_args, ConvertAlgebraArgsToValueExprs(
-                                     std::move(collated_equal_args)));
+        function_name, ConvertValueExprsToAlgebraArgs(std::move(compare_args)),
+        {collation}, language_options_, type_factory_, &collated_fn_name,
+        &collated_compare_args));
+    function_name = std::move(collated_fn_name);
+    GOOGLESQL_ASSIGN_OR_RETURN(compare_args, ConvertAlgebraArgsToValueExprs(
+                                       std::move(collated_compare_args)));
   }
 
-  GOOGLESQL_ASSIGN_OR_RETURN(auto equality_comparison,
+  FunctionKind compare_fn;
+  GOOGLESQL_ASSIGN_OR_RETURN(compare_fn,
+                   BuiltinFunctionCatalog::GetKindByName(function_name));
+  GOOGLESQL_ASSIGN_OR_RETURN(auto comparison_expr,
                    BuiltinScalarFunction::CreateCall(
                        compare_fn, language_options_, BoolType(),
-                       ConvertValueExprsToAlgebraArgs(std::move(equal_args)),
+                       ConvertValueExprsToAlgebraArgs(std::move(compare_args)),
                        ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
 
   if (negate_comparison) {
     std::vector<std::unique_ptr<AlgebraArg>> not_args;
-    not_args.push_back(
-        std::make_unique<ExprArg>(std::move(equality_comparison)));
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        equality_comparison,
-        BuiltinScalarFunction::CreateCall(FunctionKind::kNot, language_options_,
+    not_args.push_back(std::make_unique<ExprArg>(std::move(comparison_expr)));
+    GOOGLESQL_ASSIGN_OR_RETURN(comparison_expr, BuiltinScalarFunction::CreateCall(
+                                          FunctionKind::kNot, language_options_,
                                           BoolType(), std::move(not_args)));
   }
 
   std::vector<std::unique_ptr<ValueExpr>> agg_func_args;
-  agg_func_args.push_back(std::move(equality_comparison));
+  agg_func_args.push_back(std::move(comparison_expr));
 
   GOOGLESQL_ASSIGN_OR_RETURN(
       auto agg_arg,
@@ -2618,7 +3225,12 @@ Algebrizer::AlgebrizeScalarArrayFunctionWithCollation(
           language_options_, std::move(converted_arguments),
           ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
           std::move(collator_list));
-
+    case FunctionKind::kArrayDistinct: {
+      return ArrayDistinctFunction::CreateCall(
+          language_options_, output_type, std::move(converted_arguments),
+          ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
+          std::move(collator_list));
+    }
     default:
       return ::googlesql_base::UnimplementedErrorBuilder()
              << "Unhandled scalar array function in algebrizer: "
@@ -4805,11 +5417,16 @@ Algebrizer::AlgebrizeAggregateScanBase(
     keys.push_back(std::make_unique<KeyArg>(key_variable_name, std::move(key)));
     if (!aggregate_scan->collation_list().empty() &&
         !aggregate_scan->collation_list(i).Empty()) {
-      std::unique_ptr<ValueExpr> group_by_collation;
-      GOOGLESQL_ASSIGN_OR_RETURN(group_by_collation,
-                       AlgebrizeResolvedCollation(
-                           aggregate_scan->collation_list(i), type_factory_));
-      keys.back()->set_collation(std::move(group_by_collation));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          std::unique_ptr<const GoogleSqlCollator> collator,
+          GetCollatorFromResolvedCollation(aggregate_scan->collation_list(i)));
+      if (collator != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(const Type* collation_key_type,
+                         CreateCollationKeyType(
+                             aggregate_scan->group_by_list(i)->column().type(),
+                             aggregate_scan->collation_list(i), type_factory_));
+        keys.back()->set_collation({std::move(collator), collation_key_type});
+      }
     }
   }
 
@@ -4845,12 +5462,25 @@ Algebrizer::AlgebrizeAggregateScanBase(
           deferred->side_effect_column());
     }
 
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<AggregateArg> agg,
-                     AlgebrizeAggregateFn(
-                         agg_variable_name, anonymization_options,
-                         /*filter=*/nullptr,
-                         agg_expr->GetAs<ResolvedComputedColumnImpl>()->expr(),
-                         side_effects_variable));
+    const ResolvedExpr* resolved_expr =
+        agg_expr->GetAs<ResolvedComputedColumnImpl>()->expr();
+    std::unique_ptr<AggregateArg> agg;
+    if (resolved_expr->Is<ResolvedAggregateFunctionCall>() ||
+        resolved_expr->Is<ResolvedAnalyticFunctionCall>()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          agg, AlgebrizeAggregateFn(agg_variable_name, anonymization_options,
+                                    /*filter=*/nullptr, resolved_expr,
+                                    side_effects_variable));
+    } else if (resolved_expr->Is<ResolvedSubqueryExpr>()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(agg, AlgebrizeAggregateSubquery(
+                                agg_variable_name,
+                                resolved_expr->GetAs<ResolvedSubqueryExpr>()));
+    } else {
+      GOOGLESQL_RET_CHECK_FAIL()
+          << "Aggregate list must contain aggregate functions, analytic "
+             "functions, or subquery expressions, but found "
+          << resolved_expr->node_kind_string();
+    }
     aggregators.push_back(std::move(agg));
   }
 
@@ -5307,26 +5937,6 @@ absl::Status Algebrizer::AlgebrizeOrderByItems(
              ? column_to_variable_->AssignNewVariableToColumn(order_column)
              : key_in);
 
-    // <sort_collation> is created by using algebrized result from either
-    // <collation> field or <collation_name> field of <order_by_item> with the
-    // following rule: If <collation> is set then use it, otherwise use
-    // <collation_name>. Note that if <sort_collation> is based on <collation>
-    // field, its <output_type> will be ResolvedCollation Proto type, otherwise
-    // its <output_type> is String type.
-    std::unique_ptr<ValueExpr> sort_collation;
-
-    if (order_by_item->collation_name() != nullptr) {
-      // Always algebrize <collation_name> to mark access.
-      GOOGLESQL_ASSIGN_OR_RETURN(sort_collation,
-                       AlgebrizeExpression(order_by_item->collation_name()));
-    }
-
-    if (!order_by_item->collation().Empty()) {
-      GOOGLESQL_ASSIGN_OR_RETURN(sort_collation,
-                       AlgebrizeResolvedCollation(order_by_item->collation(),
-                                                  type_factory_));
-    }
-
     const KeyArg::SortOrder sort_order =
         (order_by_item->is_descending() ? KeyArg::kDescending
                                         : KeyArg::kAscending);
@@ -5349,7 +5959,35 @@ absl::Status Algebrizer::AlgebrizeOrderByItems(
                      DerefExpr::Create(key_in, order_column.type()));
     order_by_keys->push_back(std::make_unique<KeyArg>(
         key_out, std::move(deref_key), sort_order, null_order));
-    order_by_keys->back()->set_collation(std::move(sort_collation));
+
+    // <sort_collation> is created by using algebrized result from either
+    // <collation> field or <collation_name> field of <order_by_item> with the
+    // following rule: If <collation> is set then use it, otherwise use
+    // <collation_name>. Note that if <sort_collation> is based on <collation>
+    // field, its <output_type> will be ResolvedCollation Proto type, otherwise
+    // its <output_type> is String type.
+    std::unique_ptr<const GoogleSqlCollator> sort_collator;
+
+    if (order_by_item->collation_name() != nullptr) {
+      // Dummy access to the redundant `collation` field.
+      order_by_item->collation();
+
+      // Always algebrize <collation_name> to mark access.
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_name_expr,
+                       AlgebrizeExpression(order_by_item->collation_name()));
+      order_by_keys->back()->set_collation_name(std::move(collation_name_expr));
+    } else if (!order_by_item->collation().Empty()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(sort_collator, GetCollatorFromResolvedCollation(
+                                          order_by_item->collation()));
+      if (sort_collator != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            const Type* collation_key_type,
+            CreateCollationKeyType(order_by_item->column_ref()->type(),
+                                   order_by_item->collation(), type_factory_));
+        order_by_keys->back()->set_collation(
+            {std::move(sort_collator), collation_key_type});
+      }
+    }
   }
 
   return absl::OkStatus();
@@ -5389,12 +6027,17 @@ absl::Status Algebrizer::AlgebrizePartitionExpressions(
 
     if (!partition_by->collation_list().empty() &&
         !partition_by->collation_list(i).Empty()) {
-      std::unique_ptr<ValueExpr> partition_by_collation;
-      GOOGLESQL_ASSIGN_OR_RETURN(partition_by_collation,
-                       AlgebrizeResolvedCollation(
-                           partition_by->collation_list(i), type_factory_));
-      partition_by_keys->back()->set_collation(
-          std::move(partition_by_collation));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          std::unique_ptr<const GoogleSqlCollator> collator,
+          GetCollatorFromResolvedCollation(partition_by->collation_list(i)));
+      if (collator != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(const Type* collation_key_type,
+                         CreateCollationKeyType(partition_column_ref->type(),
+                                                partition_by->collation_list(i),
+                                                type_factory_));
+        partition_by_keys->back()->set_collation(
+            {std::move(collator), collation_key_type});
+      }
     }
   }
 
@@ -5718,9 +6361,14 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeUnionScan(
       GOOGLESQL_ASSIGN_OR_RETURN(ResolvedCollation collation,
                        ResolvedCollation::MakeResolvedCollation(
                            *output_columns[j].type_annotation_map()));
-      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_expr,
-                       AlgebrizeResolvedCollation(collation, type_factory_));
-      keys.back()->set_collation(std::move(collation_expr));
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> collator,
+                       GetCollatorFromResolvedCollation(collation));
+      if (collator != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(const Type* collation_key_type,
+                         CreateCollationKeyType(output_columns[j].type(),
+                                                collation, type_factory_));
+        keys.back()->set_collation({std::move(collator), collation_key_type});
+      }
     }
   }
   GOOGLESQL_ASSIGN_OR_RETURN(
@@ -5828,9 +6476,14 @@ Algebrizer::AlgebrizeExceptIntersectScan(
       GOOGLESQL_ASSIGN_OR_RETURN(ResolvedCollation collation,
                        ResolvedCollation::MakeResolvedCollation(
                            *output_columns[j].type_annotation_map()));
-      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> collation_expr,
-                       AlgebrizeResolvedCollation(collation, type_factory_));
-      keys.back()->set_collation(std::move(collation_expr));
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> collator,
+                       GetCollatorFromResolvedCollation(collation));
+      if (collator != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(const Type* collation_key_type,
+                         CreateCollationKeyType(output_columns[j].type(),
+                                                collation, type_factory_));
+        keys.back()->set_collation({std::move(collator), collation_key_type});
+      }
     }
   }
   // Aggregators: SUM(bit_i) cnt_i
@@ -6085,18 +6738,22 @@ absl::StatusOr<std::unique_ptr<SortOp>> Algebrizer::AlgebrizeOrderByScan(
                         /*is_stable_sort=*/false);
 }
 
-absl::StatusOr<std::unique_ptr<AggregateOp>> Algebrizer::AlgebrizePivotScan(
+absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizePivotScan(
     const ResolvedPivotScan* pivot_scan) {
   // Algebrize the input scan and add a computed column representing the value
   // of the FOR-expr, so that this expression can be evaluated once per row,
   // regardless of the number of pivot values.
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> algebrized_input,
                    AlgebrizeScan(pivot_scan->input_scan()));
+
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_for_expr,
                    AlgebrizeExpression(pivot_scan->for_expr()));
 
-  // VariableId representing the result of the FOR expr
-  VariableId for_expr_var = variable_gen_->GetNewVariableName("pivot");
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      algebrized_for_expr,
+      MaybeWrapInCollationKeyCall(std::move(algebrized_for_expr),
+                                  &pivot_scan->pivot_value_collation(),
+                                  language_options_, type_factory_));
 
   // VariableId's representing each aggregate argument in a pivot expression.
   // pivot_expr_args_vars[i][j] denotes the variable referring to argument 'j'
@@ -6111,8 +6768,6 @@ absl::StatusOr<std::unique_ptr<AggregateOp>> Algebrizer::AlgebrizePivotScan(
   std::vector<std::vector<const Type*>> pivot_expr_arg_types;
 
   std::vector<std::unique_ptr<ExprArg>> wrapped_input_exprs;
-  wrapped_input_exprs.push_back(
-      std::make_unique<ExprArg>(for_expr_var, std::move(algebrized_for_expr)));
 
   for (int i = 0; i < pivot_scan->pivot_expr_list_size(); ++i) {
     GOOGLESQL_RET_CHECK(
@@ -6147,22 +6802,45 @@ absl::StatusOr<std::unique_ptr<AggregateOp>> Algebrizer::AlgebrizePivotScan(
     }
   }
 
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> wrapped_input,
-                   ComputeOp::Create(std::move(wrapped_input_exprs),
-                                     std::move(algebrized_input)));
+  std::unique_ptr<RelationalOp> wrapped_input;
+  if (wrapped_input_exprs.empty()) {
+    wrapped_input = std::move(algebrized_input);
+  } else {
+    GOOGLESQL_ASSIGN_OR_RETURN(wrapped_input,
+                     ComputeOp::Create(std::move(wrapped_input_exprs),
+                                       std::move(algebrized_input)));
+  }
 
   // Generate a KeyArg for each group-by element.
   std::vector<std::unique_ptr<KeyArg>> keys;
-  for (const auto& group_by_elem : pivot_scan->group_by_list()) {
+  for (int i = 0; i < pivot_scan->group_by_list_size(); ++i) {
+    const auto& group_by_elem = pivot_scan->group_by_list(i);
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_groupby_elem,
                      AlgebrizeExpression(group_by_elem->expr()));
     keys.push_back(std::make_unique<KeyArg>(
         column_to_variable_->GetVariableNameFromColumn(group_by_elem->column()),
         std::move(algebrized_groupby_elem)));
+
+    if (CollationAnnotation::ExistsIn(
+            group_by_elem->expr()->type_annotation_map())) {
+      GOOGLESQL_ASSIGN_OR_RETURN(ResolvedCollation collation,
+                       ResolvedCollation::MakeResolvedCollation(
+                           *group_by_elem->expr()->type_annotation_map()));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          const Type* collation_key_type,
+          CreateCollationKeyType(pivot_scan->group_by_list(i)->column().type(),
+                                 collation, type_factory_));
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const GoogleSqlCollator> collator,
+                       GetCollatorFromResolvedCollation(std::move(collation)));
+      GOOGLESQL_RET_CHECK(collator != nullptr);
+      keys.back()->set_collation({std::move(collator), collation_key_type});
+    }
   }
 
   // Generate an aggregator for each pivot-expr/pivot-value combination.
   std::vector<std::unique_ptr<AggregateArg>> aggregators;
+  std::vector<std::unique_ptr<ValueExpr>> pivot_values;
+
   for (const auto& pivot_column : pivot_scan->pivot_column_list()) {
     const ResolvedExpr* pivot_expr =
         pivot_scan->pivot_expr_list(pivot_column->pivot_expr_index());
@@ -6175,22 +6853,12 @@ absl::StatusOr<std::unique_ptr<AggregateOp>> Algebrizer::AlgebrizePivotScan(
     // value, which will be used as the filter to the aggregate arg.
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_pivot_value,
                      AlgebrizeExpression(pivot_value));
-
     GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ValueExpr> algebrized_for_expr_result_ref,
-        DerefExpr::Create(for_expr_var, pivot_scan->for_expr()->type()));
-
-    std::vector<std::unique_ptr<ValueExpr>> compare_fn_args;
-    compare_fn_args.push_back(std::move(algebrized_for_expr_result_ref));
-    compare_fn_args.push_back(std::move(algebrized_pivot_value));
-
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ScalarFunctionCallExpr> algebrized_compare,
-        BuiltinScalarFunction::CreateCall(
-            FunctionKind::kIsNotDistinct, language_options_,
-            type_factory_->get_bool(),
-            ConvertValueExprsToAlgebraArgs(std::move(compare_fn_args)),
-            ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
+        algebrized_pivot_value,
+        MaybeWrapInCollationKeyCall(std::move(algebrized_pivot_value),
+                                    &pivot_scan->pivot_value_collation(),
+                                    language_options_, type_factory_));
+    pivot_values.push_back(std::move(algebrized_pivot_value));
 
     std::vector<std::unique_ptr<ValueExpr>> algebrized_arguments;
     int pivot_expr_idx = pivot_column->pivot_expr_index();
@@ -6215,21 +6883,18 @@ absl::StatusOr<std::unique_ptr<AggregateOp>> Algebrizer::AlgebrizePivotScan(
     }
 
     // TODO: Support multi-level aggregation in PIVOT ref impl.
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<AggregateArg> aggregator,
-                     AlgebrizeAggregateFnWithAlgebrizedArguments(
-                         agg_result_var,
-                         /*anonymization_options=*/std::nullopt,
-                         /*filter=*/std::move(algebrized_compare), pivot_expr,
-                         std::move(algebrized_arguments),
-                         /*inner_grouping_keys=*/{}, /*inner_aggregators=*/{}));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<AggregateArg> aggregator,
+        AlgebrizeAggregateFnWithAlgebrizedArguments(
+            agg_result_var, /*anonymization_options=*/std::nullopt,
+            /*filter=*/nullptr, pivot_expr, std::move(algebrized_arguments),
+            /*inner_grouping_keys=*/{}, /*inner_aggregators=*/{}));
     aggregators.push_back(std::move(aggregator));
   }
 
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      auto agg_op,
-      AggregateOp::Create(std::move(keys), std::move(aggregators),
-                          std::move(wrapped_input), /*grouping_sets=*/{}));
-  return agg_op;
+  return PivotOp::Create(std::move(keys), std::move(algebrized_for_expr),
+                         MakeExprArgList(std::move(pivot_values)),
+                         std::move(aggregators), std::move(wrapped_input));
 }
 
 absl::StatusOr<Algebrizer::MatchRecognizeQueryParams>
@@ -6527,6 +7192,7 @@ Algebrizer::InitializeScanMap() {
           ALGEBRIZE_SCAN(BarrierScan),
           ALGEBRIZE_SCAN(DescribeScan),
           ALGEBRIZE_SCAN(DifferentialPrivacyAggregateScan),
+          ALGEBRIZE_SCAN(FinishScan),
           ALGEBRIZE_SCAN(GraphRefScan),
           ALGEBRIZE_SCAN(GroupRowsScan),
           ALGEBRIZE_SCAN(LimitOffsetScan),
@@ -7286,8 +7952,7 @@ absl::Status Algebrizer::AlgebrizeStatementImpl(
       const ResolvedScan* scan = stmt->query();
       GOOGLESQL_RETURN_IF_ERROR(CheckHints(scan->hint_list()));
       ResolvedColumnList output_column_list;
-      for (const auto& it :
-           ast_root->GetAs<ResolvedQueryStmt>()->output_column_list()) {
+      for (const auto& it : stmt->output_column_list()) {
         // TODO IdString conversion shouldn't be needed here.
         // We should have IdStrings in ResolvedOutputColumn.
         output_column_list.emplace_back(
@@ -7301,6 +7966,31 @@ absl::Status Algebrizer::AlgebrizeStatementImpl(
       GOOGLESQL_RETURN_IF_ERROR(ast_root->CheckFieldsAccessed());
       break;
     }
+    case RESOLVED_TERMINAL_QUERY_STMT: {
+      const ResolvedTerminalQueryStmt* stmt =
+          ast_root->GetAs<ResolvedTerminalQueryStmt>();
+      GOOGLESQL_RETURN_IF_ERROR(CheckHints(stmt->hint_list()));
+      const ResolvedScan* scan = stmt->query();
+      GOOGLESQL_RETURN_IF_ERROR(CheckHints(scan->hint_list()));
+      GOOGLESQL_RET_CHECK_EQ(scan->column_list().size(), 0);
+      ResolvedColumnList output_column_list;
+      std::unique_ptr<ValueExpr> scan_expr;
+      GOOGLESQL_ASSIGN_OR_RETURN(scan_expr, AlgebrizeRootScanAsValueExpr(
+                                      output_column_list,
+                                      /*is_value_table=*/false, scan));
+      GOOGLESQL_RET_CHECK(scan_expr->output_type()->IsArray());
+      const Type* element_type =
+          scan_expr->output_type()->AsArray()->element_type();
+      GOOGLESQL_RET_CHECK(element_type->IsStruct());
+      GOOGLESQL_RET_CHECK_EQ(element_type->AsStruct()->num_fields(), 0);
+      // We use a DiscardResultExpr to make an invalid Value() representing
+      // "no result table".
+      GOOGLESQL_ASSIGN_OR_RETURN(*output,
+                       DiscardResultExpr::Create(std::move(scan_expr)));
+      GOOGLESQL_RETURN_IF_ERROR(ast_root->CheckFieldsAccessed());
+      break;
+    }
+
     // TODO: Add MERGE support.
     //
     // For DML statements, the algebrizer tree is just a hack wrapper around
@@ -7598,184 +8288,50 @@ Algebrizer::AlgebrizeRecursiveRefScan(
   return scan_op;
 }
 
-// Algebrize an UnpivotArg into a UnionAllOp::Input which produces the rows
-// associated with this UnpivotArg. Each row will contain all non-pivoted
-// columns from <input>, plus all value columns, plus the label column.
-//
-// <input> is presented as an ExprArg, rather than a ResolvedScan, since it is
-// assumed that the input scan has already been saved to a variable, so we
-// simply need to deref it. This avoids repeat evaluation of the input when
-// multiple UnpivotArg's are present.
-absl::StatusOr<UnionAllOp::Input> Algebrizer::AlgebrizeUnpivotArg(
-    const ResolvedUnpivotScan* unpivot_scan, const ExprArg& input,
-    int arg_index) {
-  const auto& unpivot_arg = unpivot_scan->unpivot_arg_list(arg_index);
-  // Construct a relation that reads back the UNPIVOT input from the variable.
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> deref_expr,
-                   DerefExpr::Create(input.variable(), input.type()));
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ArrayScanOp> input_scan_op,
-                   CreateScanOfTableAsArray(unpivot_scan->input_scan(),
-                                            /*is_value_table=*/false,
-                                            std::move(deref_expr)));
-
-  // Wrap the UNPIVOT input in a ComputeOp to define the corresponding label
-  // column.
-  std::vector<std::unique_ptr<ExprArg>> map;
-  VariableId label_column_var = column_to_variable_->GetVariableNameFromColumn(
-      unpivot_scan->label_column());
-  VariableId internal_label_column_var =
-      this->variable_gen_->GetNewVariableName("unpivot_label");
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<ConstExpr> label_value_expr,
-      ConstExpr::Create(unpivot_scan->label_list(arg_index)->value()));
-  map.push_back(std::make_unique<ExprArg>(internal_label_column_var,
-                                          std::move(label_value_expr)));
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ComputeOp> compute_op,
-                   ComputeOp::Create(std::move(map), std::move(input_scan_op)));
-
-  // Now, create a UnionAllOp::Input using the ComputeOp as input, which maps
-  // all of the other columns.
-  UnionAllOp::Input unionall_input;
-  unionall_input.first = std::move(compute_op);
-
-  // Copy input columns, which are not being unpivoted.
-  for (const auto& column : unpivot_scan->projected_input_column_list()) {
-    VariableId output_column_var =
-        column_to_variable_->GetVariableNameFromColumn(column->column());
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> input_column,
-                     AlgebrizeExpression(column->expr()));
-    unionall_input.second.push_back(
-        std::make_unique<ExprArg>(output_column_var, std::move(input_column)));
-  }
-
-  // Copy value columns
-  for (int j = 0; j < unpivot_arg->column_list_size(); ++j) {
-    GOOGLESQL_RET_CHECK_EQ(unpivot_arg->column_list_size(),
-                 unpivot_scan->value_column_list_size());
-    const ResolvedColumnRef* column_ref = unpivot_arg->column_list(j);
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> deref_column_expr,
-                     AlgebrizeExpression(column_ref));
-    VariableId destination_var = column_to_variable_->GetVariableNameFromColumn(
-        unpivot_scan->value_column_list(j));
-    unionall_input.second.push_back(std::make_unique<ExprArg>(
-        destination_var, std::move(deref_column_expr)));
-  }
-
-  // Add the label column to the UnionallOp column map.
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<DerefExpr> deref_label_column,
-                   DerefExpr::Create(internal_label_column_var,
-                                     unpivot_scan->label_column().type()));
-  unionall_input.second.push_back(std::make_unique<ExprArg>(
-      label_column_var, std::move(deref_label_column)));
-  return unionall_input;
-}
-
-// Invoked for UnpivotScan's which do not include nulls. Wraps <input>, which
-// is the algebrized version of the rest of the UnpivotScan, in a FilterOp,
-// which applies the condition:
-//   <value-column-1 IS NOT NULL> OR <value-column-2 IS NOT NULL>...
-absl::StatusOr<std::unique_ptr<FilterOp>>
-Algebrizer::AlgebrizeNullFilterForUnpivotScan(
-    const ResolvedUnpivotScan* unpivot_scan,
-    std::unique_ptr<RelationalOp> input) {
-  GOOGLESQL_RET_CHECK(!unpivot_scan->include_nulls());
-  GOOGLESQL_RET_CHECK_LE(1, unpivot_scan->value_column_list_size());
-  std::unique_ptr<ValueExpr> predicate;
-  for (const ResolvedColumn& col : unpivot_scan->value_column_list()) {
-    VariableId col_var = column_to_variable_->GetVariableNameFromColumn(col);
-    std::unique_ptr<ScalarFunctionCallExpr> is_null_expr;
-
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> col_deref,
-                     DerefExpr::Create(col_var, col.type()));
-    std::vector<std::unique_ptr<ValueExpr>> is_null_arguments;
-    is_null_arguments.push_back(std::move(col_deref));
-
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ValueExpr> is_null_fn_call,
-        BuiltinScalarFunction::CreateCall(
-            FunctionKind::kIsNull, language_options_, BoolType(),
-            ConvertValueExprsToAlgebraArgs(std::move(is_null_arguments)),
-            ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
-
-    std::vector<std::unique_ptr<ValueExpr>> not_arguments;
-    not_arguments.push_back(std::move(is_null_fn_call));
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ValueExpr> not_fn_call,
-        BuiltinScalarFunction::CreateCall(
-            FunctionKind::kNot, language_options_, BoolType(),
-            ConvertValueExprsToAlgebraArgs(std::move(not_arguments)),
-            ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
-
-    if (predicate == nullptr) {
-      predicate = std::move(not_fn_call);
-    } else {
-      // Need to combine the new predicate with what we have so far
-      std::vector<std::unique_ptr<ValueExpr>> or_arguments;
-      or_arguments.push_back(std::move(predicate));
-      or_arguments.push_back(std::move(not_fn_call));
-      GOOGLESQL_ASSIGN_OR_RETURN(
-          predicate,
-          BuiltinScalarFunction::CreateCall(
-              FunctionKind::kOr, language_options_, BoolType(),
-              ConvertValueExprsToAlgebraArgs(std::move(or_arguments)),
-              ResolvedFunctionCallBase::DEFAULT_ERROR_MODE));
-    }
-  }
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<FilterOp> filter_op,
-                   FilterOp::Create(std::move(predicate), std::move(input)));
-  return filter_op;
-}
-
-// We algebrize UNPIVOT scans using UNION ALL, with one UNION element per
-// UnpivotArg. The UnionallOp is, in turn, wrapped in a LetOp, to ensure that
-// the input scan is evaluated only once, even when multiple UnpivotArg's are
-// present. Finally, if INCLUDE NULLS is not present, the entire LetOp is
-// wrapped in a FilterOp to include only rows for which at least one value
-// column is not NULL.
+// Algebrizes a ResolvedUnpivotScan into an UnpivotOp.
 absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeUnpivotScan(
     const ResolvedUnpivotScan* unpivot_scan) {
-  // Algebrize the input, and save it as an array, so that when it's used
-  // multiple times by different UnpivotArg's, the input is evaluated only once.
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> algebrized_input,
                    AlgebrizeScan(unpivot_scan->input_scan()));
 
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ArrayNestExpr> algebrized_input_as_value,
-                   NestRelationInStruct(
-                       unpivot_scan->input_scan()->column_list(),
-                       std::move(algebrized_input), /*is_with_table=*/false));
-  VariableId input_array_var =
-      variable_gen_->GetNewVariableName("$unpivot_input");
-  std::vector<std::unique_ptr<ExprArg>> input_assign;
-  input_assign.push_back(std::make_unique<ExprArg>(
-      input_array_var, std::move(algebrized_input_as_value)));
-
-  // Build up a UnionAllOp, with each input specifying the rows corresponding to
-  // one UnpivotArg.
-  std::vector<UnionAllOp::Input> unionall_inputs;
-
-  GOOGLESQL_RET_CHECK_EQ(unpivot_scan->unpivot_arg_list_size(),
-               unpivot_scan->label_list_size());
-  for (int i = 0; i < unpivot_scan->unpivot_arg_list_size(); ++i) {
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        unionall_inputs.emplace_back(),
-        AlgebrizeUnpivotArg(unpivot_scan, *input_assign.front(), i));
-  }
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<UnionAllOp> unionall_op,
-                   UnionAllOp::Create(std::move(unionall_inputs)));
-
-  // Now, put everything together in a LetOp that defines the input variable
-  // for use in the UNION scan.
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<LetOp> let_op,
-      LetOp::Create(std::move(input_assign), {}, std::move(unionall_op)));
-
-  if (unpivot_scan->include_nulls()) {
-    return let_op;
+  std::vector<std::unique_ptr<ExprArg>> projected_input_columns;
+  for (const auto& col : unpivot_scan->projected_input_column_list()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_col,
+                     AlgebrizeExpression(col->expr()));
+    projected_input_columns.push_back(std::make_unique<ExprArg>(
+        column_to_variable_->AssignNewVariableToColumn(col->column()),
+        std::move(algebrized_col)));
   }
 
-  // Wrap everything in a FilterOp to include rows only when at least one value
-  // column is non-NULL.
-  return AlgebrizeNullFilterForUnpivotScan(unpivot_scan, std::move(let_op));
+  std::vector<VariableId> value_columns;
+  for (const auto& col : unpivot_scan->value_column_list()) {
+    value_columns.push_back(
+        column_to_variable_->AssignNewVariableToColumn(col));
+  }
+
+  VariableId label_column = column_to_variable_->AssignNewVariableToColumn(
+      unpivot_scan->label_column());
+
+  std::vector<Value> label_values;
+  for (const auto& label : unpivot_scan->label_list()) {
+    label_values.push_back(label->value());
+  }
+
+  std::vector<std::unique_ptr<ExprArg>> unpivot_columns;
+  for (const auto& unpivot_arg : unpivot_scan->unpivot_arg_list()) {
+    for (const auto& col_ref : unpivot_arg->column_list()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> algebrized_ref,
+                       AlgebrizeExpression(col_ref.get()));
+      unpivot_columns.push_back(std::make_unique<ExprArg>(
+          variable_gen_->GetNewVariableName("unpivot_val"),
+          std::move(algebrized_ref)));
+    }
+  }
+
+  return UnpivotOp::Create(
+      std::move(projected_input_columns), std::move(value_columns),
+      label_column, std::move(label_values), std::move(unpivot_columns),
+      std::move(algebrized_input), unpivot_scan->include_nulls());
 }
 
 absl::StatusOr<std::unique_ptr<RelationalOp>>
@@ -7783,26 +8339,35 @@ Algebrizer::AlgebrizeGroupRowsScan(
     const ResolvedGroupRowsScan* group_rows_scan) {
   const std::vector<std::unique_ptr<const ResolvedComputedColumn>>& expr_list =
       group_rows_scan->input_column_list();
-  const ResolvedColumnList& column_list = group_rows_scan->column_list();
-  GOOGLESQL_RET_CHECK(!column_list.empty());
 
   // Assign variables to the new columns and algebrize their definitions.
   std::vector<std::unique_ptr<ExprArg>> arguments;
-  arguments.reserve(column_list.size());
+  arguments.reserve(expr_list.size());
 
-  for (const ResolvedColumn& column : column_list) {
-    const ResolvedExpr* expr;
-    GOOGLESQL_RET_CHECK(FindColumnDefinition(expr_list, column.column_id(), &expr));
+  for (const auto& computed_column : expr_list) {
+    const ResolvedColumn& column = computed_column->column();
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> argument,
-                     AlgebrizeExpression(expr));
+                     AlgebrizeExpression(computed_column->expr()));
     const VariableId variable =
         column_to_variable_->AssignNewVariableToColumn(column);
     arguments.push_back(
         std::make_unique<ExprArg>(variable, std::move(argument)));
   }
 
-  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> group_rows_op,
-                   GroupRowsOp::Create(std::move(arguments)));
+  // Use the first group rows column reference as a lookup key to the
+  // accumulated set of grouped rows.
+  VariableId input_rows_lookup_key;
+  GOOGLESQL_RET_CHECK(!expr_list.empty());
+  GOOGLESQL_RET_CHECK_EQ(expr_list[0]->expr()->node_kind(), RESOLVED_COLUMN_REF);
+  const ResolvedColumnRef* col_ref =
+      expr_list[0]->expr()->GetAs<ResolvedColumnRef>();
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      input_rows_lookup_key,
+      column_to_variable_->LookupVariableNameForColumn(col_ref->column()));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<RelationalOp> group_rows_op,
+      GroupRowsOp::Create(std::move(arguments), input_rows_lookup_key));
   return std::move(group_rows_op);  // necessary to work around bugs in gcc.
 }
 
@@ -7985,6 +8550,7 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
   output_columns.reserve(tvf_scan->column_list().size());
   std::vector<VariableId> variables;
   variables.reserve(tvf_scan->column_list().size());
+  std::vector<int> output_column_indices = tvf_scan->column_index_list();
   for (int i = 0; i < tvf_scan->column_list_size(); ++i) {
     const ResolvedColumn& column = tvf_scan->column_list(i);
     const TVFSchemaColumn& signature_column =
@@ -7995,6 +8561,7 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
         << " != " << signature_column.type->DebugString();
     output_columns.push_back(signature_column);
     variables.push_back(column_to_variable_->GetVariableNameFromColumn(column));
+    output_column_indices.push_back(tvf_scan->column_index_list(i));
   }
 
   const TableValuedFunction* tvf = tvf_scan->tvf();
@@ -8004,7 +8571,8 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
                      BuiltinFunctionCatalog::GetKindByName(name));
     return BuiltinTableValuedFunction::CreateCall(
         kind, std::move(arguments), std::move(output_columns),
-        std::move(variables), tvf_scan->function_call_signature());
+        std::move(variables), tvf_scan->function_call_signature(),
+        std::move(output_column_indices));
   }
 
   TVFOp::SqlTvfEvaluator algebrize_body_callback = nullptr;
@@ -8109,6 +8677,13 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeAssertScan(
                    AlgebrizeExpression(resolved_assert->message()));
   return AssertOp::Create(std::move(input), std::move(condition),
                           std::move(message));
+}
+
+absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeFinishScan(
+    const ResolvedFinishScan* resolved_finish) {
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> input,
+                   AlgebrizeScan(resolved_finish->input_scan()));
+  return FinishOp::Create(std::move(input));
 }
 
 absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeDescribeScan(

@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iterator>
 #include <type_traits>
 #include <utility>
 
@@ -44,7 +45,7 @@ namespace internal_flat {
 template <typename, typename = void>
 struct is_transparent : std::false_type {};
 template <typename T>
-struct is_transparent<T, absl::void_t<typename T::is_transparent>>
+struct is_transparent<T, std::void_t<typename T::is_transparent>>
     : std::true_type {};
 
 // Same idea as std::forward_as_tuple, but for std::pair specifically.
@@ -245,7 +246,7 @@ struct value_compare : public Compare {
 template <typename, typename = void>
 struct has_clear : std::false_type {};
 template <typename T>
-struct has_clear<T, absl::void_t<decltype(std::declval<T>().clear())>>
+struct has_clear<T, std::void_t<decltype(std::declval<T>().clear())>>
     : std::true_type {};
 
 template <typename T>

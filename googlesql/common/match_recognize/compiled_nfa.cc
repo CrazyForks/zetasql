@@ -24,11 +24,11 @@
 #include "googlesql/public/functions/match_recognize/compiled_pattern.pb.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::functions::match_recognize {
 using CompiledNFAProto = ::googlesql::functions::match_recognize::

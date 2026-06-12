@@ -46,6 +46,7 @@
 #include "absl/hash/hash_testing.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
@@ -59,7 +60,6 @@
 #include "googlesql/base/bits.h"
 #include "googlesql/base/endian.h"
 #include "googlesql/base/mathutil.h"
-#include "googlesql/base/status_macros.h"
 
 namespace std {
 std::ostream& operator<<(std::ostream& o, __int128 x) {

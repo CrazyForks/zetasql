@@ -60,10 +60,10 @@
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/io/tokenizer.h"
+#include "googlesql/base/status_macros.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -111,7 +111,7 @@ class ProtoValueConversionTest : public ::testing::Test {
     language_options.EnableLanguageFeature(FEATURE_INTERVAL_TYPE);
     language_options.EnableLanguageFeature(FEATURE_TOKENIZED_SEARCH);
     language_options.EnableLanguageFeature(FEATURE_RANGE_TYPE);
-    language_options.EnableLanguageFeature(FEATURE_V_1_4_UUID_TYPE);
+    language_options.EnableLanguageFeature(FEATURE_UUID_TYPE);
     if (options.timestamp_format_options.timestamp_format ==
         ConvertTypeToProtoOptions::TimestampFormat::kTimestampPicosProto) {
       language_options.EnableLanguageFeature(FEATURE_TIMESTAMP_NANOS);

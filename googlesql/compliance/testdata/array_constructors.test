@@ -992,6 +992,75 @@ ARRAY<STRUCT<elem STRING, off INT64>>[known order:
   {"σ", 0}
 ]
 ==
+[name=string_with_length_and_collation]
+[required_features=PARAMETERIZED_TYPES,COLLATION_SUPPORT,ANNOTATION_FRAMEWORK,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+select
+  distinct str
+FROM
+  UNNEST(ARRAY<STRING(5) COLLATE "und:ci">["abc", "ABC", "def"]) as str;
+--
+ARRAY<STRUCT<str STRING>>[unknown order:{"ABC"}, {"def"}]
+==
+[name=string_with_length_and_collation_error_case]
+[required_features=PARAMETERIZED_TYPES,COLLATION_SUPPORT,ANNOTATION_FRAMEWORK,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+select
+  ARRAY<STRING(5) COLLATE "und:ci">["123456"];
+--
+ERROR: generic::out_of_range: STRING(5) has maximum length 5 but got a value with length 6
+==
+[name=numeric_with_parameters]
+[required_features=PARAMETERIZED_TYPES,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,NUMERIC_TYPE]
+select ARRAY<NUMERIC(10, 1)>[NUMERIC "1234.12", NUMERIC "1234.2345", 1234.3456];
+--
+ARRAY<STRUCT<ARRAY<>>>[{ARRAY<NUMERIC>[known order:1234.1, 1234.2, 1234.3]}]
+==
+[name=timestamp_with_parameters]
+[required_features=PARAMETERIZED_TYPES,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,TIMESTAMP_PRECISION,TIMESTAMP_PICOS]
+select ARRAY<TIMESTAMP(6)>[
+  TIMESTAMP "2020-01-01 1:2:3.123",
+  TIMESTAMP "2020-01-02 1:2:3.123456",
+  TIMESTAMP "2020-01-03 1:2:3.123456789012"];
+--
+ARRAY<STRUCT<ARRAY<>>>[
+  {ARRAY<TIMESTAMP>[known order:
+     2020-01-01 09:02:03.123+00,
+     2020-01-02 09:02:03.123456+00,
+     2020-01-03 09:02:03.123456+00
+   ]}
+]
+==
+[name=struct_with_type_modifiers]
+[required_features=PARAMETERIZED_TYPES,COLLATION_SUPPORT,ANNOTATION_FRAMEWORK,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,TIMESTAMP_PRECISION,TIMESTAMP_PICOS,NUMERIC_TYPE,GROUP_BY_STRUCT]
+SELECT distinct v
+FROM
+  UNNEST(ARRAY<STRUCT<STRING(5) COLLATE "und:ci", NUMERIC(10, 1), TIMESTAMP(6)>>[
+    ("abc", NUMERIC "123.12", TIMESTAMP "2020-01-01 1:2:3.123456789012"),
+    ("ABC", NUMERIC "123.13", TIMESTAMP "2020-01-01 1:2:3.123456789"),
+    ("def", NUMERIC "123.23", TIMESTAMP "2020-01-02 1:2:3.123456789012")
+    ]) as v;
+--
+ARRAY<STRUCT<v STRUCT<STRING, NUMERIC, TIMESTAMP>>>[unknown order:
+  {{
+     "ABC",
+     123.1,
+     2020-01-01 09:02:03.123456+00
+   }},
+  {{
+     "def",
+     123.2,
+     2020-01-02 09:02:03.123456+00
+   }}
+]
+==
+[name=struct_with_type_modifiers_cannot_truncate_string]
+[required_features=PARAMETERIZED_TYPES,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+SELECT
+  ARRAY<STRUCT<STRING(5)>>[
+    STRUCT("123456")
+  ];
+--
+ERROR: generic::out_of_range: STRING(5) has maximum length 5 but got a value with length 6
+==
 # TODO: Introduce these queries to test WITH ORDINALITY
 # [name=select_string_array_constructed_unnest_with_ordinality]
 # SELECT arr
@@ -1012,4 +1081,3 @@ ARRAY<STRUCT<elem STRING, off INT64>>[known order:
 # --
 # false
 # ==
-

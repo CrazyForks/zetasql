@@ -1,7 +1,5 @@
 [default reserve_graph_table]
 [default required_features=SQL_GRAPH]
-[load_proto_files=googlesql/testdata/test_schema.proto]
-[load_proto_names=googlesql_test.KitchenSinkPB]
 [prepare_database]
 CREATE TABLE person AS
 (SELECT 1 AS id, "name1" AS name) UNION ALL
@@ -39,55 +37,20 @@ ARRAY<STRUCT<id INT64, from_person_id INT64, to_person_id INT64, since TIMESTAMP
 ==
 [prepare_database]
 CREATE TABLE account AS
-(SELECT 10 AS acct_id, cast('''
-  int64_key_1: 1
-  int64_key_2: 1
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "checking" AS kind
+(SELECT 10 AS acct_id, 1 AS owner_id, "checking" AS kind
 ) UNION ALL
-(SELECT 20 AS acct_id, cast('''
-  int64_key_1: 1
-  int64_key_2: 1
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "savings" AS kind
+(SELECT 20 AS acct_id, 1 AS owner_id, "savings" AS kind
 ) UNION ALL
-(SELECT 30 AS acct_id, cast('''
-  int64_key_1: 2
-  int64_key_2: 2
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "checking" AS kind
+(SELECT 30 AS acct_id, 2 AS owner_id, "checking" AS kind
 )UNION ALL
-(SELECT 40 AS acct_id, cast('''
-  int64_key_1: 2
-  int64_key_2: 2
-''' as `googlesql_test.KitchenSinkPB`) AS owner_id, "savings" as kind)
+(SELECT 40 AS acct_id, 2 AS owner_id, "savings" as kind)
 --
-ARRAY<STRUCT<
-        acct_id INT64,
-        owner_id PROTO<googlesql_test.KitchenSinkPB>,
-        kind STRING
-      >>
-[{10,
-  {
-    int64_key_1: 1
-    int64_key_2: 1
-  },
-  "checking"},
- {20,
-  {
-    int64_key_1: 1
-    int64_key_2: 1
-  },
-  "savings"},
- {30,
-  {
-    int64_key_1: 2
-    int64_key_2: 2
-  },
-  "checking"},
- {40,
-  {
-    int64_key_1: 2
-    int64_key_2: 2
-  },
-  "savings"}]
+ARRAY<STRUCT<acct_id INT64, owner_id INT64, kind STRING>>[
+  {10, 1, "checking"},
+  {20, 1, "savings"},
+  {30, 2, "checking"},
+  {40, 2, "savings"}
+]
 ==
 
 [prepare_database]
@@ -147,8 +110,7 @@ CREATE PROPERTY GRAPH aml
     Account KEY(acct_id)
     DEFAULT LABEL PROPERTIES(
       1000 + acct_id AS account_id,
-      owner_id AS owner_id_proto,
-      owner_id.int64_key_1 AS owner_id,
+      owner_id,
       kind AS account_kind),
     Person KEY(id)
     LABEL Human PROPERTIES(
@@ -204,66 +166,23 @@ CREATE PROPERTY GRAPH aml3
 select gt.* from
 graph_table(aml
   match (n)
-  columns(n.name, n.owner_id_proto, n.owner_id, n.account_kind, 1 AS number, CONCAT("str", "_suffix") AS concat_str)
+  columns(n.name, n.owner_id, n.account_kind, 1 AS number, CONCAT("str", "_suffix") AS concat_str)
 ) gt
-order by 1, 3, 4, 5, 6
+order by 1, 2, 3, 4, 5
 --
-ARRAY<STRUCT<
-        name STRING,
-        owner_id_proto PROTO<googlesql_test.KitchenSinkPB>,
-        owner_id INT64,
-        account_kind STRING,
-        number INT64,
-        concat_str STRING
-      >>
-[known order:{NULL,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              1,
-              "checking",
-              1,
-              "str_suffix"},
-             {NULL,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              1,
-              "savings",
-              1,
-              "str_suffix"},
-             {NULL,
-              {
-                int64_key_1: 2
-                int64_key_2: 2
-              },
-              2,
-              "checking",
-              1,
-              "str_suffix"},
-             {NULL,
-              {
-                int64_key_1: 2
-                int64_key_2: 2
-              },
-              2,
-              "savings",
-              1,
-              "str_suffix"},
-             {"name1", NULL, NULL, NULL, 1, "str_suffix"},
-             {"name2", NULL, NULL, NULL, 1, "str_suffix"}]
-==
-[name=can_return_valid_proto_value]
-select gt.owner_id_proto.int64_key_1 AS owner_id from
-graph_table(aml
-  match (n:Account)
-  columns(n.owner_id_proto)
-) gt
-order by 1
---
-ARRAY<STRUCT<owner_id INT64>>[known order:{1}, {1}, {2}, {2}]
+ARRAY<STRUCT<name STRING,
+             owner_id INT64,
+             account_kind STRING,
+             number INT64,
+             concat_str STRING>>
+[known order:
+  {NULL, 1, "checking", 1, "str_suffix"},
+  {NULL, 1, "savings", 1, "str_suffix"},
+  {NULL, 2, "checking", 1, "str_suffix"},
+  {NULL, 2, "savings", 1, "str_suffix"},
+  {"name1", NULL, NULL, 1, "str_suffix"},
+  {"name2", NULL, NULL, 1, "str_suffix"}
+]
 ==
 [name=node_patterns_with_labels]
 select gt.* from
@@ -883,7 +802,7 @@ ARRAY<STRUCT<person_name STRING, since TIMESTAMP, friend_name STRING>>[
   }
 ]
 ==
-[name=subpath_where_clase]
+[name=subpath_where_clause]
 select * from graph_table(aml
   MATCH (a IS Account) -[t1 IS Transfer]-> ((b) (-[t2 IS Transfer]-) (c) -[t3 IS Transfer]-> (a) Where a.account_id = 1010)
   COLUMNS(a.account_id as aid, t1.amount as amount1, b.account_id as bid, t2.amount as amount2, c.account_id as cid, t3.amount as amount3, a.account_id as aid2)
@@ -994,63 +913,16 @@ select a.*,t.* from
 graph_table(aml
   MATCH (a IS Account)-[t IS Transfer]->
 )
-order by 1,2,3,5
+order by 1,2,3,4
 --
-ARRAY<STRUCT<
-        account_id INT64,
-        account_kind STRING,
-        owner_id INT64,
-        owner_id_proto PROTO<googlesql_test.KitchenSinkPB>,
-        amount INT64
-      >>
-[known order:{1010,
-              "checking",
-              1,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              100},
-             {1010,
-              "checking",
-              1,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              200},
-             {1010,
-              "checking",
-              1,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              600},
-             {1020,
-              "savings",
-              1,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              300},
-             {1020,
-              "savings",
-              1,
-              {
-                int64_key_1: 1
-                int64_key_2: 1
-              },
-              400},
-             {1030,
-              "checking",
-              2,
-              {
-                int64_key_1: 2
-                int64_key_2: 2
-              },
-              500}]
+ARRAY<STRUCT<account_id INT64, account_kind STRING, owner_id INT64, amount INT64>>[known order:
+  {1010, "checking", 1, 100},
+  {1010, "checking", 1, 200},
+  {1010, "checking", 1, 600},
+  {1020, "savings", 1, 300},
+  {1020, "savings", 1, 400},
+  {1030, "checking", 2, 500}
+]
 ==
 
 [required_features=SQL_GRAPH,SQL_GRAPH_EXPOSE_GRAPH_ELEMENT]
@@ -1173,6 +1045,50 @@ ON FALSE
 --
 
 ERROR: generic::out_of_range: Input to the function SAME must not be null
+==
+[required_features=SQL_GRAPH,SQL_GRAPH_EXPOSE_GRAPH_ELEMENT,SAFE_FUNCTION_CALL,SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT]
+[name=graph_expression_functions_all_different_with_null_input_safe_mode]
+
+select safe.all_different(gt.n, gt.m)
+FROM graph_table(aml
+  match (n IS Account) -[e]-> (m IS Account)
+) gt
+RIGHT JOIN (SELECT 1)
+ON FALSE
+--
+
+ARRAY<STRUCT<BOOL>>[{NULL}]
+==
+[required_features=SQL_GRAPH,SQL_GRAPH_EXPOSE_GRAPH_ELEMENT,SAFE_FUNCTION_CALL,SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT]
+[name=graph_expression_functions_same_with_null_input_safe_mode]
+
+select safe.same(gt.n, gt.m)
+FROM graph_table(aml
+  match (n IS Account) -[e]-> (m IS Account)
+) gt
+RIGHT JOIN (SELECT 1)
+ON FALSE
+--
+
+ARRAY<STRUCT<BOOL>>[{NULL}]
+==
+
+[name=gql_same_safe_mode]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SAFE_FUNCTION_CALL,SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT]
+GRAPH aml
+OPTIONAL MATCH (n IS Account) -[e]-> (m IS Account) WHERE FALSE
+RETURN SAFE.SAME(n, m) as all_same
+--
+ARRAY<STRUCT<all_same BOOL>>[{NULL}]
+==
+
+[name=gql_all_different_safe_mode]
+[required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SAFE_FUNCTION_CALL,SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT]
+GRAPH aml
+OPTIONAL MATCH (n IS Account) -[e]-> (m IS Account) WHERE FALSE
+RETURN SAFE.ALL_DIFFERENT(n, m) as all_diff
+--
+ARRAY<STRUCT<all_diff BOOL>>[{NULL}]
 ==
 [required_features=SQL_GRAPH,SQL_GRAPH_EXPOSE_GRAPH_ELEMENT]
 [name=graph_expression_functions_property_exists_with_null_input]
@@ -1408,9 +1324,9 @@ select ARRAY_IS_DISTINCT(ARRAY(
 ARRAY<STRUCT<BOOL>>[{true}]
 ==
 
-[required_features=SQL_GRAPH]
+[required_features=SQL_GRAPH,ORDER_BY_IN_AGGREGATE]
 [name=graph_node_labels_function]
-select id, account_id, node_labels from
+select id, account_id, (SELECT ARRAY_AGG(label ORDER BY label) FROM UNNEST(node_labels) AS label) AS node_labels from
 graph_table(aml
   match (n)
   columns(n.id, n.account_id, LABELS(n) as node_labels)
@@ -1441,14 +1357,14 @@ ARRAY<STRUCT<id INT64, account_id INT64, node_labels ARRAY<>>>[known order:
   {100,
    NULL,
    ARRAY<STRING>[known order:
-     "dummy_lowercased_label",
-     "Human"
+     "Human",
+     "dummy_lowercased_label"
    ]},
   {100,
    NULL,
    ARRAY<STRING>[known order:
-     "dummy_lowercased_label",
-     "Human"
+     "Human",
+     "dummy_lowercased_label"
    ]}
 ]
 ==
@@ -1557,38 +1473,26 @@ graph_table(aml
 order by id, account_id;
 --
 ARRAY<STRUCT<id INT64, account_id INT64, node_props ARRAY<>>>[known order:
-  {NULL,
-   1010,
-   ARRAY<STRING>[known order:
-     "account_id",
-     "account_kind",
-     "owner_id",
-     "owner_id_proto"
-   ]},
-  {NULL,
-   1020,
-   ARRAY<STRING>[known order:
-     "account_id",
-     "account_kind",
-     "owner_id",
-     "owner_id_proto"
-   ]},
-  {NULL,
-   1030,
-   ARRAY<STRING>[known order:
-     "account_id",
-     "account_kind",
-     "owner_id",
-     "owner_id_proto"
-   ]},
-  {NULL,
-   1040,
-   ARRAY<STRING>[known order:
-     "account_id",
-     "account_kind",
-     "owner_id",
-     "owner_id_proto"
-   ]},
+  {
+    NULL,
+    1010,
+    ARRAY<STRING>[known order:"account_id", "account_kind", "owner_id"]
+  },
+  {
+    NULL,
+    1020,
+    ARRAY<STRING>[known order:"account_id", "account_kind", "owner_id"]
+  },
+  {
+    NULL,
+    1030,
+    ARRAY<STRING>[known order:"account_id", "account_kind", "owner_id"]
+  },
+  {
+    NULL,
+    1040,
+    ARRAY<STRING>[known order:"account_id", "account_kind", "owner_id"]
+  },
   {100,
    NULL,
    ARRAY<STRING>[known order:
@@ -1756,7 +1660,7 @@ graph_table(aml
 --
 ARRAY<STRUCT<a STRING, e STRING, human STRING, knows STRING>>[
   {
-    "GRAPH_NODE(aml)<account_id INT64, account_kind STRING, DUMMY_UPPERCASED_PROPERTY INT64, id INT64, name STRING, owner_id INT64, owner_id_proto googlesql_test.KitchenSinkPB>",
+    "GRAPH_NODE(aml)<account_id INT64, account_kind STRING, DUMMY_UPPERCASED_PROPERTY INT64, id INT64, name STRING, owner_id INT64>",
     "GRAPH_EDGE(aml)<amount INT64, dest_acct_kind STRING, since TIMESTAMP, src_acct_kind STRING, timestamp TIMESTAMP>",
     "GRAPH_NODE(aml)<DUMMY_UPPERCASED_PROPERTY INT64, id INT64, name STRING>",
     "GRAPH_EDGE(aml)<since TIMESTAMP>"

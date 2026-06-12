@@ -64,7 +64,7 @@ class Coercer {
   Coercer(const Coercer&) = delete;
   Coercer& operator=(const Coercer&) = delete;
 
-  ~Coercer() {}
+  ~Coercer() = default;
 
   // The methods below only look at the type of an InputArgument and whether it
   // is a parameter or literal. They do not depend on the value of a

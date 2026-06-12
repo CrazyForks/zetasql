@@ -137,7 +137,8 @@ public final class SimpleGraphEdgeTable extends SimpleGraphElementTable implemen
     return destinationNode;
   }
 
-  static final class Builder {
+  /** Builder for {@link SimpleGraphEdgeTable}. */
+  public static final class Builder {
     private String name;
     private List<String> propertyGraphNamePath = ImmutableList.of();
     private Table table;

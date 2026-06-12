@@ -210,7 +210,8 @@ result contains the `value`, otherwise returns `FALSE`.
 #### Details
 
 The subquery result must have a single column and that column type must
-be comparable to the `value` type. If not, an error is returned.
+be comparable to the `value` type. If not, an error is
+returned.
 
 #### Return type
 

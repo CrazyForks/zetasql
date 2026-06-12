@@ -31,7 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/utf_util.h"
 #include "googlesql/public/functions/normalize_mode.pb.h"
 #include "googlesql/public/functions/util.h"
@@ -306,7 +305,7 @@ absl::string_view BytesTrimmer::TrimRight(absl::string_view str) {
        ++it) {
     uint8_t byte = static_cast<uint8_t>(*it);
     if (!bytes_to_trim_[byte]) {
-      return absl::string_view(str.data(), it.base() - str.begin());
+      return str.substr(0, it.base() - str.begin());
     }
   }
   // Everything got trimmed. Return an empty string.
@@ -1222,7 +1221,7 @@ bool Normalize(absl::string_view str, NormalizeMode mode, bool is_casefold,
 }
 
 bool ToBase64(absl::string_view str, std::string* out, absl::Status* error) {
-  absl::Base64Escape(str, out);
+  *out = absl::Base64Escape(str);
   return true;
 }
 

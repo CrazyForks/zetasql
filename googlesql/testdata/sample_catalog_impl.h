@@ -90,46 +90,46 @@ class SampleCatalogImpl {
   // Returns a copy of `options` that supplies default types for function
   // signatures that expect them. This can override map entries in
   // the original `options`'s `supplied_argument_types`.
-  GoogleSQLBuiltinFunctionOptions LoadDefaultSuppliedTypes(
+  absl::StatusOr<GoogleSQLBuiltinFunctionOptions> LoadDefaultSuppliedTypes(
       const GoogleSQLBuiltinFunctionOptions& options);
-  void LoadCatalogBuiltins(
+  absl::Status LoadCatalogBuiltins(
       const GoogleSQLBuiltinFunctionOptions& builtin_function_options);
   absl::Status LoadTypes();
   absl::Status LoadTables();
-  void LoadProtoTables();
+  absl::Status LoadProtoTables();
   absl::Status LoadMeasureTables();
   void LoadViews(const LanguageOptions& language_options);
-  void LoadNestedCatalogs();
+  absl::Status LoadNestedCatalogs();
 
   absl::Status AddTableWithMeasures(
       AnalyzerOptions& analyzer_options, absl::string_view table_name,
       std::vector<const Column*> columns_not_owned,
       std::optional<absl::btree_set<int>> row_identity_column_indices,
-      std::vector<MeasureColumnDef> measures, bool is_value_table);
+      std::vector<MeasureColumnDef> measures, bool is_value_table,
+      std::optional<std::vector<std::vector<Value>>> rows = std::nullopt);
 
   void AddFunctionWithArgumentType(std::string type_name, const Type* arg_type);
 
   // Creates and adds the Function to the catalog.
   // This performs some basic validation.
   // The group used is 'sample_functions'.
-  const Function* AddFunction(
-      absl::string_view name, Function::Mode mode,
-      std::vector<FunctionSignature> function_signatures,
-      FunctionOptions function_options = {});
+  absl::Status AddFunction(absl::string_view name, Function::Mode mode,
+                           std::vector<FunctionSignature> function_signatures,
+                           FunctionOptions function_options = {});
 
-  void LoadFunctionsWithStructArgs();
+  absl::Status LoadFunctionsWithStructArgs();
   // Do not add more functions to `LoadFunctions` and `LoadFunctions2`, use
   // `RegisterForSampleCatalog` instead.
-  void LoadFunctions();
-  void LoadFunctions2();
+  absl::Status LoadFunctions();
+  absl::Status LoadFunctions2();
   // Use `RegisterForSampleCatalog` in the impl file to register a lambda which
   // will add a catalog object - `LoadAllRegisteredCatalogChanges` calls all
   // registered lambdas to add the objects to the catalog.
   void LoadAllRegisteredCatalogChanges();
   absl::Status LoadExtendedSubscriptFunctions(
       const LanguageOptions& language_options);
-  void LoadFunctionsWithDefaultArguments();
-  void LoadTemplatedSQLUDFs();
+  absl::Status LoadFunctionsWithDefaultArguments();
+  absl::Status LoadTemplatedSQLUDFs();
   absl::Status LoadAmlBasedPropertyGraphs();
 
   // The basic "aml" property graph is primarily used in all our analyzer tests.
@@ -137,20 +137,23 @@ class SampleCatalogImpl {
   // have very large trees while also being flexible enough to test for the
   // right cases.
   absl::Status LoadBasicAmlPropertyGraph();
+  absl::Status LoadBasicAmlWithTimestampsPropertyGraph();
+  absl::Status LoadBasicAmlPropertyGraphImpl(
+      std::string property_graph_name_path, bool with_timestamps);
 
   absl::Status LoadEnhancedAmlPropertyGraph();
 
-  void LoadMultiSrcDstEdgePropertyGraphs();
-  void LoadCompositeKeyPropertyGraphs();
-  void LoadPropertyGraphWithDynamicLabelAndProperties();
-  void LoadPropertyGraphWithDynamicMultiLabelsAndProperties();
+  absl::Status LoadMultiSrcDstEdgePropertyGraphs();
+  absl::Status LoadCompositeKeyPropertyGraphs();
+  absl::Status LoadPropertyGraphWithDynamicLabelAndProperties();
+  absl::Status LoadPropertyGraphWithDynamicMultiLabelsAndProperties();
 
   // Loads several table-valued functions into the sample catalog. For a full
   // list of the signatures added, please see the beginning of the method
   // definition. LoadTableValuedFunctions() has gotten so large that we have to
   // split it up in order to avoid lint warnings.
-  void LoadTableValuedFunctions1();
-  void LoadTableValuedFunctions2();
+  absl::Status LoadTableValuedFunctions1();
+  absl::Status LoadTableValuedFunctions2();
   void LoadTableValuedFunctionsWithEvaluators();
   void LoadTVFWithExtraColumns();
   void LoadConnectionTableValuedFunctions();
@@ -161,25 +164,25 @@ class SampleCatalogImpl {
 
   // Add a SQL table function to catalog starting from a full create table
   // function statement.
-  void AddSqlDefinedTableFunctionFromCreate(
+  absl::Status AddSqlDefinedTableFunctionFromCreate(
       absl::string_view create_table_function,
       const LanguageOptions& language_options,
       absl::string_view user_id_column = "");
-  void LoadNonTemplatedSqlTableValuedFunctions(
+  absl::Status LoadNonTemplatedSqlTableValuedFunctions(
       const LanguageOptions& language_options);
-  void LoadTemplatedSQLTableValuedFunctions();
-  void LoadTableValuedFunctionsWithAnonymizationUid();
+  absl::Status LoadTemplatedSQLTableValuedFunctions();
+  absl::Status LoadTableValuedFunctionsWithAnonymizationUid();
   void LoadTableValuedFunctionsWithOptionalRelations();
 
   void AddProcedureWithArgumentType(std::string type_name,
                                     const Type* arg_type);
-  void LoadProcedures();
-  void LoadConstants();
+  absl::Status LoadProcedures();
+  absl::Status LoadConstants();
   void LoadConnections();
   void LoadSequences();
   // Load signatures for well known functional programming functions for example
   // FILTER, TRANSFORM, REDUCE.
-  void LoadWellKnownLambdaArgFunctions();
+  absl::Status LoadWellKnownLambdaArgFunctions();
   // Contrived signatures are loaded in order to demonstrate the behavior of
   // lambda signature matching and resolving for unusual cases.
   // This include:
@@ -187,7 +190,7 @@ class SampleCatalogImpl {
   //  * Using lambda with named arguments.
   //  * Possible signatures that could result in type inference failure for
   //  various combinations of templated lambda arguments and other arguments.
-  void LoadContrivedLambdaArgFunctions();
+  absl::Status LoadContrivedLambdaArgFunctions();
 
   void AddOwnedTable(SimpleTable* table);
   absl::Status AddGeneratedColumnToTable(
@@ -195,28 +198,36 @@ class SampleCatalogImpl {
       std::string generated_expr, SimpleTable* table);
 
   // Add a SQLFunction to catalog_ with a SQL expression as the function body.
-  void AddSqlDefinedFunction(absl::string_view name,
-                             FunctionSignature signature,
-                             const std::vector<std::string>& argument_names,
-                             absl::string_view function_body_sql,
-                             const LanguageOptions& language_options);
+  absl::Status AddSqlDefinedFunction(
+      absl::string_view name, FunctionSignature signature,
+      const std::vector<std::string>& argument_names,
+      absl::string_view function_body_sql,
+      const LanguageOptions& language_options);
   // Add a SQL function to catalog starting from a full create_function
   // statement.
-  void AddSqlDefinedFunctionFromCreate(
+  absl::Status AddSqlDefinedFunctionFromCreate(
       absl::string_view create_function,
       const LanguageOptions& language_options, bool inline_sql_functions = true,
       const FunctionOptions* /*absl_nullable*/ function_options = nullptr);
 
-  void LoadSqlFunctions(const LanguageOptions& language_options);
+  absl::Status LoadSqlFunctions(const LanguageOptions& language_options);
 
   // Helpers for LoadSqlFunctions so that its both logically broken up and
   // so that its less troublesome for dbg build stacks.
-  void LoadScalarSqlFunctions(const LanguageOptions& language_options);
-  void LoadScalarSqlFunctionsFromStandardModule(
+  absl::Status LoadScalarSqlFunctions(const LanguageOptions& language_options);
+  absl::Status LoadScalarSqlFunctionsFromStandardModule(
       const LanguageOptions& language_options);
-  void LoadDeepScalarSqlFunctions(const LanguageOptions& language_options);
-  void LoadScalarSqlFunctionTemplates(const LanguageOptions& language_options);
-  void LoadAggregateSqlFunctions(const LanguageOptions& language_options);
+  absl::Status LoadDeepScalarSqlFunctions(
+      const LanguageOptions& language_options);
+  absl::Status LoadScalarSqlFunctionTemplates(
+      const LanguageOptions& language_options);
+  absl::Status LoadAggregateSqlFunctions(
+      const LanguageOptions& language_options);
+
+  // Load objects for testing ROW type ((broken link)). Some of the
+  // objects here are experimental, their behavior and interfaces may change.
+  // TODO: b/452955184 - Update this comment once proposal is finalized.
+  void LoadRowTypeObjects();
 
   // This can be used force linking of a proto for the generated_pool.
   // This may be required if a proto is referenced in file-based tests
@@ -228,8 +239,10 @@ class SampleCatalogImpl {
   // This is a all weird linker magic.
   void ForceLinkProtoTypes();
 
-  const ProtoType* GetProtoType(const google::protobuf::Descriptor* descriptor);
-  const EnumType* GetEnumType(const google::protobuf::EnumDescriptor* descriptor);
+  absl::StatusOr<const ProtoType*> GetProtoType(
+      const google::protobuf::Descriptor* descriptor);
+  absl::StatusOr<const EnumType*> GetEnumType(
+      const google::protobuf::EnumDescriptor* descriptor);
 
   const ArrayType* int32array_type_;
   const ArrayType* int64array_type_;
@@ -256,6 +269,7 @@ class SampleCatalogImpl {
   const ProtoType* proto_MessageWithKitchenSinkPB_;
   const ProtoType* proto_CivilTimeTypesSinkPB_;
   const ProtoType* proto_TestExtraPB_;
+  const ProtoType* proto_TimeSeriesPB_;
   const ProtoType* proto_abPB_;
   const ProtoType* proto_bcPB_;
 

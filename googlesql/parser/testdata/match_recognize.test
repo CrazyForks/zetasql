@@ -1399,14 +1399,15 @@ QueryStatement [0-217] [select *...AS x.y   )]
                 GraphNodePattern [52-55] [(y)]
                   GraphElementPatternFiller [53-54] [y]
                     Identifier(y) [53-54] [y]
-          SelectList [68-81] [count(*) as c]
-            SelectColumn [68-81] [count(*) as c]
-              FunctionCall [68-76] [count(*)]
-                PathExpression [68-73] [count]
-                  Identifier(count) [68-73] [count]
-                Star(*) [74-75] [*]
-              Alias [77-81] [as c]
-                Identifier(c) [80-81] [c]
+          Select [60-82] [columns(count(*) as c)]
+            SelectList [68-81] [count(*) as c]
+              SelectColumn [68-81] [count(*) as c]
+                FunctionCall [68-76] [count(*)]
+                  PathExpression [68-73] [count]
+                    Identifier(count) [68-73] [count]
+                  Star(*) [74-75] [*]
+                Alias [77-81] [as c]
+                  Identifier(c) [80-81] [c]
           MatchRecognizeClause [87-217] [match_recognize...AS x.y   )]
             OrderBy [108-129] [ORDER BY c DESC, f(d)]
               OrderingExpression(DESC) [117-123] [c DESC]
@@ -2456,9 +2457,9 @@ ERROR: Syntax error: Expected ")" or "|" or || but got "?" [at 4:20]
 --
 ALTERNATION GROUP: **
 --
-ERROR: Syntax error: Expected ")" or "|" or || but got "*" [at 4:19]
+ERROR: Syntax error: Expected ")" or "|" or || but got "**" [at 4:18]
   PATTERN ( (A B)** )
-                  ^
+                 ^
 --
 ALTERNATION GROUP: *??
 --

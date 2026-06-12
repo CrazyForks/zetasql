@@ -23,6 +23,7 @@
 #include "googlesql/public/json_value.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/resolved_ast/resolved_ast.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
@@ -101,6 +102,62 @@ TEST(GraphElementUtilsTest, MakePropertiesJsonValueTest) {
                                      functions::WideNumberMode::kExact,
                                      ProductMode::PRODUCT_INTERNAL));
   EXPECT_EQ(p2, p2_value.double_value());
+}
+
+TEST(GraphElementUtilsTest, IsRestrictivePathModeTest) {
+  EXPECT_TRUE(IsRestrictivePathMode(ResolvedGraphPathMode::TRAIL));
+  EXPECT_TRUE(IsRestrictivePathMode(ResolvedGraphPathMode::ACYCLIC));
+  EXPECT_TRUE(IsRestrictivePathMode(ResolvedGraphPathMode::SIMPLE));
+  EXPECT_FALSE(IsRestrictivePathMode(ResolvedGraphPathMode::WALK));
+}
+
+TEST(GraphElementUtilsTest, HasSearchPrefixTest) {
+  EXPECT_TRUE(HasSearchPrefix(ResolvedGraphPathSearchPrefix::ANY));
+  EXPECT_TRUE(HasSearchPrefix(ResolvedGraphPathSearchPrefix::SHORTEST));
+  EXPECT_TRUE(HasSearchPrefix(ResolvedGraphPathSearchPrefix::CHEAPEST));
+  EXPECT_FALSE(HasSearchPrefix(
+      ResolvedGraphPathSearchPrefix::PATH_SEARCH_PREFIX_TYPE_UNSPECIFIED));
+}
+
+TEST(GraphElementUtilsTest, IntersectPeriodsTest) {
+  Value start1 = Value::TimestampFromUnixMicros(1000);
+  Value end1 = Value::TimestampFromUnixMicros(2000);
+  Value period1 = Value::MakeRange(start1, end1).value();
+
+  Value start2 = Value::TimestampFromUnixMicros(1500);
+  Value end2 = Value::TimestampFromUnixMicros(2500);
+  Value period2 = Value::MakeRange(start2, end2).value();
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value intersection, IntersectPeriods(period1, period2));
+  EXPECT_TRUE(intersection.start().Equals(start2));
+  EXPECT_TRUE(intersection.end().Equals(end1));
+
+  // Test unbounded start/end
+  Value unbounded_start = Value::NullTimestamp();
+  Value unbounded_end = Value::NullTimestamp();
+  Value period3 = Value::MakeRange(unbounded_start, end2).value();
+  Value period4 = Value::MakeRange(start1, unbounded_end).value();
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value intersection2, IntersectPeriods(period3, period4));
+  EXPECT_TRUE(intersection2.start().Equals(start1));
+  EXPECT_TRUE(intersection2.end().Equals(end2));
+}
+
+TEST(GraphElementUtilsTest, PeriodContainsPointTest) {
+  Value start1 = Value::TimestampFromUnixMicros(1000);
+  Value end1 = Value::TimestampFromUnixMicros(2000);
+  Value period1 = Value::MakeRange(start1, end1).value();
+
+  Value point_inside = Value::TimestampFromUnixMicros(1500);
+  Value point_outside_before = Value::TimestampFromUnixMicros(500);
+  Value point_outside_after = Value::TimestampFromUnixMicros(2500);
+
+  EXPECT_TRUE(PeriodContainsPoint(period1, point_inside).value());
+  EXPECT_TRUE(
+      PeriodContainsPoint(period1, start1).value());  // start is inclusive
+  EXPECT_FALSE(PeriodContainsPoint(period1, end1).value());  // end is exclusive
+  EXPECT_FALSE(PeriodContainsPoint(period1, point_outside_before).value());
+  EXPECT_FALSE(PeriodContainsPoint(period1, point_outside_after).value());
 }
 
 }  // namespace

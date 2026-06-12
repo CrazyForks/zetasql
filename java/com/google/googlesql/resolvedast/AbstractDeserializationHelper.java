@@ -20,6 +20,7 @@ package com.google.googlesql.resolvedast;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.googlesql.AnnotationMap;
 import com.google.googlesql.Column;
 import com.google.googlesql.ColumnRefProto;
 import com.google.googlesql.Connection;
@@ -136,11 +137,16 @@ public abstract class AbstractDeserializationHelper {
   abstract GraphElementTable deserialize(GraphElementTableRefProto proto);
 
   ResolvedColumn deserialize(ResolvedColumnProto proto) {
+    AnnotationMap annotationMap = null;
+    if (proto.hasAnnotationMap()) {
+      annotationMap = deserialize(proto.getAnnotationMap());
+    }
     return new ResolvedColumn(
         proto.getColumnId(),
         proto.getTableName(),
         proto.getName(),
-        deserialize(proto.getType()));
+        deserialize(proto.getType()),
+        annotationMap);
   }
 
   abstract Model deserialize(ModelRefProto proto);
@@ -165,8 +171,7 @@ public abstract class AbstractDeserializationHelper {
 
   @Nullable
   AnnotationMap deserialize(AnnotationMapProto proto) {
-    // TODO: use TypeFactory to create AnnotatedType.
-    return null;
+    return AnnotationMap.deserialize(proto);
   }
 
   ResolvedCollation deserialize(ResolvedCollationProto proto) {

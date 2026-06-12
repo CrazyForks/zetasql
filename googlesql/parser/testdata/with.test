@@ -596,7 +596,7 @@ select * from a, b;
 WITH not_recursive a as (select * from a)
 select * from a;
 --
-ERROR: Syntax error: Expected "(" or keyword AS but got identifier "a" [at 1:20]
+ERROR: Syntax error: Expected "(" but got identifier "a" [at 1:20]
 WITH not_recursive a as (select * from a)
                    ^
 ==

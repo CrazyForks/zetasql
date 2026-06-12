@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -36,9 +37,10 @@
 #include "absl/log/initialize.h"
 #include "absl/strings/match.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/file_util.h"
 
 namespace {
 constexpr absl::string_view kHistoryFileName{
@@ -48,22 +50,52 @@ constexpr absl::string_view kHistoryFileName{
 ABSL_FLAG(bool, web, false, "Run a local webserver to execute queries.");
 ABSL_FLAG(int32_t, port, 8080, "Port to run the local webserver on.");
 
+ABSL_FLAG(std::string, sql_file, "", "File to read SQL from.");
+
 namespace googlesql {
 namespace {
 
 absl::Status RunTool(const std::vector<std::string>& args) {
-  ExecuteQueryConfig config;
+    const bool has_interactive = false;
 
+  const bool has_web = absl::GetFlag(FLAGS_web);
+  const std::string sql_file = absl::GetFlag(FLAGS_sql_file);
+  const bool has_sql_file = !sql_file.empty();
+  const bool has_args = !args.empty();
+
+  int input_modes_selected = (has_interactive ? 1 : 0) + (has_web ? 1 : 0) +
+                             (has_sql_file ? 1 : 0) + (has_args ? 1 : 0);
+
+  if (input_modes_selected == 0) {
+    return absl::InvalidArgumentError("No input provided.");
+  }
+  if (input_modes_selected > 1) {
+        return absl::InvalidArgumentError(
+            "Only one of query string, '-', --sql_file, or --web can be "
+            "specified.");
+  }
+
+  ExecuteQueryConfig config;
   GOOGLESQL_RETURN_IF_ERROR(InitializeExecuteQueryConfig(config));
+
+  if (has_web) {
+    return RunExecuteQueryWebServer(absl::GetFlag(FLAGS_port));
+  }
 
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ExecuteQueryWriter> writer,
                    MakeWriterFromFlags(config, std::cout));
 
-  if (absl::GetFlag(FLAGS_web)) {
-    return RunExecuteQueryWebServer(absl::GetFlag(FLAGS_port));
+  std::string sql;
+  if (has_sql_file) {
+    GOOGLESQL_RETURN_IF_ERROR(internal::GetContents(sql_file, &sql));
+  } else {
+    sql = absl::StrJoin(args, " ");
+    if (sql == "-") {
+      sql.assign(std::istreambuf_iterator<char>(std::cin),
+                 std::istreambuf_iterator<char>());
+    }
   }
 
-  const std::string sql = absl::StrJoin(args, " ");
   return ExecuteQuery(sql, config, *writer);
 }
 }  // namespace
@@ -82,8 +114,8 @@ static bool HelpShortFilter(absl::string_view module) {
 
 int main(int argc, char* argv[]) {
   const char kUsage[] =
-      "Usage: execute_query "
-      "{ \"<sql>\" | {--web [--port=<port>] } }\n";
+      "Usage: execute_query { "
+      "--sql_file=<path> | - | \"<sql>\" | {--web [--port=<port>] } }\n";
 
   std::vector<std::string> args;
 
@@ -99,17 +131,13 @@ int main(int argc, char* argv[]) {
   }
   absl::InitializeLog();
 
-  bool args_needed = !absl::GetFlag(FLAGS_web);
-
-  if (args_needed && args.empty()) {
-    std::cerr << kUsage << "Pass --help for a full list of flags.\n";
-    return 1;
-  }
-
   if (const absl::Status status = googlesql::RunTool(args); status.ok()) {
     return 0;
   } else {
     std::cerr << status.message() << '\n';
+    if (absl::IsInvalidArgument(status)) {
+      std::cerr << kUsage << "Pass --help for a full list of flags.\n";
+    }
     return 1;
   }
 }

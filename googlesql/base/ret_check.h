@@ -40,6 +40,7 @@
 
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "googlesql/base/logging.h"
 #include "googlesql/base/source_location.h"

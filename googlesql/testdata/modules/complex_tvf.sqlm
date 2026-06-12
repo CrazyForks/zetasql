@@ -1,0 +1,65 @@
+-- A module for use in test case:
+--
+--    googlesql/common/testdata/import_complex_tvf.module_test
+--
+-- UDFs/TVFs in this module reference UDFs/TVFs in this module, and also
+-- in the imported module.
+
+MODULE complex_tvf;
+
+IMPORT MODULE googlesql.testdata.modules.complex_tvf_nested;
+
+-- Some private UDFs/TVFs that reference others in this catalog.
+CREATE PRIVATE FUNCTION private_FUN1(a int64) as (a+1);
+
+CREATE PRIVATE TABLE FUNCTION private_tvf1(b int64)
+  as (select b, private_fun1(b) c);
+
+CREATE PRIVATE FUNCTION private_fun2(a int64)
+  as ((select max(b) from private_tvf1(a)));
+
+CREATE PRIVATE TABLE FUNCTION private_tvf2(a int64)
+  as (select a, private_fun2(b) as b from private_tvf1(a));
+
+-- Some public UDFs/TVFs that reference other UDFs/TVFs in this catalog
+-- and the imported catalog
+CREATE PUBLIC FUNCTION public_fun1(a int64)
+  as (a+1 + complex_tvf_nested.nested_fun1(a));
+
+CREATE PUBLIC TABLE FUNCTION public_tvf1(b int64)
+  as ((select b, public_fun1(b) c)
+      UNION ALL
+      (select * from complex_tvf_nested.nested_tvf1(b)));
+
+CREATE PUBLIC FUNCTION public_fun2(a int64)
+  as ((select max(b) from public_tvf1(a))
+      +
+      (select complex_tvf_nested.nested_fun2(a)));
+
+CREATE PUBLIC TABLE FUNCTION public_tvf2(a int64)
+  as (select a, public_fun2(b) as b from public_tvf1(a)
+     UNION ALL
+     (select * from complex_tvf_nested.nested_tvf2(a)));
+
+-- Basic TVF with a table argument that returns a single row of INT64
+CREATE PUBLIC TABLE FUNCTION public_tvf3(t table<a int64, b int64>)
+  as (select count(*) as count_star from t);
+
+-- Basic TVF that takes an array and unnests it.
+CREATE PUBLIC TABLE FUNCTION public_tvf4(x array<int64>)
+  as (select y as x from unnest(x) as y);
+
+-- Basic TVF with table and scalar arguments, that returns the table plus
+-- an extra column
+CREATE PUBLIC TABLE FUNCTION public_tvf5(t table<a int64, b int64>, y int64)
+  as (select *, y from t);
+
+-- Same as the previous, but SELECT list column 'y' is aliased as 'b', which
+-- is also a column name in table 't'.
+CREATE PUBLIC TABLE FUNCTION public_tvf6(t table<a int64, b int64>, y int64)
+  as (select *, y as b from t);
+
+-- Basic TVF with no arguments, that passes through the call to another TVF
+-- with a constant argument.
+CREATE PUBLIC TABLE FUNCTION cliff_em_all_wrapper()
+  as (select * from complex_tvf_nested.cliff_em_all(1));

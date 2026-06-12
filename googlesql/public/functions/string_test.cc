@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/compliance/functions_testlib.h"
 #include "googlesql/public/functions/normalize_mode.pb.h"
@@ -31,6 +30,7 @@
 #include "googlesql/testing/test_function.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"

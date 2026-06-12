@@ -383,11 +383,53 @@ select 1 + ARRAY[1]
        ^
 ==
 
+# Explicit-type constructor.
+[language_features=MAXIMUM,{{-|+}}ARRAY_OF_ARRAY]
+SELECT ARRAY<ARRAY<INT64>>[ARRAY<INT64>[1]]
+--
+
+ALTERNATION GROUP: -
+--
+ERROR: Arrays of arrays are not supported [at 1:8]
+SELECT ARRAY<ARRAY<INT64>>[ARRAY<INT64>[1]]
+       ^
+--
+ALTERNATION GROUP: +
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Ctor through a literal, implicit type.
+[language_features=MAXIMUM,{{-|+}}ARRAY_OF_ARRAY]
 select [[1]]
+--
+ALTERNATION GROUP: -
 --
 ERROR: Cannot construct array with element type ARRAY<INT64> because nested arrays are not supported [at 1:9]
 select [[1]]
         ^
+--
+ALTERNATION GROUP: +
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1]])
+    +-input_scan=
+      +-SingleRowScan
 ==
 
 select ARRAY[ARRAY[1]]
@@ -795,3 +837,142 @@ select array<string collate 'und:ci'>['abc']
 ERROR: Type with collation name is not supported in literal value construction [at 1:21]
 select array<string collate 'und:ci'>['abc']
                     ^
+==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+ANNOTATION_FRAMEWORK,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+TIMESTAMP_PRECISION_ANNOTATION]
+# TODO: b/490102087 - Fix java
+select
+  ARRAY<STRING(5) COLLATE "und:ci">["12", "123456"],
+  ARRAY<STRING(5)>["12", "123456"];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1<{Collation:"und:ci"}> AS `$col1` [ARRAY<STRING>]
+| +-$query.$col2#2 AS `$col2` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$make_array(repeated(2) STRING) -> ARRAY<STRING>)
+    | |   +-type_annotation_map=<{Collation:"und:ci"}>
+    | |   +-Cast(STRING -> STRING)
+    | |   | +-type_annotation_map={Collation:"und:ci"}
+    | |   | +-Literal(type=STRING, value="12")
+    | |   | +-type_modifiers=type_parameters:(max_length=5), collation:und:ci
+    | |   +-Cast(STRING -> STRING)
+    | |     +-type_annotation_map={Collation:"und:ci"}
+    | |     +-Literal(type=STRING, value="123456")
+    | |     +-type_modifiers=type_parameters:(max_length=5), collation:und:ci
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) STRING) -> ARRAY<STRING>)
+    |     +-Cast(STRING -> STRING)
+    |     | +-Literal(type=STRING, value="12")
+    |     | +-type_modifiers=type_parameters:(max_length=5)
+    |     +-Cast(STRING -> STRING)
+    |       +-Literal(type=STRING, value="123456")
+    |       +-type_modifiers=type_parameters:(max_length=5)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+ANNOTATION_FRAMEWORK,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+TIMESTAMP_PRECISION_ANNOTATION]
+# Verify that collation is not leaked with feature TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF.
+select
+  ARRAY<STRING(5)>[COLLATE("12", "und:ci")];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRING) -> ARRAY<STRING>)
+    |     +-Cast(STRING -> STRING)
+    |       +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       | +-type_annotation_map={Collation:"und:ci"}
+    |       | +-Literal(type=STRING, value="12")
+    |       | +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       +-type_modifiers=type_parameters:(max_length=5)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+ANNOTATION_FRAMEWORK,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+TIMESTAMP_PRECISION_ANNOTATION,+BUGGY_LEAK_COLLATION_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE]
+# Verify that when the type modifiers are specified, then collation is NOT LEAKED, even
+# BUGGY_LEAK_COLLATION_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE is enabled. For the new syntax,
+# there is no need to maintain the buggy behavior.
+select
+  ARRAY<STRING(5)>[COLLATE("12", "und:ci")];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRING) -> ARRAY<STRING>)
+    |     +-Cast(STRING -> STRING)
+    |       +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       | +-type_annotation_map={Collation:"und:ci"}
+    |       | +-Literal(type=STRING, value="12")
+    |       | +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       +-type_modifiers=type_parameters:(max_length=5)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+ANNOTATION_FRAMEWORK,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+TIMESTAMP_PRECISION_ANNOTATION,+BUGGY_LEAK_COLLATION_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE]
+# Test that if no type modifiers are specified, then collation is LEAKED, when
+# BUGGY_LEAK_COLLATION_TO_ARRAY_CONSTRUCTOR_EXPLICIT_TYPE is enabled, to maintain
+# backward compatiblity.
+select
+  ARRAY<STRING>[COLLATE("12", "und:ci")];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1<{Collation:"und:ci"}> AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1<{Collation:"und:ci"}>]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRING) -> ARRAY<STRING>)
+    |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |     +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       +-type_annotation_map={Collation:"und:ci"}
+    |       +-Literal(type=STRING, value="12")
+    |       +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+
+DEPRECATION WARNING:
+Array constructor with explicit type leaks collation from argument 0 [at 5:3]
+  ARRAY<STRING>[COLLATE("12", "und:ci")];
+  ^
+[googlesql.DeprecationWarning] { kind: BUGGY_COLLATION_LEAK_IN_ARRAY_CONSTRUCTOR }
+==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+NUMERIC_TYPE]
+select ARRAY<NUMERIC(10, 2)>[1234.12];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<NUMERIC>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) NUMERIC) -> ARRAY<NUMERIC>)
+    |     +-Cast(NUMERIC -> NUMERIC)
+    |       +-Literal(type=NUMERIC, value=1234.12)
+    |       +-type_modifiers=type_parameters:(precision=10,scale=2)
+    +-input_scan=
+      +-SingleRowScan
+==

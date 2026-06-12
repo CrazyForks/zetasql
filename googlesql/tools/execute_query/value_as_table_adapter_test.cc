@@ -129,5 +129,93 @@ TEST(ValueAsTableAdapterTest, MuMultipleColumnsMultipleRows) {
                                       r2.field(1), r3.field(0), r3.field(1)));
 }
 
+TEST(ValueAsTableAdapterTest, ValueTableWithSimpleType) {
+  TypeFactory type_factory;
+  const ArrayType* array_type = nullptr;
+  GOOGLESQL_ASSERT_OK(type_factory.MakeArrayType(types::Int64Type(), &array_type));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value value,
+      Value::MakeArray(array_type, {Value::Int64(1), Value::Int64(2)}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ValueAsTableAdapter> adapter,
+      ValueAsTableAdapter::Create(value, /*is_value_table=*/true));
+
+  const Table* table = adapter->GetTable();
+  ASSERT_THAT(table, NotNull());
+  EXPECT_EQ(table->NumColumns(), 1);
+  EXPECT_EQ(table->GetColumn(0)->Name(), "value");
+  EXPECT_TRUE(table->GetColumn(0)->GetType()->IsInt64());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EvaluatorTableIterator> iter,
+                       adapter->CreateEvaluatorTableIterator());
+  std::vector<Value> rows;
+  while (iter->NextRow()) {
+    EXPECT_THAT(iter->NumColumns(), 1);
+    EXPECT_THAT(iter->GetColumnType(0), types::Int64Type());
+    rows.push_back(iter->GetValue(0));
+  }
+
+  EXPECT_THAT(rows, ElementsAre(Value::Int64(1), Value::Int64(2)));
+}
+
+TEST(ValueAsTableAdapterTest, ValueTableWithStructType) {
+  TypeFactory type_factory;
+  const StructType* struct_type = nullptr;
+  GOOGLESQL_ASSERT_OK(
+      type_factory.MakeStructType({{"a", types::Int64Type()}}, &struct_type));
+  const ArrayType* array_type = nullptr;
+  GOOGLESQL_ASSERT_OK(type_factory.MakeArrayType(struct_type, &array_type));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value struct1,
+                       Value::MakeStruct(struct_type, {Value::Int64(1)}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value struct2,
+                       Value::MakeStruct(struct_type, {Value::Int64(2)}));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value value,
+                       Value::MakeArray(array_type, {struct1, struct2}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ValueAsTableAdapter> adapter,
+      ValueAsTableAdapter::Create(value, /*is_value_table=*/true));
+
+  const Table* table = adapter->GetTable();
+  ASSERT_THAT(table, NotNull());
+  EXPECT_EQ(table->NumColumns(), 1);
+  EXPECT_EQ(table->GetColumn(0)->Name(), "value");
+  EXPECT_TRUE(table->GetColumn(0)->GetType()->Equals(struct_type));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EvaluatorTableIterator> iter,
+                       adapter->CreateEvaluatorTableIterator());
+  std::vector<Value> rows;
+  while (iter->NextRow()) {
+    EXPECT_THAT(iter->NumColumns(), 1);
+    EXPECT_TRUE(iter->GetColumnType(0)->Equals(struct_type));
+    rows.push_back(iter->GetValue(0));
+  }
+
+  EXPECT_THAT(rows, ElementsAre(struct1, struct2));
+}
+
+TEST(ValueAsTableAdapterTest, EmptyValueTable) {
+  TypeFactory type_factory;
+  const ArrayType* array_type = nullptr;
+  GOOGLESQL_ASSERT_OK(type_factory.MakeArrayType(types::StringType(), &array_type));
+
+  Value value = Value::EmptyArray(array_type);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ValueAsTableAdapter> adapter,
+      ValueAsTableAdapter::Create(value, /*is_value_table=*/true));
+
+  const Table* table = adapter->GetTable();
+  ASSERT_THAT(table, NotNull());
+  EXPECT_EQ(table->NumColumns(), 1);
+  EXPECT_EQ(table->GetColumn(0)->Name(), "value");
+  EXPECT_TRUE(table->GetColumn(0)->GetType()->IsString());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EvaluatorTableIterator> iter,
+                       adapter->CreateEvaluatorTableIterator());
+  EXPECT_FALSE(iter->NextRow());
+}
+
 }  // namespace
 }  // namespace googlesql

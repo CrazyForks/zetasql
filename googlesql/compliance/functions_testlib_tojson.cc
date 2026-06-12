@@ -32,6 +32,7 @@
 #include "googlesql/public/json_value.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/public/token_list_util.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/array_type.h"
 #include "googlesql/public/types/type_factory.h"
@@ -832,6 +833,12 @@ void AddJsonTestCases(bool is_to_json,
   }
 }
 
+template <typename T>
+T ValueOrDie(absl::StatusOr<T> s) {
+  GOOGLESQL_CHECK_OK(s.status());
+  return std::move(s).value();
+}
+
 }  // namespace
 
 // Gets TO_JSON_STRING test cases, including nano_timestamp test cases.
@@ -1230,6 +1237,32 @@ std::vector<FunctionTestCall> GetFunctionTestsSafeToJson() {
     test.params.RemoveRequiredFeature(FEATURE_NAMED_ARGUMENTS);
     all_tests.push_back(std::move(test));
   }
+
+  std::vector<std::pair<Value, LanguageFeature>> unsupported_values = {
+      {TokenListFromStringArray({"a"}), FEATURE_TOKENIZED_SEARCH},
+      {Map({{"k", "v"}}), FEATURE_MAP_TYPE},
+  };
+
+  // For each unsupported type, add two test cases:
+  // 1. Unsupported type as the only argument.
+  // 2. Unsupported type as a field in a struct.
+  for (const auto& unsupported_value : unsupported_values) {
+    all_tests.emplace_back(
+        "safe_to_json", QueryParamsWithResult({unsupported_value.first},
+                                              values::Json(JSONValue()))
+                            .AddRequiredFeatures(
+                                {FEATURE_JSON_TYPE, unsupported_value.second}));
+    all_tests.emplace_back(
+        "safe_to_json",
+        QueryParamsWithResult(
+            {Struct({{"unsupported", unsupported_value.first},
+                     {"supported_field", values::String("foo")}})},
+            values::Json(ValueOrDie(JSONValue::ParseJSONString(
+                R"({"supported_field":"foo", "unsupported":null})"))))
+            .AddRequiredFeatures(
+                {FEATURE_JSON_TYPE, unsupported_value.second}));
+  }
+
   ABSL_DCHECK_GE(all_tests.size(), 1);
   return all_tests;
 }

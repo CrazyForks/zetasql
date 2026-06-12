@@ -1,0 +1,4 @@
+MODULE named_constant_in_nested_module_struct;
+
+CREATE PUBLIC CONSTANT baz_struct = STRUCT<x INT64, y INT64>(2, 2);
+CREATE PUBLIC CONSTANT baz_struct_struct = STRUCT<z STRUCT<x INT64, y INT64>>((2, 2));

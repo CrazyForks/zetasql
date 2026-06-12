@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -80,7 +81,6 @@ cc_test(
         "//googlesql/common/testing:proto_matchers",
         "//googlesql/public:value",
         "//googlesql/resolved_ast:resolved_ast_enums_cc_proto",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

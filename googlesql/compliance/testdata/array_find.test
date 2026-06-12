@@ -3218,3 +3218,38 @@ ARRAY<STRUCT<ARRAY<>>>[
      }
    ]}
 ]
+==
+
+[required_features=ARRAY_FIND_FUNCTIONS,ARRAY_OF_ARRAY,ARRAY_EQUALITY]
+[name=nested_arrays]
+SELECT
+  ARRAY_FIND(arr1, [1,2]) AS arr_find,
+  ARRAY_FIND_ALL(arr1, [1,2]) AS arr_find_all,
+FROM (
+  SELECT [[1,2], [3,4], [1,2]] AS arr1,
+)
+--
+ARRAY<STRUCT<arr_find ARRAY<>, arr_find_all ARRAY<>>>[
+  {ARRAY<INT64>[known order:1, 2],
+   ARRAY<ARRAY<>>[known order:
+     ARRAY<INT64>[known order:1, 2],
+     ARRAY<INT64>[known order:1, 2]
+   ]}
+]
+==
+
+[required_features=ARRAY_FIND_FUNCTIONS,ARRAY_OF_ARRAY,INLINE_LAMBDA_ARGUMENT]
+[name=nested_arrays_lambda]
+SELECT
+  ARRAY_FIND([arr1, arr2], e1 -> ARRAY_LENGTH(e1) > 1) AS arr_find,
+FROM (
+  SELECT [[3,3], [2,2]] AS arr1,
+         [[1,1]] AS arr2,
+)
+--
+ARRAY<STRUCT<arr_find ARRAY<>>>[
+  {ARRAY<ARRAY<>>[known order:
+     ARRAY<INT64>[known order:3, 3],
+     ARRAY<INT64>[known order:2, 2]
+   ]}
+]

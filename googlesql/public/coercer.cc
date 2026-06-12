@@ -44,13 +44,13 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -82,7 +82,7 @@ SuperTypesMap* CreateBuiltinSuperTypesMap() {
   auto* map = new SuperTypesMap;
 
   for (const auto& [cast_pair, cast_function_property] :
-       internal::GetGoogleSQLCasts()) {
+       GetCastPropertyMap(/*language_options=*/nullptr)) {
     const auto [src_type_kind, dst_type_kind] = cast_pair;
 
     if (src_type_kind == dst_type_kind) {
@@ -527,6 +527,13 @@ class Coercer::Context : public Coercer::ContextBase {
       const StructType* from_struct, const ProtoType* to_type,
       SignatureMatchResult* result);
 
+  // Returns whether <struct_argument> can be coerced to <to_type>. <to_type>
+  // must be a JSON type. <struct_argument> must be a struct type. The result of
+  // this function is updated only when the coercion is not possible.
+  absl::StatusOr<bool> StructCoercesToJson(
+      const InputArgumentType& struct_argument, const Type* to_type,
+      SignatureMatchResult* result);
+
   bool IsIntToOpaqueEnumInProductExternal(const Type* from_type,
                                           const Type* to_type) const;
 
@@ -693,9 +700,9 @@ absl::StatusOr<const ArrayType*> Coercer::GetCommonArraySuperType(
   if (element_supertype == nullptr) return nullptr;
 
   // Finally, attempt to coerce the individual arrays to the new array type.
-  const ArrayType* new_array_type;
-  GOOGLESQL_RETURN_IF_ERROR(
-      type_factory_->MakeArrayType(element_supertype, &new_array_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const ArrayType* new_array_type,
+      type_factory_->MakeArrayType(element_supertype, language_options_));
   for (const InputArgumentType& argument : argument_set.arguments()) {
     SignatureMatchResult result;
     auto unused_cast_evaluator = ExtendedCompositeCastEvaluator::Invalid();
@@ -910,10 +917,8 @@ absl::StatusOr<const Type*> Coercer::GetCommonSuperTypeImpl(
     } else {
       // There are untyped empty arrays and possibly untyped NULLs.
       // In this case, return the default ARRAY<INT64> type.
-      const ArrayType* array_type = nullptr;
-      GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeArrayType(type_factory_->get_int64(),
-                                                   &array_type));
-      return array_type;
+      return type_factory_->MakeArrayType(type_factory_->get_int64(),
+                                          language_options_);
     }
   }
 
@@ -1137,6 +1142,12 @@ absl::StatusOr<bool> Coercer::Context::CoercesTo(
     // result type for 'ROUND(NULL)', etc.
     return true;
   }
+  if (to_type->IsJson() &&
+      !IsTypeCastableToJson(from_argument.type(), language_options())) {
+    result->incr_non_matched_arguments();
+    return false;
+  }
+
   if (from_argument.type()->IsStruct()) {
     return StructCoercesTo(from_argument, to_type, result);
   }
@@ -1240,8 +1251,7 @@ absl::StatusOr<bool> Coercer::Context::ParameterCoercesTo(
   }
 
   const CastFunctionProperty* property =
-      googlesql_base::FindOrNull(internal::GetGoogleSQLCasts(),
-                      TypeKindPair(from_type->kind(), to_type->kind()));
+      GetCastProperty(from_type->kind(), to_type->kind(), &language_options());
   if (property != nullptr &&
       (SupportsParameterCoercion(property->type) ||
        (is_explicit() && SupportsExplicitCast(property->type))) &&
@@ -1285,8 +1295,7 @@ absl::StatusOr<bool> Coercer::Context::TypeCoercesTo(
   }
 
   const CastFunctionProperty* property =
-      googlesql_base::FindOrNull(internal::GetGoogleSQLCasts(),
-                      TypeKindPair(from_type->kind(), to_type->kind()));
+      GetCastProperty(from_type->kind(), to_type->kind(), &language_options());
   if (property == nullptr) {
     result->incr_non_matched_arguments();
     return false;
@@ -1330,6 +1339,10 @@ absl::StatusOr<bool> Coercer::Context::StructCoercesTo(
   if (to_type->IsProto()) {
     return StructCoercesToProtoMapEntry(from_struct, to_type->AsProto(),
                                         result);
+  }
+
+  if (to_type->IsJson()) {
+    return StructCoercesToJson(struct_argument, to_type, result);
   }
 
   if (!to_type->IsStruct() ||
@@ -1402,6 +1415,30 @@ absl::StatusOr<bool> Coercer::Context::StructCoercesTo(
   return true;
 }
 
+absl::StatusOr<bool> Coercer::Context::StructCoercesToJson(
+    const InputArgumentType& struct_argument, const Type* to_type,
+    SignatureMatchResult* result) {
+  if (!is_explicit() ||
+      !language_options().LanguageFeatureEnabled(FEATURE_CAST_TO_JSON_TYPE)) {
+    result->incr_non_matched_arguments();
+    return false;
+  }
+
+  // Check the field types for coercibility.
+  const StructType* from_struct = struct_argument.type()->AsStruct();
+  for (int idx = 0; idx < from_struct->num_fields(); ++idx) {
+    SignatureMatchResult local_result;
+    GOOGLESQL_ASSIGN_OR_RETURN(bool coerced,
+                     CoercesTo(InputArgumentType(from_struct->field(idx).type),
+                               to_type, &local_result));
+    if (!coerced) {
+      result->incr_non_matched_arguments();
+      return false;
+    }
+  }
+  return true;
+}
+
 absl::StatusOr<bool> Coercer::Context::StructCoercesToProtoMapEntry(
     const StructType* from_struct, const ProtoType* to_type,
     SignatureMatchResult* result) {
@@ -1466,9 +1503,8 @@ bool Coercer::Context::CoercesFromLiteralForBuiltinSimpleTypes(
     return true;
   }
 
-  const CastFunctionProperty* cast_function_property =
-      googlesql_base::FindOrNull(internal::GetGoogleSQLCasts(),
-                      TypeKindPair(literal_value.type_kind(), to_type->kind()));
+  const CastFunctionProperty* cast_function_property = GetCastProperty(
+      literal_value.type()->kind(), to_type->kind(), &language_options());
 
   if (cast_function_property == nullptr) {
     return false;
@@ -1491,6 +1527,11 @@ absl::StatusOr<bool> Coercer::Context::ArrayCoercesTo(
   GOOGLESQL_RET_CHECK(array_argument.type()->IsArray());
   const ArrayType* from_array = array_argument.type()->AsArray();
   if (from_array->Equivalent(to_type)) return true;
+
+  if (to_type->IsJson() && is_explicit() &&
+      IsTypeCastableToJson(from_array->element_type(), language_options())) {
+    return true;
+  }
 
   if (language_options().LanguageFeatureEnabled(
           FEATURE_CAST_DIFFERENT_ARRAY_TYPES) &&
@@ -1549,6 +1590,11 @@ absl::StatusOr<bool> Coercer::Context::GraphElementCoercesTo(
   GOOGLESQL_RET_CHECK(!graph_element_argument.is_literal())
       << "Graph query should not produce GraphElementType literals";
 
+  if (to_type->IsJson() && is_explicit() &&
+      IsTypeCastableToJson(graph_element_argument.type(), language_options())) {
+    return true;
+  }
+
   if (!to_type->IsGraphElement()) {
     result->incr_non_matched_arguments();
     return false;
@@ -1571,6 +1617,11 @@ absl::StatusOr<bool> Coercer::Context::GraphPathCoercesTo(
   // Path literals not supported.
   GOOGLESQL_RET_CHECK(!graph_path_argument.is_literal())
       << "Graph query should not produce GraphPathType literals";
+
+  if (to_type->IsJson() && is_explicit() &&
+      IsTypeCastableToJson(graph_path_argument.type(), language_options())) {
+    return true;
+  }
 
   if (!to_type->IsGraphPath()) {
     result->incr_non_matched_arguments();

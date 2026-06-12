@@ -1,0 +1,65 @@
+//
+// Copyright 2019 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+edition = "2023";
+
+package googlesql;
+
+option java_package = "com.google.googlesql";
+option java_multiple_files = true;
+option java_outer_classname = "KMeansOptionsProto";
+option features.field_presence = EXPLICIT;
+
+message KMeansOptions {
+  // The number of assignment/recenter centroid iterations to
+  // run as part of the k-means algorithm. Must be at least 1.
+  int64 num_iterations = 1;
+
+  enum DistanceType {
+    DISTANCE_TYPE_UNSPECIFIED = 0;
+    COSINE = 1;
+    EUCLIDEAN = 2;
+    DOT_PRODUCT = 3;
+  }
+  // The Distance type to use for similarity calculation. In the case of
+  // DOT_PRODUCT, the vectors need to be normalized first.
+  DistanceType distance_type = 2;
+
+  // Run the clustering these many times and retain the clusters which minimize
+  // the average vector-centroid distance.
+  int64 num_restarts = 3;
+
+  // The minimum relative loss improvement that is necessary to continue
+  // training. For example, a value of 0.01 indicates that each iteration
+  // must reduce the loss by 1% for training to continue. This would allow
+  // converging earlier in case no progress is being made during clustering.
+  float min_relative_progress = 4;
+
+  enum InitMethod {
+    INIT_METHOD_UNSPECIFIED = 0;
+    RANDOM = 1;
+    KMEANSPP = 2;
+  }
+  // The method of initializing the clusters.
+  InitMethod init_method = 5;
+
+  // Config which specifies the behaviour of the clustering algorithm when there
+  // are invalid elements like (NULL, +- inf, nan, all 0’s) in the vectors.
+  // Setting the value to TRUE would make the clustering process fail while
+  // setting the value to FALSE would make the clustering process to continue
+  // by ignoring such bad vectors.
+  bool fail_on_invalid_vector = 6;
+}

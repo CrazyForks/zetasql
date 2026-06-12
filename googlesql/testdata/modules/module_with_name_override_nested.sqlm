@@ -1,0 +1,20 @@
+-- This module is used for test case:
+--   googlesql/common/testdata/module_with_name_override.module_test
+--
+-- In that test, this module is imported into another module with alias `net`. In effect, the
+-- functions defined in this module shadow the `net` functions in the builtin catalog. Note that
+-- this module should not shadow the entire builtin `net` namespace, but only the specific functions
+-- defined in this module.
+
+MODULE googlesql.testdata.modules.module_with_name_override_nested;
+
+-- This function has the same signature as the builtin function, but just
+-- returns the input string.
+CREATE PUBLIC FUNCTION HOST(url STRING)
+AS (
+  url
+);
+
+-- This function has a completely different signature than the builtin
+-- function.
+CREATE PUBLIC FUNCTION IP_FROM_STRING(x INT64) as (x);

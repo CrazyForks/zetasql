@@ -16,12 +16,12 @@
 
 #include "googlesql/parser/textmapper_lexer_adapter.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "googlesql/parser/parser_mode.h"
 #include "googlesql/parser/tm_token.h"
-#include "googlesql/public/language_options.h"
+#include "googlesql/parser/tokenizer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
@@ -29,70 +29,33 @@
 namespace googlesql::parser {
 namespace {
 
-TEST(GoogleSqlTextmapperLexerTest, TestInstantiate) {
-  Lexer lexer = Lexer(ParserMode::kTokenizer, "filename", "SELECT 1",
-                      /*start_offset=*/0, LanguageOptions(),
-                      /*macro_expansion_mode*/ MacroExpansionMode::kNone,
-                      /*macro_catalog=*/nullptr, /*arena=*/nullptr);
+static std::unique_ptr<GoogleSqlTokenizer> MakeTokenStream(
+    absl::string_view input) {
+  return std::make_unique<GoogleSqlTokenizer>(
+      /*filename=*/"", input, /*start_byte_offset=*/0);
 }
 
-TEST(GoogleSqlTextmapperLexerTest, TestCopy) {
-  Lexer lexer = Lexer(ParserMode::kNextStatement, "filename", "SELECT 1",
-                      /*start_offset=*/0, LanguageOptions(),
-                      /*macro_expansion_mode*/ MacroExpansionMode::kNone,
-                      /*macro_catalog=*/nullptr, /*arena=*/nullptr);
-  Lexer lookahead = lexer;
-  EXPECT_EQ(lookahead.Next(), Token::KW_SELECT);
-  EXPECT_EQ(lexer.Text(), "");
-  EXPECT_EQ(lookahead.Next(), Token::INTEGER_LITERAL);
-  EXPECT_EQ(lexer.Text(), "");
-
-  EXPECT_EQ(lexer.Next(), Token::KW_SELECT);
-  EXPECT_EQ(lexer.Text(), "SELECT");
-  EXPECT_EQ(lexer.Next(), Token::INTEGER_LITERAL);
-  EXPECT_EQ(lexer.Text(), "1");
+TEST(GoogleSqlTextmapperLexerTest, TestInstantiate) {
+  auto token_stream = MakeTokenStream("SELECT 1");
+  auto lexer = std::make_unique<TextMapperLexerAdapter>(token_stream.get());
 }
 
 TEST(GoogleSqlTextmapperLexerTest, TestLastFunctions) {
-  Lexer lexer = Lexer(ParserMode::kNextStatement, "filename", "SELECT a.1b",
-                      /*start_offset=*/0, LanguageOptions(),
-                      /*macro_expansion_mode=*/MacroExpansionMode::kNone,
-                      /*macro_catalog=*/nullptr, /*arena=*/nullptr);
-  EXPECT_EQ(lexer.Next(), Token::KW_SELECT);
-  EXPECT_EQ(lexer.Last(), Token::KW_SELECT);
-  EXPECT_EQ(lexer.Last(), Token::KW_SELECT);
-  EXPECT_EQ(lexer.Text(), "SELECT");
-  EXPECT_EQ(lexer.LastTokenLocation().start().GetByteOffset(), 0);
-  EXPECT_EQ(lexer.LastTokenLocation().end().GetByteOffset(), 6);
-  EXPECT_FALSE(lexer.LastLastTokenLocation().IsValid());
+  auto token_stream = MakeTokenStream("SELECT a.1b");
+  auto lexer = std::make_unique<TextMapperLexerAdapter>(token_stream.get());
+  EXPECT_EQ(lexer->Next(), Token::KW_SELECT);
+  EXPECT_EQ(lexer->Last(), Token::KW_SELECT);
+  EXPECT_EQ(lexer->Last(), Token::KW_SELECT);
+  EXPECT_EQ(lexer->Text(), "SELECT");
+  EXPECT_EQ(lexer->LastTokenLocation().start().GetByteOffset(), 0);
+  EXPECT_EQ(lexer->LastTokenLocation().end().GetByteOffset(), 6);
 
-  EXPECT_EQ(lexer.Next(), Token::IDENTIFIER);
-  EXPECT_EQ(lexer.Last(), Token::IDENTIFIER);
-  EXPECT_EQ(lexer.Last(), Token::IDENTIFIER);
-  EXPECT_EQ(lexer.Text(), "a");
-  EXPECT_EQ(lexer.LastTokenLocation().start().GetByteOffset(), 7);
-  EXPECT_EQ(lexer.LastTokenLocation().end().GetByteOffset(), 8);
-  EXPECT_EQ(lexer.LastLastTokenLocation().start().GetByteOffset(), 0);
-  EXPECT_EQ(lexer.LastLastTokenLocation().end().GetByteOffset(), 6);
-}
-
-TEST(GoogleSqlTextmapperLexerTest, TestDotIdentifier) {
-  TextMapperLexerAdapter lexer =
-      TextMapperLexerAdapter(ParserMode::kTokenizer, "filename", "SELECT a.1b",
-                             /*start_offset=*/0, LanguageOptions(),
-                             /*macro_expansion_mode*/ MacroExpansionMode::kNone,
-                             /*macro_catalog=*/nullptr,
-                             /*arena=*/nullptr);
-  std::vector<Token> tokens;
-  Token next_token;
-  do {
-    next_token = lexer.Next();
-    tokens.push_back(next_token);
-  } while (next_token != Token::EOI);
-
-  EXPECT_THAT(tokens,
-              testing::ElementsAre(Token::KW_SELECT, Token::IDENTIFIER,
-                                   Token::DOT, Token::IDENTIFIER, Token::EOI));
+  EXPECT_EQ(lexer->Next(), Token::IDENTIFIER);
+  EXPECT_EQ(lexer->Last(), Token::IDENTIFIER);
+  EXPECT_EQ(lexer->Last(), Token::IDENTIFIER);
+  EXPECT_EQ(lexer->Text(), "a");
+  EXPECT_EQ(lexer->LastTokenLocation().start().GetByteOffset(), 7);
+  EXPECT_EQ(lexer->LastTokenLocation().end().GetByteOffset(), 8);
 }
 
 struct TokenizerTestCase {
@@ -103,16 +66,12 @@ struct TokenizerTestCase {
 using TokenizerTest = testing::TestWithParam<TokenizerTestCase>;
 
 TEST_P(TokenizerTest, TestTokenization) {
-  TextMapperLexerAdapter lexer = TextMapperLexerAdapter(
-      ParserMode::kTokenizer, "filename", GetParam().input,
-      /*start_offset=*/0, LanguageOptions(),
-      /*macro_expansion_mode*/ MacroExpansionMode::kNone,
-      /*macro_catalog=*/nullptr,
-      /*arena=*/nullptr);
+  auto token_stream = MakeTokenStream(GetParam().input);
+  auto lexer = std::make_unique<TextMapperLexerAdapter>(token_stream.get());
 
   std::vector<Token> actual_tokens;
-  while (lexer.Next() != Token::EOI) {
-    actual_tokens.push_back(lexer.Last());
+  while (lexer->Next() != Token::EOI) {
+    actual_tokens.push_back(lexer->Last());
   }
 
   EXPECT_THAT(actual_tokens,

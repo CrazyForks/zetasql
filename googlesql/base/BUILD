@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -27,6 +28,7 @@ package_group(
         "//googlesql/...",
         "//java/...",
         "//javatests/...",
+        "//third_party/googlesql/zetasql/...",
     ],
 )
 
@@ -77,9 +79,7 @@ cc_library(
 cc_library(
     name = "die_if_null",
     hdrs = ["die_if_null.h"],
-    deps = [
-        ":check",
-    ],
+    deps = [":check"],
 )
 
 cc_library(
@@ -89,6 +89,7 @@ cc_library(
         "arena.h",
     ],
     deps = [
+        ":check",
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/synchronization",
@@ -114,9 +115,12 @@ cc_test(
     deps = [
         ":arena",
         ":arena_allocator",
+        ":check",
         ":logging",
         "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -156,6 +160,7 @@ cc_library(
         ":logging",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/numeric:int128",
     ],
 )
@@ -204,6 +209,9 @@ cc_test(
     deps = [
         "//googlesql/base/testing:googlesql_gtest_main",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -217,6 +225,7 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -251,6 +260,7 @@ cc_library(
         ":logging",
         ":source_location",
         ":status",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
     ],
 )
@@ -271,19 +281,15 @@ cc_test(
 )
 
 cc_library(
-    name = "no_destructor",
-    hdrs = ["no_destructor.h"],
-)
-
-cc_library(
     name = "map_util",
     hdrs = [
         "map_traits.h",
         "map_util.h",
     ],
     deps = [
+        ":check",
         ":logging",
-        ":no_destructor",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
@@ -301,6 +307,7 @@ cc_test(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -384,17 +391,6 @@ cc_test(
         ":stl_util",
         "//googlesql/base/testing:googlesql_gtest_main",
         "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-cc_test(
-    name = "no_destructor_test",
-    size = "small",
-    srcs = ["no_destructor_test.cc"],
-    deps = [
-        ":logging",
-        ":no_destructor",
-        "//googlesql/base/testing:googlesql_gtest_main",
     ],
 )
 
@@ -515,6 +511,7 @@ cc_test(
     deps = [
         ":case",
         "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -533,6 +530,7 @@ cc_test(
     deps = [
         ":path",
         "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -614,6 +612,7 @@ cc_library(
     ],
     deps = [
         ":base",
+        ":check",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
@@ -666,6 +665,7 @@ cc_test(
     ],
     deps = [
         ":base",
+        ":flat_internal",
         ":flat_set",
         ":stl_util",
         "//googlesql/base/testing:googlesql_gtest_main",
@@ -689,6 +689,7 @@ cc_library(
     deps = [
         ":base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -864,6 +865,7 @@ cc_test(
         ":optional_ref",
         ":optional_ref_matchers",
         "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
     ],
 )

@@ -27,23 +27,33 @@
 #include <utility>
 
 #include "googlesql/common/errors.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/endian.h"
-#include "googlesql/base/no_destructor.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
 
 constexpr int kMaxUuidNumberOfHexDigits = 32;
+
+// Maximum length of the input string to include in error messages
+constexpr size_t kMaxInputLengthForError = 128;
+
+std::string TruncateForError(absl::string_view str) {
+  if (str.length() <= kMaxInputLengthForError) {
+    return std::string(str);
+  }
+  return absl::StrCat(str.substr(0, kMaxInputLengthForError), "...[TRUNCATED]");
+}
 
 // Helper function to parse a single hexadecimal block of a UUID.
 // A hexadecimal block is a 16-digit hexadecimal number, which is represented
@@ -51,7 +61,7 @@ constexpr int kMaxUuidNumberOfHexDigits = 32;
 absl::StatusOr<uint64_t> ParseHexBlock(absl::string_view& str,
                                        absl::string_view original_str) {
   constexpr int kMaxUuidBlockLength = 16;
-  static const googlesql_base::NoDestructor<absl::flat_hash_map<char, uint8_t>>
+  static const absl::NoDestructor<absl::flat_hash_map<char, uint8_t>>
       kCharToHexMap({{'0', 0x00}, {'1', 0x01}, {'2', 0x02}, {'3', 0x03},
                      {'4', 0x04}, {'5', 0x05}, {'6', 0x06}, {'7', 0x07},
                      {'8', 0x08}, {'9', 0x09}, {'a', 0x0a}, {'b', 0x0b},
@@ -65,20 +75,20 @@ absl::StatusOr<uint64_t> ParseHexBlock(absl::string_view& str,
       return MakeEvalError() << absl::Substitute(
                  "Invalid input: '$0'. UUID must be at least $1 characters "
                  "long.",
-                 original_str, kMaxUuidNumberOfHexDigits);
+                 TruncateForError(original_str), kMaxUuidNumberOfHexDigits);
     } else if (str[0] == '-') {
       // Check for consecutive hyphens
       return MakeEvalError() << absl::Substitute(
                  "Invalid input: '$0'. UUID cannot have multiple "
                  "consecutive hyphens (-).",
-                 original_str);
+                 TruncateForError(original_str));
     }
 
     auto it = kCharToHexMap->find(str[0]);
     if (it == kCharToHexMap->end()) {
       return MakeEvalError() << absl::Substitute(
                  "Invalid input: '$0'. UUID cannot have '$1' character.",
-                 original_str, str[0]);
+                 TruncateForError(original_str), str[0]);
     }
     block = (block << 4) + it->second;
     str.remove_prefix(1);
@@ -110,7 +120,7 @@ absl::StatusOr<UuidValue> UuidValue::FromString(absl::string_view str) {
   if (hasBraces) {
     if (str[str.size() - 1] != '}') {
       return MakeEvalError()
-             << "Invalid input: '" << original_str
+             << "Invalid input: '" << TruncateForError(original_str)
              << "'. Mismatched curly braces in UUID, missing closing '}'.";
     }
     str.remove_prefix(1);
@@ -119,7 +129,8 @@ absl::StatusOr<UuidValue> UuidValue::FromString(absl::string_view str) {
 
   // Check for leading hyphen after braces.
   if (str[0] == '-') {
-    return MakeEvalError() << "Invalid input: '" << original_str
+    return MakeEvalError() << "Invalid input: '"
+                           << TruncateForError(original_str)
                            << "'. UUID cannot start with a hyphen (-).";
   }
 
@@ -128,7 +139,8 @@ absl::StatusOr<UuidValue> UuidValue::FromString(absl::string_view str) {
   GOOGLESQL_ASSIGN_OR_RETURN(uint64_t lowBits, ParseHexBlock(str, original_str));
 
   if (!str.empty()) {
-    return MakeEvalError() << "Invalid input: '" << original_str << "'. "
+    return MakeEvalError() << "Invalid input: '"
+                           << TruncateForError(original_str) << "'. "
                            << str.size()
                            << " extra characters found after parsing UUID.";
   }

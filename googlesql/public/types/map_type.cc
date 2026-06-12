@@ -39,13 +39,13 @@
 #include "absl/hash/hash.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -101,12 +101,6 @@ absl::StatusOr<std::string> MapType::TypeNameWithModifiers(
                        value_type_modifiers, mode, use_external_float32));
 
   return absl::StrCat("MAP<", key_type_name, ", ", value_type_name, ">");
-}
-
-std::string MapType::CapitalizedName() const {
-  ABSL_CHECK_EQ(kind(), TYPE_MAP);  // Crash OK
-  return absl::StrCat("Map<", GetMapKeyType(this)->CapitalizedName(), ", ",
-                      GetMapValueType(this)->CapitalizedName(), ">");
 }
 
 bool MapType::SupportsOrdering(const LanguageOptions& language_options,
@@ -203,6 +197,11 @@ void MapType::CopyValueContent(const ValueContent& from,
 
 void MapType::ClearValueContent(const ValueContent& value) const {
   value.GetAs<internal::ValueContentMapRef*>()->Unref();
+}
+
+uint64_t MapType::GetValueContentExternallyAllocatedByteSize(
+    const ValueContent& value) const {
+  return value.GetAs<internal::ValueContentMapRef*>()->physical_byte_size();
 }
 
 absl::HashState MapType::HashTypeParameter(absl::HashState state) const {

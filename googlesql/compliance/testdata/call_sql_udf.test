@@ -94,6 +94,14 @@ CREATE TEMP FUNCTION CurrentTimestampFunction() AS (
 )
 ==
 
+[prepare_database]
+[required_features=TEMPLATE_FUNCTIONS,ANY_STRING_TEMPLATED_ARGUMENT]
+CREATE TEMP FUNCTION templated_with_any_string(a ANY STRING)
+AS (
+  (a, a)
+);
+==
+
 [name=call_nullary_function]
 SELECT Thousand() + Thousand()
 UNION ALL
@@ -311,3 +319,10 @@ NOTE: Reference implementation reports non-determinism.
 SELECT CurrentTimestampFunction()=CURRENT_TIMESTAMP() AS result;
 --
 ARRAY<STRUCT<result BOOL>>[{true}]
+==
+
+[required_features=]
+[name=templated_types_with_various_bounds]
+SELECT templated_with_any_string("A")
+--
+ARRAY<STRUCT<STRUCT<STRING, STRING>>>[{{"A", "A"}}]

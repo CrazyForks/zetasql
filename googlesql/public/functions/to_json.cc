@@ -24,8 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/common/internal_value.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/public/functions/json_format.h"
 #include "googlesql/public/functions/unsupported_fields.pb.h"
@@ -41,14 +41,16 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/uuid_value.h"
 #include "googlesql/public/value.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "google/protobuf/dynamic_message.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {
@@ -121,13 +123,21 @@ absl::StatusOr<JSONValue> ToJsonFromNumeric(
 // If the value is Infinity, -Infinity, or NaN, returns the json string
 // representation. Otherwise returns json number type.
 template <typename FloatType>
-JSONValue ToJsonFromFloat(FloatType value, bool canonicalize_zero) {
+absl::StatusOr<JSONValue> ToJsonFromFloat(FloatType value,
+                                          bool canonicalize_zero,
+                                          bool reject_nan_infinity_floats) {
   if (std::isnan(value)) {
+    if (reject_nan_infinity_floats) {
+      return MakeEvalError() << "NaN is not a valid JSON number";
+    }
     return JSONValue(std::string("NaN"));
   }
   if (std::isinf(value)) {
-    return value > 0 ? JSONValue(std::string("Infinity"))
-                     : JSONValue(std::string("-Infinity"));
+    std::string result = value > 0 ? "Infinity" : "-Infinity";
+    if (reject_nan_infinity_floats) {
+      return MakeEvalError() << result << " is not a valid JSON number";
+    }
+    return JSONValue(result);
   }
   ABSL_DCHECK(std::isfinite(value))
       << "Floating point number with unexpected properties" << value;
@@ -141,13 +151,39 @@ absl::StatusOr<JSONValue> ToJsonFromGraphElement(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool path_as_object,
     int current_nesting_level, bool canonicalize_zero,
+    bool reject_nan_infinity_floats,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields);
 
 absl::StatusOr<JSONValue> ToJsonFromGraphPath(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool path_as_object,
     int current_nesting_level, bool canonicalize_zero,
+    bool reject_nan_infinity_floats,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields);
+
+// Returns true if the array is non-deterministic. This is used for testing
+// purposes only.
+bool IsArrayNonDeterministic(const Value& value) {
+  ABSL_DCHECK(value.is_valid());
+  ABSL_DCHECK(!value.is_null());
+  ABSL_DCHECK(value.type()->IsArray());
+  if (value.num_elements() <= 1) {
+    // Arrays with 0 or 1 element are always deterministic.
+    return false;
+  }
+  if (InternalValue::order_kind(value) != InternalValue::kPreservesOrder) {
+    // Array Value is potentially not deterministic.
+    // Check if this multi-element array is a repeated value instead.
+    // If all elements are the same, the array is deterministic.
+    // Otherwise, it is non-deterministic.
+    for (int i = 1; i < value.num_elements(); ++i) {
+      if (!value.elements()[0].Equals(value.elements()[i])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Helper function for ToJson except that this function internally keeps
 // tracking of <current_nesting_level> for STRUCT and ARRAY and checks stack
@@ -158,7 +194,9 @@ absl::StatusOr<JSONValue> ToJsonHelper(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool path_as_object,
     int current_nesting_level, bool canonicalize_zero,
-    UnsupportedFieldsEnum::UnsupportedFields unsupported_fields) {
+    bool reject_nan_infinity_floats,
+    UnsupportedFieldsEnum::UnsupportedFields unsupported_fields,
+    bool* out_found_non_deterministic = nullptr) {
   // Check the stack usage iff the <current_neesting_level> not less than
   // kNestingLevelStackCheckThreshold.
   if (current_nesting_level >= kNestingLevelStackCheckThreshold) {
@@ -192,9 +230,11 @@ absl::StatusOr<JSONValue> ToJsonHelper(
       }
     }
     case TYPE_FLOAT:
-      return ToJsonFromFloat(value.float_value(), canonicalize_zero);
+      return ToJsonFromFloat(value.float_value(), canonicalize_zero,
+                             reject_nan_infinity_floats);
     case TYPE_DOUBLE:
-      return ToJsonFromFloat(value.double_value(), canonicalize_zero);
+      return ToJsonFromFloat(value.double_value(), canonicalize_zero,
+                             reject_nan_infinity_floats);
     case TYPE_NUMERIC:
       return ToJsonFromNumeric(
           value.numeric_value(), stringify_wide_numbers, language_options,
@@ -278,7 +318,8 @@ absl::StatusOr<JSONValue> ToJsonHelper(
             JSONValue json_member_value,
             ToJsonHelper(field_value, stringify_wide_numbers, language_options,
                          path_as_object, current_nesting_level + 1,
-                         canonicalize_zero, unsupported_fields));
+                         canonicalize_zero, reject_nan_infinity_floats,
+                         unsupported_fields, out_found_non_deterministic));
         JSONValueRef member_value_ref = json_value_ref.GetMember(name);
         member_value_ref.Set(std::move(json_member_value));
       }
@@ -289,13 +330,18 @@ absl::StatusOr<JSONValue> ToJsonHelper(
       JSONValueRef json_value_ref = json_value.GetRef();
       json_value_ref.SetToEmptyArray();
       if (!value.elements().empty()) {
+        if (out_found_non_deterministic != nullptr &&
+            IsArrayNonDeterministic(value)) {
+          *out_found_non_deterministic = true;
+        }
         json_value_ref.GetArrayElement(value.num_elements() - 1);
         int element_index = 0;
         for (const auto& element_value : value.elements()) {
           auto json_element = ToJsonHelper(
               element_value, stringify_wide_numbers, language_options,
               path_as_object, current_nesting_level + 1, canonicalize_zero,
-              UnsupportedFieldsEnum::FAIL);
+              reject_nan_infinity_floats, UnsupportedFieldsEnum::FAIL,
+              out_found_non_deterministic);
           if (json_element.status().code() ==
               absl::StatusCode::kUnimplemented) {
             // The value type is not supported by TO_JSON, and we should
@@ -333,12 +379,14 @@ absl::StatusOr<JSONValue> ToJsonHelper(
     case TYPE_GRAPH_ELEMENT: {
       return ToJsonFromGraphElement(
           value, stringify_wide_numbers, language_options, path_as_object,
-          current_nesting_level, canonicalize_zero, unsupported_fields);
+          current_nesting_level, canonicalize_zero, reject_nan_infinity_floats,
+          unsupported_fields);
     }
     case TYPE_GRAPH_PATH: {
       return ToJsonFromGraphPath(
           value, stringify_wide_numbers, language_options, path_as_object,
-          current_nesting_level, canonicalize_zero, unsupported_fields);
+          current_nesting_level, canonicalize_zero, reject_nan_infinity_floats,
+          unsupported_fields);
     }
     case TYPE_RANGE: {
       JSONValue json_value;
@@ -349,7 +397,8 @@ absl::StatusOr<JSONValue> ToJsonHelper(
           JSONValue json_member_value,
           ToJsonHelper(value.start(), stringify_wide_numbers, language_options,
                        path_as_object, current_nesting_level + 1,
-                       canonicalize_zero, unsupported_fields));
+                       canonicalize_zero, reject_nan_infinity_floats,
+                       unsupported_fields));
       JSONValueRef member_value_ref = json_value_ref.GetMember("start");
       member_value_ref.Set(std::move(json_member_value));
 
@@ -357,7 +406,8 @@ absl::StatusOr<JSONValue> ToJsonHelper(
           json_member_value,
           ToJsonHelper(value.end(), stringify_wide_numbers, language_options,
                        path_as_object, current_nesting_level + 1,
-                       canonicalize_zero, unsupported_fields));
+                       canonicalize_zero, reject_nan_infinity_floats,
+                       unsupported_fields));
       member_value_ref = json_value_ref.GetMember("end");
       member_value_ref.Set(std::move(json_member_value));
 
@@ -387,6 +437,7 @@ absl::StatusOr<JSONValue> ToJsonFromGraphElement(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool path_as_object,
     int current_nesting_level, bool canonicalize_zero,
+    bool reject_nan_infinity_floats,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields) {
   JSONValue json_value;
   JSONValueRef json_value_ref = json_value.GetRef();
@@ -426,7 +477,8 @@ absl::StatusOr<JSONValue> ToJsonFromGraphElement(
         JSONValue v,
         ToJsonHelper(property_value, stringify_wide_numbers, language_options,
                      path_as_object, current_nesting_level + 1,
-                     canonicalize_zero, unsupported_fields));
+                     canonicalize_zero, reject_nan_infinity_floats,
+                     unsupported_fields));
     properties_ref.GetMember(property_name).Set(std::move(v));
   }
 
@@ -454,6 +506,7 @@ absl::StatusOr<JSONValue> ToJsonFromGraphPath(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool path_as_object,
     int current_nesting_level, bool canonicalize_zero,
+    bool reject_nan_infinity_floats,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields) {
   bool to_json_object = path_as_object;
 
@@ -464,11 +517,12 @@ absl::StatusOr<JSONValue> ToJsonFromGraphPath(
 
     for (int i = 0; i < value.num_graph_elements(); ++i) {
       GOOGLESQL_RET_CHECK(value.graph_element(i).type()->IsGraphElement());
-      GOOGLESQL_ASSIGN_OR_RETURN(JSONValue v,
-                       ToJsonHelper(value.graph_element(i),
-                                    stringify_wide_numbers, language_options,
-                                    path_as_object, current_nesting_level + 1,
-                                    canonicalize_zero, unsupported_fields));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          JSONValue v,
+          ToJsonHelper(value.graph_element(i), stringify_wide_numbers,
+                       language_options, path_as_object,
+                       current_nesting_level + 1, canonicalize_zero,
+                       reject_nan_infinity_floats, unsupported_fields));
       json_value_ref.GetArrayElement(i).Set(std::move(v));
     }
     return json_value;
@@ -479,11 +533,12 @@ absl::StatusOr<JSONValue> ToJsonFromGraphPath(
     JSONValueRef elements_ref = json_value_ref.GetMember("elements");
     elements_ref.SetToEmptyArray();
     for (int i = 0; i < value.num_graph_elements(); ++i) {
-      GOOGLESQL_ASSIGN_OR_RETURN(JSONValue v,
-                       ToJsonHelper(value.graph_element(i),
-                                    stringify_wide_numbers, language_options,
-                                    path_as_object, current_nesting_level + 1,
-                                    canonicalize_zero, unsupported_fields));
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          JSONValue v,
+          ToJsonHelper(value.graph_element(i), stringify_wide_numbers,
+                       language_options, path_as_object,
+                       current_nesting_level + 1, canonicalize_zero,
+                       reject_nan_infinity_floats, unsupported_fields));
       elements_ref.GetArrayElement(i).Set(std::move(v));
     }
 
@@ -497,10 +552,12 @@ absl::StatusOr<JSONValue> ToJson(
     const Value& value, bool stringify_wide_numbers,
     const LanguageOptions& language_options, bool canonicalize_zero,
     UnsupportedFieldsEnum::UnsupportedFields unsupported_fields,
-    bool path_as_object) {
+    bool path_as_object, bool reject_nan_infinity_floats,
+    bool* out_found_non_deterministic) {
   return ToJsonHelper(value, stringify_wide_numbers, language_options,
                       path_as_object, /*current_nesting_level=*/0,
-                      canonicalize_zero, unsupported_fields);
+                      canonicalize_zero, reject_nan_infinity_floats,
+                      unsupported_fields, out_found_non_deterministic);
 }
 
 }  // namespace functions

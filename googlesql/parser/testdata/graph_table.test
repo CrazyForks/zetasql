@@ -82,27 +82,28 @@ QueryStatement [0-127] [select * from...2)   ) g1]
               GraphPathPattern [52-54] [()]
                 GraphNodePattern [52-54] [()]
                   GraphElementPatternFiller [53-53] []
-          SelectList [68-119] [1 AS one,...ting_name.*, 1 + 2]
-            SelectColumn [68-76] [1 AS one]
-              IntLiteral(1) [68-69] [1]
-              Alias [70-76] [AS one]
-                Identifier(one) [73-76] [one]
-            SelectColumn [78-88] [1+1 AS two]
-              BinaryExpression(+) [78-81] [1+1]
-                IntLiteral(1) [78-79] [1]
-                IntLiteral(1) [80-81] [1]
-              Alias [82-88] [AS two]
-                Identifier(two) [85-88] [two]
-            SelectColumn [90-91] [*]
-              Star(*) [90-91] [*]
-            SelectColumn [93-112] [non_existing_name.*]
-              DotStar [93-112] [non_existing_name.*]
-                PathExpression [93-110] [non_existing_name]
-                  Identifier(non_existing_name) [93-110] [non_existing_name]
-            SelectColumn [114-119] [1 + 2]
-              BinaryExpression(+) [114-119] [1 + 2]
-                IntLiteral(1) [114-115] [1]
-                IntLiteral(2) [118-119] [2]
+          Select [59-120] [COLUMNS( 1....*, 1 + 2)]
+            SelectList [68-119] [1 AS one,...ting_name.*, 1 + 2]
+              SelectColumn [68-76] [1 AS one]
+                IntLiteral(1) [68-69] [1]
+                Alias [70-76] [AS one]
+                  Identifier(one) [73-76] [one]
+              SelectColumn [78-88] [1+1 AS two]
+                BinaryExpression(+) [78-81] [1+1]
+                  IntLiteral(1) [78-79] [1]
+                  IntLiteral(1) [80-81] [1]
+                Alias [82-88] [AS two]
+                  Identifier(two) [85-88] [two]
+              SelectColumn [90-91] [*]
+                Star(*) [90-91] [*]
+              SelectColumn [93-112] [non_existing_name.*]
+                DotStar [93-112] [non_existing_name.*]
+                  PathExpression [93-110] [non_existing_name]
+                    Identifier(non_existing_name) [93-110] [non_existing_name]
+              SelectColumn [114-119] [1 + 2]
+                BinaryExpression(+) [114-119] [1 + 2]
+                  IntLiteral(1) [114-115] [1]
+                  IntLiteral(2) [118-119] [2]
           Alias [125-127] [g1]
             Identifier(g1) [125-127] [g1]
 --
@@ -159,8 +160,7 @@ FROM
   GRAPH_TABLE(
     my.graph
     MATCH
-      (n
-      IS Label)
+      (n IS Label)
   ) AS g1
 ==
 
@@ -379,7 +379,7 @@ select * from
   ) g1
 --
 
-ERROR: Syntax error: Expected keyword RETURN but got ")" [at 5:3]
+ERROR: Syntax error: Expected keyword INSERT or keyword RETURN but got ")" [at 5:3]
   ) g1
   ^
 ==
@@ -563,8 +563,7 @@ FROM
       WHERE
         a.account_id = c.account_id
     MATCH
-      (c
-      IS Account)
+      (c IS Account)
       ->
       (a)
     RETURN
@@ -1005,7 +1004,7 @@ select * from
 
 --
 
-ERROR: Syntax error: Expected keyword RETURN but got ")" [at 4:3]
+ERROR: Syntax error: Expected keyword INSERT or keyword RETURN but got ")" [at 4:3]
   ) g1
   ^
 
@@ -1021,7 +1020,7 @@ select * from
 
 --
 
-ERROR: Syntax error: Expected keyword RETURN but got keyword COLUMNS [at 5:5]
+ERROR: Syntax error: Expected keyword INSERT or keyword RETURN but got keyword COLUMNS [at 5:5]
     COLUMNS (n.name)
     ^
 
@@ -1278,15 +1277,16 @@ QueryStatement [0-188] [SELECT   *...is_student)   )]
                     Identifier(n) [109-110] [n]
                   GraphElementLabel [126-135] [TaxEntity]
                     Identifier(TaxEntity) [126-135] [TaxEntity]
-          SelectList [149-183] [n IS LABELED...is_student]
-            SelectColumn [149-183] [n IS LABELED...is_student]
-              GraphIsLabeledPredicate [149-169] [n IS LABELED Student]
-                PathExpression [149-150] [n]
-                  Identifier(n) [149-150] [n]
-                GraphElementLabel [162-169] [Student]
-                  Identifier(Student) [162-169] [Student]
-              Alias [170-183] [AS is_student]
-                Identifier(is_student) [173-183] [is_student]
+          Select [140-184] [COLUMNS (n...is_student)]
+            SelectList [149-183] [n IS LABELED...is_student]
+              SelectColumn [149-183] [n IS LABELED...is_student]
+                GraphIsLabeledPredicate [149-169] [n IS LABELED Student]
+                  PathExpression [149-150] [n]
+                    Identifier(n) [149-150] [n]
+                  GraphElementLabel [162-169] [Student]
+                    Identifier(Student) [162-169] [Student]
+                Alias [170-183] [AS is_student]
+                  Identifier(is_student) [173-183] [is_student]
 --
 SELECT
   *,
@@ -1295,8 +1295,7 @@ FROM
   GRAPH_TABLE(
     g
     MATCH
-      (n
-      IS Person | Building)
+      (n IS Person | Building)
       WHERE
         n IS NOT LABELED TaxEntity
     COLUMNS(
@@ -1333,15 +1332,16 @@ QueryStatement [0-109] [SELECT   *...is_student)   )]
                     GraphLabelFilter [45-55] [IS LABELED]
                       GraphElementLabel [48-55] [LABELED]
                         Identifier(LABELED) [48-55] [LABELED]
-          SelectList [70-104] [n IS LABELED...is_student]
-            SelectColumn [70-104] [n IS LABELED...is_student]
-              GraphIsLabeledPredicate [70-90] [n IS LABELED Student]
-                PathExpression [70-71] [n]
-                  Identifier(n) [70-71] [n]
-                GraphElementLabel [83-90] [Student]
-                  Identifier(Student) [83-90] [Student]
-              Alias [91-104] [AS is_student]
-                Identifier(is_student) [94-104] [is_student]
+          Select [61-105] [COLUMNS (n...is_student)]
+            SelectList [70-104] [n IS LABELED...is_student]
+              SelectColumn [70-104] [n IS LABELED...is_student]
+                GraphIsLabeledPredicate [70-90] [n IS LABELED Student]
+                  PathExpression [70-71] [n]
+                    Identifier(n) [70-71] [n]
+                  GraphElementLabel [83-90] [Student]
+                    Identifier(Student) [83-90] [Student]
+                Alias [91-104] [AS is_student]
+                  Identifier(is_student) [94-104] [is_student]
 --
 SELECT
   *
@@ -1349,8 +1349,7 @@ FROM
   GRAPH_TABLE(
     g
     MATCH
-      (n
-      IS LABELED)
+      (n IS LABELED)
     COLUMNS(
       n IS LABELED Student AS is_student
     )
@@ -1388,15 +1387,16 @@ QueryStatement [0-119] [SELECT   *...is_student)   )]
                           Identifier(LABELED) [48-55] [LABELED]
                         GraphElementLabel [58-65] [LABELED]
                           Identifier(LABELED) [58-65] [LABELED]
-          SelectList [80-114] [n IS LABELED...is_student]
-            SelectColumn [80-114] [n IS LABELED...is_student]
-              GraphIsLabeledPredicate [80-100] [n IS LABELED Student]
-                PathExpression [80-81] [n]
-                  Identifier(n) [80-81] [n]
-                GraphElementLabel [93-100] [Student]
-                  Identifier(Student) [93-100] [Student]
-              Alias [101-114] [AS is_student]
-                Identifier(is_student) [104-114] [is_student]
+          Select [71-115] [COLUMNS (n...is_student)]
+            SelectList [80-114] [n IS LABELED...is_student]
+              SelectColumn [80-114] [n IS LABELED...is_student]
+                GraphIsLabeledPredicate [80-100] [n IS LABELED Student]
+                  PathExpression [80-81] [n]
+                    Identifier(n) [80-81] [n]
+                  GraphElementLabel [93-100] [Student]
+                    Identifier(Student) [93-100] [Student]
+                Alias [101-114] [AS is_student]
+                  Identifier(is_student) [104-114] [is_student]
 --
 SELECT
   *
@@ -1404,8 +1404,7 @@ FROM
   GRAPH_TABLE(
     g
     MATCH
-      (n
-      IS LABELED | LABELED)
+      (n IS LABELED | LABELED)
     COLUMNS(
       n IS LABELED Student AS is_student
     )
@@ -1445,15 +1444,16 @@ QueryStatement [0-125] [SELECT   *...is_student)   )]
                           GraphWildcardLabel [59-60] [%]
                           GraphElementLabel [63-70] [LABELED]
                             Identifier(LABELED) [63-70] [LABELED]
-          SelectList [86-120] [n IS LABELED...is_student]
-            SelectColumn [86-120] [n IS LABELED...is_student]
-              GraphIsLabeledPredicate [86-106] [n IS LABELED Student]
-                PathExpression [86-87] [n]
-                  Identifier(n) [86-87] [n]
-                GraphElementLabel [99-106] [Student]
-                  Identifier(Student) [99-106] [Student]
-              Alias [107-120] [AS is_student]
-                Identifier(is_student) [110-120] [is_student]
+          Select [77-121] [COLUMNS (n...is_student)]
+            SelectList [86-120] [n IS LABELED...is_student]
+              SelectColumn [86-120] [n IS LABELED...is_student]
+                GraphIsLabeledPredicate [86-106] [n IS LABELED Student]
+                  PathExpression [86-87] [n]
+                    Identifier(n) [86-87] [n]
+                  GraphElementLabel [99-106] [Student]
+                    Identifier(Student) [99-106] [Student]
+                Alias [107-120] [AS is_student]
+                  Identifier(is_student) [110-120] [is_student]
 --
 SELECT
   *
@@ -1461,8 +1461,7 @@ FROM
   GRAPH_TABLE(
     g
     MATCH
-      (n
-      IS LABELED &(% | LABELED))
+      (n IS LABELED &(% | LABELED))
     COLUMNS(
       n IS LABELED Student AS is_student
     )
@@ -1523,21 +1522,22 @@ QueryStatement [0-197] [SELECT   ARRAY_FI...col2)   )]
                           GraphWildcardLabel [119-120] [%]
                           GraphElementLabel [123-130] [LABELED]
                             Identifier(LABELED) [123-130] [LABELED]
-          SelectList [146-192] [ARRAY_FIRST...y) as col2]
-            SelectColumn [146-192] [ARRAY_FIRST...y) as col2]
-              BinaryExpression(IS SOURCE OF) [146-184] [ARRAY_FIRST...ARRAY_LAST(y)]
-                FunctionCall [146-160] [ARRAY_FIRST(x)]
-                  PathExpression [146-157] [ARRAY_FIRST]
-                    Identifier(ARRAY_FIRST) [146-157] [ARRAY_FIRST]
-                  PathExpression [158-159] [x]
-                    Identifier(x) [158-159] [x]
-                FunctionCall [171-184] [ARRAY_LAST(y)]
-                  PathExpression [171-181] [ARRAY_LAST]
-                    Identifier(ARRAY_LAST) [171-181] [ARRAY_LAST]
-                  PathExpression [182-183] [y]
-                    Identifier(y) [182-183] [y]
-              Alias [185-192] [as col2]
-                Identifier(col2) [188-192] [col2]
+          Select [137-193] [COLUMNS (ARRAY_FI...) as col2)]
+            SelectList [146-192] [ARRAY_FIRST...y) as col2]
+              SelectColumn [146-192] [ARRAY_FIRST...y) as col2]
+                BinaryExpression(IS SOURCE OF) [146-184] [ARRAY_FIRST...ARRAY_LAST(y)]
+                  FunctionCall [146-160] [ARRAY_FIRST(x)]
+                    PathExpression [146-157] [ARRAY_FIRST]
+                      Identifier(ARRAY_FIRST) [146-157] [ARRAY_FIRST]
+                    PathExpression [158-159] [x]
+                      Identifier(x) [158-159] [x]
+                  FunctionCall [171-184] [ARRAY_LAST(y)]
+                    PathExpression [171-181] [ARRAY_LAST]
+                      Identifier(ARRAY_LAST) [171-181] [ARRAY_LAST]
+                    PathExpression [182-183] [y]
+                      Identifier(y) [182-183] [y]
+                Alias [185-192] [as col2]
+                  Identifier(col2) [188-192] [col2]
 --
 SELECT
   ARRAY_FIRST(x) IS LABELED y AS col1,
@@ -1546,8 +1546,7 @@ FROM
   GRAPH_TABLE(
     g
     MATCH
-      (n
-      IS LABELED &(% | LABELED))
+      (n IS LABELED &(% | LABELED))
     COLUMNS(
       ARRAY_FIRST(x) IS SOURCE OF ARRAY_LAST(y) AS col2
     )

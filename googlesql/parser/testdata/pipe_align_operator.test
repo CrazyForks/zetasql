@@ -1,0 +1,282 @@
+[default language_features=NONE,+PIPES]
+[default reserve_align]
+# minimal case
+FROM t
+|> ALIGN (
+  TIMESTAMP ts AS timestamp
+  PERIOD INTERVAL 1 MINUTE
+  METRICS SUM(value) WITHIN () AS sm
+)
+--
+QueryStatement [15-126] [FROM t |>...() AS sm )]
+  Query [15-126] [FROM t |>...() AS sm )]
+    FromQuery [15-21] [FROM t]
+      FromClause [15-21] [FROM t]
+        TablePathExpression [20-21] [t]
+          PathExpression [20-21] [t]
+            Identifier(t) [20-21] [t]
+    PipeAlignOperator [22-126] [|> ALIGN (...() AS sm )]
+      AlignOperator [25-126] [ALIGN (...() AS sm )]
+        ExpressionWithOptAlias [45-60] [ts AS timestamp]
+          PathExpression [45-47] [ts]
+            Identifier(ts) [45-47] [ts]
+          Alias [48-60] [AS timestamp]
+            Identifier(timestamp) [51-60] [timestamp]
+        IntervalExpr [70-87] [INTERVAL 1 MINUTE]
+          IntLiteral(1) [79-80] [1]
+          Identifier(MINUTE) [81-87] [MINUTE]
+        MetricsClause [90-124] [METRICS SUM...WITHIN () AS sm]
+          ExpressionWithAlias [98-124] [SUM(value) WITHIN () AS sm]
+            EstimatorFunctionCall [98-118] [SUM(value) WITHIN ()]
+              FunctionCall [98-108] [SUM(value)]
+                PathExpression [98-101] [SUM]
+                  Identifier(SUM) [98-101] [SUM]
+                PathExpression [102-107] [value]
+                  Identifier(value) [102-107] [value]
+              AlignWithinClause [109-118] [WITHIN ()]
+                AlignWithinBoundExpr(UNBOUNDED PRECEDING) [117-117] []
+                AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [117-117] []
+            Alias [119-124] [AS sm]
+              Identifier(sm) [122-124] [sm]
+--
+FROM
+  t
+|> ALIGN (
+     TIMESTAMP ts AS timestamp
+     PERIOD INTERVAL 1 MINUTE
+     METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+==
+
+# maximal case
+FROM t
+|> ALIGN (
+  TIMESTAMP ts AS timestamp
+  PERIOD INTERVAL 1 MIN
+  ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+  OUTPUT WITHIN RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00') TO TIMESTAMP('2021-01-01 00:00:00+00')
+  PARTITION BY k, v
+  METRICS SUM(value) WITHIN () AS sm
+)
+--
+QueryStatement [0-275] [FROM t |>...() AS sm )]
+  Query [0-275] [FROM t |>...() AS sm )]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-275] [|> ALIGN (...() AS sm )]
+      AlignOperator [10-275] [ALIGN (...() AS sm )]
+        ExpressionWithOptAlias [30-45] [ts AS timestamp]
+          PathExpression [30-32] [ts]
+            Identifier(ts) [30-32] [ts]
+          Alias [33-45] [AS timestamp]
+            Identifier(timestamp) [36-45] [timestamp]
+        IntervalExpr [55-69] [INTERVAL 1 MIN]
+          IntLiteral(1) [64-65] [1]
+          Identifier(MIN) [66-69] [MIN]
+        AlignOriginExpression [72-114] [ORIGIN TIMESTAMP...00:00+00')]
+          FunctionCall [79-114] [TIMESTAMP(...00:00+00')]
+            PathExpression [79-88] [TIMESTAMP]
+              Identifier(TIMESTAMP) [79-88] [TIMESTAMP]
+            StringLiteral [89-113] ['2000-01-01 00:00:00+00']
+              StringLiteralComponent('2000-01-01 00:00:00+00') [89-113] ['2000-01-01 00:00:00+00']
+        AlignWithinClause [131-216] [RANGE FROM...00:00+00')]
+          AlignWithinBoundExpr(TIMESTAMP) [142-177] [TIMESTAMP(...00:00+00')]
+            FunctionCall [142-177] [TIMESTAMP(...00:00+00')]
+              PathExpression [142-151] [TIMESTAMP]
+                Identifier(TIMESTAMP) [142-151] [TIMESTAMP]
+              StringLiteral [152-176] ['2000-01-01 00:00:00+00']
+                StringLiteralComponent('2000-01-01 00:00:00+00') [152-176] ['2000-01-01 00:00:00+00']
+          AlignWithinBoundExpr(TIMESTAMP) [181-216] [TIMESTAMP(...00:00+00')]
+            FunctionCall [181-216] [TIMESTAMP(...00:00+00')]
+              PathExpression [181-190] [TIMESTAMP]
+                Identifier(TIMESTAMP) [181-190] [TIMESTAMP]
+              StringLiteral [191-215] ['2021-01-01 00:00:00+00']
+                StringLiteralComponent('2021-01-01 00:00:00+00') [191-215] ['2021-01-01 00:00:00+00']
+        PartitionByWithOptAlias [219-236] [PARTITION BY k, v]
+          ExpressionWithOptAlias [232-233] [k]
+            PathExpression [232-233] [k]
+              Identifier(k) [232-233] [k]
+          ExpressionWithOptAlias [235-236] [v]
+            PathExpression [235-236] [v]
+              Identifier(v) [235-236] [v]
+        MetricsClause [239-273] [METRICS SUM...WITHIN () AS sm]
+          ExpressionWithAlias [247-273] [SUM(value) WITHIN () AS sm]
+            EstimatorFunctionCall [247-267] [SUM(value) WITHIN ()]
+              FunctionCall [247-257] [SUM(value)]
+                PathExpression [247-250] [SUM]
+                  Identifier(SUM) [247-250] [SUM]
+                PathExpression [251-256] [value]
+                  Identifier(value) [251-256] [value]
+              AlignWithinClause [258-267] [WITHIN ()]
+                AlignWithinBoundExpr(UNBOUNDED PRECEDING) [266-266] []
+                AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [266-266] []
+            Alias [268-273] [AS sm]
+              Identifier(sm) [271-273] [sm]
+--
+FROM
+  t
+|> ALIGN (
+     TIMESTAMP ts AS timestamp
+     PERIOD INTERVAL 1 MIN
+     ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+     OUTPUT WITHIN RANGE FROM TIMESTAMP('2000-01-01 00:00:00+00') TO TIMESTAMP('2021-01-01 00:00:00+00')
+     PARTITION BY k, v
+     METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+==
+
+# Handling ORIGIN EPOCH
+FROM t
+|> ALIGN (
+  PERIOD INTERVAL 1 MIN
+  ORIGIN {{EPOCH|(EPOCH)|`EPOCH`|epoch}}
+)
+--
+
+ALTERNATION GROUP: EPOCH
+--
+QueryStatement [0-58] [FROM t |>...ORIGIN EPOCH )]
+  Query [0-58] [FROM t |>...ORIGIN EPOCH )]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-58] [|> ALIGN (...ORIGIN EPOCH )]
+      AlignOperator [10-58] [ALIGN (...ORIGIN EPOCH )]
+        IntervalExpr [27-41] [INTERVAL 1 MIN]
+          IntLiteral(1) [36-37] [1]
+          Identifier(MIN) [38-41] [MIN]
+        AlignOriginExpression [44-56] [ORIGIN EPOCH]
+--
+FROM
+  t
+|> ALIGN (
+     PERIOD INTERVAL 1 MIN
+     ORIGIN EPOCH
+   )
+--
+ALTERNATION GROUP: (EPOCH)
+--
+QueryStatement [0-60] [FROM t |>...(EPOCH) )]
+  Query [0-60] [FROM t |>...(EPOCH) )]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-60] [|> ALIGN (...(EPOCH) )]
+      AlignOperator [10-60] [ALIGN (...(EPOCH) )]
+        IntervalExpr [27-41] [INTERVAL 1 MIN]
+          IntLiteral(1) [36-37] [1]
+          Identifier(MIN) [38-41] [MIN]
+        AlignOriginExpression [44-58] [ORIGIN (EPOCH)]
+          PathExpression [52-57] [EPOCH]
+            Identifier(`EPOCH`) [52-57] [EPOCH]
+--
+FROM
+  t
+|> ALIGN (
+     PERIOD INTERVAL 1 MIN
+     ORIGIN(`EPOCH`)
+   )
+--
+ALTERNATION GROUP: `EPOCH`
+--
+QueryStatement [0-60] [FROM t |>...`EPOCH` )]
+  Query [0-60] [FROM t |>...`EPOCH` )]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-60] [|> ALIGN (...`EPOCH` )]
+      AlignOperator [10-60] [ALIGN (...`EPOCH` )]
+        IntervalExpr [27-41] [INTERVAL 1 MIN]
+          IntLiteral(1) [36-37] [1]
+          Identifier(MIN) [38-41] [MIN]
+        AlignOriginExpression [44-58] [ORIGIN `EPOCH`]
+          PathExpression [51-58] [`EPOCH`]
+            Identifier(`EPOCH`) [51-58] [`EPOCH`]
+--
+FROM
+  t
+|> ALIGN (
+     PERIOD INTERVAL 1 MIN
+     ORIGIN `EPOCH`
+   )
+--
+ALTERNATION GROUP: epoch
+--
+QueryStatement [0-58] [FROM t |>...ORIGIN epoch )]
+  Query [0-58] [FROM t |>...ORIGIN epoch )]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-58] [|> ALIGN (...ORIGIN epoch )]
+      AlignOperator [10-58] [ALIGN (...ORIGIN epoch )]
+        IntervalExpr [27-41] [INTERVAL 1 MIN]
+          IntLiteral(1) [36-37] [1]
+          Identifier(MIN) [38-41] [MIN]
+        AlignOriginExpression [44-56] [ORIGIN epoch]
+--
+FROM
+  t
+|> ALIGN (
+     PERIOD INTERVAL 1 MIN
+     ORIGIN EPOCH
+   )
+==
+
+# with alias
+FROM t
+|> ALIGN (
+  TIMESTAMP ts AS timestamp
+  PERIOD INTERVAL 1 MINUTE
+  METRICS SUM(value) WITHIN () AS sm
+) AS s
+--
+
+QueryStatement [0-116] [FROM t |>...sm ) AS s]
+  Query [0-116] [FROM t |>...sm ) AS s]
+    FromQuery [0-6] [FROM t]
+      FromClause [0-6] [FROM t]
+        TablePathExpression [5-6] [t]
+          PathExpression [5-6] [t]
+            Identifier(t) [5-6] [t]
+    PipeAlignOperator [7-116] [|> ALIGN (...sm ) AS s]
+      AlignOperator [10-116] [ALIGN (...sm ) AS s]
+        ExpressionWithOptAlias [30-45] [ts AS timestamp]
+          PathExpression [30-32] [ts]
+            Identifier(ts) [30-32] [ts]
+          Alias [33-45] [AS timestamp]
+            Identifier(timestamp) [36-45] [timestamp]
+        IntervalExpr [55-72] [INTERVAL 1 MINUTE]
+          IntLiteral(1) [64-65] [1]
+          Identifier(MINUTE) [66-72] [MINUTE]
+        MetricsClause [75-109] [METRICS SUM...WITHIN () AS sm]
+          ExpressionWithAlias [83-109] [SUM(value) WITHIN () AS sm]
+            EstimatorFunctionCall [83-103] [SUM(value) WITHIN ()]
+              FunctionCall [83-93] [SUM(value)]
+                PathExpression [83-86] [SUM]
+                  Identifier(SUM) [83-86] [SUM]
+                PathExpression [87-92] [value]
+                  Identifier(value) [87-92] [value]
+              AlignWithinClause [94-103] [WITHIN ()]
+                AlignWithinBoundExpr(UNBOUNDED PRECEDING) [102-102] []
+                AlignWithinBoundExpr(UNBOUNDED FOLLOWING) [102-102] []
+            Alias [104-109] [AS sm]
+              Identifier(sm) [107-109] [sm]
+        Alias [112-116] [AS s]
+          Identifier(s) [115-116] [s]
+--
+FROM
+  t
+|> ALIGN (
+     TIMESTAMP ts AS timestamp
+     PERIOD INTERVAL 1 MINUTE
+     METRICS SUM(value) WITHIN (RANGE FROM UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING) AS sm)
+   AS s

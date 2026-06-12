@@ -1,6 +1,5 @@
-[default language_features=MAXIMUM,+WITH_GROUP_ROWS]
+[default language_features=MAXIMUM]
 
-[language_features=MAXIMUM]
 # Group rows not supported.
 FROM TestTable
 |> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
@@ -12,12 +11,16 @@ ERROR: GROUP ROWS is not supported. [at 3:41]
                                         ^
 ==
 
+[default language_features=MAXIMUM,+WITH_GROUP_ROWS]
+[default no_run_sqlbuilder]
+# TODO: b/430036320 - Enable SQL builder once it supports GROUP ROWS.
+
 # Group rows in PIPE WITH operator fails.
 FROM TestTable
 |> WITH group_rows() AS GROUP ROWS
 |> SELECT key
 --
-ERROR: GROUP ROWS not supported in Pipe WITH operator [at 2:9]
+ERROR: GROUP ROWS not supported in Pipe WITH operator [at 5:9]
 |> WITH group_rows() AS GROUP ROWS
         ^
 ==
@@ -46,3 +49,596 @@ FROM TestTable
 ERROR: GROUP ROWS must be the first entry in a WITH clause [at 4:22]
                      group_rows() AS GROUP ROWS
                      ^
+==
+
+# Calling group rows TVF with an argument doesn't work.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                   SELECT * FROM group_rows(1))
+--
+ERROR: Cannot call group rows TVF with arguments. [at 3:34]
+                   SELECT * FROM group_rows(1))
+                                 ^
+==
+
+# Calling group rows TVF with an implicit argument doesn't work.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                   FROM MultipleColumns
+                   |> CALL group_rows())
+--
+ERROR: Cannot call group rows TVF with arguments. [at 4:28]
+                   |> CALL group_rows())
+                           ^
+==
+
+# TODO: b/430036320 - Add more tests once GroupRowsScan is moved into aggregate
+# scan. AGGREGATE ARRAY fails if it contains a non-aggregate expression.
+FROM TestTable
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                   FROM group_rows()
+                   |> SELECT key)
+--
+QueryStmt
++-output_column_list=
+| +-$expr_subquery.$group_rows_subquery#10 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-AggregateScan
+    +-column_list=[$expr_subquery.$group_rows_subquery#10]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-aggregate_list=
+      +-$group_rows_subquery#10 :=
+        +-SubqueryExpr
+          +-type=ARRAY<INT32>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[TestTable.key#7]
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#7]
+                  +-input_column_list=
+                    +-key#7 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#8 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#9 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Group rows TVF only sees most recent table alias schema.
+FROM TestTable t1
+|> AS t2
+|> AGGREGATE ARRAY(WITH group_rows() AS GROUP ROWS
+                   FROM group_rows()
+                   |> SELECT {{t1|t2}}.key)
+--
+ALTERNATION GROUP: t1
+--
+ERROR: Unrecognized name: t1 [at 5:30]
+                   |> SELECT t1.key)
+                             ^
+--
+ALTERNATION GROUP: t2
+--
+QueryStmt
++-output_column_list=
+| +-$expr_subquery.$group_rows_subquery#10 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-AggregateScan
+    +-column_list=[$expr_subquery.$group_rows_subquery#10]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2], alias="t1")
+    +-aggregate_list=
+      +-$group_rows_subquery#10 :=
+        +-SubqueryExpr
+          +-type=ARRAY<INT32>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[TestTable.key#7]
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#7]
+                  +-input_column_list=
+                    +-key#7 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#8 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#9 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Sugar syntax on top level fails.
+FROM GROUP ROWS
+|> SELECT *
+--
+ERROR: GROUP ROWS is not supported in this (sub)query. [at 1:6]
+FROM GROUP ROWS
+     ^
+==
+
+# Sugar syntax valid usage.
+FROM TestTable
+|> AGGREGATE ARRAY(FROM GROUP ROWS
+                   |> SELECT key)
+--
+QueryStmt
++-output_column_list=
+| +-$expr_subquery.$group_rows_subquery#10 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-AggregateScan
+    +-column_list=[$expr_subquery.$group_rows_subquery#10]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-aggregate_list=
+      +-$group_rows_subquery#10 :=
+        +-SubqueryExpr
+          +-type=ARRAY<INT32>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[TestTable.key#7]
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#7]
+                  +-input_column_list=
+                    +-key#7 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#8 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#9 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Sugar syntax with alias.
+FROM TestTable
+|> AGGREGATE ARRAY(FROM GROUP ROWS AS gr
+                   |> SELECT gr.key)
+--
+QueryStmt
++-output_column_list=
+| +-$expr_subquery.$group_rows_subquery#10 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-AggregateScan
+    +-column_list=[$expr_subquery.$group_rows_subquery#10]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-aggregate_list=
+      +-$group_rows_subquery#10 :=
+        +-SubqueryExpr
+          +-type=ARRAY<INT32>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[TestTable.key#7]
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#7]
+                  +-input_column_list=
+                    +-key#7 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#8 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#9 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Sugar syntax not left most after FROM (error).
+FROM TestTable
+|> AGGREGATE ARRAY(FROM TestTable
+                   |> JOIN GROUP ROWS
+                   |> SELECT key)
+--
+ERROR: GROUP ROWS must be the left-most thing in the FROM clause. [at 3:28]
+                   |> JOIN GROUP ROWS
+                           ^
+==
+
+# Sugar syntax on query containing WITH.
+FROM TestTable
+|> AGGREGATE ARRAY(
+     WITH t AS (SELECT 1 AS x)
+     FROM GROUP ROWS
+     |> SELECT AS STRUCT key, (SELECT x FROM t)
+   )
+--
+QueryStmt
++-output_column_list=
+| +-$expr_subquery.$group_rows_subquery#18 AS `$col1` [ARRAY<STRUCT<key INT32, INT64>>]
++-query=
+  +-AggregateScan
+    +-column_list=[$expr_subquery.$group_rows_subquery#18]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-aggregate_list=
+      +-$group_rows_subquery#18 :=
+        +-SubqueryExpr
+          +-type=ARRAY<STRUCT<key INT32, INT64>>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-WithScan
+              +-column_list=[$make_struct.$struct#17]
+              +-with_entry_list=
+              | +-WithEntry
+              |   +-with_query_name="t_1"
+              |   +-with_subquery=
+              |     +-ProjectScan
+              |       +-column_list=[t.x#11]
+              |       +-expr_list=
+              |       | +-x#11 := Literal(type=INT64, value=1)
+              |       +-input_scan=
+              |         +-SingleRowScan
+              +-query=
+                +-ProjectScan
+                  +-column_list=[$make_struct.$struct#17]
+                  +-expr_list=
+                  | +-$struct#17 :=
+                  |   +-MakeStruct
+                  |     +-type=STRUCT<key INT32, INT64>
+                  |     +-field_list=
+                  |       +-ColumnRef(type=INT32, column=TestTable.key#12)
+                  |       +-ColumnRef(type=INT64, column=$pipe_select.$col2#16)
+                  +-input_scan=
+                    +-ProjectScan
+                      +-column_list=[TestTable.key#12, $pipe_select.$col2#16]
+                      +-expr_list=
+                      | +-$col2#16 :=
+                      |   +-SubqueryExpr
+                      |     +-type=INT64
+                      |     +-subquery_type=SCALAR
+                      |     +-subquery=
+                      |       +-ProjectScan
+                      |         +-column_list=[t_1.x#15]
+                      |         +-input_scan=
+                      |           +-WithRefScan(column_list=[t_1.x#15], with_query_name="t_1")
+                      +-input_scan=
+                        +-GroupRowsScan
+                          +-column_list=[TestTable.key#12]
+                          +-input_column_list=
+                            +-key#12 := ColumnRef(type=INT32, column=TestTable.key#1)
+                            +-TestEnum#13 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                            +-KitchenSink#14 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Coexistence of full syntax and sugar syntax with another CTE.
+FROM TestTable
+|> AGGREGATE ARRAY(
+     WITH group_rows() AS GROUP ROWS,
+          t AS (SELECT 1 AS x)
+     FROM GROUP ROWS
+     |> SELECT AS STRUCT key, (SELECT x FROM t)
+   )
+--
+ERROR: Cannot combine full GROUP ROWS syntax with sugar syntax [at 3:6]
+     WITH group_rows() AS GROUP ROWS,
+     ^
+==
+
+# Sugar syntax with GROUP BY.
+FROM TestTable
+|> AGGREGATE ARRAY(FROM GROUP ROWS |> SELECT key) GROUP BY key
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.key#7 AS key [INT32]
+| +-$expr_subquery.$group_rows_subquery#11 AS `$col1` [ARRAY<INT32>]
++-query=
+  +-AggregateScan
+    +-column_list=[$groupby.key#7, $expr_subquery.$group_rows_subquery#11]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-group_by_list=
+    | +-key#7 := ColumnRef(type=INT32, column=TestTable.key#1)
+    +-aggregate_list=
+      +-$group_rows_subquery#11 :=
+        +-SubqueryExpr
+          +-type=ARRAY<INT32>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[TestTable.key#8]
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#8]
+                  +-input_column_list=
+                    +-key#8 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#9 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#10 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+==
+
+# Sugar syntax inside CTE fails.
+FROM TestTable
+|> AGGREGATE ARRAY(
+     WITH g AS (FROM GROUP ROWS |> SELECT *)
+     FROM g |> SELECT key
+   )
+--
+ERROR: GROUP ROWS is not supported in this (sub)query. [at 3:22]
+     WITH g AS (FROM GROUP ROWS |> SELECT *)
+                     ^
+==
+
+# Sugar syntax inside derived table fails.
+FROM TestTable
+|> AGGREGATE ARRAY(
+     FROM (FROM GROUP ROWS |> SELECT *)
+     |> SELECT key
+   )
+--
+ERROR: GROUP ROWS is not supported in this (sub)query. [at 3:17]
+     FROM (FROM GROUP ROWS |> SELECT *)
+                ^
+==
+
+# Sugar syntax nested inside another sugar syntax query with different schemas.
+FROM TestTable
+|> AGGREGATE
+     ARRAY(
+       FROM GROUP ROWS gr
+       |> JOIN MultipleColumns ON CAST(gr.key AS INT64) = MultipleColumns.int_a
+       |> AGGREGATE
+            ARRAY(
+              FROM GROUP ROWS gr_inner
+              |> SELECT STRUCT(gr_inner.key, gr_inner.int_b)
+            )
+            AS inner_array
+            GROUP BY gr.key, MultipleColumns.int_b
+       |> SELECT STRUCT(key, int_b, inner_array)
+     )
+     GROUP BY key
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.key#37 AS key [INT32]
+| +-$expr_subquery.$group_rows_subquery#71 AS `$col1` [ARRAY<STRUCT<key INT32, int_b INT64, inner_array ARRAY<STRUCT<key INT32, int_b INT64>>>>]
++-query=
+  +-AggregateScan
+    +-column_list=[$groupby.key#37, $expr_subquery.$group_rows_subquery#71]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-group_by_list=
+    | +-key#37 := ColumnRef(type=INT32, column=TestTable.key#1)
+    +-aggregate_list=
+      +-$group_rows_subquery#71 :=
+        +-SubqueryExpr
+          +-type=ARRAY<STRUCT<key INT32, int_b INT64, inner_array ARRAY<STRUCT<key INT32, int_b INT64>>>>
+          +-subquery_type=ARRAY
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[$pipe_select.$col1#70]
+              +-expr_list=
+              | +-$col1#70 :=
+              |   +-MakeStruct
+              |     +-type=STRUCT<key INT32, int_b INT64, inner_array ARRAY<STRUCT<key INT32, int_b INT64>>>
+              |     +-field_list=
+              |       +-ColumnRef(type=INT32, column=$groupby.key#57)
+              |       +-ColumnRef(type=INT64, column=$groupby.int_b#58)
+              |       +-ColumnRef(type=ARRAY<STRUCT<key INT32, int_b INT64>>, column=$expr_subquery.$group_rows_subquery#69)
+              +-input_scan=
+                +-AggregateScan
+                  +-column_list=[$groupby.key#57, $groupby.int_b#58, $expr_subquery.$group_rows_subquery#69]
+                  +-input_scan=
+                  | +-JoinScan
+                  |   +-column_list=[TestTable.key#38, TestTable.TestEnum#39, TestTable.KitchenSink#40, MultipleColumns.int_a#41, MultipleColumns.string_a#42, MultipleColumns.int_b#43, MultipleColumns.string_b#44, MultipleColumns.int_c#45, MultipleColumns.int_d#46]
+                  |   +-left_scan=
+                  |   | +-GroupRowsScan
+                  |   |   +-column_list=TestTable.[key#38, TestEnum#39, KitchenSink#40]
+                  |   |   +-input_column_list=
+                  |   |     +-key#38 := ColumnRef(type=INT32, column=TestTable.key#1)
+                  |   |     +-TestEnum#39 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                  |   |     +-KitchenSink#40 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+                  |   +-right_scan=
+                  |   | +-TableScan(column_list=MultipleColumns.[int_a#41, string_a#42, int_b#43, string_b#44, int_c#45, int_d#46], table=MultipleColumns, column_index_list=[0, 1, 2, 3, 4, 5])
+                  |   +-join_expr=
+                  |     +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                  |       +-Cast(INT32 -> INT64)
+                  |       | +-ColumnRef(type=INT32, column=TestTable.key#38)
+                  |       +-ColumnRef(type=INT64, column=MultipleColumns.int_a#41)
+                  +-group_by_list=
+                  | +-key#57 := ColumnRef(type=INT32, column=TestTable.key#38)
+                  | +-int_b#58 := ColumnRef(type=INT64, column=MultipleColumns.int_b#43)
+                  +-aggregate_list=
+                    +-$group_rows_subquery#69 :=
+                      +-SubqueryExpr
+                        +-type=ARRAY<STRUCT<key INT32, int_b INT64>>
+                        +-subquery_type=ARRAY
+                        +-subquery=
+                          +-ProjectScan
+                            +-column_list=[$pipe_select.$col1#68]
+                            +-expr_list=
+                            | +-$col1#68 :=
+                            |   +-MakeStruct
+                            |     +-type=STRUCT<key INT32, int_b INT64>
+                            |     +-field_list=
+                            |       +-ColumnRef(type=INT32, column=TestTable.key#59)
+                            |       +-ColumnRef(type=INT64, column=MultipleColumns.int_b#64)
+                            +-input_scan=
+                              +-GroupRowsScan
+                                +-column_list=[TestTable.key#59, MultipleColumns.int_b#64]
+                                +-input_column_list=
+                                  +-key#59 := ColumnRef(type=INT32, column=TestTable.key#38)
+                                  +-TestEnum#60 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#39)
+                                  +-KitchenSink#61 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#40)
+                                  +-int_a#62 := ColumnRef(type=INT64, column=MultipleColumns.int_a#41)
+                                  +-string_a#63 := ColumnRef(type=STRING, column=MultipleColumns.string_a#42)
+                                  +-int_b#64 := ColumnRef(type=INT64, column=MultipleColumns.int_b#43)
+                                  +-string_b#65 := ColumnRef(type=STRING, column=MultipleColumns.string_b#44)
+                                  +-int_c#66 := ColumnRef(type=INT64, column=MultipleColumns.int_c#45)
+                                  +-int_d#67 := ColumnRef(type=INT64, column=MultipleColumns.int_d#46)
+==
+
+# Deeply nested sugar syntax where outer query does not have group rows.
+FROM TestTable
+|> SELECT key, (
+     FROM TestTable
+     |> AGGREGATE
+          ARRAY(
+            FROM GROUP ROWS
+            |> SELECT key
+          )
+          AS nested_array
+          GROUP BY key
+     |> SELECT nested_array
+   ) AS nested_value
+--
+QueryStmt
++-output_column_list=
+| +-TestTable.key#1 AS key [INT32]
+| +-$pipe_select.nested_value#15 AS nested_value [ARRAY<INT32>]
++-query=
+  +-ProjectScan
+    +-column_list=[TestTable.key#1, $pipe_select.nested_value#15]
+    +-expr_list=
+    | +-nested_value#15 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT32>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$group_rows_subquery#14]
+    |         +-input_scan=
+    |           +-AggregateScan
+    |             +-column_list=[$groupby.key#10, $expr_subquery.$group_rows_subquery#14]
+    |             +-input_scan=
+    |             | +-TableScan(column_list=TestTable.[key#4, TestEnum#5, KitchenSink#6], table=TestTable, column_index_list=[0, 1, 2])
+    |             +-group_by_list=
+    |             | +-key#10 := ColumnRef(type=INT32, column=TestTable.key#4)
+    |             +-aggregate_list=
+    |               +-$group_rows_subquery#14 :=
+    |                 +-SubqueryExpr
+    |                   +-type=ARRAY<INT32>
+    |                   +-subquery_type=ARRAY
+    |                   +-subquery=
+    |                     +-ProjectScan
+    |                       +-column_list=[TestTable.key#11]
+    |                       +-input_scan=
+    |                         +-GroupRowsScan
+    |                           +-column_list=[TestTable.key#11]
+    |                           +-input_column_list=
+    |                             +-key#11 := ColumnRef(type=INT32, column=TestTable.key#4)
+    |                             +-TestEnum#12 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#5)
+    |                             +-KitchenSink#13 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#6)
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.key#1], table=TestTable, column_index_list=[0])
+
+==
+
+# Correlated reference to grouping key inside a GROUP ROWS subquery in pipe
+# AGGREGATE is supported. (non group by key is rejected)
+FROM EnumTable
+|> AGGREGATE
+     ARRAY(
+       WITH group_rows() AS GROUP ROWS
+       SELECT (gr.key, {{EnumTable.key|EnumTable.TestEnum}})
+       FROM group_rows() gr
+     )
+   GROUP BY EnumTable.key
+--
+ALTERNATION GROUP: EnumTable.key
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.key#12 AS key [INT32]
+| +-$expr_subquery.$group_rows_subquery#19 AS `$col1` [ARRAY<STRUCT<INT32, INT32>>]
++-query=
+  +-AggregateScan
+    +-column_list=[$groupby.key#12, $expr_subquery.$group_rows_subquery#19]
+    +-input_scan=
+    | +-TableScan(column_list=EnumTable.[key#1, TestEnum#2, AnotherTestEnum#3, Filename#4, RowId#5], table=EnumTable, column_index_list=[0, 1, 2, 3, 4])
+    +-group_by_list=
+    | +-key#12 := ColumnRef(type=INT32, column=EnumTable.key#1)
+    +-aggregate_list=
+      +-$group_rows_subquery#19 :=
+        +-SubqueryExpr
+          +-type=ARRAY<STRUCT<INT32, INT32>>
+          +-subquery_type=ARRAY
+          +-parameter_list=
+          | +-ColumnRef(type=INT32, column=$groupby.key#12)
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[$expr_subquery.$col1#18]
+              +-expr_list=
+              | +-$col1#18 :=
+              |   +-MakeStruct
+              |     +-type=STRUCT<INT32, INT32>
+              |     +-field_list=
+              |       +-ColumnRef(type=INT32, column=EnumTable.key#13)
+              |       +-ColumnRef(type=INT32, column=$groupby.key#12, is_correlated=TRUE)
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[EnumTable.key#13]
+                  +-input_column_list=
+                    +-key#13 := ColumnRef(type=INT32, column=EnumTable.key#1)
+                    +-TestEnum#14 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=EnumTable.TestEnum#2)
+                    +-AnotherTestEnum#15 := ColumnRef(type=ENUM<googlesql_test.AnotherTestEnum>, column=EnumTable.AnotherTestEnum#3)
+                    +-Filename#16 := ColumnRef(type=STRING, column=EnumTable.Filename#4)
+                    +-RowId#17 := ColumnRef(type=BYTES, column=EnumTable.RowId#5)
+--
+ALTERNATION GROUP: EnumTable.TestEnum
+--
+ERROR: SELECT expression references EnumTable.TestEnum which is neither grouped nor aggregated [at 5:24]
+       SELECT (gr.key, EnumTable.TestEnum)
+                       ^
+==
+
+# Correlated reference to nested grouping key inside a GROUP ROWS subquery in
+# pipe AGGREGATE. (sibling field or parent proto is rejected)
+FROM TestTable
+|> AGGREGATE
+     ARRAY(
+       WITH group_rows() AS GROUP ROWS
+       SELECT (
+         gr.key,
+         {{TestTable.KitchenSink.date|TestTable.KitchenSink.int64_key_1|TestTable.KitchenSink.int64_key_1|TestTable.KitchenSink}})
+       FROM group_rows() gr
+     )
+   GROUP BY TestTable.KitchenSink.date
+--
+ALTERNATION GROUP: TestTable.KitchenSink.date
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.date#8 AS date [DATE]
+| +-$expr_subquery.$group_rows_subquery#13 AS `$col1` [ARRAY<STRUCT<INT32, DATE>>]
++-query=
+  +-AggregateScan
+    +-column_list=[$groupby.date#8, $expr_subquery.$group_rows_subquery#13]
+    +-input_scan=
+    | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2])
+    +-group_by_list=
+    | +-date#8 :=
+    |   +-GetProtoField
+    |     +-type=DATE
+    |     +-expr=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-field_descriptor=date
+    |     +-default_value=1970-01-01
+    |     +-format=DATE
+    +-aggregate_list=
+      +-$group_rows_subquery#13 :=
+        +-SubqueryExpr
+          +-type=ARRAY<STRUCT<INT32, DATE>>
+          +-subquery_type=ARRAY
+          +-parameter_list=
+          | +-ColumnRef(type=DATE, column=$groupby.date#8)
+          +-subquery=
+            +-ProjectScan
+              +-column_list=[$expr_subquery.$col1#12]
+              +-expr_list=
+              | +-$col1#12 :=
+              |   +-MakeStruct
+              |     +-type=STRUCT<INT32, DATE>
+              |     +-field_list=
+              |       +-ColumnRef(type=INT32, column=TestTable.key#9)
+              |       +-ColumnRef(type=DATE, column=$groupby.date#8, is_correlated=TRUE)
+              +-input_scan=
+                +-GroupRowsScan
+                  +-column_list=[TestTable.key#9]
+                  +-input_column_list=
+                    +-key#9 := ColumnRef(type=INT32, column=TestTable.key#1)
+                    +-TestEnum#10 := ColumnRef(type=ENUM<googlesql_test.TestEnum>, column=TestTable.TestEnum#2)
+                    +-KitchenSink#11 := ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+--
+ALTERNATION GROUPS:
+    TestTable.KitchenSink.int64_key_1
+    TestTable.KitchenSink.int64_key_1
+--
+ERROR: SELECT expression references TestTable.KitchenSink.int64_key_1 which is neither grouped nor aggregated [at 7:10]
+         TestTable.KitchenSink.int64_key_1)
+         ^
+--
+ALTERNATION GROUP: TestTable.KitchenSink
+--
+ERROR: SELECT expression references TestTable.KitchenSink which is neither grouped nor aggregated [at 7:10]
+         TestTable.KitchenSink)
+         ^

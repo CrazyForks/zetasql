@@ -405,6 +405,14 @@ public class AnalyzerOptions implements Serializable {
     return builder.getLogImpactOfLateralColumnReferences();
   }
 
+  public void setUseConstantEvaluator(boolean useConstantEvaluator) {
+    builder.setUseConstantEvaluator(useConstantEvaluator);
+  }
+
+  public boolean getUseConstantEvaluator() {
+    return builder.getUseConstantEvaluator();
+  }
+
   static AnalyzerOptions deserialize(
       AnalyzerOptionsProto proto, List<? extends DescriptorPool> pools, TypeFactory factory) {
     AnalyzerOptions options = new AnalyzerOptions();
@@ -482,6 +490,10 @@ public class AnalyzerOptions implements Serializable {
 
     if (proto.hasLogImpactOfLateralColumnReferences()) {
       setLogImpactOfLateralColumnReferences(proto.getLogImpactOfLateralColumnReferences());
+    }
+
+    if (proto.hasUseConstantEvaluator()) {
+      setUseConstantEvaluator(proto.getUseConstantEvaluator());
     }
   }
 

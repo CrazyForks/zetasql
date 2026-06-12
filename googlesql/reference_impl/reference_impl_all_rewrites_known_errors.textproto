@@ -129,6 +129,14 @@ known_errors {
   label: "pivot_test:pivot_array_agg"
   label: "pivot_test:pivot_st_nearest_neighbors"
 }
+
+known_errors {
+  mode: ALLOW_UNIMPLEMENTED
+  reason: "Collation support not implemented for PIVOT expressions"
+  label: "pivot_test:pivot_with_collation_on_aggregate_argument"
+  label: "pivot_test:pivot_with_collation_on_for_expression"
+}
+
 known_errors {
   mode: ALLOW_ERROR_OR_WRONG_ANSWER
   reason: "Example: Bounds are different floating point values"
@@ -336,35 +344,50 @@ known_errors {
 known_errors {
   mode: ALLOW_UNIMPLEMENTED
   reason: "WITH clauses under subquery in DML statement is not supported yet"
-  label: "graph_table_gql_extended_test:delete_dml_exists_graph_subquery_set_op_after_next"
+  label: "graph_table_gql_extended2_test:delete_dml_exists_graph_subquery_set_op_after_next"
 }
 
 known_errors {
   mode: ALLOW_UNIMPLEMENTED
   reason: "SIMPLE path mode not supported"
-  label: "graph_table_gql_extended_test:path_is_simple_quantified_with_path_mode"
-  label: "graph_table_gql_extended_test:path_is_simple_with_path_mode"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_array_edges"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_array_edges_and_duplicate_scalar_nodes"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_array_edges_of_different_types"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_array_edges_over_quantified_paths"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_duplicate_scalar_nodes"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_and_array_edges"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_and_array_edges_of_different_types"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_and_long_array_edges_of_different_types"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_edges"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_edges_of_different_types"
-  label: "graph_table_gql_extended_test:simple_path_mode_with_scalar_edges_within_quantified_paths"
+  label: "graph_table_gql_extended2_test:path_is_simple_quantified_with_path_mode"
+  label: "graph_table_gql_extended2_test:path_is_simple_with_path_mode"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_array_edges"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_array_edges_and_duplicate_scalar_nodes"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_array_edges_of_different_types"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_array_edges_over_quantified_paths"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_duplicate_scalar_nodes"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_and_array_edges"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_and_array_edges_of_different_types"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_and_long_array_edges_of_different_types"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_edges"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_edges_of_different_types"
+  label: "graph_table_gql_extended1_test:simple_path_mode_with_scalar_edges_within_quantified_paths"
   label: "graph_cyclic_test:simple_mode_quantified_three_hop_edges_count_paths"
   label: "graph_cyclic_test:simple_mode_quantified_three_hop_nodes_edges"
   label: "graph_cyclic_test:simple_mode_quantified_two_hop_and_one_hop_nodes"
+  label: "graph_cyclic_test:simple_mode_three_to_unbounded_hops_nodes"
+}
+
+known_errors {
+  mode: ALLOW_ERROR
+  reason: "Unbounded path quantification rewrites to a subtree with unbounded depth in the recursive scan, which exceeds memory limit when the graph has cycles"
+  label: "graph_cyclic_test:acyclic_mode_three_to_unbounded_hops_nodes"
+  label: "graph_cyclic_test:acyclic_mode_two_to_unbounded_hops_nodes"
+  label: "graph_cyclic_test:any_k_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:any_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:cheapest_k_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:cheapest_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:shortest_k_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:shortest_path_var_one_to_unbounded_hops"
+  label: "graph_cyclic_test:trail_mode_three_to_unbounded_hops_nodes"
 }
 
 known_errors {
   mode: ALLOW_ERROR_OR_WRONG_ANSWER
   reason: "MATCH ANY with ties is nondeterministic"
-  label: "graph_table_gql_extended_test:any_with_ties_counting_hops"
-  label: "graph_table_gql_extended_test:shortest_with_ties"
+  label: "graph_table_gql_extended2_test:any_with_ties_counting_hops"
+  label: "graph_table_gql_extended1_test:shortest_with_ties"
 }
 
 known_errors {
@@ -454,4 +477,16 @@ known_errors {
   reason: "Aggregate functions with a WHERE filter modifier are not supported in ORDER_BY_AND_LIMIT_IN_AGGREGATE rewriter"
   label: "aggregate_filter_test:filter_with_limit"
   label: "aggregate_filter_test:filter_with_order_by"
+}
+
+known_errors {
+  mode: ALLOW_UNIMPLEMENTED
+  reason: "The SQL TVF inliner cannot handle complex subqueries with correlations as table arguments"
+  label: "collation_in_sql_functions_test:collation_in_non_templated_tvf"
+  label: "collation_in_sql_functions_test:collation_in_non_templated_tvf2"
+  label: "collation_in_sql_functions_test:collation_in_tvf_fixed_table_passthrough_implicit_return"
+  label: "collation_in_sql_functions_test:collation_in_tvf_fixed_table_passthrough_explicit_return"
+  label: "collation_in_sql_functions_test:collation_in_templated_tvf_implicit_return_use_output_columns"
+  label: "collation_in_sql_functions_test:collation_in_tvf_with_any_string_applies_correct_defaults"
+  label: "collation_in_sql_functions_test:collation_in_tvf_with_any_string_explicit_args"
 }

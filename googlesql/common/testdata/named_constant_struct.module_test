@@ -1,0 +1,40 @@
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.named_constant_struct;
+--
+Lazy_resolution_function:udf_using_nested_struct
+  (INT32 a) -> INT64
+
+Lazy_resolution_function:udf_using_nested_struct_struct
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:udf_using_nested_struct_struct_templated
+  (ANY TYPE a) -> ANY TYPE
+
+Templated_SQL_Function:udf_using_nested_struct_templated
+  (ANY TYPE a) -> ANY TYPE
+
+Lazy_resolution_function:udf_using_struct
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:udf_using_struct_templated
+  (ANY TYPE a) -> ANY TYPE
+
+CONSTANT bar_reference_struct=Struct{x:Int64(2), Struct{x:Int64(1), y:Int64(1)}} (STRUCT<x INT64, STRUCT<x INT64, y INT64>>)
+
+PRIVATE CONSTANT bar_struct=Struct{x:Int64(1), y:Int64(1)} (STRUCT<x INT64, y INT64>)
+--
+MODULE named_constant_in_nested_module_struct imported AS nested_module by MODULE named_constant_struct
+Module 'named_constant_in_nested_module_struct'
+Module contents:
+MODULE named_constant_in_nested_module_struct;
+
+CREATE PUBLIC CONSTANT baz_struct = STRUCT<x INT64, y INT64>(2, 2);
+CREATE PUBLIC CONSTANT baz_struct_struct = STRUCT<z STRUCT<x INT64, y INT64>>((2, 2));
+
+Initialized constants:
+CONSTANT baz_struct=Struct{x:Int64(2), y:Int64(2)} (STRUCT<x INT64, y INT64>)
+
+CONSTANT baz_struct_struct=Struct{z:Struct{x:Int64(2), y:Int64(2)}} (STRUCT<z STRUCT<x INT64, y INT64>>)
+
+Initialization errors:
+<no errors>

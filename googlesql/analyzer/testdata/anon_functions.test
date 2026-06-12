@@ -83,7 +83,7 @@ select ANON_COUNT(int64, 1, string) from SimpleTypes
 ==
 
 # DISTINCT is not supported for ANON_COUNT()
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+ANONYMIZATION]
+[language_features=NONE,+ANONYMIZATION]
 select ANON_COUNT(DISTINCT string clamped between 0 and 1) from SimpleTypes
 --
 ERROR: Aggregate function ANON_COUNT does not support DISTINCT in arguments [at 1:8]
@@ -92,7 +92,7 @@ select ANON_COUNT(DISTINCT string clamped between 0 and 1) from SimpleTypes
 ==
 
 # Calling ANON_COUNT(*) without any optional arguments works.
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+ANONYMIZATION]
+[language_features=NONE,+ANONYMIZATION]
 select ANON_COUNT(*) from SimpleTypes
 --
 QueryStmt
@@ -563,7 +563,7 @@ QueryStmt
 ==
 
 # DISTINCT is not supported for anonymized aggregate functions
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+ANONYMIZATION]
+[language_features=NONE,+ANONYMIZATION]
 select ANON_SUM(DISTINCT int32 clamped between 0 and 1) from SimpleTypes
 --
 ERROR: Aggregate function ANON_SUM does not support DISTINCT in arguments [at 1:8]
@@ -645,7 +645,7 @@ QueryStmt
 ==
 
 # DISTINCT is not supported for anonymized aggregate functions
-[language_features=NONE,+DISALLOW_GROUP_BY_FLOAT,+ANONYMIZATION]
+[language_features=NONE,+ANONYMIZATION]
 select ANON_AVG(DISTINCT int32 clamped between 0 and 1) from SimpleTypes
 --
 ERROR: Aggregate function ANON_AVG does not support DISTINCT in arguments [at 1:8]

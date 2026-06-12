@@ -510,5 +510,29 @@ ARRAY<STRUCT<primary_key INT64, col STRING>>[unknown order:
 ]
 ==
 
+[required_features=ORDER_BY_COLLATE]
+[name=collation_does_not_cause_nondeterminism_for_identical_strings]
+SELECT count(*)
+FROM (
+  SELECT s
+  FROM UNNEST(["a", "a", "b"]) AS s
+  ORDER BY s COLLATE "und:ci"
+)
+--
+ARRAY<STRUCT<INT64>>[{3}]
+==
+
+[required_features=ORDER_BY_COLLATE]
+[name=nondeterminism_detected_with_collation]
+SELECT count(*)
+FROM (
+  SELECT s
+  FROM UNNEST(["a", "A", "b"]) AS s
+  ORDER BY s COLLATE "und:ci"
+)
+--
+ARRAY<STRUCT<INT64>>[{3}]
+==
+
 # TODO: Add more non-english language cases.
 

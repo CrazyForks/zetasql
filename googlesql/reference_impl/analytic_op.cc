@@ -44,12 +44,13 @@
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -2042,10 +2043,9 @@ absl::Status AnalyticOp::SetSchemasForEvaluation(
   for (KeyArg* key : mutable_order_keys()) {
     GOOGLESQL_RETURN_IF_ERROR(key->mutable_value_expr()->SetSchemasForEvaluation(
         ConcatSpans(params_schemas, {input_schema.get()})));
-
-    ValueExpr* collation = key->mutable_collation();
-    if (collation != nullptr) {
-      GOOGLESQL_RETURN_IF_ERROR(collation->SetSchemasForEvaluation(params_schemas));
+    if (key->collation_name() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(key->mutable_collation_name()->SetSchemasForEvaluation(
+          params_schemas));
     }
   }
 

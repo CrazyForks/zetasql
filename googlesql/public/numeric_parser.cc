@@ -223,15 +223,14 @@ bool ParseNumberInternal(absl::string_view int_part,
         high_trailing_digits.remove_prefix(num_promoted_fract_digits);
         absl::string_view digits_to_keep =
             num_promoted_fract_digits > 0
-                ? absl::string_view(fract_part.data(),
-                                    num_promoted_fract_digits)
+                ? fract_part.substr(0, num_promoted_fract_digits)
                 : int_part;
         round_up = ShouldRoundUpForHalfEvenRounding(digits_to_keep,
                                                     high_trailing_digits, {});
       }
     }
-    absl::string_view promoted_fract_part(fract_part.data(),
-                                          num_promoted_fract_digits);
+    absl::string_view promoted_fract_part(
+        fract_part.substr(0, num_promoted_fract_digits));
     fract_part.remove_prefix(num_promoted_fract_digits);
     if (int_part.empty()) {
       RETURN_FALSE_IF(!output->ParseFromStringStrict(promoted_fract_part));
@@ -264,13 +263,12 @@ bool ParseNumberInternal(absl::string_view int_part,
                            internal::DigitTrimMode::kTrimRoundHalfEven) {
         absl::string_view high_trailing_digits = int_part;
         high_trailing_digits.remove_prefix(int_digits);
-        absl::string_view digits_to_keep(int_part.data(), int_digits);
+        absl::string_view digits_to_keep(int_part.substr(0, int_digits));
         round_up = ShouldRoundUpForHalfEvenRounding(
             digits_to_keep, high_trailing_digits, fract_part);
       }
-      RETURN_FALSE_IF(int_digits != 0 &&
-                      !output->ParseFromStringStrict(
-                          absl::string_view(int_part.data(), int_digits)));
+      RETURN_FALSE_IF(int_digits != 0 && !output->ParseFromStringStrict(
+                                             int_part.substr(0, int_digits)));
       RETURN_FALSE_IF(round_up && output->AddOverflow(uint64_t{1}));
       // If output is zero, avoid scaling. Decimal places is high_value clamped
       // at scale, so scaling_factor can never be negative.

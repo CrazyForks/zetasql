@@ -42,6 +42,7 @@
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/type_deserializer.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/resolved_ast_enums.pb.h"
 #include "absl/base/attributes.h"
@@ -71,6 +72,17 @@ class TableValuedFunctionProto;
 class TableValuedFunctionOptionsProto;
 
 struct TVFSchemaColumn;
+
+// Describes actions to be taken by the resolver after Resolve() returns for a
+// passthrough TVF.
+struct TVFPassthroughInfo {
+  // Specifies columns/names that the Resolver should drop from the NameList
+  // after the passthrough TVF call. These names are dropped before adding the
+  // columns which were added by the TVF, so that a TVF which adds a column `x`
+  // can drop column `x` to ensure the added `x` has an unambiguous name after
+  // the TVF call. Has no effect if the name isn't in the NameList.
+  std::vector<std::string> columns_to_drop;
+};
 
 // This callback signature takes matched signature, an argument list as input.
 // Callback implementations are intended to validate the argument list with
@@ -102,6 +114,11 @@ struct TableValuedFunctionOptions {
 
   TableValuedFunctionOptions& set_uses_upper_case_sql_name(bool value) {
     uses_upper_case_sql_name = value;
+    return *this;
+  }
+
+  TableValuedFunctionOptions& set_is_passthrough(bool value) {
+    is_passthrough = value;
     return *this;
   }
 
@@ -149,6 +166,19 @@ struct TableValuedFunctionOptions {
   TVFPostResolutionArgumentConstraintsCallback
       post_resolution_constraint_callback = nullptr;
 
+  // If true, the TVF is treated as a passthrough TVF. This means the Resolver
+  // will attempt to propagate all columns from the input column list to the TVF
+  // by attaching them to the end of the input relation.
+  // The TVF must retain all input columns in its output schema in the same
+  // order as the input. Any additional columns from the TVF's output schema
+  // are added to the end of the output schema.
+  // The passthrough TVF may populate a TVFPassthroughInfo with columns to drop.
+  // Resolver is responsible for reconstructing the NameList such that it is
+  // consistent with the NameList before the passthrough TVF call, except for
+  // columns dropped via TVFPassthroughInfo and any columns added to the
+  // TVF's output schema.
+  bool is_passthrough = false;
+
   // If not nullptr, this callback is called to calculate tvf output signature.
   // It can be used when the output type is dependent on argument types and/or
   // argument literal values. Callers must set this callback to avoid analysis
@@ -167,6 +197,7 @@ struct TableValuedFunctionOptions {
   friend bool operator==(const TableValuedFunctionOptions& a,
                          const TableValuedFunctionOptions& b) {
     return a.uses_upper_case_sql_name == b.uses_upper_case_sql_name &&
+           a.is_passthrough == b.is_passthrough &&
            a.required_language_features == b.required_language_features;
   }
 };
@@ -305,6 +336,9 @@ class TableValuedFunction {
   bool IsGoogleSQLBuiltin() const {
     return group_ == Function::kGoogleSQLFunctionGroupName;
   }
+
+  bool IsPassthrough() const { return tvf_options_.is_passthrough; }
+
   // Returns the number of function signatures.
   int64_t NumSignatures() const;
 
@@ -577,15 +611,25 @@ class TableValuedFunction {
 // TVFModelArgument).
 struct TVFSchemaColumn {
   TVFSchemaColumn(absl::string_view name_in, const Type* type_in,
-                  bool is_pseudo_column_in = false)
-      : name(name_in), type(type_in), is_pseudo_column(is_pseudo_column_in) {}
+                  bool is_pseudo_column_in = false,
+                  bool is_passthrough_column_in = false,
+                  TypeModifiers type_modifiers_in = TypeModifiers())
+      : name(name_in),
+        type(type_in),
+        is_pseudo_column(is_pseudo_column_in),
+        is_passthrough_column(is_passthrough_column_in),
+        type_modifiers(std::move(type_modifiers_in)) {}
 
   TVFSchemaColumn(absl::string_view name_in, AnnotatedType annotated_type_in,
-                  const bool is_pseudo_column_in = false)
+                  const bool is_pseudo_column_in = false,
+                  const bool is_passthrough_column_in = false,
+                  TypeModifiers type_modifiers_in = TypeModifiers())
       : name(name_in),
         type(annotated_type_in.type),
         annotation_map(annotated_type_in.annotation_map),
-        is_pseudo_column(is_pseudo_column_in) {}
+        is_pseudo_column(is_pseudo_column_in),
+        is_passthrough_column(is_passthrough_column_in),
+        type_modifiers(std::move(type_modifiers_in)) {}
 
   // Serializes this TVFRelation column to a protocol buffer.
   absl::StatusOr<TVFRelationColumnProto> ToProto(
@@ -605,6 +649,8 @@ struct TVFSchemaColumn {
       const std::vector<const google::protobuf::DescriptorPool*>& pools,
       TypeFactory* factory);
 
+  absl::Status IsValid(ProductMode product_mode) const;
+
   std::string DebugString(bool is_for_value_table) const {
     std::string type_name;
     if (annotation_map == nullptr) {
@@ -613,11 +659,20 @@ struct TVFSchemaColumn {
       type_name =
           absl::StrCat(type->DebugString(), annotation_map->DebugString());
     }
+    std::string result;
     // Prevent concatenating value column name.
     if (!is_for_value_table || is_pseudo_column) {
-      return absl::StrCat(name, " ", type_name);
+      result = absl::StrCat(name, " ", type_name);
+    } else {
+      result = type_name;
     }
-    return type_name;
+    if (!type_modifiers.IsEmpty()) {
+      absl::StrAppend(&result, " ", type_modifiers.DebugString());
+    }
+    if (is_passthrough_column) {
+      absl::StrAppend(&result, " (passthrough)");
+    }
+    return result;
   }
 
   AnnotatedType annotated_type() const { return {type, annotation_map}; }
@@ -627,12 +682,16 @@ struct TVFSchemaColumn {
   const Type* type = nullptr;
   const AnnotationMap* annotation_map = nullptr;
   bool is_pseudo_column;
+  bool is_passthrough_column;
   // Parse location ranges for the TVFSchema column name and type. As of now
   // they are populated if and only if this TVF definition comes from a
   // CREATE TABLE FUNCTION statement and record_parse_locations is true in
   // AnalyzerOptions.
   std::optional<ParseLocationRange> name_parse_location_range;
   std::optional<ParseLocationRange> type_parse_location_range;
+
+  // The type modifiers of the column.
+  TypeModifiers type_modifiers;
 };
 
 // To support GOOGLESQL_RET_CHECK_EQ.
@@ -686,6 +745,23 @@ class TVFRelation {
     for (const Column& column : pseudo_columns) {
       GOOGLESQL_RET_CHECK(column.is_pseudo_column);
       columns.push_back(column);
+    }
+    TVFRelation result = TVFRelation(std::move(columns));
+    result.is_value_table_ = true;
+    return result;
+  }
+
+  // Creates a new value-table TVFRelation. The first input column (column 0)
+  // must be unnamed (name must be an empty string), and is treated as the value
+  // of the row. Additional columns may be present and must be pseudo-columns.
+  // This is intended to mimic the above signature, with the row type and
+  // pseudo-columns passed in a single arg, as can be done for non-value tables.
+  static absl::StatusOr<TVFRelation> ValueTable(ColumnList columns) {
+    GOOGLESQL_RET_CHECK(!columns.empty());
+    GOOGLESQL_RET_CHECK(!columns[0].is_pseudo_column);
+    GOOGLESQL_RET_CHECK(columns[0].name.empty());
+    for (int i = 1; i < columns.size(); i++) {
+      GOOGLESQL_RET_CHECK(columns[i].is_pseudo_column);
     }
     TVFRelation result = TVFRelation(std::move(columns));
     result.is_value_table_ = true;
@@ -809,11 +885,15 @@ class TVFInputArgumentType {
   // Creates a scalar input argument with a single type.
   explicit TVFInputArgumentType(const InputArgumentType& input_arg_type)
       : kind_(TVFInputArgumentTypeKind::SCALAR),
-        scalar_arg_type_(input_arg_type.type()) {
+        scalar_arg_annotated_type_(input_arg_type.annotated_type()) {
     if (input_arg_type.literal_value() != nullptr) {
       scalar_arg_value_.reset(new Value(*input_arg_type.literal_value()));
     }
   }
+
+  // Creates a scalar input argument with a single type.
+  explicit TVFInputArgumentType(AnnotatedType annotated_type)
+      : TVFInputArgumentType(InputArgumentType(annotated_type)) {}
 
   // Creates a relation input argument of several columns, where each column
   // contains a name and a type. If the input argument is a value table, the
@@ -853,10 +933,15 @@ class TVFInputArgumentType {
   absl::StatusOr<InputArgumentType> GetScalarArgType() const {
     GOOGLESQL_RET_CHECK(kind_ == TVFInputArgumentTypeKind::SCALAR);
     if (scalar_arg_value_ != nullptr) {
-      return InputArgumentType(*scalar_arg_value_);
+      return InputArgumentType(*scalar_arg_value_,
+                               scalar_arg_annotated_type_.annotation_map);
     } else {
-      return InputArgumentType(scalar_arg_type_);
+      return InputArgumentType(scalar_arg_annotated_type_);
     }
+  }
+  absl::StatusOr<AnnotatedType> GetScalarArgAnnotatedType() const {
+    GOOGLESQL_RET_CHECK(kind_ == TVFInputArgumentTypeKind::SCALAR);
+    return scalar_arg_annotated_type_;
   }
 
   // Returns the resolved expression for scalar arguments, if present. This is
@@ -910,7 +995,13 @@ class TVFInputArgumentType {
     } else if (scalar_arg_value_ != nullptr) {
       return InputArgumentType(*scalar_arg_value_).DebugString();
     } else {
-      return InputArgumentType(scalar_arg_type_).DebugString();
+      std::string str = scalar_arg_annotated_type_.type->DebugString();
+      if (scalar_arg_annotated_type_.annotation_map != nullptr) {
+        absl::StrAppend(
+            &str, " ",
+            scalar_arg_annotated_type_.annotation_map->DebugString());
+      }
+      return str;
     }
   }
 
@@ -936,7 +1027,8 @@ class TVFInputArgumentType {
   TVFDescriptorArgument descriptor_argument_ =
       TVFDescriptorArgument(std::vector<std::string>());
   TVFGraphArgument graph_ = TVFGraphArgument(nullptr);
-  const Type* scalar_arg_type_ = nullptr;
+  AnnotatedType scalar_arg_annotated_type_{/*type=*/nullptr,
+                                           /*annotation_map=*/nullptr};
 
   // This is the literal value for 'scalar_arg_type_', if applicable. We store
   // it here separately because the InputArgumentType class does not own its
@@ -952,9 +1044,45 @@ class TVFInputArgumentType {
   // Copyable.
 };
 
+// A callback used by the ROW type rewriter (REWRITE_ROW_TYPE) to rewrite the
+// TVFSignature of a TVF which outputs a ROW type. The output TVFSignature
+// from the callback replaces the old TVFSignature in the rewritten AST. See the
+// TVFSignatureOptions `row_type_rewrite_callback` field for details.
+// `old_tvf_signature` is the TVFSignature being rewritten.
+// `new_result_schema` is the new TVF output relation after ROW type rewrites.
+using TVFSignatureRowTypeRewriteCallback =
+    std::function<absl::StatusOr<std::shared_ptr<TVFSignature>>(
+        const TVFSignature& old_tvf_signature,
+        const TVFRelation& new_result_schema)>;
+
 struct TVFSignatureOptions {
   // Deprecation warnings associated with the body of a SQL TVF.
   std::vector<FreestandingDeprecationWarning> additional_deprecation_warnings;
+  TVFPassthroughInfo passthrough_info;
+  // A callback to be used by the ROW type rewriter (REWRITE_ROW_TYPE) to
+  // rewrite the TVFSignature, replacing ROW types with STRUCTs containing the
+  // fields that are read from the ROW. The ROW type rewriter requires setting
+  // this for all TVFs which output a ROW type, and will GOOGLESQL_RET_CHECK otherwise.
+  //
+  // TVFs which are using the base TVFSignature class can use
+  // TVFSignature::BaseRowTypeRewriteCallback. Subclasses should provide
+  // their own callback, in order to copy required member variables and output
+  // the right concrete class.
+  //
+  // For example a query like:
+  //   SELECT a, b FROM SomeTVF(...)
+  // Could resolve as the TVFSignature:
+  //   SomeTVF(...) -> TABLE<ROW<SomeTVF>>
+  // And be rewritten as:
+  //   SomeTVF(...) -> TABLE<STRUCT<a INT64, b STRING>>
+  //
+  // For example a query like:
+  //   SELECT a, b.c FROM SomeTVF(...)
+  // Could resolve as the TVFSignature:
+  //   SomeTVF(...) -> TABLE<a INT64, b ROW<SomeTVF.b>>
+  // And could be rewritten as:
+  //   SomeTVF(...) -> TABLE<a INT64, b STRUCT<c STRING>>
+  TVFSignatureRowTypeRewriteCallback row_type_rewrite_callback = nullptr;
 };
 
 // Converts a `const Table*` to a `TVFRelation` which describes the same
@@ -1087,6 +1215,15 @@ class TVFSignature {
   template <class TVFCallSubclass>
   const TVFCallSubclass* GetAs() const {
     return static_cast<const TVFCallSubclass*>(this);
+  }
+
+  // An implementation of TVFSignatureRowTypeRewriteCallback for the base
+  // TVFSignature class.
+  static absl::StatusOr<std::shared_ptr<googlesql::TVFSignature>>
+  BaseRowTypeRewriteCallback(const TVFSignature& old_signature,
+                             const TVFRelation& new_result_schema) {
+    return TVFSignature::Create(old_signature.input_arguments(),
+                                new_result_schema, old_signature.options());
   }
 
  protected:

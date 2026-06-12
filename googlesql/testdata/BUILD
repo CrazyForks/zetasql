@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -216,7 +217,6 @@ cc_library(
         ":test_packageless_cc_proto",
         ":test_proto3_cc_proto",
         ":test_schema_cc_proto",
-        "//googlesql/base",
         "//googlesql/base:check",
         "//googlesql/base:clock",
         "//googlesql/base:map_util",
@@ -266,6 +266,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -294,6 +295,7 @@ cc_test(
         "//googlesql/public:sql_view",
         "//googlesql/public/types",
         "//googlesql/resolved_ast:resolved_ast_enums_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
     ],
 )

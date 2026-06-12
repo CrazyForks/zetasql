@@ -25,6 +25,7 @@
 #include "googlesql/public/evaluator_table_iterator.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
 namespace googlesql {
@@ -78,13 +79,19 @@ class ExecuteQueryWriter {
     return WriteOperationString("executed", output);
   }
   // This is used for commands that produce a table as output.
+  // `iter` will be nullptr for ResolvedTerminalQueryStmt (from `|> FINISH`).
+  // Subclasses should also log a "No result table" message for that case.
   virtual absl::Status executed(const ResolvedNode& ast,
                                 std::unique_ptr<EvaluatorTableIterator> iter) {
+    if (iter == nullptr) {
+      return log("No result table");
+    }
     return absl::UnimplementedError(
         "ExecuteQueryWriter::executed is not implemented");
   }
 
   // This is used for commands that produce multiple tables as output.
+  // As in `executed`, some iterators can be nullptr.
   virtual absl::Status executed_multi(
       const ResolvedNode& ast,
       std::vector<absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>>

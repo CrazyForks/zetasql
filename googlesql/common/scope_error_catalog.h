@@ -58,38 +58,45 @@ class ScopeErrorCatalog : public Catalog {
   // in the global catalog to potentially produce a relevant error to inform the
   // user that a global reference was found but is not allowed from a builtin
   // scope object.
+  using Catalog::FindTable;  // Support non-virtual signatures.
   absl::Status FindTable(const absl::Span<const std::string>& path,
                          const Table** table,
-                         const FindOptions& options = FindOptions()) override;
-  absl::Status FindFunction(
-      const absl::Span<const std::string>& path, const Function** function,
-      const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
+  using Catalog::FindFunction;  // Support non-virtual signatures.
+  absl::Status FindFunction(const absl::Span<const std::string>& path,
+                            const Function** function,
+                            const FindOptions& options) override;
+  using Catalog::FindTableValuedFunction;  // Support non-virtual signatures.
   absl::Status FindTableValuedFunction(
       const absl::Span<const std::string>& path,
       const TableValuedFunction** function,
-      const FindOptions& options = FindOptions()) override;
-  absl::Status FindProcedure(
-      const absl::Span<const std::string>& path, const Procedure** procedure,
-      const FindOptions& options = FindOptions()) override;
+      const FindOptions& options) override;
+  using Catalog::FindProcedure;  // Support non-virtual signatures.
+  absl::Status FindProcedure(const absl::Span<const std::string>& path,
+                             const Procedure** procedure,
+                             const FindOptions& options) override;
+  using Catalog::FindModel;  // Support non-virtual signatures.
   absl::Status FindModel(const absl::Span<const std::string>& path,
                          const Model** model,
-                         const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
+  using Catalog::FindType;  // Support non-virtual signatures.
   absl::Status FindType(const absl::Span<const std::string>& path,
-                        const Type** type,
-                        const FindOptions& options = FindOptions()) override;
+                        const Type** type, const FindOptions& options) override;
 
   // These functions use a different signature than the above Find*() functions,
   // and builtin-global scope errors are not implemented - these functions
   // simply forward to the builtin catalog. If the global catalog may contain
   // these object types in the future, these will need to be updated to return
   // the same error as the other Find*() functions.
+  using Catalog::FindPropertyGraph;  // Support non-virtual signatures.
   absl::Status FindPropertyGraph(absl::Span<const std::string> path,
                                  const PropertyGraph*& property_graph,
                                  const FindOptions& options) override;
-  absl::Status FindConstantWithPathPrefix(
-      absl::Span<const std::string> path, int* num_names_consumed,
-      const Constant** constant,
-      const FindOptions& options = FindOptions()) override;
+  using Catalog::FindConstantWithPathPrefix;  // Support non-virtual signatures.
+  absl::Status FindConstantWithPathPrefix(absl::Span<const std::string> path,
+                                          int* num_names_consumed,
+                                          const Constant** constant,
+                                          const FindOptions& options) override;
 
   // The Suggest*() functions just forward to the builtin catalog.
   std::string SuggestTable(

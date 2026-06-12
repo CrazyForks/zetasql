@@ -1,0 +1,22 @@
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.
+    named_constant_conflict_with_module_alias_before;
+--
+--
+MODULE named_constant imported AS named_constant by MODULE named_constant_conflict_with_module_alias_before
+Module 'named_constant'
+Module contents:
+MODULE named_constant;
+
+CREATE PUBLIC CONSTANT foo = 'bar';
+
+Initialized constants:
+CONSTANT foo=String("bar") (STRING)
+
+Initialization errors:
+<no errors>
+--
+Module errors:
+INVALID_ARGUMENT: Named constant 'named_constant' conflicts with an imported module with the same alias [at .../googlesql/testdata/modules/named_constant_conflict_with_module_alias_before.sqlm:5:24]
+CREATE PUBLIC CONSTANT named_constant = 1;
+                       ^

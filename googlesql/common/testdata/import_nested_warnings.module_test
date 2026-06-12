@@ -1,0 +1,122 @@
+# This test imports import_warnings_a, which imports import_warnings_b, which
+# which imports import_warnings_c, which imports import_warnings_d. The purpose
+# of the test is to see how deprecation warnings are printed.
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.import_warnings_a AS a;
+--
+Lazy_resolution_function:warning_a
+  () -> INT64 (1 deprecation warning)
+DEPRECATION WARNING:
+Function warning_b triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_a.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_a() AS (b.warning_b());
+                                       ^
+Function warning_c triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_b.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_b() AS (c.warning_c());
+                                       ^
+Function warning_d triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_c.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_c() AS (d.warning_d());
+                                       ^
+Function SAMPLE_FUNCTIONS:DEPRECATION_WARNING triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_d.sqlm:8:40]
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());
+                                       ^
+Operation <foo1> is deprecated [at module1.sqlm:11:21]
+some caret string for foo_1
+                      ^
+[googlesql.DeprecationWarning] { kind: PROTO3_FIELD_PRESENCE }
+--
+MODULE import_warnings_b imported AS b by MODULE import_warnings_a
+Module 'import_warnings_b'
+Module contents:
+\-- A module used in
+\-- googlesql/common/testdata/nested_warnings.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE import_warnings_b;
+
+IMPORT MODULE googlesql.testdata.modules.import_warnings_c AS c;
+
+CREATE PUBLIC FUNCTION warning_b() AS (c.warning_c());
+
+Initialized functions:
+Lazy_resolution_function:warning_b
+  () -> INT64 (1 deprecation warning)
+DEPRECATION WARNING:
+Function warning_c triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_b.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_b() AS (c.warning_c());
+                                       ^
+Function warning_d triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_c.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_c() AS (d.warning_d());
+                                       ^
+Function SAMPLE_FUNCTIONS:DEPRECATION_WARNING triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_d.sqlm:8:40]
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());
+                                       ^
+Operation <foo1> is deprecated [at module1.sqlm:11:21]
+some caret string for foo_1
+                      ^
+[googlesql.DeprecationWarning] { kind: PROTO3_FIELD_PRESENCE }
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE import_warnings_c imported AS c by MODULE import_warnings_b
+Module 'import_warnings_c'
+Module contents:
+\-- A module used in
+\-- googlesql/common/testdata/nested_warnings.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE import_warnings_c;
+
+IMPORT MODULE googlesql.testdata.modules.import_warnings_d AS d;
+
+CREATE PUBLIC FUNCTION warning_c() AS (d.warning_d());
+
+Initialized functions:
+Lazy_resolution_function:warning_c
+  () -> INT64 (1 deprecation warning)
+DEPRECATION WARNING:
+Function warning_d triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_c.sqlm:10:40]
+CREATE PUBLIC FUNCTION warning_c() AS (d.warning_d());
+                                       ^
+Function SAMPLE_FUNCTIONS:DEPRECATION_WARNING triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_d.sqlm:8:40]
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());
+                                       ^
+Operation <foo1> is deprecated [at module1.sqlm:11:21]
+some caret string for foo_1
+                      ^
+[googlesql.DeprecationWarning] { kind: PROTO3_FIELD_PRESENCE }
+
+Initialization errors:
+<no errors>
+
+Imported module info:
+MODULE import_warnings_d imported AS d by MODULE import_warnings_c
+Module 'import_warnings_d'
+Module contents:
+\-- A module used in
+\-- googlesql/common/testdata/nested_warnings.module_test
+\-- See the file comments at the top of that file for how this module interacts
+\-- with other modules involved in that test case.
+
+MODULE import_warnings_d;
+
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());
+
+Initialized functions:
+Lazy_resolution_function:warning_d
+  () -> INT64 (1 deprecation warning)
+DEPRECATION WARNING:
+Function SAMPLE_FUNCTIONS:DEPRECATION_WARNING triggers a deprecation warning with kind PROTO3_FIELD_PRESENCE [at .../googlesql/testdata/modules/import_warnings_d.sqlm:8:40]
+CREATE PUBLIC FUNCTION warning_d() AS (deprecation_warning());
+                                       ^
+Operation <foo1> is deprecated [at module1.sqlm:11:21]
+some caret string for foo_1
+                      ^
+[googlesql.DeprecationWarning] { kind: PROTO3_FIELD_PRESENCE }
+
+Initialization errors:
+<no errors>

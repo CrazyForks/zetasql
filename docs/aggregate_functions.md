@@ -20,6 +20,15 @@ To learn about the syntax for aggregate function calls, see
   <tbody>
 
 <tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/aggregate_functions.md#agg"><code>AGG</code></a>
+</td>
+  <td>
+    Aggregates a measure type.
+    
+  </td>
+</tr>
+
+<tr>
   <td><a href="https://github.com/google/googlesql/blob/master/docs/aggregate_functions.md#any_value"><code>ANY_VALUE</code></a>
 </td>
   <td>
@@ -242,6 +251,17 @@ To learn about the syntax for aggregate function calls, see
 </tr>
 
 <tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md#percentile_cont"><code>PERCENTILE_CONT</code></a>
+</td>
+  <td>
+    Computes the specified percentile for a value, using
+    linear interpolation.
+    <br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md">Navigation functions</a>.
+
+  </td>
+</tr>
+
+<tr>
   <td><a href="https://github.com/google/googlesql/blob/master/docs/aggregate-dp-functions.md#dp_percentile_cont"><code>PERCENTILE_CONT</code> (Differential Privacy)</a>
 </td>
   <td>
@@ -249,6 +269,16 @@ To learn about the syntax for aggregate function calls, see
     Computes a differentially-private percentile across privacy unit columns
     in a query with a <code>DIFFERENTIAL_PRIVACY</code> clause.
     <br><br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/aggregate-dp-functions.md">Differential privacy functions</a>.
+
+  </td>
+</tr>
+
+<tr>
+  <td><a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md#percentile_disc"><code>PERCENTILE_DISC</code></a>
+</td>
+  <td>
+    Computes the specified percentile for a discrete value.
+    <br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md">Navigation functions</a>.
 
   </td>
 </tr>
@@ -380,6 +410,85 @@ To learn about the syntax for aggregate function calls, see
 
   </tbody>
 </table>
+
+## `AGG`
+
+```googlesql
+AGG(measure_expression)
+```
+
+**Description**
+
+Aggregates a [measure type][measure-type]. A measure type encapsulates an
+aggregate calculation to perform, locked to a specific granularity defined by
+a key. The `AGG` function invokes the calculation exactly once per key
+with the guarantee of avoiding overcounting. Measures are useful for defining
+business metrics. You can perform aggregation using the `AGG`
+function instead of complex aggregation queries.
+
+**Supported Argument Types**
+
+A single `MEASURE` type
+
+**Returned Data Types**
+
+The type returned by the expression associated with the measure.
+
+**Examples**
+
+The following example shows how to use a measure to avoid overcounting. The
+example calculates shipping costs when joining an `Orders` table with an
+`OrderItems` table, where orders can have multiple items.
+
+```
+WITH
+  Orders AS (
+    SELECT
+      key AS order_id,
+      country AS customer_id,
+      price AS shipping_cost,
+      measure_sum_price AS m_total_shipping_cost
+    FROM MeasureTable_SingleKey
+  ),
+  OrderItems AS (
+    -- Simulate OrderItems with fanout: orders with even keys have 2 items
+    SELECT key AS order_id, 1 AS item_id FROM MeasureTable_SingleKey
+    UNION ALL
+    SELECT key AS order_id, 2 AS item_id FROM MeasureTable_SingleKey WHERE MOD(key, 2) = 0
+  )
+-- Compare AGG vs. SUM behavior.
+SELECT
+  o.customer_id,
+  AGG(o.m_total_shipping_cost) AS true_shipping_paid,
+  SUM(o.shipping_cost) AS overcounted_shipping_paid,
+  COUNT(*) AS total_item_count
+FROM Orders AS o
+INNER JOIN OrderItems AS oi
+  USING (order_id)
+GROUP BY o.customer_id;
+
+/*----------------+--------------------+---------------------------+------------------+
+ | customer_id    | true_shipping_paid | overcounted_shipping_paid | total_item_count |
+ +----------------+--------------------+---------------------------+------------------+
+ | Australia      | 156                | 261                       | 5                |
+ | Canada         | 230                | 337                       | 10               |
+ | Japan          | 25                 | 25                        | 1                |
+ | United Kingdom | 142                | 194                       | 6                |
+ | United States  | 193                | 291                       | 15               |
+ +----------------+--------------------+---------------------------+------------------*/
+```
+
+When you join these tables, order rows are duplicated for every item in that
+order. Standard `SUM(o.shipping_cost)` overcounts because it adds the shipping
+cost for every item (row) in the joined result, effectively multiplying the
+shipping cost of an order by its item count.
+
+By contrast, `AGG(o.m_total_shipping_cost)` prevents overcounting because the
+measure is aware of the original rows in the `Orders` table. The `AGG` function
+aggregates the shipping cost exactly once per order, regardless of how many
+items are in that order.
+
+[measure-type]: https://github.com/google/googlesql/blob/master/docs/data-types.md#measure_type
 
 ## `ANY_VALUE`
 
@@ -1121,18 +1230,9 @@ distinct counts. For more information, see
   evaluate. If `DISTINCT` is present,
   `expression` can only be a data type that is
   [groupable][groupable-data-types].
-+   `DISTINCT`: To learn more, see
++   Optional aggregate clauses: To learn more about the optional aggregate
+    clauses that you can pass into this function, see
     [Aggregate function calls][aggregate-function-calls].
-+   `WHERE`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `HAVING { MAX | MIN }`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `OVER`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `over_clause`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `window_specification`: To learn more, see
-    [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -1140,9 +1240,10 @@ distinct counts. For more information, see
 
 [agg-threshold-clause]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#agg_threshold_clause
 
-[window-function-calls]: https://github.com/google/googlesql/blob/master/docs/window-function-calls.md
-
 <!-- mdlint on -->
+
++  `OVER`: To learn more about the `OVER` clause and how to use it, see
+   [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -1337,18 +1438,9 @@ Gets the number of `TRUE` values for an expression.
 **Definitions**
 
 + `expression`: A `BOOL` value that represents the expression to evaluate.
-+   `DISTINCT`: To learn more, see
++   Optional aggregate clauses: To learn more about the optional aggregate
+    clauses that you can pass into this function, see
     [Aggregate function calls][aggregate-function-calls].
-+   `WHERE`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `HAVING { MAX | MIN }`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `OVER`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `over_clause`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `window_specification`: To learn more, see
-    [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -1356,9 +1448,10 @@ Gets the number of `TRUE` values for an expression.
 
 [agg-threshold-clause]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#agg_threshold_clause
 
-[window-function-calls]: https://github.com/google/googlesql/blob/master/docs/window-function-calls.md
-
 <!-- mdlint on -->
+
++  `OVER`: To learn more about the `OVER` clause and how to use it, see
+   [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -2035,6 +2128,8 @@ window_specification:
 **Description**
 
 Returns the sum of non-`NULL` values in an aggregated group.
+Supports the `SAFE.` prefix when used
+with the `OVER` clause as a window function.
 
 To learn more about the optional aggregate clauses that you can pass
 into this function, see

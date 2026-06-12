@@ -18,12 +18,14 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "googlesql/common/errors.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/annotation/collation.h"
 #include "googlesql/public/builtin_function.pb.h"
@@ -33,6 +35,7 @@
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/functions/differential_privacy.pb.h"
 #include "googlesql/public/input_argument_type.h"
+#include "googlesql/public/interval_value.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.pb.h"
@@ -40,6 +43,7 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/column_factory.h"
+#include "googlesql/resolved_ast/make_node_vector.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
@@ -56,7 +60,9 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
@@ -64,7 +70,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -628,6 +633,33 @@ FunctionCallBuilder::IfError(std::unique_ptr<const ResolvedExpr> try_expr,
   return iferror_call;
 }
 
+// TODO: Propagate annotations correctly for this function, if
+// needed, after creating resolved function node.
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::NullIfError(std::unique_ptr<const ResolvedExpr> expr) {
+  GOOGLESQL_RET_CHECK_NE(expr.get(), nullptr);
+
+  const Function* nulliferror_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(
+      GetBuiltinFunctionFromCatalog("nulliferror", &nulliferror_fn));
+  GOOGLESQL_ASSIGN_OR_RETURN(FunctionSignature concrete_signature,
+                   MakeConcreteSignature(nulliferror_fn, FN_NULLIFERROR,
+                                         expr->type(), {{expr->type(), 1}}));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto nulliferror_call,
+      ResolvedFunctionCallBuilder()
+          .set_type(expr->type())
+          .set_function(nulliferror_fn)
+          .set_signature(std::move(concrete_signature))
+          .add_argument_list(std::move(expr))
+          .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
+          .BuildMutable());
+  GOOGLESQL_RETURN_IF_ERROR(
+      PropagateAnnotationsAndProcessCollationList(nulliferror_call.get()));
+  return nulliferror_call;
+}
+
 absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
 FunctionCallBuilder::Error(const std::string& error_text,
                            const Type* target_type) {
@@ -677,8 +709,9 @@ FunctionCallBuilder::MakeArray(
   GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("$make_array", &make_array_fn));
   GOOGLESQL_RET_CHECK(make_array_fn != nullptr);
 
-  const ArrayType* array_type;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory_.MakeArrayType(element_type, &array_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const ArrayType* array_type,
+      type_factory_.MakeArrayType(element_type, analyzer_options_.language()));
   GOOGLESQL_ASSIGN_OR_RETURN(
       FunctionSignature make_array_signature,
       MakeConcreteSignature(make_array_fn, FN_MAKE_ARRAY, array_type,
@@ -1325,6 +1358,7 @@ FunctionCallBuilder::Greater(std::unique_ptr<const ResolvedExpr> left_expr,
   }
 
   std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
   arguments.emplace_back(std::move(left_expr));
   arguments.emplace_back(std::move(right_expr));
 
@@ -1351,6 +1385,29 @@ FunctionCallBuilder::GreaterOrEqual(
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::Add(std::unique_ptr<const ResolvedExpr> left_expr,
+                         std::unique_ptr<const ResolvedExpr> right_expr) {
+  GOOGLESQL_RET_CHECK_NE(left_expr.get(), nullptr);
+  GOOGLESQL_RET_CHECK_NE(right_expr.get(), nullptr);
+  const Function* add_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("$add", &add_fn));
+  GOOGLESQL_ASSIGN_OR_RETURN(FunctionSignature signature,
+                   GetBinaryFunctionSignatureFromArgumentTypes(
+                       add_fn, left_expr->type(), right_expr->type()));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
+  arguments.emplace_back(std::move(left_expr));
+  arguments.emplace_back(std::move(right_expr));
+
+  auto call = MakeResolvedFunctionCall(
+      signature.result_type().type(), add_fn, signature, std::move(arguments),
+      ResolvedFunctionCall::DEFAULT_ERROR_MODE);
+  GOOGLESQL_RETURN_IF_ERROR(PropagateAnnotationsAndProcessCollationList(call.get()));
+  return call;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
 FunctionCallBuilder::Subtract(std::unique_ptr<const ResolvedExpr> minuend,
                               std::unique_ptr<const ResolvedExpr> subtrahend) {
   GOOGLESQL_RET_CHECK_NE(minuend.get(), nullptr);
@@ -1362,6 +1419,7 @@ FunctionCallBuilder::Subtract(std::unique_ptr<const ResolvedExpr> minuend,
                        subtract_fn, minuend->type(), subtrahend->type()));
 
   std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
   arguments.emplace_back(std::move(minuend));
   arguments.emplace_back(std::move(subtrahend));
 
@@ -1385,6 +1443,7 @@ FunctionCallBuilder::Int64AddLiteral(std::unique_ptr<const ResolvedExpr> a,
                                          {{int64_type, 1}, {int64_type, 1}}));
 
   std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
   arguments.emplace_back(std::move(a));
   arguments.emplace_back(MakeResolvedLiteral(int64_type, Value::Int64(b)));
 
@@ -1409,6 +1468,7 @@ FunctionCallBuilder::Int64MultiplyByLiteral(
                             {{int64_type, 1}, {int64_type, 1}}));
 
   std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
   arguments.emplace_back(std::move(a));
   arguments.emplace_back(MakeResolvedLiteral(int64_type, Value::Int64(b)));
 
@@ -1433,6 +1493,7 @@ FunctionCallBuilder::SafeSubtract(
                        safe_subtract_fn, minuend->type(), subtrahend->type()));
 
   std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
   arguments.emplace_back(std::move(minuend));
   arguments.emplace_back(std::move(subtrahend));
 
@@ -1625,9 +1686,10 @@ FunctionCallBuilder::IsNodeEndpoint(
   FunctionSignatureId fn_id =
       is_source_node_predicate ? FN_IS_SOURCE_NODE : FN_IS_DEST_NODE;
 
-  FunctionSignature fn_signature(
-      {types::BoolType(), 1}, {{node_expr->type(), 1}, {edge_expr->type(), 1}},
-      fn_id);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(node_endpoint_fn, fn_id, types::BoolType(),
+                            {{node_expr->type(), 1}, {edge_expr->type(), 1}}));
   std::vector<std::unique_ptr<const ResolvedExpr>> expressions(2);
   expressions[0] = std::move(node_expr);
   expressions[1] = std::move(edge_expr);
@@ -1636,7 +1698,7 @@ FunctionCallBuilder::IsNodeEndpoint(
       ResolvedFunctionCallBuilder()
           .set_type(types::BoolType())
           .set_function(node_endpoint_fn)
-          .set_signature(fn_signature)
+          .set_signature(std::move(concrete_signature))
           .set_argument_list(std::move(expressions))
           .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
           .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
@@ -1881,6 +1943,125 @@ FunctionCallBuilder::ArraySlice(
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::InArray(std::unique_ptr<const ResolvedExpr> search_expr,
+                             std::unique_ptr<const ResolvedExpr> array_expr) {
+  GOOGLESQL_RET_CHECK(search_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr->type()->IsArray());
+  GOOGLESQL_RET_CHECK(array_expr->type()->AsArray()->element_type()->Equals(
+      search_expr->type()));
+
+  const Function* in_array_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("$in_array", &in_array_fn));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(FunctionSignature concrete_signature,
+                   MakeConcreteSignature(
+                       in_array_fn, FN_IN_ARRAY, types::BoolType(),
+                       {{search_expr->type(), 1}, {array_expr->type(), 1}}));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(std::move(search_expr));
+  args.push_back(std::move(array_expr));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ResolvedFunctionCall> resolved_function,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::BoolType())
+          .set_function(in_array_fn)
+          .set_signature(std::move(concrete_signature))
+          .set_argument_list(std::move(args))
+          .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+          .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
+          .BuildMutable());
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      PropagateAnnotationsAndProcessCollationList(resolved_function.get()));
+  return resolved_function;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::ArrayIncludesAll(
+    std::unique_ptr<const ResolvedExpr> array_expr,
+    std::unique_ptr<const ResolvedExpr> search_expr) {
+  GOOGLESQL_RET_CHECK(search_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr->type()->IsArray());
+  GOOGLESQL_RET_CHECK(array_expr->type()->AsArray()->element_type()->Equals(
+      search_expr->type()->AsArray()->element_type()));
+
+  const Function* array_includes_all_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("array_includes_all",
+                                                &array_includes_all_fn));
+
+  GOOGLESQL_RET_CHECK_EQ(array_includes_all_fn->signatures().size(), 1);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(
+          array_includes_all_fn, FN_ARRAY_INCLUDES_ALL, types::BoolType(),
+          {{array_expr->type(), 1}, {search_expr->type(), 1}}));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(std::move(array_expr));
+  args.push_back(std::move(search_expr));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ResolvedFunctionCall> resolved_function,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::BoolType())
+          .set_function(array_includes_all_fn)
+          .set_signature(std::move(concrete_signature))
+          .set_argument_list(std::move(args))
+          .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+          .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
+          .BuildMutable());
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      PropagateAnnotationsAndProcessCollationList(resolved_function.get()));
+  return resolved_function;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::ArrayIncludesAny(
+    std::unique_ptr<const ResolvedExpr> array_expr,
+    std::unique_ptr<const ResolvedExpr> search_expr) {
+  GOOGLESQL_RET_CHECK(search_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr != nullptr);
+  GOOGLESQL_RET_CHECK(array_expr->type()->IsArray());
+  GOOGLESQL_RET_CHECK(array_expr->type()->AsArray()->element_type()->Equals(
+      search_expr->type()->AsArray()->element_type()));
+
+  const Function* array_includes_any_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("array_includes_any",
+                                                &array_includes_any_fn));
+
+  GOOGLESQL_RET_CHECK_EQ(array_includes_any_fn->signatures().size(), 1);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(
+          array_includes_any_fn, FN_ARRAY_INCLUDES_ANY, types::BoolType(),
+          {{array_expr->type(), 1}, {search_expr->type(), 1}}));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(std::move(array_expr));
+  args.push_back(std::move(search_expr));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ResolvedFunctionCall> resolved_function,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::BoolType())
+          .set_function(array_includes_any_fn)
+          .set_signature(std::move(concrete_signature))
+          .set_argument_list(std::move(args))
+          .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+          .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
+          .BuildMutable());
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      PropagateAnnotationsAndProcessCollationList(resolved_function.get()));
+  return resolved_function;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
 FunctionCallBuilder::ArrayToString(
     std::unique_ptr<const ResolvedExpr> array_expr,
     std::unique_ptr<const ResolvedExpr> delimiter_expr) {
@@ -1922,6 +2103,44 @@ FunctionCallBuilder::ArrayToString(
       ResolvedFunctionCallBuilder()
           .set_type(result_type)
           .set_function(array_to_string_fn)
+          .set_signature(std::move(concrete_signature))
+          .set_argument_list(std::move(args))
+          .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+          .set_function_call_info(std::make_shared<ResolvedFunctionCallInfo>())
+          .BuildMutable());
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      PropagateAnnotationsAndProcessCollationList(resolved_function.get()));
+  return resolved_function;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::RegexpContainsString(
+    std::unique_ptr<const ResolvedExpr> value_expr,
+    std::unique_ptr<const ResolvedExpr> regexp_expr) {
+  GOOGLESQL_RET_CHECK(value_expr != nullptr);
+  GOOGLESQL_RET_CHECK(regexp_expr != nullptr);
+  GOOGLESQL_RET_CHECK(value_expr->type()->IsString());
+  GOOGLESQL_RET_CHECK(regexp_expr->type()->IsString());
+
+  const Function* regexp_contains_fn = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(
+      GetBuiltinFunctionFromCatalog("regexp_contains", &regexp_contains_fn));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(
+          regexp_contains_fn, FN_REGEXP_CONTAINS_STRING, types::BoolType(),
+          {{value_expr->type(), 1}, {regexp_expr->type(), 1}}));
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(std::move(value_expr));
+  args.push_back(std::move(regexp_expr));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ResolvedFunctionCall> resolved_function,
+      ResolvedFunctionCallBuilder()
+          .set_type(types::BoolType())
+          .set_function(regexp_contains_fn)
           .set_signature(std::move(concrete_signature))
           .set_argument_list(std::move(args))
           .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
@@ -2165,8 +2384,9 @@ FunctionCallBuilder::ArrayAgg(
     ResolvedAggregateHavingModifier::HavingModifierKind having_kind) {
   GOOGLESQL_RET_CHECK(input_expr != nullptr);
   const Type* input_type = input_expr->type();
-  const ArrayType* array_type;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory_.MakeArrayType(input_type, &array_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const Type* array_type,
+      type_factory_.MakeArrayType(input_type, analyzer_options_.language()));
   const Function* array_agg_fn = nullptr;
   GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("array_agg", &array_agg_fn));
   GOOGLESQL_ASSIGN_OR_RETURN(FunctionSignature array_agg_fn_sig,
@@ -2342,9 +2562,10 @@ absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
 FunctionCallBuilder::PathNodes(
     /*absl_nonnull*/ std::unique_ptr<const ResolvedExpr> path) {
   GOOGLESQL_RET_CHECK(path->type()->IsGraphPath());
-  const ArrayType* return_type;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory_.MakeArrayType(
-      path->type()->AsGraphPath()->node_type(), &return_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const Type* return_type,
+      type_factory_.MakeArrayType(path->type()->AsGraphPath()->node_type(),
+                                  analyzer_options_.language()));
 
   const Function* path_nodes_fn = nullptr;
   GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("nodes", &path_nodes_fn));
@@ -2373,9 +2594,10 @@ absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
 FunctionCallBuilder::PathEdges(std::unique_ptr<const ResolvedExpr> path) {
   GOOGLESQL_RET_CHECK(path != nullptr);
   GOOGLESQL_RET_CHECK(path->type()->IsGraphPath());
-  const ArrayType* return_type;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory_.MakeArrayType(
-      path->type()->AsGraphPath()->edge_type(), &return_type));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const Type* return_type,
+      type_factory_.MakeArrayType(path->type()->AsGraphPath()->edge_type(),
+                                  analyzer_options_.language()));
 
   const Function* path_edges_fn = nullptr;
   GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("edges", &path_edges_fn));
@@ -2559,9 +2781,355 @@ absl::Status ValidateArgumentsDoNotContainCorrelation(
   return absl::OkStatus();
 }
 
+absl::Status ValidateTvfIsBuiltinAndSignatureMatches(
+    const ResolvedTVFScan* node, absl::string_view function_name,
+    int64_t function_context_id) {
+  GOOGLESQL_RET_CHECK(node != nullptr);
+  GOOGLESQL_RET_CHECK(node->tvf() != nullptr) << "node's TVF is null";
+  GOOGLESQL_RET_CHECK(node->tvf()->IsGoogleSQLBuiltin())
+      << "TVF is not a GoogleSQL builtin: " << node->tvf()->DebugString();
+
+  for (const auto& signature : node->tvf()->signatures()) {
+    if (signature.context_id() == function_context_id) {
+      return absl::OkStatus();
+    }
+  }
+
+  GOOGLESQL_RET_CHECK_FAIL() << "TVF signature for " << function_name
+                   << " is not supported by node: "
+                   << node->tvf()->DebugString();
+}
+
+absl::StatusOr<const ResolvedColumn*> FindAndValidateTimestampColumnInScan(
+    const ResolvedNode& error_location, absl::string_view ts_col_name,
+    const ResolvedScan& input_scan, absl::string_view function_name,
+    ProductMode product_mode) {
+  const ResolvedColumn* ts_column = nullptr;
+  for (const auto& col : input_scan.column_list()) {
+    if (googlesql_base::CaseEqual(col.name(), ts_col_name)) {
+      if (ts_column != nullptr) {
+        return MakeSqlErrorAtStart(error_location.GetParseLocationRangeOrNULL())
+               << "timestamp_column '" << ts_col_name
+               << "' is ambiguous in the input table";
+      } else {
+        ts_column = &col;
+      }
+    }
+  }
+
+  if (ts_column == nullptr) {
+    return MakeSqlErrorAtStart(error_location.GetParseLocationRangeOrNULL())
+           << "Timestamp column '" << ts_col_name
+           << "' not found in the input table for " << function_name;
+  }
+  if (!ts_column->type()->IsTimestamp()) {
+    return MakeSqlErrorAtStart(error_location.GetParseLocationRangeOrNULL())
+           << "The timestamp column provided to " << function_name
+           << " must be of type TIMESTAMP, but column '" << ts_col_name
+           << "' has type " << ts_column->type()->ShortTypeName(product_mode);
+  }
+  return ts_column;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedSubqueryExpr>>
+CreateCteColumnSubquery(ColumnFactory& column_factory,
+                        absl::string_view cte_name,
+                        const ResolvedColumnList& cte_defining_cols,
+                        int col_index_to_select) {
+  GOOGLESQL_RET_CHECK_GE(col_index_to_select, 0);
+  GOOGLESQL_RET_CHECK_LT(col_index_to_select, cte_defining_cols.size());
+  ResolvedColumnList with_ref_scan_cols;
+  with_ref_scan_cols.reserve(cte_defining_cols.size());
+  for (const auto& col : cte_defining_cols) {
+    with_ref_scan_cols.push_back(
+        column_factory.MakeCol(col.table_name(), col.name(), col.type()));
+  }
+  // We must create new columns with unique IDs for the WithRefScan.
+  // ResolvedWithRefScan requires that its output columns have unique IDs
+  // to avoid clashing with other references to the same CTE in the same scope.
+  const ResolvedColumn& source_col_from_ref =
+      with_ref_scan_cols[col_index_to_select];
+  ResolvedColumn output_col = column_factory.MakeCol(
+      source_col_from_ref.table_name(), source_col_from_ref.name(),
+      source_col_from_ref.type());
+  auto col_ref_expr = MakeResolvedColumnRef(source_col_from_ref.type(),
+                                            source_col_from_ref, false);
+  auto project_scan = MakeResolvedProjectScan(
+      {output_col},
+      MakeNodeVector(
+          MakeResolvedComputedColumn(output_col, std::move(col_ref_expr))),
+      MakeResolvedWithRefScan(with_ref_scan_cols, cte_name));
+  return MakeResolvedSubqueryExpr(
+      output_col.type(), ResolvedSubqueryExpr::SCALAR, /*parameter_list=*/{},
+      /*in_expr=*/nullptr, std::move(project_scan));
+}
+
 std::unique_ptr<ResolvedColumnRef> BuildResolvedColumnRef(
     const ResolvedColumn& column) {
   return MakeResolvedColumnRef(column, /*is_correlated=*/false);
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::Extract(std::unique_ptr<const ResolvedExpr> interval_expr,
+                             functions::DateTimestampPart part) {
+  GOOGLESQL_RET_CHECK(interval_expr != nullptr);
+  GOOGLESQL_RET_CHECK(interval_expr->type()->IsInterval())
+      << "Expected INTERVAL type for interval_expr, but got "
+      << interval_expr->type()->DebugString();
+
+  const Function* extract_func = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("$extract", &extract_func));
+
+  // Create a ResolvedLiteral for the DateTimestampPart enum.
+  const EnumType* date_part_enum_type = types::DatePartEnumType();
+  auto part_literal = MakeResolvedLiteral(
+      date_part_enum_type, Value::Enum(date_part_enum_type, part));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(2);
+  arguments.push_back(std::move(interval_expr));
+  arguments.push_back(std::move(part_literal));
+
+  const Type* result_type = types::Int64Type();
+  std::vector<ConcreteArgument> concrete_args = {{arguments[0]->type(), 1},
+                                                 {arguments[1]->type(), 1}};
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(extract_func, FN_EXTRACT_FROM_INTERVAL, result_type,
+                            std::move(concrete_args)));
+  GOOGLESQL_ASSIGN_OR_RETURN(auto call,
+                   ResolvedFunctionCallBuilder()
+                       .set_type(result_type)
+                       .set_function(extract_func)
+                       .set_signature(concrete_signature)
+                       .set_argument_list(std::move(arguments))
+                       .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+                       .BuildMutable());
+  GOOGLESQL_RETURN_IF_ERROR(PropagateAnnotationsAndProcessCollationList(call.get()));
+  return call;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::TimestampBucket(
+    std::vector<std::unique_ptr<const ResolvedExpr>> arguments) {
+  GOOGLESQL_RET_CHECK(arguments.size() == 2 || arguments.size() == 3);
+  GOOGLESQL_RET_CHECK(arguments[0] != nullptr);
+  GOOGLESQL_RET_CHECK(arguments[0]->type()->IsTimestamp())
+      << "Expected TIMESTAMP type for first argument to TIMESTAMP_BUCKET, but "
+         "got "
+      << arguments[0]->type()->DebugString();
+  GOOGLESQL_RET_CHECK(arguments[1] != nullptr);
+  GOOGLESQL_RET_CHECK(arguments[1]->type()->IsInterval())
+      << "Expected INTERVAL type for second argument to TIMESTAMP_BUCKET, but "
+         "got "
+      << arguments[1]->type()->DebugString();
+  if (arguments.size() == 3) {
+    GOOGLESQL_RET_CHECK(arguments[2] != nullptr);
+    GOOGLESQL_RET_CHECK(arguments[2]->type()->IsTimestamp())
+        << "Expected TIMESTAMP type for third argument (origin) to "
+           "TIMESTAMP_BUCKET, but got "
+        << arguments[2]->type()->DebugString();
+  }
+
+  const Function* timestamp_bucket_func = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog("timestamp_bucket",
+                                                &timestamp_bucket_func));
+
+  const Type* result_type = types::TimestampType();
+  std::vector<ConcreteArgument> concrete_args;
+  concrete_args.reserve(arguments.size());
+  for (const auto& arg : arguments) {
+    concrete_args.push_back({arg->type(), 1});
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(timestamp_bucket_func, FN_TIMESTAMP_BUCKET,
+                            result_type, std::move(concrete_args)));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(auto call,
+                   ResolvedFunctionCallBuilder()
+                       .set_type(result_type)
+                       .set_function(timestamp_bucket_func)
+                       .set_signature(concrete_signature)
+                       .set_argument_list(std::move(arguments))
+                       .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+                       .BuildMutable());
+  GOOGLESQL_RETURN_IF_ERROR(PropagateAnnotationsAndProcessCollationList(call.get()));
+  return call;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
+FunctionCallBuilder::IntervalToNanos(
+    std::unique_ptr<const ResolvedExpr> interval_expr,
+    absl::string_view function_name) {
+  GOOGLESQL_RET_CHECK(interval_expr != nullptr);
+  GOOGLESQL_RET_CHECK(interval_expr->type()->IsInterval());
+
+  // This function builds the equivalent of the following pseudo-SQL:
+  // IF (
+  //   EXTRACT(MONTH FROM interval_expr) != 0 OR
+  //     EXTRACT(YEAR FROM interval_expr) != 0,
+  //   ERROR("..."),
+  //   EXTRACT(DAY FROM interval_expr) * kNanosInDay + ... +
+  //     EXTRACT(NANOSECOND FROM interval_expr)
+  // )
+  //
+  // Restrict input types to prevent AST bloat and duplicate evaluation.
+  // Because this function extracts 7 different date parts from the input
+  // (5 for addition and 2 for validation), it must deep-copy `interval_expr`
+  // 7 times. If `interval_expr` were a complex expression, deep-copying it
+  // would break run-once semantics and cause the engine to evaluate the same
+  // potentially non-deterministic expression multiple times.
+  GOOGLESQL_RET_CHECK(interval_expr->Is<ResolvedColumnRef>() ||
+            interval_expr->Is<ResolvedLiteral>())
+      << "IntervalToNanos caller must extract the interval into a CTE or "
+         "similar to satisfy run-once semantics before passing it here, as "
+         "this function duplicates the AST node multiple times. Called for "
+      << function_name << ".";
+
+  struct PartConfig {
+    functions::DateTimestampPart part;
+    int64_t multiplier;
+  };
+
+  // Since EXTRACT(NANOSECOND) returns the entire sub-second fraction
+  // (0-999999999), we omit MILLISECOND and MICROSECOND to avoid
+  // double-counting.
+  // Note: This calculation can overflow if the interval is very large
+  // (e.g., more than ~292 years in days).
+  std::vector<PartConfig> parts = {
+      {functions::DAY, static_cast<int64_t>(IntervalValue::kNanosInDay)},
+      {functions::HOUR, static_cast<int64_t>(IntervalValue::kNanosInHour)},
+      {functions::MINUTE, static_cast<int64_t>(IntervalValue::kNanosInMinute)},
+      {functions::SECOND, static_cast<int64_t>(IntervalValue::kNanosInSecond)},
+      {functions::NANOSECOND, 1LL}};
+  std::vector<std::unique_ptr<const ResolvedExpr>> parts_exprs;
+  for (const auto& part_config : parts) {
+    GOOGLESQL_ASSIGN_OR_RETURN(auto interval_expr_copy,
+                     ResolvedASTDeepCopyVisitor::Copy(interval_expr.get()));
+
+    GOOGLESQL_ASSIGN_OR_RETURN(auto extracted_val,
+                     Extract(std::move(interval_expr_copy), part_config.part));
+
+    std::unique_ptr<const ResolvedExpr> part_in_nanos;
+    if (part_config.multiplier == 1) {
+      part_in_nanos = std::move(extracted_val);
+    } else {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          part_in_nanos,
+          NestedBinaryOp(
+              "$multiply", FN_MULTIPLY_INT64,
+              MakeNodeVector(
+                  std::move(extracted_val),
+                  MakeResolvedLiteral(types::Int64Type(),
+                                      Value::Int64(part_config.multiplier))),
+              types::Int64Type()));
+    }
+    parts_exprs.push_back(std::move(part_in_nanos));
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> total_nanos,
+                   NestedBinaryAdd(types::Int64Type(), std::move(parts_exprs)));
+
+  // Add a runtime check to ERROR() if there is a MONTH or YEAR part in the
+  // interval.
+  GOOGLESQL_ASSIGN_OR_RETURN(auto interval_expr_copy_for_month,
+                   ResolvedASTDeepCopyVisitor::Copy(interval_expr.get()));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto extracted_month,
+      Extract(std::move(interval_expr_copy_for_month), functions::MONTH));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto month_not_zero,
+      NotEqual(std::move(extracted_month),
+               MakeResolvedLiteral(types::Int64Type(), Value::Int64(0))));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(auto interval_expr_copy_for_year,
+                   ResolvedASTDeepCopyVisitor::Copy(interval_expr.get()));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto extracted_year,
+      Extract(std::move(interval_expr_copy_for_year), functions::YEAR));
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto year_not_zero,
+      NotEqual(std::move(extracted_year),
+               MakeResolvedLiteral(types::Int64Type(), Value::Int64(0))));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> check_parts_exprs;
+  check_parts_exprs.push_back(std::move(month_not_zero));
+  check_parts_exprs.push_back(std::move(year_not_zero));
+  GOOGLESQL_ASSIGN_OR_RETURN(auto has_unsupported_parts,
+                   Or(std::move(check_parts_exprs)));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto error_call,
+      Error(absl::StrCat(
+                "Intervals with MONTH or YEAR parts are not supported in ",
+                function_name, "."),
+            types::Int64Type()));
+
+  return If(std::move(has_unsupported_parts), std::move(error_call),
+            std::move(total_nanos));
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+FunctionCallBuilder::GenerateTimestampArrayWithDatePart(
+    std::unique_ptr<const ResolvedExpr> start_timestamp,
+    std::unique_ptr<const ResolvedExpr> end_timestamp,
+    std::unique_ptr<const ResolvedExpr> step,
+    std::unique_ptr<const ResolvedExpr> date_part) {
+  GOOGLESQL_RET_CHECK(start_timestamp != nullptr);
+  GOOGLESQL_RET_CHECK(start_timestamp->type()->IsTimestamp())
+      << "Expected TIMESTAMP type for start_timestamp, but got "
+      << start_timestamp->type()->DebugString();
+  GOOGLESQL_RET_CHECK(end_timestamp != nullptr);
+  GOOGLESQL_RET_CHECK(end_timestamp->type()->IsTimestamp())
+      << "Expected TIMESTAMP type for end_timestamp, but got "
+      << end_timestamp->type()->DebugString();
+  GOOGLESQL_RET_CHECK(step != nullptr);
+  GOOGLESQL_RET_CHECK(step->type()->IsInt64()) << "Expected INT64 type for step, but got "
+                                     << step->type()->DebugString();
+
+  GOOGLESQL_RET_CHECK(date_part != nullptr);
+  GOOGLESQL_RET_CHECK(date_part->type()->Equivalent(types::DatePartEnumType()))
+      << "Expected ENUM<googlesql.functions.DateTimestampPart> type for "
+         "date_part, but got "
+      << date_part->type()->DebugString();
+
+  const Function* generate_timestamp_array_func = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionFromCatalog(
+      "generate_timestamp_array", &generate_timestamp_array_func));
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> arguments;
+  arguments.reserve(4);
+  arguments.push_back(std::move(start_timestamp));
+  arguments.push_back(std::move(end_timestamp));
+  arguments.push_back(std::move(step));
+  arguments.push_back(std::move(date_part));
+
+  const Type* result_type = types::TimestampArrayType();
+
+  std::vector<ConcreteArgument> concrete_args;
+  concrete_args.reserve(arguments.size());
+  for (const auto& arg : arguments) {
+    concrete_args.push_back({arg->type(), 1});
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      FunctionSignature concrete_signature,
+      MakeConcreteSignature(generate_timestamp_array_func,
+                            FN_GENERATE_TIMESTAMP_ARRAY, result_type,
+                            std::move(concrete_args)));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(auto call,
+                   ResolvedFunctionCallBuilder()
+                       .set_type(result_type)
+                       .set_function(generate_timestamp_array_func)
+                       .set_signature(concrete_signature)
+                       .set_argument_list(std::move(arguments))
+                       .set_error_mode(ResolvedFunctionCall::DEFAULT_ERROR_MODE)
+                       .BuildMutable());
+  GOOGLESQL_RETURN_IF_ERROR(PropagateAnnotationsAndProcessCollationList(call.get()));
+  return call;
 }
 
 namespace {
@@ -2844,18 +3412,16 @@ FunctionCallBuilder::HllExtract(std::unique_ptr<const ResolvedExpr> expr) {
 }
 
 // Visitor to detect the max column id in a ResolvedAST.
-class MaxColumnIdVisitor : public googlesql::ResolvedASTRewriteVisitor {
+class MaxColumnIdVisitor : public googlesql::ResolvedASTVisitor {
  public:
   static absl::StatusOr<int> GetMaxColumnId(
       const googlesql::ResolvedNode* node) {
-    MaxColumnIdVisitor rewriter;
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const googlesql::ResolvedNode> copied_node,
-                     googlesql::ResolvedASTDeepCopyVisitor::Copy(node));
-    auto rewriter_output_unused = rewriter.VisitAll(std::move(copied_node));
-    return rewriter.get_max_column_id();
+    MaxColumnIdVisitor visitor;
+    GOOGLESQL_RETURN_IF_ERROR(node->Accept(&visitor));
+    return visitor.get_max_column_id();
   }
 
-  absl::Status PreVisitResolvedColumn(
+  absl::Status VisitResolvedColumn(
       const googlesql::ResolvedColumn& column) override {
     if (column.column_id() > max_column_id_) {
       max_column_id_ = std::max(max_column_id_, column.column_id());

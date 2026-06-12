@@ -43,6 +43,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -62,7 +63,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/mathutil.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

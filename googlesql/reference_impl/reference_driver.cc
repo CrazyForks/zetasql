@@ -83,6 +83,7 @@
 #include "absl/flags/flag.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -90,9 +91,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
+#include "googlesql/base/map_util.h"
 #include "googlesql/base/clock.h"
 
 // Ideally we would rename this to
@@ -689,8 +690,8 @@ absl::Status SetAnnotationMapFromResolvedColumnAnnotations(
 absl::StatusOr<Value> ReferenceDriver::ExecuteStatement(
     const std::string& sql, const std::map<std::string, Value>& parameters,
     TypeFactory* type_factory) {
-  ReferenceDriver::ExecuteStatementOptions options{.primary_key_mode =
-                                                       PrimaryKeyMode::DEFAULT};
+  ReferenceDriver::ExecuteStatementOptions options{
+      .primary_key_mode = current_primary_key_mode_};
   GOOGLESQL_RET_CHECK_EQ(type_factory, this->type_factory());
   ExecuteStatementAuxOutput aux_output_ignored;
   // Create a local test database to allow running DDL statements. Note the
@@ -703,8 +704,8 @@ absl::StatusOr<Value> ReferenceDriver::ExecuteStatement(
 absl::StatusOr<MultiStmtResult> ReferenceDriver::ExecuteGeneralizedStatement(
     const std::string& sql, const std::map<std::string, Value>& parameters,
     TypeFactory* type_factory) {
-  ReferenceDriver::ExecuteStatementOptions options{.primary_key_mode =
-                                                       PrimaryKeyMode::DEFAULT};
+  ReferenceDriver::ExecuteStatementOptions options{
+      .primary_key_mode = current_primary_key_mode_};
   ExecuteStatementAuxOutput aux_output_ignored;
   // Create a local test database to allow running DDL statements. Note the
   // reference driver does not actually apply side effects.
@@ -717,7 +718,8 @@ absl::StatusOr<MultiStmtResult> ReferenceDriver::ExecuteGeneralizedStatement(
 absl::StatusOr<MultiStmtResult> ReferenceDriver::ExecuteScript(
     const std::string& sql, const std::map<std::string, Value>& parameters,
     TypeFactory* type_factory) {
-  ExecuteStatementOptions options{.primary_key_mode = PrimaryKeyMode::DEFAULT};
+  ExecuteStatementOptions options{.primary_key_mode =
+                                      current_primary_key_mode_};
   ExecuteScriptAuxOutput aux_output_ignored;
   GOOGLESQL_RET_CHECK_EQ(type_factory, this->type_factory());
   return ExecuteScriptForReferenceDriver(sql, parameters, options,
@@ -935,6 +937,7 @@ ReferenceDriver::ExecuteStatementForReferenceDriverInternal(
 
   AlgebrizerOptions algebrizer_options;
   algebrizer_options.use_arrays_for_tables = true;
+  algebrizer_options.inline_with_entries = true;
   algebrizer_options.max_seen_column_id =
       std::make_shared<int>(analyzed->max_column_id());
 
@@ -1084,6 +1087,14 @@ ReferenceDriver::ExecuteStatementForReferenceDriverInternal(
 
     const Value& output_value = *result.value;
     sr.result = output_value;
+
+    if (sub_stmt->node_kind() == RESOLVED_TERMINAL_QUERY_STMT) {
+      // We expect an invalid Value, meaning "no result table", for
+      // terminal queries.
+      GOOGLESQL_RET_CHECK(!output_value.is_valid());
+      final_result.statement_results.push_back(std::move(sr));
+      continue;
+    }
 
     const Type* output_type = output_value.type();
     switch (sub_stmt->node_kind()) {

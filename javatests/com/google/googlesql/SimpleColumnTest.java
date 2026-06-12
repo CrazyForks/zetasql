@@ -23,6 +23,7 @@ import static org.junit.Assert.fail;
 
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
+import com.google.googlesql.AnnotationMap.AnnotationKind;
 import com.google.googlesql.GoogleSQLType.TypeKind;
 import com.google.googlesql.GoogleSQLType.TypeProto;
 import com.google.googlesql.SimpleTableProtos.SimpleColumnProto;
@@ -35,6 +36,33 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 
 public class SimpleColumnTest {
+
+  @Test
+  public void testAnnotationMapColumn() {
+    TypeFactory factory = TypeFactory.nonUniqueNames();
+    FileDescriptorSetsBuilder descriptor = new FileDescriptorSetsBuilder();
+    SimpleType type = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
+    AnnotationMap annotationMap = AnnotationMap.create(type);
+    annotationMap.setAnnotation(
+        AnnotationKind.COLLATION.getValue(), SimpleValue.createString("und:ci"));
+
+    SimpleColumn column1 =
+        new SimpleColumn(
+            "t1",
+            "c1",
+            type,
+            /* isPseudoColumn= */ false,
+            /* isWritableColumn= */ true,
+            /* canUpdateToDefault= */ false,
+            annotationMap);
+
+    SimpleColumn column =
+        SimpleColumn.deserialize(
+            column1.serialize(descriptor), "t1", descriptor.getDescriptorPools(), factory);
+
+    assertThat(column).isEqualTo(column1);
+    assertThat(column.serialize(descriptor).equals(column1.serialize(descriptor))).isTrue();
+  }
 
   @Test
   public void testSimpleTypeColumn() {
@@ -175,6 +203,15 @@ public class SimpleColumnTest {
   }
 
   @Test
+  public void testHashCode() {
+    SimpleType type = TypeFactory.createSimpleType(TypeKind.TYPE_BOOL);
+    SimpleColumn column1 = new SimpleColumn("t1", "c1", type);
+    SimpleColumn column2 = new SimpleColumn("t1", "c1", type);
+
+    assertThat(column1.hashCode()).isEqualTo(column2.hashCode());
+  }
+
+  @Test
   public void testClassAndProtoSize() {
     // TODO: add serialization code for default values.
     assertWithMessage(
@@ -186,6 +223,6 @@ public class SimpleColumnTest {
             "The number of fields in SimpleColumn class has changed, "
                 + "please also update the proto and serialization code accordingly.")
         .that(TestUtil.getNonStaticFieldCount(SimpleColumn.class))
-        .isEqualTo(6);
+        .isEqualTo(7);
   }
 }

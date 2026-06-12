@@ -61,6 +61,7 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -72,7 +73,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 #include "googlesql/base/clock.h"
 
 extern absl::Flag<int64_t>
@@ -3911,6 +3911,14 @@ TEST_F(PreparedModifyTest, ExplainAfterPrepareWithoutPrepare) {
                        HasSubstr("Prepare must be called first")));
 }
 
+TEST_F(PreparedModifyTest, AiIfDisabledForPreparedModify) {
+  PreparedModify modify("DELETE from test_table WHERE AI.IF('prompt')",
+                        EvaluatorOptions());
+  EXPECT_THAT(modify.Prepare(analyzer_options(), catalog()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Function not found: AI.`IF`")));
+}
+
 // This test suite runs DML Returning statements using version 2 Execute API,
 // and verify the returning clause results.
 class PreparedDmlReturningTest : public PreparedModifyTest {
@@ -4384,6 +4392,58 @@ TEST_F(PreparedDmlReturningTest, ExecuteWithoutReturningIterator) {
     EXPECT_FALSE(iter->NextRow());
     GOOGLESQL_EXPECT_OK(iter->Status());
   }
+}
+
+TEST_F(PreparedDmlReturningTest, ExecutesInsertUpdateReturningAllColumns) {
+  // The row with int_val=1 already exists, so the DML executes an update
+  // action.
+  PreparedModify modify(
+      "insert update test_table(int_val) values(1) "
+      "then return with action *, concat(str_val, '_returning') as new_str_val",
+      EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(modify.Prepare(analyzer_options(), catalog()));
+  ASSERT_EQ(modify.resolved_statement()->node_kind(), RESOLVED_INSERT_STMT);
+
+  std::unique_ptr<EvaluatorTableIterator> returning_iter;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EvaluatorTableModifyIterator> iter,
+                       modify.Execute({}, {}, &returning_iter));
+  const Table* table;
+  GOOGLESQL_ASSERT_OK(catalog()->FindTable({"test_table"}, &table));
+
+  EXPECT_EQ(iter->table(), table);
+  EXPECT_TRUE(iter->NextRow());
+  EXPECT_EQ(iter->GetColumnValue(0), Int64(1));
+  // The column `str_val` is not specified in the INSERT UPDATE statement so
+  // its value is NULL.
+  EXPECT_EQ(iter->GetColumnValue(1), NullString());
+  EXPECT_FALSE(iter->GetOriginalKeyValue(0).is_valid());
+  EXPECT_EQ(iter->GetOperation(),
+            EvaluatorTableModifyIterator::Operation::kInsert);
+  EXPECT_FALSE(iter->NextRow());
+  GOOGLESQL_ASSERT_OK(iter->Status());
+
+  // Validate RETURNING results.
+  ASSERT_NE(returning_iter, nullptr);
+  ASSERT_TRUE(returning_iter->NextRow());
+  // Returning column `int_val`
+  EXPECT_EQ("int_val", returning_iter->GetColumnName(0));
+  EXPECT_TRUE(returning_iter->GetColumnType(0)->IsInt64());
+  EXPECT_EQ(Int64(1), returning_iter->GetValue(0));
+  // Column `str_val` gets value from the existing row, even though it is not
+  // specified in the INSERT UPDATE statement.
+  EXPECT_EQ("str_val", returning_iter->GetColumnName(1));
+  EXPECT_TRUE(returning_iter->GetColumnType(1)->IsString());
+  EXPECT_EQ(String("one"), returning_iter->GetValue(1));
+  // Returning column `new_str_val`
+  EXPECT_EQ("new_str_val", returning_iter->GetColumnName(2));
+  EXPECT_TRUE(returning_iter->GetColumnType(2)->IsString());
+  EXPECT_EQ(String("one_returning"), returning_iter->GetValue(2));
+  // Returning ACTION column
+  EXPECT_EQ("ACTION", returning_iter->GetColumnName(3));
+  EXPECT_TRUE(returning_iter->GetColumnType(3)->IsString());
+  EXPECT_EQ(String("UPDATE"), returning_iter->GetValue(3));
+  EXPECT_FALSE(returning_iter->NextRow());
+  GOOGLESQL_EXPECT_OK(returning_iter->Status());
 }
 
 class PreparedModifyWithDefaultColumnTest : public ::testing::Test {
@@ -5513,6 +5573,15 @@ TEST_F(PreparedQueryTest, ReadZeroColumnsWithPruningUnusedColumnsEnabled) {
   EXPECT_THAT(num_rows, Eq(3));
 }
 
+TEST_F(PreparedQueryTest, AiIfDisabledForPreparedQuery) {
+  const std::string query("SELECT AI.IF('prompt')");
+
+  // AI.IF is disabled by default without any user-specified AnalyzerOptions.
+  PreparedQuery pq(query, EvaluatorOptions());
+  EXPECT_THAT(pq.Execute(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSubstr("Function not found: AI.`IF`")));
+}
+
 // Test fixture for end-to-end tests of reading all fields from a proto in one
 // shot.
 class PreparedQueryProtoTest : public PreparedQueryTest {
@@ -5575,7 +5644,7 @@ class PreparedQueryProtoTest : public PreparedQueryTest {
     group->add_optionalgroupnested()->set_int64_val(key * 1000 + 2);
 
     absl::Cord bytes;
-    ABSL_CHECK(proto.SerializeToCord(&bytes));
+    ABSL_CHECK(proto.SerializeToString(&bytes));
     return Value::Proto(proto_type_, bytes);
   }
 
@@ -5782,7 +5851,7 @@ TEST_F(PreparedQueryProtoTest, SameProtoFieldWithNoHasBitAndHasBit) {
   nested_value.add_nested_repeated_int64(100);
   nested_value.add_nested_repeated_int64(101);
   absl::Cord bytes_4970;
-  ABSL_CHECK(nested_value.SerializeToCord(&bytes_4970));
+  ABSL_CHECK(nested_value.SerializeToString(&bytes_4970));
   absl::Cord bytes = bytes_4970;
 
   const ProtoType* nested_type;
@@ -5820,7 +5889,7 @@ TEST_F(PreparedQueryProtoTest, SameProtoFieldWithHasBitAndNoHasBit) {
   nested_value.add_nested_repeated_int64(100);
   nested_value.add_nested_repeated_int64(101);
   absl::Cord bytes_5006;
-  ABSL_CHECK(nested_value.SerializeToCord(&bytes_5006));
+  ABSL_CHECK(nested_value.SerializeToString(&bytes_5006));
   absl::Cord bytes = bytes_5006;
 
   const ProtoType* nested_type;
@@ -5932,7 +6001,7 @@ TEST_F(PreparedQueryProtoTest, FieldAndSubfield) {
   PopulateNestedProto(/*key=*/1, &nested_value);
 
   absl::Cord bytes_5117;
-  ABSL_CHECK(nested_value.SerializeToCord(&bytes_5117));
+  ABSL_CHECK(nested_value.SerializeToString(&bytes_5117));
   absl::Cord bytes = bytes_5117;
 
   const ProtoType* nested_type;
@@ -5968,7 +6037,7 @@ TEST_F(PreparedQueryProtoTest, SubfieldAndField) {
   googlesql_test::KitchenSinkPB_Nested nested_value;
   PopulateNestedProto(/*key=*/1, &nested_value);
   absl::Cord bytes_5151;
-  ABSL_CHECK(nested_value.SerializeToCord(&bytes_5151));
+  ABSL_CHECK(nested_value.SerializeToString(&bytes_5151));
   absl::Cord bytes = bytes_5151;
 
   const ProtoType* nested_type;
@@ -6004,7 +6073,7 @@ TEST_F(PreparedQueryProtoTest, FieldAndSubSubField) {
   googlesql_test::RewrappedNullableInt rewrapped_nullable_int;
   rewrapped_nullable_int.mutable_value()->set_value(1000);
   absl::Cord bytes_5185;
-  ABSL_CHECK(rewrapped_nullable_int.SerializeToCord(&bytes_5185));
+  ABSL_CHECK(rewrapped_nullable_int.SerializeToString(&bytes_5185));
   absl::Cord bytes = bytes_5185;
 
   const ProtoType* rewrapped_type;
@@ -6043,7 +6112,7 @@ TEST_F(PreparedQueryProtoTest, SubSubFieldAndField) {
   googlesql_test::RewrappedNullableInt rewrapped_nullable_int;
   rewrapped_nullable_int.mutable_value()->set_value(1000);
   absl::Cord bytes_5222;
-  ABSL_CHECK(rewrapped_nullable_int.SerializeToCord(&bytes_5222));
+  ABSL_CHECK(rewrapped_nullable_int.SerializeToString(&bytes_5222));
   absl::Cord bytes = bytes_5222;
 
   const ProtoType* rewrapped_type;
@@ -6086,7 +6155,7 @@ TEST_F(PreparedQueryProtoTest, Complex) {
   nested_value.add_nested_repeated_int64(100);
   nested_value.add_nested_repeated_int64(101);
   absl::Cord bytes_5263;
-  ABSL_CHECK(nested_value.SerializeToCord(&bytes_5263));
+  ABSL_CHECK(nested_value.SerializeToString(&bytes_5263));
   absl::Cord bytes = bytes_5263;
 
   const ProtoType* nested_type;
@@ -6125,7 +6194,7 @@ TEST_F(PreparedQueryProtoTest, WithRepeatedFieldOffsets) {
   googlesql_test::KitchenSinkPB_Nested nested_proto;
   nested_proto.set_nested_int64(20);
   absl::Cord bytes_5300;
-  ABSL_CHECK(nested_proto.SerializeToCord(&bytes_5300));
+  ABSL_CHECK(nested_proto.SerializeToString(&bytes_5300));
   absl::Cord bytes = bytes_5300;
 
   const ProtoType* nested_type;
@@ -6395,13 +6464,13 @@ TEST_F(PreparedQueryProtoTest, MixedProtoAndStructFieldPaths) {
   PopulateNestedProto(/*key=*/100, &expected_nested3);
 
   absl::Cord bytes_5568;
-  ABSL_CHECK(expected_nested1.SerializeToCord(&bytes_5568));
+  ABSL_CHECK(expected_nested1.SerializeToString(&bytes_5568));
   absl::Cord serialized_expected_nested1 = bytes_5568;
   absl::Cord bytes_5569;
-  ABSL_CHECK(expected_nested2.SerializeToCord(&bytes_5569));
+  ABSL_CHECK(expected_nested2.SerializeToString(&bytes_5569));
   absl::Cord serialized_expected_nested2 = bytes_5569;
   absl::Cord bytes_5570;
-  ABSL_CHECK(expected_nested3.SerializeToCord(&bytes_5570));
+  ABSL_CHECK(expected_nested3.SerializeToString(&bytes_5570));
   absl::Cord serialized_expected_nested3 = bytes_5570;
 
   const ProtoType* nested_type;
@@ -7257,6 +7326,173 @@ TEST_F(PreparedStatementTest,
   EXPECT_THAT(prepared_stmt.Execute(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Invalid prepared expression/query")));
+}
+
+TEST_F(PreparedStatementTest, StandaloneValueTableQuery) {
+  const std::string sql = "SELECT AS VALUE 1;";
+  PreparedStatement prepared_stmt(sql, EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(prepared_stmt.Prepare(analyzer_options(), catalog()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto results, prepared_stmt.Execute());
+  ASSERT_EQ(results.size(), 1);
+
+  GOOGLESQL_ASSERT_OK(results[0]);
+  EXPECT_EQ(results[0]->kind, PreparedStatementBase::StmtKind::kQuery);
+  EXPECT_TRUE(
+      results[0]->statement->GetAs<ResolvedQueryStmt>()->is_value_table());
+  auto& iter = results[0]->table_iterator;
+  ASSERT_NE(iter, nullptr);
+  EXPECT_EQ(iter->NumColumns(), 1);
+  EXPECT_EQ(iter->GetColumnName(0), "");
+  ASSERT_TRUE(iter->NextRow());
+  EXPECT_EQ(iter->GetValue(0), Int64(1));
+  ASSERT_FALSE(iter->NextRow());
+  GOOGLESQL_ASSERT_OK(iter->Status());
+}
+
+TEST_F(PreparedStatementTest, StandaloneValueTableCTAS) {
+  const std::string sql = "CREATE TABLE new_table AS SELECT AS VALUE 1 AS col;";
+  PreparedStatement prepared_stmt(sql, EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(prepared_stmt.Prepare(analyzer_options(), catalog()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto results, prepared_stmt.Execute());
+  ASSERT_EQ(results.size(), 1);
+
+  GOOGLESQL_ASSERT_OK(results[0]);
+  EXPECT_EQ(results[0]->kind, PreparedStatementBase::StmtKind::kCTAS);
+  EXPECT_TRUE(results[0]
+                  ->statement->GetAs<ResolvedCreateTableAsSelectStmt>()
+                  ->is_value_table());
+  auto& iter = results[0]->table_iterator;
+  ASSERT_NE(iter, nullptr);
+  EXPECT_EQ(iter->NumColumns(), 1);
+  EXPECT_EQ(iter->GetColumnName(0), "");
+  ASSERT_TRUE(iter->NextRow());
+  EXPECT_EQ(iter->GetValue(0), Int64(1));
+  ASSERT_FALSE(iter->NextRow());
+  GOOGLESQL_ASSERT_OK(iter->Status());
+}
+
+TEST_F(PreparedStatementTest, MultiStatementValueTable) {
+  const std::string sql = R"sql(
+     SELECT 1 AS x
+     |> FORK (
+       |> SELECT AS VALUE x
+     ), (
+       |> SELECT x, x + 1
+     )
+   )sql";
+  PreparedStatement prepared_stmt(sql, EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(prepared_stmt.Prepare(analyzer_options(), catalog()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto results, prepared_stmt.Execute());
+  ASSERT_EQ(results.size(), 2);
+
+  // Statement 1: SELECT AS VALUE
+  GOOGLESQL_ASSERT_OK(results[0]);
+  {
+    EXPECT_EQ(results[0]->kind, PreparedStatementBase::StmtKind::kQuery);
+    EXPECT_TRUE(
+        results[0]->statement->GetAs<ResolvedQueryStmt>()->is_value_table());
+    auto& iter = results[0]->table_iterator;
+    ASSERT_NE(iter, nullptr);
+    EXPECT_EQ(iter->NumColumns(), 1);
+    EXPECT_EQ(iter->GetColumnName(0), "");
+    ASSERT_TRUE(iter->NextRow());
+    EXPECT_EQ(iter->GetValue(0), Int64(1));
+    ASSERT_FALSE(iter->NextRow());
+    GOOGLESQL_ASSERT_OK(iter->Status());
+  }
+
+  // Statement 2: SELECT
+  GOOGLESQL_ASSERT_OK(results[1]);
+  {
+    EXPECT_EQ(results[1]->kind, PreparedStatementBase::StmtKind::kQuery);
+    EXPECT_FALSE(
+        results[1]->statement->GetAs<ResolvedQueryStmt>()->is_value_table());
+    auto& iter = results[1]->table_iterator;
+    ASSERT_NE(iter, nullptr);
+    EXPECT_EQ(iter->NumColumns(), 2);
+    ASSERT_TRUE(iter->NextRow());
+    EXPECT_EQ(iter->GetValue(0), Int64(1));
+    EXPECT_EQ(iter->GetValue(1), Int64(2));
+    ASSERT_FALSE(iter->NextRow());
+    GOOGLESQL_ASSERT_OK(iter->Status());
+  }
+}
+
+TEST_F(PreparedStatementTest, PipeFinish) {
+  analyzer_options_.mutable_language()->EnableLanguageFeature(
+      FEATURE_PIPE_FINISH);
+
+  const std::string sql = R"sql(
+     SELECT 1 AS x, 'a' AS y
+     |> FINISH
+   )sql";
+  PreparedStatement prepared_stmt(sql, EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(prepared_stmt.Prepare(analyzer_options_, catalog()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto results, prepared_stmt.Execute());
+  ASSERT_EQ(results.size(), 1);
+
+  GOOGLESQL_ASSERT_OK(results[0]);
+  EXPECT_EQ(results[0]->kind, PreparedStatementBase::StmtKind::kTerminalQuery);
+  EXPECT_EQ(results[0]->table_iterator, nullptr);
+}
+
+TEST_F(PreparedStatementTest, PipeForkWithFinish) {
+  analyzer_options_.mutable_language()->EnableLanguageFeature(
+      FEATURE_PIPE_FINISH);
+
+  const std::string sql = R"sql(
+     SELECT 1 AS x, 'a' AS y
+     |> FORK (
+       |> SELECT x
+     ), (
+       |> FINISH
+     )
+   )sql";
+  PreparedStatement prepared_stmt(sql, EvaluatorOptions());
+  GOOGLESQL_ASSERT_OK(prepared_stmt.Prepare(analyzer_options_, catalog()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto results, prepared_stmt.Execute());
+  ASSERT_EQ(results.size(), 2);
+
+  // Branch 1: SELECT x
+  GOOGLESQL_ASSERT_OK(results[0]);
+  {
+    EXPECT_EQ(results[0]->kind, PreparedStatementBase::StmtKind::kQuery);
+    auto& iter = results[0]->table_iterator;
+    ASSERT_NE(iter, nullptr);
+    EXPECT_EQ(iter->NumColumns(), 1);
+    EXPECT_EQ(iter->GetColumnName(0), "x");
+    ASSERT_TRUE(iter->NextRow());
+    EXPECT_EQ(iter->GetValue(0), Int64(1));
+    ASSERT_FALSE(iter->NextRow());
+    GOOGLESQL_ASSERT_OK(iter->Status());
+  }
+
+  // Branch 2: FINISH
+  GOOGLESQL_ASSERT_OK(results[1]);
+  {
+    EXPECT_EQ(results[1]->kind,
+              PreparedStatementBase::StmtKind::kTerminalQuery);
+    EXPECT_EQ(results[1]->table_iterator, nullptr);
+  }
+}
+
+TEST_F(PreparedStatementTest, AiIfDisabledForPreparedStatement) {
+  const std::string query("SELECT AI.IF('prompt')");
+
+  // AI.IF is disabled by default without any user-specified AnalyzerOptions.
+  PreparedStatement ps(query, EvaluatorOptions());
+  EXPECT_THAT(ps.Execute(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                     HasSubstr("Function not found: AI.`IF`")));
+}
+
+TEST(EvaluatorTest, AiIfDisabledForPreparedExpression) {
+  const std::string query("AI.IF('prompt')");
+
+  // AI.IF is disabled by default without any user-specified AnalyzerOptions.
+  PreparedExpression expr(query);
+  EXPECT_THAT(expr.Execute(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Function not found: AI.`IF`")));
 }
 
 }  // namespace

@@ -22,9 +22,9 @@
 
 #include "googlesql/base/logging.h"
 #include "absl/memory/memory.h"
+#include "googlesql/base/status_macros.h"
 #include "re2/re2.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

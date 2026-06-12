@@ -79,8 +79,8 @@ class GraphPathType : public ListBackedType {
     return TypeNameWithModifiers(type_modifiers, mode,
                                  /*use_external_float32=*/false);
   }
-
-  std::string CapitalizedName() const override;
+  absl::Status ValidateResolvedTypeParameters(
+      const TypeParameters& type_parameters, ProductMode mode) const override;
 
   int nesting_depth() const override { return nesting_depth_; }
 

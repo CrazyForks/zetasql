@@ -135,16 +135,6 @@ ARRAY<STRUCT<
         WINDOW_END TIMESTAMP
       >>
 [unknown order:{
-                 2025-01-02 08:00:00+00,
-                 2025-01-01 00:00:00+00,
-                 2025-01-03 00:00:00+00
-               },
-               {
-                 2025-01-02 08:00:00+00,
-                 2025-01-02 00:00:00+00,
-                 2025-01-04 00:00:00+00
-               },
-               {
                  2025-01-04 08:00:00+00,
                  2025-01-03 00:00:00+00,
                  2025-01-05 00:00:00+00
@@ -155,16 +145,6 @@ ARRAY<STRUCT<
                  2025-01-06 00:00:00+00
                },
                {
-                 2025-01-01 08:00:00+00,
-                 2024-12-31 00:00:00+00,
-                 2025-01-02 00:00:00+00
-               },
-               {
-                 2025-01-01 08:00:00+00,
-                 2025-01-01 00:00:00+00,
-                 2025-01-03 00:00:00+00
-               },
-               {
                  2025-01-03 08:00:00+00,
                  2025-01-02 00:00:00+00,
                  2025-01-04 00:00:00+00
@@ -173,6 +153,26 @@ ARRAY<STRUCT<
                  2025-01-03 08:00:00+00,
                  2025-01-03 00:00:00+00,
                  2025-01-05 00:00:00+00
+               },
+               {
+                 2025-01-02 08:00:00+00,
+                 2025-01-01 00:00:00+00,
+                 2025-01-03 00:00:00+00
+               },
+               {
+                 2025-01-02 08:00:00+00,
+                 2025-01-02 00:00:00+00,
+                 2025-01-04 00:00:00+00
+               },
+               {
+                 2025-01-01 08:00:00+00,
+                 2024-12-31 00:00:00+00,
+                 2025-01-02 00:00:00+00
+               },
+               {
+                 2025-01-01 08:00:00+00,
+                 2025-01-01 00:00:00+00,
+                 2025-01-03 00:00:00+00
                }]
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
@@ -274,16 +274,6 @@ ARRAY<STRUCT<
         WINDOW_END TIMESTAMP
       >>
 [unknown order:{
-                 2025-01-03 00:00:00+00,
-                 2025-01-02 00:00:00+00,
-                 2025-01-04 00:00:00+00
-               },
-               {
-                 2025-01-03 00:00:00+00,
-                 2025-01-03 00:00:00+00,
-                 2025-01-05 00:00:00+00
-               },
-               {
                  2025-01-01 00:00:00+00,
                  2024-12-31 00:00:00+00,
                  2025-01-02 00:00:00+00
@@ -292,6 +282,16 @@ ARRAY<STRUCT<
                  2025-01-01 00:00:00+00,
                  2025-01-01 00:00:00+00,
                  2025-01-03 00:00:00+00
+               },
+               {
+                 2025-01-03 00:00:00+00,
+                 2025-01-02 00:00:00+00,
+                 2025-01-04 00:00:00+00
+               },
+               {
+                 2025-01-03 00:00:00+00,
+                 2025-01-03 00:00:00+00,
+                 2025-01-05 00:00:00+00
                }]
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
@@ -311,8 +311,7 @@ ARRAY<STRUCT<
         WINDOW_START TIMESTAMP,
         WINDOW_END TIMESTAMP
       >>
-[unknown order:{2, NULL, NULL, NULL},
-               {
+[unknown order:{
                  1,
                  2025-01-01 00:00:00+00,
                  2024-12-31 00:00:00+00,
@@ -324,6 +323,7 @@ ARRAY<STRUCT<
                  2025-01-01 00:00:00+00,
                  2025-01-03 00:00:00+00
                },
+               {2, NULL, NULL, NULL},
                {3, NULL, NULL, NULL}]
 ==
 # Omitting the WINDOW_START and WINDOW_END in the select does not affect Hop.
@@ -381,13 +381,13 @@ ARRAY<STRUCT<WINDOW_END TIMESTAMP>>[unknown order:
 [name=zero_step_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 0 DAY);
 --
-ERROR: generic::invalid_argument: Step size cannot be zero.
+ERROR: generic::out_of_range: Step size cannot be zero.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=negative_step_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, - INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Step size cannot be negative.
+ERROR: generic::out_of_range: Step size cannot be negative.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=window_generation_underflow]
@@ -411,31 +411,31 @@ ERROR: generic::out_of_range: Bucket for 9999-12-31 23:59:59.999999+00 is outsid
 [name=null_step_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, CAST(NULL AS INTERVAL));
 --
-ERROR: generic::invalid_argument: Step size cannot be null.
+ERROR: generic::out_of_range: Step size cannot be null.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=zero_window_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 0 DAY, INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Window size cannot be zero.
+ERROR: generic::out_of_range: Window size cannot be zero.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=negative_window_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", - INTERVAL 1 DAY, INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Window size cannot be negative.
+ERROR: generic::out_of_range: Window size cannot be negative.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=null_window_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", CAST(NULL AS INTERVAL), INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Window size cannot be null.
+ERROR: generic::out_of_range: Window size cannot be null.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=step_size_greater_than_window_size]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 2 DAY);
 --
-ERROR: generic::invalid_argument: Window size must be greater than or equal to step size.
+ERROR: generic::out_of_range: Window size must be greater than or equal to step size.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=timestamp_col_wrong_type]
@@ -444,16 +444,16 @@ WITH CteWithWrongType AS (
 )
 SELECT * FROM hop(TABLE CteWithWrongType, "id", INTERVAL 2 DAY, INTERVAL 1 DAY);
 --
-ERROR: generic::invalid_argument: Timestamp column 'id' is not of TIMESTAMP type.
+ERROR: generic::out_of_range: Timestamp column 'id' is not of TIMESTAMP type.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
 [name=timestamp_col_not_found]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "non_existent_ts_col", INTERVAL 1 DAY, INTERVAL 2 DAY);
 --
-ERROR: generic::invalid_argument: Timestamp column 'non_existent_ts_col' not found in input table.
+ERROR: generic::out_of_range: Timestamp column 'non_existent_ts_col' not found in input table.
 ==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
 [name=null_origin]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 1 DAY, origin => NULL);
 --
-ERROR: generic::invalid_argument: Origin cannot be null.
+ERROR: generic::out_of_range: Origin cannot be null.

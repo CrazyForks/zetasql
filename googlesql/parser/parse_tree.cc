@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/common/utf_util.h"
+#include "googlesql/parser/ast_enums.pb.h"
 #include "googlesql/parser/ast_node_kind.h"
 #include "googlesql/parser/parse_tree_errors.h"
 #include "googlesql/parser/parse_tree_visitor.h"
@@ -38,10 +38,13 @@
 #include "googlesql/public/id_string.h"
 #include "googlesql/public/parse_location.h"
 #include "googlesql/public/strings.h"
+#include "googlesql/public/type.pb.h"
 #include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
 #include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -50,7 +53,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(bool, output_asc_explicitly, false,
           "If true, outputs the asc explicitly in "
@@ -71,6 +73,15 @@ void ASTNode::AddChildFront(ASTNode* child) {
   ABSL_DCHECK(child != nullptr);
   children_.insert(children_.begin(), child);
   child->set_parent(this);
+}
+
+absl::Status ASTNode::set_child(int i, ASTNode* child) {
+  GOOGLESQL_RET_CHECK(child != nullptr);
+  GOOGLESQL_RET_CHECK_GE(i, 0);
+  GOOGLESQL_RET_CHECK_LT(i, children_.size());
+  children_[i] = child;
+  child->set_parent(this);
+  return absl::OkStatus();
 }
 
 absl::Status ASTNode::TraverseNonRecursiveHelper(
@@ -230,8 +241,7 @@ std::string ASTNode::GetLocationString() const {
 // NOTE: An equivalent method on ResolvedNodes exists in
 // ../resolved_ast/resolved_node.cc.
 void ASTNode::GetDescendantsWithKindsImpl(
-    const std::set<int>& node_kinds,
-    std::vector<const ASTNode*>* found_nodes,
+    const std::set<int>& node_kinds, std::vector<const ASTNode*>* found_nodes,
     bool continue_traversal) const {
   found_nodes->clear();
 
@@ -716,6 +726,14 @@ std::string ASTDropVectorIndexStatement::SingleNodeDebugString() const {
   return absl::StrCat(node_name, "(is_if_exists)");
 }
 
+std::string ASTDropAiIndexStatement::SingleNodeDebugString() const {
+  const std::string node_name = ASTNode::SingleNodeDebugString();
+  if (!is_if_exists()) {
+    return node_name;
+  }
+  return absl::StrCat(node_name, "(is_if_exists)");
+}
+
 std::string ASTExportMetadataStatement::SingleNodeDebugString() const {
   return absl::StrCat(ASTNode::SingleNodeDebugString(), " ",
                       SchemaObjectKindToName(schema_object_kind()));
@@ -728,7 +746,7 @@ std::string ASTPathExpression::ToIdentifierPathString(
                       : std::min(names_.size(), max_prefix_size);
   std::string ret;
   for (int i = 0; i < end; ++i) {
-    if (i != 0) ret += ".";
+    if (i != 0) ret += '.';
     ret += ToIdentifierLiteral(names_[i]->GetAsStringView());
   }
   return ret;
@@ -803,6 +821,11 @@ std::string ASTWindowFrameExpr::SingleNodeDebugString() const {
                       GetBoundaryTypeString(), ")");
 }
 
+std::string ASTAlignWithinBoundExpr::SingleNodeDebugString() const {
+  return absl::StrCat(ASTNode::SingleNodeDebugString(), "(",
+                      GetAlignWithinBoundTypeString(), ")");
+}
+
 // static
 std::string ASTWindowFrameExpr::BoundaryTypeToString(BoundaryType type) {
   switch (type) {
@@ -824,6 +847,34 @@ std::string ASTWindowFrameExpr::BoundaryTypeToString(BoundaryType type) {
 
 std::string ASTWindowFrameExpr::GetBoundaryTypeString() const {
   return BoundaryTypeToString(boundary_type_);
+}
+
+// static
+std::string ASTAlignWithinBoundExpr::AlignWithinBoundTypeToString(
+    AlignWithinBoundType type) {
+  switch (type) {
+    case UNBOUNDED_PRECEDING:
+      return "UNBOUNDED PRECEDING";
+    case UNBOUNDED_FOLLOWING:
+      return "UNBOUNDED FOLLOWING";
+    case PERIOD_PRECEDING:
+      return "PERIOD PRECEDING";
+    case PERIOD_FOLLOWING:
+      return "PERIOD FOLLOWING";
+    case INTERVAL_PRECEDING:
+      return "INTERVAL PRECEDING";
+    case INTERVAL_FOLLOWING:
+      return "INTERVAL FOLLOWING";
+    case TIMESTAMP:
+      return "TIMESTAMP";
+    default:
+      ABSL_LOG(ERROR) << "Unknown WITHIN bound expression type:" << type;
+      return "";
+  }
+}
+
+std::string ASTAlignWithinBoundExpr::GetAlignWithinBoundTypeString() const {
+  return AlignWithinBoundTypeToString(bound_type_);
 }
 
 std::string ASTExpressionSubquery::ModifierToString(Modifier modifier) {
@@ -936,15 +987,14 @@ std::string ASTFunctionParameter::ProcedureParameterModeToString(
 }
 
 bool ASTFunctionParameter::IsTableParameter() const {
-  return (tvf_schema_ != nullptr ||
-          (templated_parameter_type_ != nullptr &&
-           templated_parameter_type_->kind() ==
-               ASTTemplatedParameterType::ANY_TABLE));
+  return (tvf_schema_ != nullptr || (templated_parameter_type_ != nullptr &&
+                                     templated_parameter_type_->kind() ==
+                                         ASTTemplatedParameterType::ANY_TABLE));
 }
 
 bool ASTFunctionDeclaration::IsTemplated() const {
   for (const ASTFunctionParameter* parameter :
-           parameters()->parameter_entries()) {
+       parameters()->parameter_entries()) {
     if (parameter->templated_parameter_type() != nullptr) {
       return true;
     }
@@ -1303,12 +1353,12 @@ bool ASTColumnSchema::ContainsAttribute(ASTNodeKind node_kind) const {
 }
 
 std::string ASTCreateIndexStatement::SingleNodeDebugString() const {
-  if (is_unique_ || is_search_ || is_vector_) {
+  if (is_unique_ || is_search_ || is_vector_ || is_ai_) {
     std::string ret = ASTNode::SingleNodeDebugString();
     absl::StrAppend(&ret, "(");
     if (is_unique_) {
       absl::StrAppend(&ret, "UNIQUE");
-      if (is_search_ || is_vector_) {
+      if (is_search_ || is_vector_ || is_ai_) {
         absl::StrAppend(&ret, ",");
       }
     }
@@ -1318,6 +1368,9 @@ std::string ASTCreateIndexStatement::SingleNodeDebugString() const {
     if (is_vector_) {
       absl::StrAppend(&ret, "VECTOR");
     }
+    if (is_ai_) {
+      absl::StrAppend(&ret, "AI");
+    }
     absl::StrAppend(&ret, ")");
     return ret;
   } else {
@@ -1326,9 +1379,9 @@ std::string ASTCreateIndexStatement::SingleNodeDebugString() const {
 }
 
 std::string ASTForeignKeyReference::SingleNodeDebugString() const {
-  return absl::StrCat(ASTNode::SingleNodeDebugString(),
-                      "(MATCH ", GetSQLForMatch(),
-                      (enforced_ ? " " : " NOT "), "ENFORCED)");
+  return absl::StrCat(ASTNode::SingleNodeDebugString(), "(MATCH ",
+                      GetSQLForMatch(), (enforced_ ? " " : " NOT "),
+                      "ENFORCED)");
 }
 
 std::string ASTForeignKeyReference::GetSQLForMatch() const {
@@ -1343,10 +1396,9 @@ std::string ASTForeignKeyReference::GetSQLForMatch() const {
 }
 
 std::string ASTForeignKeyActions::SingleNodeDebugString() const {
-  return absl::StrCat(ASTNode::SingleNodeDebugString(),
-                      "(ON UPDATE ", GetSQLForAction(update_action_),
-                      " ON DELETE ", GetSQLForAction(delete_action_),
-                      ")");
+  return absl::StrCat(ASTNode::SingleNodeDebugString(), "(ON UPDATE ",
+                      GetSQLForAction(update_action_), " ON DELETE ",
+                      GetSQLForAction(delete_action_), ")");
 }
 
 std::string ASTForeignKeyActions::GetSQLForAction(Action action) {
@@ -1401,9 +1453,7 @@ std::string ASTSetOptionsAction::GetSQLForAlterAction() const {
   return "SET OPTIONS";
 }
 
-std::string ASTSetAsAction::GetSQLForAlterAction() const {
-  return "SET AS";
-}
+std::string ASTSetAsAction::GetSQLForAlterAction() const { return "SET AS"; }
 
 std::string ASTAddConstraintAction::SingleNodeDebugString() const {
   return absl::StrCat(ASTNode::SingleNodeDebugString(),
@@ -1457,15 +1507,6 @@ std::string ASTAddColumnAction::SingleNodeDebugString() const {
 
 std::string ASTAddColumnAction::GetSQLForAlterAction() const {
   return "ADD COLUMN";
-}
-
-std::string ASTAddColumnIdentifierAction::SingleNodeDebugString() const {
-  return absl::StrCat(ASTNode::SingleNodeDebugString(),
-                      is_if_not_exists() ? "(is_if_not_exists)" : "");
-}
-
-std::string ASTAddColumnIdentifierAction::GetSQLForAlterAction() const {
-  return "ADD COLUMN OPTIONS";
 }
 
 std::string ASTRebuildAction::GetSQLForAlterAction() const { return "REBUILD"; }
@@ -1741,6 +1782,12 @@ absl::string_view SchemaObjectKindToName(SchemaObjectKind schema_object_kind) {
       return "FUNCTION";
     case SchemaObjectKind::kIndex:
       return "INDEX";
+    case SchemaObjectKind::kSearchIndex:
+      return "SEARCH INDEX";
+    case SchemaObjectKind::kVectorIndex:
+      return "VECTOR INDEX";
+    case SchemaObjectKind::kAiIndex:
+      return "AI INDEX";
     case SchemaObjectKind::kMaterializedView:
       return "MATERIALIZED VIEW";
     case SchemaObjectKind::kModel:
@@ -1759,6 +1806,8 @@ absl::string_view SchemaObjectKindToName(SchemaObjectKind schema_object_kind) {
       return "PROPERTY GRAPH";
     case SchemaObjectKind::kSequence:
       return "SEQUENCE";
+    case SchemaObjectKind::kLiveTable:
+      return "LIVE TABLE";
     default:
       return "<INVALID SCHEMA OBJECT KIND>";
   }
@@ -1774,6 +1823,8 @@ std::string ASTOptionsEntry::GetSQLForOperator() const {
       return "+=";
     case SUB_ASSIGN:
       return "-=";
+    case FROM:
+      return "FROM";
   }
 }
 

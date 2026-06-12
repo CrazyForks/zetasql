@@ -2185,6 +2185,44 @@ public class ValueTest {
   }
 
   @Test
+  public void testArrayOfArrayValue() {
+    ArrayType intArrayType =
+        TypeFactory.createArrayType(TypeFactory.createSimpleType(TypeKind.TYPE_INT32));
+    ArrayType arrayArrayIntType = TypeFactory.createArrayType(intArrayType);
+
+    Value innerArray1 =
+        Value.createArrayValue(
+            intArrayType, ImmutableList.of(Value.createInt32Value(1), Value.createInt32Value(2)));
+    Value innerArray2 =
+        Value.createArrayValue(intArrayType, ImmutableList.of(Value.createInt32Value(3)));
+    Value emptyInnerArray = Value.createArrayValue(intArrayType, ImmutableList.of());
+
+    Value arrayArray =
+        Value.createArrayValue(arrayArrayIntType, ImmutableList.of(innerArray1, innerArray2));
+    assertThat(arrayArray.isNull()).isFalse();
+    assertThat(arrayArray.getType()).isEqualTo(arrayArrayIntType);
+    assertThat(arrayArray.getElementList()).containsExactly(innerArray1, innerArray2).inOrder();
+
+    Value arrayArrayWithEmpty =
+        Value.createArrayValue(arrayArrayIntType, ImmutableList.of(innerArray1, emptyInnerArray));
+    assertThat(arrayArrayWithEmpty.getElementList())
+        .containsExactly(innerArray1, emptyInnerArray)
+        .inOrder();
+
+    // Equality
+    Value arrayArray2 =
+        Value.createArrayValue(arrayArrayIntType, ImmutableList.of(innerArray1, innerArray2));
+    assertThat(arrayArray.equals(arrayArrayWithEmpty)).isFalse();
+
+    // Serialization
+    checkSerializeAndDeserialize(arrayArray);
+    checkSerializeAndDeserialize(arrayArrayWithEmpty);
+    checkSerializeAndDeserialize(Value.createNullValue(arrayArrayIntType));
+    checkSerializeAndDeserialize(
+        Value.createArrayValue(arrayArrayIntType, ImmutableList.of())); // Empty array of array
+  }
+
+  @Test
   public void testStructValue() {
     List<StructType.StructField> fields = new ArrayList<>();
     fields.add(new StructType.StructField("enum", typeKindEnum));

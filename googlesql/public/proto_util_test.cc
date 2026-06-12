@@ -43,12 +43,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -106,7 +106,7 @@ class ReadProtoFieldsTest : public ::testing::TestWithParam<bool> {
                                   const Value& default_value,
                                   bool get_has_bit = false) {
     absl::Cord bytes_98;
-    ABSL_CHECK(kitchen_sink_.SerializePartialToCord(&bytes_98));
+    ABSL_CHECK(kitchen_sink_.SerializePartialToString(&bytes_98));
     absl::Cord bytes = bytes_98;
     return ReadField(field_name, format, type, default_value, bytes,
                      get_has_bit);
@@ -287,7 +287,8 @@ TEST_P(ReadProtoFieldsTest, EnumOutOfRange) {
   // Demonstrate that C++ proto2 also marks has_bit false and returns the
   // default for unknown enum values.
   KitchenSinkPB full_proto_object;
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(unknown_test_enum_bytes));
+  EXPECT_TRUE(
+      full_proto_object.ParsePartialFromString(unknown_test_enum_bytes));
   EXPECT_FALSE(full_proto_object.has_test_enum());
   EXPECT_EQ(full_proto_object.test_enum(), googlesql_test::TESTENUM0);
 
@@ -316,7 +317,7 @@ TEST_P(ReadProtoFieldsTest, Proto2RequiredEnumRange) {
 
   // Demonstrate that C++ proto2 rejects the enum value.
   googlesql_test::KitchenSinkEnumPB full_proto_object;
-  EXPECT_FALSE(full_proto_object.ParseFromCord(unknown_required_enum_bytes));
+  EXPECT_FALSE(full_proto_object.ParseFromString(unknown_required_enum_bytes));
 
   EXPECT_THAT(
       ReadField<googlesql_test::KitchenSinkEnumPB>(
@@ -341,7 +342,7 @@ TEST_P(ReadProtoFieldsTest, Proto3EnumOutOfRange) {
 
   // Demonstrate that C++ proto3 retrieves the enum value.
   Proto3KitchenSink full_proto_object;
-  EXPECT_TRUE(full_proto_object.ParseFromCord(unknown_test_enum_bytes));
+  EXPECT_TRUE(full_proto_object.ParseFromString(unknown_test_enum_bytes));
   EXPECT_EQ(full_proto_object.test_enum(), 7);
 
   // TODO: Fix to return 7 as a TestEnum.
@@ -366,7 +367,7 @@ TEST_P(ReadProtoFieldsTest, RepeatedEnumOutOfRange) {
 
   // Demonstrate that C++ proto2 also skips all the missing values.
   KitchenSinkPB full_proto_object;
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(all_unknown_bytes));
+  EXPECT_TRUE(full_proto_object.ParsePartialFromString(all_unknown_bytes));
   EXPECT_THAT(full_proto_object.repeated_test_enum(), ::testing::IsEmpty());
 
   EXPECT_THAT(
@@ -380,7 +381,7 @@ TEST_P(ReadProtoFieldsTest, RepeatedEnumOutOfRange) {
 
   // Demonstrate that C++ proto2 also skips all the missing values and includes
   // the valid one.
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(one_known_bytes));
+  EXPECT_TRUE(full_proto_object.ParsePartialFromString(one_known_bytes));
   EXPECT_THAT(full_proto_object.repeated_test_enum(),
               ::testing::ElementsAre(googlesql_test::TESTENUM2));
 
@@ -398,7 +399,7 @@ TEST_P(ReadProtoFieldsTest, RepeatedEnumOutOfRange) {
 
   // Demonstrate that C++ proto2 also skips all the missing values and includes
   // the valid one.
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(two_known_bytes));
+  EXPECT_TRUE(full_proto_object.ParsePartialFromString(two_known_bytes));
   EXPECT_THAT(full_proto_object.repeated_test_enum(),
               ::testing::ElementsAre(googlesql_test::TESTENUM2,
                                      googlesql_test::TESTENUM1));
@@ -420,7 +421,7 @@ TEST_P(ReadProtoFieldsTest, Proto3RepeatedEnumOutOfRange) {
 
   // Demonstrate that C++ proto3 retrieves the enum values.
   Proto3KitchenSink full_proto_object;
-  EXPECT_TRUE(full_proto_object.ParseFromCord(unknown_test_enum_bytes));
+  EXPECT_TRUE(full_proto_object.ParseFromString(unknown_test_enum_bytes));
   EXPECT_THAT(full_proto_object.repeated_test_enum(),
               ::testing::ElementsAre(7, 8, 9));
 
@@ -442,7 +443,7 @@ TEST_P(ReadProtoFieldsTest, RepeatedPackedEnumOutOfRange) {
       KitchenSinkBytesForEnumValues("repeated_enum_packed", {7, 8, 9});
   // Demonstrate that C++ proto2 also skips all the missing values.
   KitchenSinkPB full_proto_object;
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(all_unknown_bytes));
+  EXPECT_TRUE(full_proto_object.ParsePartialFromString(all_unknown_bytes));
   EXPECT_THAT(full_proto_object.repeated_test_enum(), ::testing::IsEmpty());
 
   EXPECT_THAT(
@@ -458,7 +459,7 @@ TEST_P(ReadProtoFieldsTest, RepeatedPackedEnumOutOfRange) {
 
   // Demonstrate that C++ proto2 also skips all the missing values and includes
   // the valid ones.
-  EXPECT_TRUE(full_proto_object.ParsePartialFromCord(one_known_bytes));
+  EXPECT_TRUE(full_proto_object.ParsePartialFromString(one_known_bytes));
   EXPECT_THAT(full_proto_object.repeated_enum_packed(),
               ::testing::ElementsAre(googlesql_test::TESTENUM2,
                                      googlesql_test::TESTENUM2,
@@ -506,7 +507,7 @@ TEST_P(ReadProtoFieldsTest, Message) {
   ASSERT_EQ(output_value.type_kind(), TYPE_PROTO);
 
   KitchenSinkPB::Nested output_nested;
-  ASSERT_TRUE(output_nested.ParseFromCord(output_value.ToCord()));
+  ASSERT_TRUE(output_nested.ParseFromString(output_value.ToCord()));
   EXPECT_THAT(output_nested, EqualsProto(*nested));
 }
 
@@ -524,14 +525,14 @@ TEST_P(ReadProtoFieldsTest, MultiOccurrencesOfSingularMessage) {
 
   absl::Cord merged_bytes;
   absl::Cord bytes_518;
-  ABSL_CHECK(part_1.SerializePartialToCord(&bytes_518));
+  ABSL_CHECK(part_1.SerializePartialToString(&bytes_518));
   merged_bytes.Append(bytes_518);
   absl::Cord bytes_519;
-  ABSL_CHECK(part_2.SerializePartialToCord(&bytes_519));
+  ABSL_CHECK(part_2.SerializePartialToString(&bytes_519));
   merged_bytes.Append(bytes_519);
 
   KitchenSinkPB merged_message;
-  ASSERT_TRUE(merged_message.ParsePartialFromCord(merged_bytes));
+  ASSERT_TRUE(merged_message.ParsePartialFromString(merged_bytes));
 
   const google::protobuf::Descriptor* nested_descriptor = part_1_nested->GetDescriptor();
   const ProtoType* proto_type;
@@ -545,7 +546,7 @@ TEST_P(ReadProtoFieldsTest, MultiOccurrencesOfSingularMessage) {
   ASSERT_EQ(output_value.type_kind(), TYPE_PROTO);
 
   KitchenSinkPB::Nested output_nested;
-  ASSERT_TRUE(output_nested.ParsePartialFromCord(output_value.ToCord()));
+  ASSERT_TRUE(output_nested.ParsePartialFromString(output_value.ToCord()));
   EXPECT_EQ(output_nested.nested_repeated_int64_size(), 4);
   EXPECT_THAT(output_nested, EqualsProto(merged_message.nested_value()));
 }
@@ -562,14 +563,14 @@ TEST_P(ReadProtoFieldsTest, MultiOccurrencesOfSingularGroup) {
 
   absl::Cord merged_bytes;
   absl::Cord bytes_556;
-  ABSL_CHECK(part_1.SerializePartialToCord(&bytes_556));
+  ABSL_CHECK(part_1.SerializePartialToString(&bytes_556));
   merged_bytes.Append(bytes_556);
   absl::Cord bytes_557;
-  ABSL_CHECK(part_2.SerializePartialToCord(&bytes_557));
+  ABSL_CHECK(part_2.SerializePartialToString(&bytes_557));
   merged_bytes.Append(bytes_557);
 
   KitchenSinkPB merged_message;
-  ASSERT_TRUE(merged_message.ParsePartialFromCord(merged_bytes));
+  ASSERT_TRUE(merged_message.ParsePartialFromString(merged_bytes));
 
   const google::protobuf::Descriptor* nested_descriptor = part_1_group->GetDescriptor();
   const ProtoType* proto_type;
@@ -583,7 +584,7 @@ TEST_P(ReadProtoFieldsTest, MultiOccurrencesOfSingularGroup) {
   ASSERT_EQ(output_value.type_kind(), TYPE_PROTO);
 
   KitchenSinkPB::OptionalGroup output_group;
-  ASSERT_TRUE(output_group.ParsePartialFromCord(output_value.ToCord()));
+  ASSERT_TRUE(output_group.ParsePartialFromString(output_value.ToCord()));
   EXPECT_EQ(output_group.optionalgroupnested_size(), 2);
   EXPECT_THAT(output_group, EqualsProto(merged_message.optional_group()));
 }
@@ -605,7 +606,7 @@ TEST_P(ReadProtoFieldsTest, Group) {
   ASSERT_EQ(output_value.type_kind(), TYPE_PROTO);
 
   KitchenSinkPB::OptionalGroup output_group;
-  ASSERT_TRUE(output_group.ParseFromCord(output_value.ToCord()));
+  ASSERT_TRUE(output_group.ParseFromString(output_value.ToCord()));
   EXPECT_THAT(output_group, EqualsProto(*group));
 }
 
@@ -850,12 +851,12 @@ TEST_P(ReadProtoFieldsTest, MissingOptionalField) {
 TEST_P(ReadProtoFieldsTest, OptionalFieldLastValueTakesPrecedence) {
   kitchen_sink_.set_int32_val(1);
   absl::Cord bytes_954;
-  ABSL_CHECK(kitchen_sink_.SerializePartialToCord(&bytes_954));
+  ABSL_CHECK(kitchen_sink_.SerializePartialToString(&bytes_954));
   absl::Cord bytes1 = bytes_954;
 
   kitchen_sink_.set_int32_val(2);
   absl::Cord bytes_957;
-  ABSL_CHECK(kitchen_sink_.SerializePartialToCord(&bytes_957));
+  ABSL_CHECK(kitchen_sink_.SerializePartialToString(&bytes_957));
   absl::Cord bytes2 = bytes_957;
 
   absl::Cord bytes = bytes1;
@@ -972,7 +973,7 @@ TEST_P(ReadProtoFieldsTest, ReadTwoFieldsAndOneMissingRequiredFieldTwice) {
   kitchen_sink_.set_int64_val(20);
 
   absl::Cord bytes_1072;
-  ABSL_CHECK(kitchen_sink_.SerializePartialToCord(&bytes_1072));
+  ABSL_CHECK(kitchen_sink_.SerializePartialToString(&bytes_1072));
   absl::Cord bytes = bytes_1072;
 
   const google::protobuf::FieldDescriptor* field_descriptor1 =
@@ -1056,7 +1057,7 @@ TEST_P(ReadProtoFieldsTest, SameFieldWithTwoFormats) {
   kitchen_sink_.set_date(10);
 
   absl::Cord bytes_1154;
-  ABSL_CHECK(kitchen_sink_.SerializePartialToCord(&bytes_1154));
+  ABSL_CHECK(kitchen_sink_.SerializePartialToString(&bytes_1154));
   absl::Cord bytes = bytes_1154;
 
   const google::protobuf::FieldDescriptor* field_descriptor =

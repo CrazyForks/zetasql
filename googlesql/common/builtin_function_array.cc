@@ -22,6 +22,7 @@
 #include "googlesql/base/logging.h"
 #include "googlesql/common/builtin_function_internal.h"
 #include "googlesql/proto/anon_output_with_report.pb.h"
+#include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/catalog.h"
@@ -42,11 +43,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -121,7 +122,12 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "flatten", SCALAR,
       {{ARG_ARRAY_TYPE_ANY_1,
-        {ARG_ARRAY_TYPE_ANY_1},
+        {{ARG_ARRAY_TYPE_ANY_1},
+         {int64_type,
+          FunctionArgumentTypeOptions(FunctionArgumentType::OPTIONAL)
+              .set_default(Value::NullInt64())
+              .set_must_be_analysis_constant()
+              .set_argument_name("depth", kNamedOnly)}},
         FN_FLATTEN,
         FunctionSignatureOptions()
             .set_rejects_collation(true)
@@ -180,36 +186,39 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
           &CheckArrayIsDistinctArguments));
 
   // ARRAY_DISTINCT: returns an array with distinct entries.
-  FunctionArgumentType array_distinct_arg(
-      ARG_ARRAY_TYPE_ANY_1,
-      FunctionArgumentTypeOptions()
-          .set_uses_array_element_for_collation()
-          .set_array_element_must_support_grouping()
-          .set_argument_name("input_array", kPositionalOnly));
   constexpr absl::string_view kArrayDistinctSql = R"sql(
     IF(
       input_array IS NULL,
       NULL,
       ARRAY(
-        SELECT element
+        SELECT first_element
         FROM
           (
-            SELECT element, MIN(idx) AS idx
+            SELECT ARRAY_AGG(element ORDER BY idx)[0] AS first_element, MIN(idx) AS min_idx
             FROM UNNEST(input_array) AS element WITH OFFSET idx
             GROUP BY element
           )
-        ORDER BY idx
+        ORDER BY min_idx
       ))
   )sql";
-  InsertFunction(functions, options, "array_distinct", SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
-                   {array_distinct_arg},
-                   FN_ARRAY_DISTINCT,
-                   SetDefinitionForInlining(kArrayDistinctSql)
-                       .set_uses_operation_collation()
-                       .AddRequiredLanguageFeature(FEATURE_ARRAY_DISTINCT)}},
-                 FunctionOptions().set_pre_resolution_argument_constraint(
-                     &CheckArrayDistinctArguments));
+  InsertFunction(
+      functions, options, "array_distinct", SCALAR,
+      {{FunctionArgumentType(ARG_ARRAY_TYPE_ANY_1,
+                             FunctionArgumentTypeOptions()
+                                 .set_uses_array_element_for_collation()),
+        {FunctionArgumentType(
+            ARG_ARRAY_TYPE_ANY_1,
+            FunctionArgumentTypeOptions()
+                .set_uses_array_element_for_collation()
+                .set_array_element_must_support_grouping()
+                .set_argument_name("input_array", kPositionalOnly))},
+        FN_ARRAY_DISTINCT,
+        SetDefinitionForInlining(kArrayDistinctSql)
+            .set_uses_operation_collation()
+            .AddRequiredLanguageFeature(FEATURE_ARRAY_DISTINCT)}},
+      FunctionOptions()
+          .set_pre_resolution_argument_constraint(&CheckArrayDistinctArguments)
+          .AddRequiredLanguageFeature(FEATURE_ARRAY_DISTINCT));
 
   FunctionSignatureOptions has_numeric_type_argument;
   has_numeric_type_argument.set_constraints(&CheckHasNumericTypeArgument);
@@ -1203,9 +1212,7 @@ static absl::StatusOr<const Type*> ComputeArrayZipOutputType(
 
   const StructType* element_type = nullptr;
   GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeStructType(fields, &element_type));
-  const Type* result_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeArrayType(element_type, &result_type));
-  return result_type;
+  return type_factory->MakeArrayType(element_type, analyzer_options.language());
 }
 
 // The `ComputeResultAnnotationsCallback` used by the ARRAY_ZIP(<arr_1>, ...,

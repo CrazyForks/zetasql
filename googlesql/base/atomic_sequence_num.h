@@ -25,6 +25,7 @@
 //     y = x.GetNext();     // get the next sequence number
 
 #include <atomic>
+#include <cstdint>
 
 namespace googlesql_base {
 

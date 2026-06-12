@@ -844,7 +844,6 @@ ARRAY<STRUCT<bool_val BOOL,
 ]
 ==
 [name=intersect_distinct_multiple_cols_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT bool_val, int32_val, int64_val, uint32_val, uint64_val,
        float_val, double_val, str_val, bytes_val FROM Table1
 INTERSECT DISTINCT
@@ -892,7 +891,6 @@ ARRAY<STRUCT<bool_val BOOL,
 ]
 ==
 [name=intersect_all_multiple_cols_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT bool_val, int32_val, int64_val, uint32_val, uint64_val,
        float_val, double_val, str_val, bytes_val FROM Table1
 INTERSECT ALL
@@ -934,7 +932,6 @@ ARRAY<STRUCT<bool_val BOOL,
              bytes_val BYTES>>[{false, -4, -4, 4, 4, "4", b"4"}]
 ==
 [name=except_distinct_multiple_cols_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT bool_val, int32_val, int64_val, uint32_val, uint64_val,
        float_val, double_val, str_val, bytes_val FROM Table1
 EXCEPT DISTINCT
@@ -975,7 +972,6 @@ ARRAY<STRUCT<bool_val BOOL,
 ]
 ==
 [name=except_all_multiple_cols_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT bool_val, int32_val, int64_val, uint32_val, uint64_val,
        float_val, double_val, str_val, bytes_val FROM Table1
 EXCEPT ALL

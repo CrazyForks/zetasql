@@ -198,6 +198,12 @@ class StrictJSONPathIterator final
   static absl::StatusOr<std::unique_ptr<StrictJSONPathIterator>> Create(
       absl::string_view json_path, bool enable_lax_mode = false);
 
+  // Create a StrictJSONPathIterator from the given tokens. If `enable_lax_mode`
+  // is set to true, enables lax path notation.
+  static absl::StatusOr<std::unique_ptr<StrictJSONPathIterator>> Create(
+      std::vector<std::variant<int64_t, std::string>> tokens,
+      bool enable_lax_mode = false);
+
   // Returns the path options specified by `json_path`.
   JsonPathOptions GetJsonPathOptions() const { return json_path_options_; }
 

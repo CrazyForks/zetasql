@@ -128,6 +128,13 @@ class TypeDeserializer {
   absl::StatusOr<const GraphElementType*> DeserializeGraphElementType(
       const GraphElementTypeProto& graph_element_type_proto) const;
 
+  // This is internal and should stay private.
+  // This method only deserializes the descriptor, it does not validate it.
+  // It must be validated through the TypeFactory::MakeDeclarativeType().
+  absl::StatusOr<DeclarativeTypeDescriptor>
+  DeserializeDeclarativeTypeDescriptor(
+      const DeclarativeTypeProto& type_proto) const;
+
   // Not owned.
   TypeFactory* type_factory_;
   // Not owned.

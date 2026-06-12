@@ -36,11 +36,11 @@
 #include "absl/functional/bind_front.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

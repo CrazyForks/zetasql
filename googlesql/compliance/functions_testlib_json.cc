@@ -1313,8 +1313,8 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonArray() {
       }
     }
 
-    auto features_set = test.params.required_features();
-    features_set.erase(FEATURE_NAMED_ARGUMENTS);
+    auto required_features = test.params.required_features();
+    required_features.erase(FEATURE_NAMED_ARGUMENTS);
 
     if (test.params.status().ok()) {
       googlesql::JSONValue json_result;
@@ -1324,12 +1324,12 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonArray() {
       tests.push_back(
           {"json_array",
            QueryParamsWithResult({std::move(test.params.param(0))}, result)
-               .AddRequiredFeatures(features_set)});
+               .AddRequiredFeatures(required_features)});
     } else {
       tests.push_back({"json_array",
                        QueryParamsWithResult({std::move(test.params.param(0))},
                                              NullJson(), test.params.status())
-                           .AddRequiredFeatures(features_set)});
+                           .AddRequiredFeatures(required_features)});
     }
   }
 
@@ -1422,8 +1422,8 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonObject(
         continue;
       }
     }
-    auto features_set = test.params.required_features();
-    features_set.erase(FEATURE_NAMED_ARGUMENTS);
+    auto required_features = test.params.required_features();
+    required_features.erase(FEATURE_NAMED_ARGUMENTS);
 
     if (test.params.status().ok()) {
       googlesql::JSONValue json_result;
@@ -1433,13 +1433,13 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonObject(
       tests.push_back(
           {"json_object", QueryParamsWithResult(
                               {String("field"), test.params.param(0)}, result)
-                              .AddRequiredFeatures(features_set)});
+                              .AddRequiredFeatures(required_features)});
     } else {
       tests.push_back({"json_object",
                        QueryParamsWithResult(
                            {String("field"), std::move(test.params.param(0))},
                            NullJson(), test.params.status())
-                           .AddRequiredFeatures(features_set)});
+                           .AddRequiredFeatures(required_features)});
     }
   }
 
@@ -1507,14 +1507,18 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonObjectArrays(
         continue;
       }
     }
-    auto features_set = test.params.required_features();
-    features_set.erase(FEATURE_NAMED_ARGUMENTS);
+    auto required_features = test.params.required_features();
+    required_features.erase(FEATURE_NAMED_ARGUMENTS);
 
     const ArrayType* array_type;
     if (auto status = test_values::static_type_factory()->MakeArrayType(
             test.params.param(0).type(), &array_type);
         !status.ok()) {
       continue;
+    }
+
+    if (test.params.param(0).type()->IsArray()) {
+      required_features.insert(FEATURE_ARRAY_OF_ARRAY);
     }
 
     if (test.params.status().ok()) {
@@ -1528,7 +1532,7 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonObjectArrays(
                {StringArray({"field"}),
                 values::Array(array_type, {std::move(test.params.param(0))})},
                result)
-               .AddRequiredFeatures(features_set)});
+               .AddRequiredFeatures(required_features)});
     } else {
       tests.push_back(
           {"json_object",
@@ -1536,7 +1540,7 @@ std::vector<FunctionTestCall> GetFunctionTestsJsonObjectArrays(
                {StringArray({"field"}),
                 values::Array(array_type, {std::move(test.params.param(0))})},
                NullJson(), test.params.status())
-               .AddRequiredFeatures(features_set)});
+               .AddRequiredFeatures(required_features)});
     }
   }
 

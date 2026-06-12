@@ -17,6 +17,7 @@
 #ifndef THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_MAP_VIEW_H_
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_MAP_VIEW_H_
 
+#include <cassert>
 #include <initializer_list>
 #include <type_traits>
 #include <utility>

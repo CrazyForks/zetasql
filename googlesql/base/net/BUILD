@@ -15,6 +15,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 licenses(["notice"])
 
@@ -72,11 +73,13 @@ cc_library(
     ],
     hdrs = ["public_suffix_oss.h"],
     deps = [
+        "//googlesql/base:check",
         "//googlesql/base:logging",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@icu",
@@ -117,7 +120,9 @@ cc_library(
     ],
     hdrs = ["idn_oss.h"],
     deps = [
+        "//googlesql/base:check",
         "//googlesql/base:logging",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@icu",
@@ -143,10 +148,12 @@ cc_library(
     ],
     hdrs = ["ipaddress_oss.h"],
     deps = [
+        "//googlesql/base:check",
         "//googlesql/base:endian",
         "//googlesql/base:logging",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -162,9 +169,11 @@ cc_test(
     ],
     deps = [
         ":ipaddress_oss",
+        "//googlesql/base:check",
         "//googlesql/base:endian",
         "//googlesql/base:logging",
         "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",

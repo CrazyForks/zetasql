@@ -2791,9 +2791,9 @@ SELECT
  +-----------------+----------+
  | foo@example.com | TRUE     |
  +-----------------+----------*/
- ```
+```
 
- ```googlesql
+```googlesql
 SELECT
   'www.example.net' AS email,
   REGEXP_CONTAINS('www.example.net', r'@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+') AS is_valid
@@ -2803,7 +2803,7 @@ SELECT
  +-----------------+----------+
  | www.example.net | FALSE    |
  +-----------------+----------*/
- ```
+```
 
 The following queries check to see if an email is valid. They
 perform a full match, using `^` and `$`. Due to regular expression operator
@@ -3273,12 +3273,19 @@ Returns an array of all substrings of `value` that match the
 [re2 regular expression][string-link-to-re2], `regexp`. Returns an empty array
 if there is no match.
 
-If the regular expression contains a capturing group (`(...)`), and there is a
-match for that capturing group, that match is added to the results.
+If the regular expression contains a capturing group (`(...)`), the function
+returns an array of substrings that are matched by the capturing group.
 
 The `REGEXP_EXTRACT_ALL` function only returns non-overlapping matches. For
 example, using this function to extract `ana` from `banana` returns only one
 substring, not two.
+
+When a capturing group is present, this non-overlapping rule applies to the
+*entire substring* matched by the whole regular expression, not just the part
+within the capturing group. The search for any subsequent match begins
+*after* the end of the entire substring that satisfied the previous match. In
+the examples that follow, the second example illustrates this behavior with the
+pattern `r'\d(\d)\d'`.
 
 Returns an error if:
 
@@ -3300,6 +3307,22 @@ SELECT REGEXP_EXTRACT_ALL('Try `func(x)` or `func(y)`', '`(.+?)`') AS example
  | [func(x), func(y)] |
  +--------------------*/
 ```
+
+The following example demonstrates non-overlapping matches with a capturing
+group:
+
+```googlesql
+SELECT REGEXP_EXTRACT_ALL('123456', r'\d(\d)\d') AS example;
+
+/*-----------+
+ | example   |
+ +-----------+
+ | ['2', '5'] |
+ +-----------*/
+```
+
+The pattern `r'\d(\d)\d'` matches `'123'` and captures `'2'`. The next
+search starts after `'3'`, and then it matches `'456'` and captures `'5'`.
 
 [string-link-to-re2]: https://github.com/google/re2/wiki/Syntax
 

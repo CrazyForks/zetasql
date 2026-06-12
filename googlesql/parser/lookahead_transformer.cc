@@ -16,28 +16,25 @@
 
 #include "googlesql/parser/lookahead_transformer.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
-#include "googlesql/base/arena.h"
-#include "googlesql/common/errors.h"
-#include "googlesql/parser/macros/macro_catalog.h"
-#include "googlesql/parser/macros/macro_expander.h"
-#include "googlesql/parser/macros/token_provider.h"
 #include "googlesql/parser/parser_mode.h"
+#include "googlesql/parser/tm_parser.h"
 #include "googlesql/parser/tm_token.h"
+#include "googlesql/parser/token_stream.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/parse_location.h"
+#include "absl/base/casts.h"
+#include "absl/base/no_destructor.h"
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
@@ -53,39 +50,35 @@ using googlesql::parser::LookaheadTransformer;
 using googlesql::parser::ParserMode;
 using parser::Token;
 
-void PushParserMode(LookaheadTransformer& lookahead_transformer,
-                    ParserMode mode) {
-  return lookahead_transformer.PushParserMode(mode);
+Token GetNextToken(TokenStream& lookahead_transformer, absl::string_view* text,
+                   ParseLocationRange* location) {
+  // These internal functions are only called by the generated Textmapper
+  // parser, which is always initialized with a `LookaheadTransformer`. Thus,
+  // the static_cast is safe. It is here to resolve C++ dependency cycles.
+  return static_cast<LookaheadTransformer&>(lookahead_transformer)
+      .GetNextToken(text, location);
 }
-void PopParserMode(LookaheadTransformer& lookahead_transformer) {
-  return lookahead_transformer.PopParserMode();
-}
-Token GetNextToken(LookaheadTransformer& lookahead_transformer,
-                   absl::string_view* text, ParseLocationRange* location) {
-  return lookahead_transformer.GetNextToken(text, location);
-}
-absl::Status OverrideNextTokenLookback(
-    LookaheadTransformer& lookahead_transformer, bool parser_lookahead_is_empty,
-    Token expected_next_token, Token lookback_token) {
-  return lookahead_transformer.OverrideNextTokenLookback(
-      parser_lookahead_is_empty, expected_next_token, lookback_token);
+absl::Status OverrideNextTokenLookback(TokenStream& lookahead_transformer,
+                                       bool parser_lookahead_is_empty,
+                                       Token expected_next_token,
+                                       Token lookback_token) {
+  // These internal functions are only called by the generated Textmapper
+  // parser, which is always initialized with a `LookaheadTransformer`. Thus,
+  // the static_cast is safe. It is here to resolve C++ dependency cycles.
+  return static_cast<LookaheadTransformer&>(lookahead_transformer)
+      .OverrideNextTokenLookback(parser_lookahead_is_empty, expected_next_token,
+                                 lookback_token);
 }
 
-absl::Status OverrideCurrentTokenLookback(
-    LookaheadTransformer& lookahead_transformer, Token new_token_kind) {
-  return lookahead_transformer.OverrideCurrentTokenLookback(new_token_kind);
+absl::Status OverrideCurrentTokenLookback(TokenStream& lookahead_transformer,
+                                          Token new_token_kind) {
+  // These internal functions are only called by the generated Textmapper
+  // parser, which is always initialized with a `LookaheadTransformer`. Thus,
+  // the static_cast is safe. It is here to resolve C++ dependency cycles.
+  return static_cast<LookaheadTransformer&>(lookahead_transformer)
+      .OverrideCurrentTokenLookback(new_token_kind);
 }
 }  // namespace internal
-
-// Include the helpful type aliases in the namespace within the C++ file so
-// that they are useful for free helper functions as well as class member
-// functions.
-using Location = ParseLocationRange;
-using DiagnosticOptions = macros::DiagnosticOptions;
-using TokenProvider = macros::TokenProvider;
-using MacroCatalog = macros::MacroCatalog;
-using MacroExpander = macros::MacroExpander;
-using MacroExpanderBase = macros::MacroExpanderBase;
 
 static constexpr Token kInTemplatedType = Token::LT;
 
@@ -146,11 +139,6 @@ static bool IsKeywordOrUnquotedIdentifier(const TokenWithLocation& token) {
     default:
       return IsKeywordToken(token.kind);
   }
-}
-
-static absl::Status MakeError(absl::string_view error_message,
-                              const Location& yylloc) {
-  return MakeSqlErrorAtPoint(yylloc.start()) << error_message;
 }
 
 static Token GetLookbackToken(
@@ -281,6 +269,11 @@ void LookaheadTransformer::ApplyConditionallyReservedKeywords(Token& kind) {
         kind = Token::KW_MATCH_RECOGNIZE_RESERVED;
       }
       break;
+    case Token::KW_ALIGN_NONRESERVED:
+      if (language_options_.IsReservedKeyword("ALIGN")) {
+        kind = Token::KW_ALIGN_RESERVED;
+      }
+      break;
     default:
       break;
   }
@@ -300,25 +293,29 @@ void LookaheadTransformer::FetchNextToken(
     next = *current;
     return;
   }
-  next.emplace();
-  absl::StatusOr<TokenWithLocation> next_token =
-      macro_expander_->GetNextToken();
+  absl::StatusOr<TokenWithLocation> next_token = input_->GetNextToken();
   if (mode_ != ParserMode::kTokenizerPreserveComments) {
     // Skip comment tokens if we do not need to preserve comments.
     while (next_token.ok() && next_token->kind == Token::COMMENT) {
-      next_token = macro_expander_->GetNextToken();
+      next_token = input_->GetNextToken();
     }
   }
   if (next_token.ok()) {
-    next->token = *next_token;
+    next = TokenWithOverrideError{
+        .token = *next_token,
+        .error = absl::OkStatus(),
+    };
     ApplyConditionallyReservedKeywords(next->token.kind);
-    next->error = absl::OkStatus();
   } else {
-    next->token.kind = Token::EOI;
     // TODO: Correctly update the `slot` token location once the
     // macro expander is updated to return TokenWithOverrideError.
-    next->token.location = Location();
-    next->error = std::move(next_token.status());
+    next = TokenWithOverrideError{
+        .token =
+            TokenWithLocation{
+                .kind = Token::EOI,
+            },
+        .error = std::move(next_token.status()),
+    };
   }
 }
 
@@ -367,8 +364,8 @@ void LookaheadTransformer::FuseLookahead1IntoCurrent(Token fused_token_kind) {
   ABSL_DCHECK(IsAdjacentPrecedingToken(current_token_, lookahead_1_));
   current_token_->token = FuseTokensIntoTokenKind(
       fused_token_kind, current_token_->token, lookahead_1_->token);
-  lookahead_1_.swap(lookahead_2_);
-  lookahead_2_.swap(lookahead_3_);
+  lookahead_1_ = std::move(lookahead_2_);
+  lookahead_2_ = std::move(lookahead_3_);
   FetchNextToken(lookahead_2_, lookahead_3_);
 }
 
@@ -423,11 +420,7 @@ static bool IsLiteralBeforeAdjacentUnquotedIdentifier(
 // accept the sequence of tokens are identified to verify that changing the kind
 // of `token` does not break any unanticipated cases where that sequence would
 // currently be accepted.
-Token LookaheadTransformer::ApplyTokenDisambiguation(
-    const TokenWithLocation& token_with_location) {
-  const Token token = token_with_location.kind;
-  const Location& location = token_with_location.location;
-
+Token LookaheadTransformer::ApplyTokenDisambiguation(const Token token) {
   switch (mode_) {
     case ParserMode::kTokenizer:
     case ParserMode::kTokenizerPreserveComments:
@@ -475,33 +468,52 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
         default:
           return token;
       }
-    case ParserMode::kMacroBody:
-      switch (token) {
-        case Token::SEMICOLON:
-        case Token::EOI:
-          return token;
-        default:
-          return Token::MACRO_BODY_TOKEN;
-      }
     default:
       break;
+  }
+
+  if (IsInTableFunctionState()) {
+    // Enforce that the .TableFunction state is marked in the expected place.
+    ABSL_DCHECK_EQ(Lookback1(), Token::KW_TABLE)
+        << ".TableFunction must only be used directly after the TABLE keyword.";
+    // TODO: b/505012030 - Uncomment this to allow a table named "FUNCTION".
+    // bool is_potential_table_name =
+    //    IsIdentifierOrNonreservedKeyword(Lookahead1()) ||
+    //    Lookahead1() == Token::KW_IF;
+    if (token == Token::KW_FUNCTION /* && is_potential_table_name*/) {
+      return Token::KW_FUNCTION_IN_TABLE_FUNCTION;
+    }
+  }
+
+  // Since `TIMESTAMP` is a non-reserved keyword, we need to look forward to the
+  // token after the AS. This distinguishes between a standard `with_clause` (of
+  // the form `WITH id AS (...)`) and the `WITH TIMESTAMP AS alias` clause.
+  if (IsInPossibleWithTimestampState()) {
+    ABSL_DCHECK(Lookback1() == Token::KW_WITH)
+        << ".PossibleWithTimestamp is expected following a WITH keyword.";
+    if (Lookback1() == Token::KW_WITH && token == Token::KW_TIMESTAMP &&
+        Lookahead1() == Token::KW_AS &&
+        IsIdentifierOrNonreservedKeyword(Lookahead2())) {
+      return Token::KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS;
+    }
   }
 
   // The rules in this block are changing state based on lookback overrides.
   // These should happen before any token transformations when we are running
   // in a mode that is driven by the parser.
-  switch (Lookback1()) {
-    case Token::LB_OPEN_TYPE_TEMPLATE: {
+  if (IsInOpenTypeTemplateState()) {
+    ABSL_DCHECK_EQ(Lookback1(), Token::LT)
+        << ".OpenTypeTemplate must only be used directly after the < token.";
+    if (Lookback1() == Token::LT) {
       PushState(kInTemplatedType);
-      break;
     }
-    case Token::LB_CLOSE_TYPE_TEMPLATE: {
+  }
+  if (IsInCloseTypeTemplateState()) {
+    ABSL_DCHECK_EQ(Lookback1(), Token::GT)
+        << ".CloseTypeTemplate must only be used directly after the > token.";
+    if (Lookback1() == Token::GT) {
       bool popped = PopStateIfMatch(kInTemplatedType);
-      ABSL_DCHECK(popped);
-      break;
-    }
-    default: {
-      break;
+      ABSL_DCHECK(popped) << "Failed to pop kInTemplatedType state.";
     }
   }
 
@@ -510,10 +522,7 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
   // even if a keyword is present.
   if (IsCurrentTokenScriptLabel()) {
     if (IsReservedKeywordToken(token)) {
-      return SetOverrideErrorAndReturnEof(
-          absl::StrCat("Reserved keyword '", token_with_location.text,
-                       "' may not be used as a label name without backticks"),
-          location);
+      return Token::ERROR_SCRIPT_LABEL_IS_RESERVED_KEYWORD;
     }
     return Token::SCRIPT_LABEL;
   }
@@ -524,6 +533,12 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
   }
 
   switch (Lookback1()) {
+    case Token::KW_MACRO:
+      if (Lookback2() == Token::KW_DEFINE_FOR_MACROS && IsKeywordToken(token)) {
+        // Macro names may be any kind of keyword.
+        return Token::IDENTIFIER;
+      }
+      break;
     case Token::LB_DOT_IN_PATH_EXPRESSION:
     case Token::ATSIGN:
     case Token::KW_DOUBLE_AT:
@@ -731,7 +746,7 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
         default:
           break;
       }
-      return Token::KW_EXCEPT_IN_UNEXPECTED_CONTEXT;
+      return Token::ERROR_EXCEPT_IN_UNEXPECTED_CONTEXT;
     }
     // Looking ahead to see if the next token is UPDATE to avoid a shift/reduce
     // conflict with FOR SYSTEM_TIME and FOR SYSTEM.
@@ -848,7 +863,29 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
     case Token::STANDALONE_EXPONENT_SIGN: {
       return Token::IDENTIFIER;
     }
-    // TODO: b/333926361 - If the token is YYEOF without errors, check whether
+    case Token::MULT: {
+      if (Lookahead1() == Token::COLON) {
+        return Token::UPDATE_MANY_STAR;
+      }
+      break;
+    }
+    case Token::KW_VALUE: {
+      // There is an ambiguity between the braced constructor and VALUE braced
+      // subquery for the sequence "VALUE {" at the start of expression. The
+      // documented shift/reduce conflict resolves to the braced constructor.
+      // That isn't the desired behavior in the braced constructor where "VALUE"
+      // can be a field name and `{` opens a sub-constructor after an elided
+      // colon. This rule overrides the default resolution in that case.
+      // LINT.IfChange(ValueSubqueryAmbiguityResolution)
+      if (Lookahead1() == Token::LBRACE &&
+          IsInStartBracedConstructorFieldState() &&
+          !Parser::GraphOperationBlockFirstTokens().contains(Lookahead2())) {
+        return Token::IDENTIFIER;
+      }
+      // LINT.ThenChange(tm_parser_test.cc:ValueSubqueryAmbiguityResolution)
+      break;
+    }
+    // TODO: b/333926361 - If the token is EOI without errors, check whether
     // `state_stack_` has '(' and if yes, report an error.
     default: {
       break;
@@ -856,6 +893,101 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(
   }
 
   return token;
+}
+
+std::optional<Token> LookaheadTransformer::GuidanceToken() const {
+  if (IsInAfterColumnNameState()) {
+    if (current_token_->token.kind == Token::KW_CONSTRAINT &&
+        IsIdentifierOrNonreservedKeyword(Lookahead1())) {
+      // This is a named constraint table element, not a column definition.
+      return std::nullopt;
+    }
+    // Otherwise, we need to decide if Lookahead1 is the name name (or start
+    // thereof) or if it is the start of a column attribute when the type is
+    // not specified.
+
+    // LINT.IfChange(TableColumnSchemaFollowTokens)
+    // If the next keyword is not in the set of tokens that can follow the
+    // column type, we know Lookahead1 is part of the type.
+    if (Lookahead1() != Token::EOI &&
+        !Parser::TableColumnSchemaFollowTokens().contains(Lookahead1())) {
+      return std::nullopt;
+    }
+    // The cases in this switch are the Tokens in
+    // Parser::TableColumnSchemaFollowTokens()
+    switch (Lookahead1()) {
+      // These cases cannot be a type name, so we don't need to look ahead.
+      case Token::COMMA:
+      case Token::KW_FOLLOWING:
+      case Token::KW_NOT:
+      case Token::KW_PRECEDING:
+      case Token::RPAREN:
+      case Token::SEMICOLON:
+      case Token::EOI:
+        return Token::GUIDE_EMPTY_COLUMN_TYPE;
+      // These cases could be a type name, but when starting a column attribute
+      // they are followed by a specific keyword that unambiguously indicates
+      // they are not part of a type.
+      case Token::KW_FILL:
+        if (Lookahead2() == Token::KW_USING) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      case Token::KW_PRIMARY:
+        if (Lookahead2() == Token::KW_KEY) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      // We need two more tokens to identify this as a referential constraint.
+      case Token::KW_REFERENCES:
+        if (IsIdentifierOrNonreservedKeyword(Lookahead2()) &&
+            (Lookahead3() == Token::DOT || Lookahead3() == Token::LPAREN)) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      // "OPTIONS" we will resolve to the attribute if followed by a paren. This
+      // is not sufficient to support a future type named OPTIONS that has
+      // parenthesized type parameters. If such a type is required, this rule
+      // must be revised with more lookahead.
+      case Token::KW_OPTIONS:
+        if (Lookahead2() == Token::LPAREN) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      // "HIDDEN" is the most difficult case. "HIDDEN" could be the type name or
+      // it could be the attribute. This is a true ambiguity and cannot be
+      // resolved with lookahead. We can choose the desired solution though.
+      // User defined types must be namespaced today, and no engine
+      // defined type is yet (as of this change) named "HIDDEN". We thus resolve
+      // this as the attribute. Users who want a type named hidden can use
+      // backticks (there is no similar solution for the reverse).
+      case Token::KW_HIDDEN:
+        if (Lookahead2() == Token::EOI ||
+            Parser::TableColumnSchemaFollowTokens().contains(Lookahead2())) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      case Token::KW_CONSTRAINT:
+        // "HIDDEN" again" causes an ambiguity with "CONSTRAINT"
+        //   CONSTRAINT is either (a) type name     or (b) a named constraint.
+        //   HIDDEN     is either (a) the attribute or (b) the constraint name.
+        //   REFERENCES is either (a) an anonymous  or (b) a named constraint.
+        //
+        // We resolve this as the constraint attribute for the same reason
+        // documented above in `case Token::KW_HIDDEN`.
+        if (IsIdentifierOrNonreservedKeyword(Lookahead2()) &&
+            Lookahead3() == Token::KW_REFERENCES) {
+          return Token::GUIDE_EMPTY_COLUMN_TYPE;
+        }
+        break;
+      default:
+        ABSL_LOG(ERROR) << "Unexpected token: "
+                    << tokenName[static_cast<int>(Lookahead1())];
+        break;
+    }
+    // LINT.ThenChange(tm_parser_test.cc:TableColumnSchemaFollowSet)
+  }
+  return std::nullopt;
 }
 
 absl::Status LookaheadTransformer::OverrideNextTokenLookback(
@@ -994,33 +1126,6 @@ void LookaheadTransformer::TransformIntegerLiteral() {
   }
 }
 
-Token LookaheadTransformer::SetOverrideErrorAndReturnEof(
-    absl::string_view error_message, const Location& error_location) {
-  if (!current_token_.has_value()) {
-    current_token_.emplace();
-  }
-  current_token_->token.kind = Token::EOI;
-  current_token_->error = MakeError(error_message, error_location);
-  return Token::EOI;
-}
-
-namespace {
-class NoOpExpander : public MacroExpanderBase {
- public:
-  explicit NoOpExpander(std::unique_ptr<TokenProvider> token_provider)
-      : token_provider_(std::move(token_provider)) {}
-  absl::StatusOr<TokenWithLocation> GetNextToken() override {
-    return token_provider_->ConsumeNextToken();
-  }
-  int num_unexpanded_tokens_consumed() const override {
-    return token_provider_->num_consumed_tokens();
-  }
-
- private:
-  std::unique_ptr<TokenProvider> token_provider_;
-};
-}  // namespace
-
 Token LookaheadTransformer::Lookahead1() const {
   return lookahead_1_->token.kind;
 }
@@ -1059,16 +1164,23 @@ Token LookaheadTransformer::Lookback3() const {
 
 Token LookaheadTransformer::GetNextToken(absl::string_view* text,
                                          Location* yylloc) {
+  if (auto guideance_token = GuidanceToken(); guideance_token.has_value()) {
+    *text = "";
+    *yylloc = ParseLocationRange(current_token_->token.location.end(),
+                                 current_token_->token.location.end());
+    return *guideance_token;
+  }
   // Advance the token buffers.
-  lookback_3_.swap(lookback_2_);
-  lookback_2_.swap(lookback_1_);
-  lookback_1_.swap(current_token_);
-  current_token_.swap(lookahead_1_);
-  lookahead_1_.swap(lookahead_2_);
-  lookahead_2_.swap(lookahead_3_);
+  lookback_3_ = std::move(lookback_2_);
+  lookback_2_ = std::move(lookback_1_);
+  lookback_1_ = std::move(current_token_);
+  current_token_ = std::move(lookahead_1_);
+  lookahead_1_ = std::move(lookahead_2_);
+  lookahead_2_ = std::move(lookahead_3_);
   FetchNextToken(lookahead_2_, lookahead_3_);
 
-  current_token_->token.kind = ApplyTokenDisambiguation(current_token_->token);
+  current_token_->token.kind =
+      ApplyTokenDisambiguation(current_token_->token.kind);
   // If the current token is Token::EOI after disambiguation, set all the
   // lookaheads to be the same as `current_token_` so that future calls to
   // GetNextToken() and GetOverrideError() return the same token kind and error.
@@ -1099,66 +1211,64 @@ Token LookaheadTransformer::GetNextToken(absl::string_view* text,
   return current_token_->token.kind;
 }
 
-static const MacroCatalog* empty_macro_catalog() {
-  static MacroCatalog* empty_macro_catalog = new MacroCatalog();
-  return empty_macro_catalog;
-}
-
 absl::StatusOr<std::unique_ptr<LookaheadTransformer>>
-LookaheadTransformer::Create(
-    ParserMode mode, absl::string_view filename, absl::string_view input,
-    int start_offset, const LanguageOptions& language_options,
-    MacroExpansionMode macro_expansion_mode,
-    const macros::MacroCatalog* macro_catalog, googlesql_base::UnsafeArena* arena,
-    StackFrame::StackFrameFactory& stack_frame_factory) {
-  // TODO: take the token_provider as an injected dependency.
-  auto token_provider = std::make_unique<TokenProvider>(
-      filename, input, start_offset, /*end_offset=*/std::nullopt,
-      /*offset_in_original_input=*/0);
-
-  std::unique_ptr<MacroExpanderBase> macro_expander;
-  if (macro_expansion_mode != MacroExpansionMode::kNone) {
-    if (macro_catalog == nullptr) {
-      macro_catalog = empty_macro_catalog();
-    }
-    parser::macros::MacroExpanderOptions macro_expander_options{
-        .is_strict = macro_expansion_mode == MacroExpansionMode::kStrict,
-    };
-    macro_expander = std::make_unique<MacroExpander>(
-        std::move(token_provider), *macro_catalog, arena, stack_frame_factory,
-        macro_expander_options,
-        /*parent_location=*/nullptr);
-  } else {
-    GOOGLESQL_RET_CHECK(macro_catalog == nullptr);
-    macro_expander = std::make_unique<NoOpExpander>(std::move(token_provider));
-  }
-  return absl::WrapUnique(new LookaheadTransformer(mode, language_options,
-                                                   std::move(macro_expander)));
+LookaheadTransformer::Create(ParserMode mode,
+                             const LanguageOptions& language_options,
+                             TokenStream* input) {
+  return absl::WrapUnique(
+      new LookaheadTransformer(mode, language_options, input));
 }
 
 LookaheadTransformer::LookaheadTransformer(
     ParserMode mode, const LanguageOptions& language_options,
-    std::unique_ptr<MacroExpanderBase> expander)
-    : mode_(mode),
-      language_options_(language_options),
-      macro_expander_(std::move(expander)) {
+    TokenStream* input)
+    : mode_(mode), language_options_(language_options), input_(input) {
   // Actively fetch lookaheads.
   PopulateLookaheads();
 }
 
-int64_t LookaheadTransformer::num_lexical_tokens() const {
-  return num_inserted_tokens_ +
-         macro_expander_->num_unexpanded_tokens_consumed();
+static const ParseLocationRange& InvalidLocationRange() {
+  static const absl::NoDestructor<ParseLocationRange> kInvalidLocationRange;
+  return *kInvalidLocationRange;
 }
 
-// TODO: this overload should also be updated to return the image, and
-// all callers should be updated. In fact, all callers should simply use
-// TokenWithLocation, and maybe have the image attached there.
-absl::Status LookaheadTransformer::GetNextToken(ParseLocationRange* location,
-                                                Token* token) {
-  absl::string_view image;
-  *token = GetNextToken(&image, location);
-  return GetOverrideError();
+const ParseLocationRange& LookaheadTransformer::LastTokenLocation() const {
+  if (current_token_.has_value()) {
+    return current_token_->token.location;
+  }
+  return InvalidLocationRange();
+}
+
+Token LookaheadTransformer::LastToken() const {
+  if (current_token_.has_value()) {
+    return current_token_->token.kind;
+  }
+  return Token::UNAVAILABLE;
+}
+
+absl::string_view LookaheadTransformer::LastTokenText() const {
+  if (current_token_.has_value()) {
+    return current_token_->token.text;
+  }
+  return "Token::UNAVAILABLE";
+}
+
+const ParseLocationRange& LookaheadTransformer::LastLastTokenLocation() const {
+  if (lookback_1_.has_value()) {
+    return lookback_1_->token.location;
+  }
+  return InvalidLocationRange();
+}
+
+int LookaheadTransformer::num_consumed_tokens() const {
+  return num_inserted_tokens_ + input_->num_consumed_tokens();
+}
+
+absl::StatusOr<TokenWithLocation> LookaheadTransformer::GetNextToken() {
+  TokenWithLocation ret;
+  ret.kind = GetNextToken(&ret.text, &ret.location);
+  GOOGLESQL_RETURN_IF_ERROR(GetOverrideError());
+  return ret;
 }
 
 bool LookaheadTransformer::IsAtEoi() const {
@@ -1181,17 +1291,6 @@ void LookaheadTransformer::ResetToEof(
   lookahead->token.kind = Token::EOI;
 }
 
-void LookaheadTransformer::PushParserMode(ParserMode mode) {
-  restore_modes_.push(mode_);
-  mode_ = mode;
-}
-
-void LookaheadTransformer::PopParserMode() {
-  ABSL_DCHECK(!restore_modes_.empty());
-  mode_ = restore_modes_.top();
-  restore_modes_.pop();
-}
-
 absl::Status LookaheadTransformer::OverrideCurrentTokenLookback(
     Token new_token_kind) {
   GOOGLESQL_RET_CHECK(current_token_.has_value());
@@ -1203,6 +1302,7 @@ void LookaheadTransformer::PushState(StateType state) {
   state_stack_.push(state);
 }
 
+[[nodiscard]]
 bool LookaheadTransformer::PopStateIfMatch(StateType target_state) {
   if (state_stack_.empty() || state_stack_.top() != target_state) {
     return false;
@@ -1213,6 +1313,30 @@ bool LookaheadTransformer::PopStateIfMatch(StateType target_state) {
 
 bool LookaheadTransformer::IsInTemplatedTypeState() const {
   return !state_stack_.empty() && state_stack_.top() == kInTemplatedType;
+}
+
+bool LookaheadTransformer::IsInOpenTypeTemplateState() const {
+  return parser_ != nullptr && parser_->IsInOpenTypeTemplateState();
+}
+
+bool LookaheadTransformer::IsInCloseTypeTemplateState() const {
+  return parser_ != nullptr && parser_->IsInCloseTypeTemplateState();
+}
+
+bool LookaheadTransformer::IsInStartBracedConstructorFieldState() const {
+  return parser_ != nullptr && parser_->IsInStartBracedConstructorFieldState();
+}
+
+bool LookaheadTransformer::IsInTableFunctionState() const {
+  return parser_ != nullptr && parser_->IsInTableFunctionState();
+}
+
+bool LookaheadTransformer::IsInAfterColumnNameState() const {
+  return parser_ != nullptr && parser_->IsInAfterColumnNameState();
+}
+
+bool LookaheadTransformer::IsInPossibleWithTimestampState() const {
+  return parser_ != nullptr && parser_->IsInPossibleWithTimestampState();
 }
 
 }  // namespace parser

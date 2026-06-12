@@ -1026,7 +1026,7 @@ TEST(NumericPercentileTest, ComputePercentileCont) {
       "1.999999999",
       "0",
       kNumericMin,
-      {kNumericMax.data() + 1, kNumericMax.size() - 1}  // removes one digit.
+      {kNumericMax.substr(1)}  // removes one digit.
   };
 
   // Args: expected_value, values, num_nulls, percentile

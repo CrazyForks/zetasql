@@ -126,8 +126,9 @@ class Algebrizer {
 
   // Returns the statement kinds that are supported by AlgebrizeStatement().
   static std::set<ResolvedNodeKind> GetSupportedStatementKinds() {
-    return {RESOLVED_QUERY_STMT, RESOLVED_DELETE_STMT, RESOLVED_UPDATE_STMT,
-            RESOLVED_INSERT_STMT, RESOLVED_MULTI_STMT};
+    return {RESOLVED_QUERY_STMT,  RESOLVED_DELETE_STMT,
+            RESOLVED_UPDATE_STMT, RESOLVED_INSERT_STMT,
+            RESOLVED_MULTI_STMT,  RESOLVED_TERMINAL_QUERY_STMT};
   }
 
   // Algebrize the resolved AST for a SQL statement. 'parameters' returns either
@@ -273,6 +274,11 @@ class Algebrizer {
       absl::Span<const std::unique_ptr<const ResolvedExpr>> expr_list,
       std::vector<std::unique_ptr<ValueExpr>>& output_value_list);
 
+  // Helper method to populate arguments from a list of columns.
+  absl::Status PopulateArgumentsFromColumnList(
+      absl::Span<const ResolvedColumn> column_list,
+      std::vector<std::unique_ptr<ValueExpr>>& arguments);
+
   absl::StatusOr<std::unique_ptr<GraphGetElementPropertyExpr>>
   AlgebrizeGraphGetElementProperty(
       const ResolvedGraphGetElementProperty* get_graph_element_property);
@@ -354,14 +360,17 @@ class Algebrizer {
       std::optional<AnonymizationOptions> anonymization_options,
       std::unique_ptr<ValueExpr> filter, const ResolvedExpr* expr,
       const VariableId& side_effects_variable);
+  absl::StatusOr<std::unique_ptr<AggregateArg>> AlgebrizeAggregateSubquery(
+      const VariableId& variable, const ResolvedSubqueryExpr* expr);
   absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeSubqueryExpr(
       const ResolvedSubqueryExpr* subquery_expr);
   absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeWithExpr(
       const ResolvedWithExpr* with_expr);
-  absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeInArray(
+  absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeQuantifiedComparisonArray(
       std::unique_ptr<ValueExpr> in_value,
       std::unique_ptr<ValueExpr> array_value,
-      const ResolvedCollation& collation);
+      const ResolvedCollation& collation,
+      ResolvedSubqueryExprEnums::SubqueryType subquery_type);
 
   // Adds a variable for a UDA argument. Requires that `argument_name` does not
   // already have a variable.
@@ -449,8 +458,10 @@ class Algebrizer {
       std::vector<std::unique_ptr<AlgebraArg>> converted_arguments,
       absl::Span<const ResolvedCollation> collation_list);
 
-  // Algebrizes IN, LIKE ANY, or LIKE ALL when the rhs is a subquery.
-  absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeInLikeAnyLikeAllRelation(
+  // Algebrizes IN, LIKE ANY, LIKE ALL, = ANY/ALL, != ANY/ALL, < ANY/ALL, <=
+  // ANY/ALL, > ANY/ALL, >= ANY/ALL when the rhs is a subquery.
+  absl::StatusOr<std::unique_ptr<ValueExpr>>
+  AlgebrizeQuantifiedComparisonRelation(
       std::unique_ptr<ValueExpr> lhs,
       ResolvedSubqueryExpr::SubqueryType subquery_type,
       const VariableId& haystack_var,
@@ -571,16 +582,10 @@ class Algebrizer {
       std::vector<FilterConjunctInfo*>* active_conjuncts);
   absl::StatusOr<std::unique_ptr<AggregateOp>> AlgebrizeAggregateScan(
       const ResolvedAggregateScan* aggregate_scan);
-  absl::StatusOr<std::unique_ptr<AggregateOp>> AlgebrizePivotScan(
+  absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizePivotScan(
       const ResolvedPivotScan* pivot_scan);
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeUnpivotScan(
       const ResolvedUnpivotScan* unpivot_scan);
-  absl::StatusOr<UnionAllOp::Input> AlgebrizeUnpivotArg(
-      const ResolvedUnpivotScan* unpivot_scan, const ExprArg& input,
-      int arg_index);
-  absl::StatusOr<std::unique_ptr<FilterOp>> AlgebrizeNullFilterForUnpivotScan(
-      const ResolvedUnpivotScan* unpivot_scan,
-      std::unique_ptr<RelationalOp> input);
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeMatchRecognizeScan(
       const ResolvedMatchRecognizeScan* match_recognize_scan);
   absl::StatusOr<MatchRecognizeQueryParams> GetMatchRecognizeQueryParams(
@@ -646,6 +651,8 @@ class Algebrizer {
       std::vector<FilterConjunctInfo*>* active_conjuncts);
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizePipeIfScan(
       const ResolvedPipeIfScan* scan);
+  absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeFinishScan(
+      const ResolvedFinishScan* resolved_finish);
 
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeGraphTableScan(
       const ResolvedGraphTableScan* graph_table_scan,
@@ -697,6 +704,7 @@ class Algebrizer {
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeGraphPathScan(
       const ResolvedGraphPathScan* path_scan,
       std::vector<FilterConjunctInfo*>* active_conjuncts);
+  absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeGraphAllNodesScan();
   absl::StatusOr<std::unique_ptr<RelationalOp>> AlgebrizeGraphNodeScan(
       const ResolvedGraphElementScan* element_scan,
       std::vector<FilterConjunctInfo*>* active_conjuncts) {
@@ -1065,8 +1073,12 @@ class Algebrizer {
       std::vector<std::unique_ptr<ValueExpr>> args);
   absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeNotEqual(
       std::vector<std::unique_ptr<ValueExpr>> args);
-  absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeIn(
-      const Type* output_type, std::vector<std::unique_ptr<ValueExpr>> args);
+  // Algebrizes <lhs> <cmp> <quantifier> (<v1>, <v2>, ...), e.g., x = ANY (1, 2,
+  // 3)
+  absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeQuantifiedComparisonList(
+      const Type* output_type, std::vector<std::unique_ptr<ValueExpr>> args,
+      FunctionKind comparison_kind, FunctionKind aggregate_kind,
+      bool negate_comparison = false, bool swap_arguments = false);
   absl::StatusOr<std::unique_ptr<ValueExpr>> AlgebrizeBetween(
       const Type* output_type, std::vector<std::unique_ptr<ValueExpr>> args);
 
@@ -1546,6 +1558,9 @@ class Algebrizer {
   // Tracks the current graph path context of `GraphPathOp`, which can be
   // consumed by the child path `GraphPathOp` or `QuantifiedGraphPathOp`.
   std::vector<GraphPathContext> current_graph_path_context_stack_;
+
+  // Tracks the current property graph in scope
+  std::stack<const PropertyGraph*> property_graph_stack_;
 };
 
 }  // namespace googlesql

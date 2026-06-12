@@ -1,0 +1,25 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_invalid_expression;
+--
+CONSTANT evaluation_error_named_constant=Uninitialized value (DOUBLE)
+ERROR during evaluation: generic::out_of_range: division by zero: 1 / 0 [at .../googlesql/testdata/modules/named_constant_invalid_expression.sqlm:3:24]
+CREATE PUBLIC CONSTANT evaluation_error_named_constant = 1 / 0;
+                       ^
+
+CONSTANT resolution_error_named_constant=Uninitialized value (unknown type)
+ERROR during resolution: Constant resolution_error_named_constant is invalid [at .../googlesql/testdata/modules/named_constant_invalid_expression.sqlm:5:24]
+CREATE PUBLIC CONSTANT resolution_error_named_constant = 1 / "foo";
+                       ^
+No matching signature for operator /
+  Argument types: INT64, STRING
+  Signature: DOUBLE / DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC / NUMERIC
+    Argument 2: Unable to coerce type STRING to expected type NUMERIC
+  Signature: BIGNUMERIC / BIGNUMERIC
+    Argument 2: Unable to coerce type STRING to expected type BIGNUMERIC
+  Signature: INTERVAL / INT64
+    Argument 1: Unable to coerce type INT64 to expected type INTERVAL [at .../googlesql/testdata/modules/named_constant_invalid_expression.sqlm:5:58]
+CREATE PUBLIC CONSTANT resolution_error_named_constant = 1 / "foo";
+                                                         ^

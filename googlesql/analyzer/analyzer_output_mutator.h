@@ -58,6 +58,18 @@ class AnalyzerOutputMutator {
         absl::StrCat("Unexpected new node type: ", node->node_kind_string()));
   }
 
+  void TakeOwnership(std::vector<std::unique_ptr<Function>> functions) {
+    for (auto& function : functions) {
+      output_.owned_functions_.emplace_back(std::move(function));
+    }
+  }
+
+  void TakeOwnership(std::vector<std::shared_ptr<const Function>> functions) {
+    for (auto& function : functions) {
+      output_.owned_functions_.emplace_back(std::move(function));
+    }
+  }
+
   AnalyzerOutputProperties& mutable_output_properties() {
     return output_.analyzer_output_properties_;
   }

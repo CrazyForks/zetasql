@@ -41,14 +41,15 @@
 #include "googlesql/public/value.h"
 #include "googlesql/public/value.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/source_location.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -522,7 +523,7 @@ absl::Status MergeValueToProtoField(const Value& value,
               : reflection->MutableMessage(proto_out, field, message_factory);
       ValueProto value_proto;
       GOOGLESQL_RETURN_IF_ERROR(value.Serialize(&value_proto));
-      if (!submessage->ParseFromCord(value_proto.proto_value())) {
+      if (!submessage->ParseFromString(value_proto.proto_value())) {
         return ::googlesql_base::OutOfRangeErrorBuilder()
                << "Cannot parse value for field: " << field->full_name();
       }
@@ -763,7 +764,7 @@ absl::Status ProtoFieldToValue(const google::protobuf::Message& proto,
               ? reflection->GetRepeatedMessage(proto, field, index)
               : reflection->GetMessage(proto, field);
       absl::Cord serialized;
-      submessage.SerializeToCord(&serialized);
+      submessage.SerializeToString(&serialized);
       *value_out = Value::Proto(proto_type, serialized);
       return absl::OkStatus();
     }

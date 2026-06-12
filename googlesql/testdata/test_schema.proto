@@ -119,6 +119,13 @@ message RepeatedHolderPB {
   repeated TestExtraPB repeated_field = 1;
 }
 
+// Next ID to use: 3
+message TimeSeriesPB {
+  optional int64 timestamp = 1
+      [(googlesql.type) = TIMESTAMP_MILLIS, default = 0];
+  optional int64 int64_key_1 = 2;
+}
+
 // Next ID to use: 112
 message KitchenSinkPB {
   required int64 int64_key_1 = 1;

@@ -25,9 +25,9 @@
 #include "googlesql/common/proto_helper.h"
 #include "googlesql/public/types/type.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace internal {

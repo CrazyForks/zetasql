@@ -37,6 +37,7 @@
 #include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/value.h"
 #include "googlesql/reference_impl/common.h"
 #include "googlesql/reference_impl/evaluation.h"
@@ -843,6 +844,12 @@ TEST(TimestampScaleTest, TimestampScale) {
 
   options.EnableLanguageFeature(FEATURE_TIMESTAMP_PICOS);
   EXPECT_EQ(GetTimestampScale(options),
+            functions::TimestampScale::kNanoseconds);
+  EXPECT_EQ(GetTimestampScale(options, /*support_picos=*/true),
+            functions::TimestampScale::kPicoseconds);
+
+  options.DisableLanguageFeature(FEATURE_TIMESTAMP_NANOS);
+  EXPECT_EQ(GetTimestampScale(options),
             functions::TimestampScale::kMicroseconds);
   EXPECT_EQ(GetTimestampScale(options, /*support_picos=*/true),
             functions::TimestampScale::kPicoseconds);
@@ -956,6 +963,15 @@ std::vector<CastDeterminismTestParams> GetCastDeterminismTestCases() {
   params.push_back({"StringStringStructToStringDoubleStruct",
                     string_string_struct_value, string_double_struct_type,
                     kDeterministic, type_factory});
+  params.push_back({"Int64ToJson", Value::Int64(123), types::JsonType(),
+                    kDeterministic, type_factory});
+  params.push_back({"ArrayInt64ToJson", values::Int64Array({1, 2, 3}),
+                    types::JsonType(), kDeterministic, type_factory});
+  params.push_back({"ArrayDoubleToJson", values::DoubleArray({1.23, 4.56}),
+                    types::JsonType(), kDeterministic, type_factory});
+  params.push_back({"StructArrayWithDoubleToJson",
+                    string_double_struct_array_value, types::JsonType(),
+                    kDeterministic, type_factory});
 
   // Non-deterministic cases.
   params.push_back({"DoubleToString", Value::Double(1.23), types::StringType(),
@@ -992,6 +1008,69 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<CastDeterminismTestParams>& info) {
       return info.param.test_name;
     });
+
+TEST(CastFunctionTest, SafeCastWithConstraintViolation) {
+  TypeFactory factory;
+  const Type* string_type = types::StringType();
+
+  StringTypeParametersProto string_params_proto;
+  string_params_proto.set_max_length(2);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_params,
+      TypeParameters::MakeStringTypeParameters(string_params_proto));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto arg, ConstExpr::Create(Value::String("123")));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto cast_expr,
+      BuiltinScalarFunction::CreateCast(
+          LanguageOptions(), string_type, std::move(arg),
+          /*format=*/nullptr, /*time_zone=*/nullptr,
+          TypeModifiers::MakeTypeModifiers(type_params, Collation()),
+          /*return_null_on_error=*/true,
+          ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
+          /*extended_cast_evaluator=*/nullptr));
+
+  EvaluationContext context{/*options=*/{}};
+  Value result_value;
+  absl::Status status;
+  std::shared_ptr<TupleSlot::SharedProtoState> shared_proto_state;
+  VirtualTupleSlot slot(&result_value, &shared_proto_state);
+  EXPECT_TRUE(cast_expr->Eval({}, &context, &slot, &status));
+  GOOGLESQL_ASSERT_OK(status);
+  EXPECT_TRUE(result_value.is_null());
+}
+
+TEST(CastFunctionTest, CastWithConstraintViolation) {
+  TypeFactory factory;
+  const Type* string_type = types::StringType();
+
+  StringTypeParametersProto string_params_proto;
+  string_params_proto.set_max_length(2);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_params,
+      TypeParameters::MakeStringTypeParameters(string_params_proto));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto arg, ConstExpr::Create(Value::String("123")));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      auto cast_expr,
+      BuiltinScalarFunction::CreateCast(
+          LanguageOptions(), string_type, std::move(arg),
+          /*format=*/nullptr, /*time_zone=*/nullptr,
+          TypeModifiers::MakeTypeModifiers(type_params, Collation()),
+          /*return_null_on_error=*/false,
+          ResolvedFunctionCallBase::DEFAULT_ERROR_MODE,
+          /*extended_cast_evaluator=*/nullptr));
+
+  EvaluationContext context{/*options=*/{}};
+  Value result_value;
+  absl::Status status;
+  std::shared_ptr<TupleSlot::SharedProtoState> shared_proto_state;
+  VirtualTupleSlot slot(&result_value, &shared_proto_state);
+  EXPECT_FALSE(cast_expr->Eval({}, &context, &slot, &status));
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kOutOfRange));
+}
 
 }  // namespace
 

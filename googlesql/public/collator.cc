@@ -16,6 +16,7 @@
 
 #include "googlesql/public/collator.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -27,13 +28,16 @@
 #include "googlesql/common/errors.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "unicode/coll.h"
 #include "unicode/errorcode.h"
 #include "unicode/tblcoll.h"
+#include "unicode/ucol.h"
 #include "unicode/utypes.h"
 #include "googlesql/base/ret_check.h"
 
@@ -159,12 +163,12 @@ static absl::Status ValidateCollationName(
   }
 }
 
-class GoogleSqlCollatorIcu : public GoogleSqlCollator {
+class IcuScalarGoogleSqlCollator : public GoogleSqlCollator {
  public:
-  GoogleSqlCollatorIcu(
+  IcuScalarGoogleSqlCollator(
       absl::string_view collation_name, CollatorMode mode,
       std::unique_ptr<const icu::RuleBasedCollator> icu_collator);
-  ~GoogleSqlCollatorIcu() override = default;
+  ~IcuScalarGoogleSqlCollator() override = default;
 
   int64_t CompareUtf8(absl::string_view s1, absl::string_view s2,
                       absl::Status* error) const override;
@@ -180,21 +184,25 @@ class GoogleSqlCollatorIcu : public GoogleSqlCollator {
     return icu_collator_.get();
   }
 
+  std::string DebugString() const override {
+    return absl::StrCat("ICU:\"", GetCollationName(), "\"");
+  }
+
  private:
   const CollatorMode mode_;
   const std::unique_ptr<const icu::RuleBasedCollator> icu_collator_;
 };
 
-GoogleSqlCollatorIcu::GoogleSqlCollatorIcu(
+IcuScalarGoogleSqlCollator::IcuScalarGoogleSqlCollator(
     absl::string_view collation_name, CollatorMode mode,
     std::unique_ptr<const icu::RuleBasedCollator> icu_collator)
     : GoogleSqlCollator(collation_name),
       mode_(mode),
       icu_collator_(std::move(icu_collator)) {}
 
-int64_t GoogleSqlCollatorIcu::CompareUtf8(const absl::string_view s1,
-                                          const absl::string_view s2,
-                                          absl::Status* error) const {
+int64_t IcuScalarGoogleSqlCollator::CompareUtf8(const absl::string_view s1,
+                                                const absl::string_view s2,
+                                                absl::Status* error) const {
   if (mode_ == CollatorMode::kBinary) {
     const int result = s1.compare(s2);
     return result < 0 ? -1 : (result > 0 ? 1 : 0);
@@ -222,8 +230,8 @@ int64_t GoogleSqlCollatorIcu::CompareUtf8(const absl::string_view s1,
   return result;
 }
 
-absl::Status GoogleSqlCollatorIcu::GetSortKeyUtf8(absl::string_view input,
-                                                  absl::Cord* output) const {
+absl::Status IcuScalarGoogleSqlCollator::GetSortKeyUtf8(
+    absl::string_view input, absl::Cord* output) const {
   if (mode_ == CollatorMode::kBinary) {
     // Binary collation, so just copy the input.
     output->Clear();
@@ -290,7 +298,7 @@ absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> MakeSqlCollator(
   if (collator_mode == CollatorMode::kBinary
       ) {
     // Don't need icu for this case.
-    return std::make_unique<const GoogleSqlCollatorIcu>(
+    return std::make_unique<const IcuScalarGoogleSqlCollator>(
         collation_name, collator_mode,
         /*icu_collator=*/nullptr);
   }
@@ -321,7 +329,7 @@ absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>> MakeSqlCollator(
     // We do nothing here as comparisons are case-sensitive by default in
     // icu::RuleBasedCollator.
   }
-  return std::make_unique<const GoogleSqlCollatorIcu>(
+  return std::make_unique<const IcuScalarGoogleSqlCollator>(
       collation_name, collator_mode, std::move(icu_collator));
 }
 

@@ -243,7 +243,7 @@ TEST(ParserMacroExpansionTest, CorrectErrorWhenMacroNameIsASymbol) {
   EXPECT_THAT(ParseNextStatement(&resume_location, parser_options,
                                  &parser_output, &at_end_of_input),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Syntax error: Expected macro name")));
+                       HasSubstr("Syntax error: Unexpected \"+\"")));
 }
 
 TEST(ParserMacroExpansionTest, CorrectErrorWhenMacroNameIsMissingAtEof) {
@@ -255,13 +255,10 @@ TEST(ParserMacroExpansionTest, CorrectErrorWhenMacroNameIsMissingAtEof) {
       ParseResumeLocation::FromStringView("DEFINE MACRO      /*nothing*/  ");
   bool at_end_of_input;
   std::unique_ptr<ParserOutput> parser_output;
-  EXPECT_THAT(
-      ParseNextStatement(&resume_location, parser_options, &parser_output,
-                         &at_end_of_input),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Syntax error: Expected macro name but got end of statement")));
+  EXPECT_THAT(ParseNextStatement(&resume_location, parser_options,
+                                 &parser_output, &at_end_of_input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Syntax error: Unexpected end of statement")));
 }
 
 TEST(ParserMacroExpansionTest, CorrectErrorWhenMacroNameIsMissingAtSemicolon) {
@@ -273,11 +270,10 @@ TEST(ParserMacroExpansionTest, CorrectErrorWhenMacroNameIsMissingAtSemicolon) {
       ParseResumeLocation::FromStringView("DEFINE MACRO      /*nothing*/  ;");
   bool at_end_of_input;
   std::unique_ptr<ParserOutput> parser_output;
-  EXPECT_THAT(
-      ParseNextStatement(&resume_location, parser_options, &parser_output,
-                         &at_end_of_input),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Syntax error: Expected macro name but got \";\"")));
+  EXPECT_THAT(ParseNextStatement(&resume_location, parser_options,
+                                 &parser_output, &at_end_of_input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Syntax error: Unexpected \";\"")));
 }
 
 TEST(ParserMacroExpansionTest, TopLevelCommentsArePreserved) {

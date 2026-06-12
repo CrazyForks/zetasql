@@ -194,7 +194,6 @@ TEST(BuiltinFunctionInternalTest,
   language_options.EnableLanguageFeature(FEATURE_TABLESAMPLE);
   GoogleSQLBuiltinFunctionOptions partial_options_enabled(language_options);
 
-  language_options.EnableLanguageFeature(FEATURE_DISALLOW_GROUP_BY_FLOAT);
   language_options.EnableLanguageFeature(FEATURE_TIMESTAMP_NANOS);
   language_options.EnableLanguageFeature(FEATURE_DML_UPDATE_WITH_JOIN);
   GoogleSQLBuiltinFunctionOptions full_options_enabled(language_options);
@@ -202,7 +201,6 @@ TEST(BuiltinFunctionInternalTest,
   TableValuedFunctionOptions tvf_options;
   tvf_options.AddRequiredLanguageFeature(FEATURE_ANALYTIC_FUNCTIONS);
   tvf_options.AddRequiredLanguageFeature(FEATURE_TABLESAMPLE);
-  tvf_options.AddRequiredLanguageFeature(FEATURE_DISALLOW_GROUP_BY_FLOAT);
   tvf_options.AddRequiredLanguageFeature(FEATURE_TIMESTAMP_NANOS);
   tvf_options.AddRequiredLanguageFeature(FEATURE_DML_UPDATE_WITH_JOIN);
 

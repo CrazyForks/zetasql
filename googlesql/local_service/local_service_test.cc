@@ -1419,7 +1419,6 @@ TEST_F(GoogleSqlLocalServiceImplTest,
        UnregisterCatalogAlsoUnregistersOwnedDescriptorPools) {
   int64_t catalog1_id;
   int64_t kitchen_sink_pool_id;  // kitchen
-  int64_t pool_b_id;
   int64_t builtin_pool_id;
   // REGISTER CATALOG 1
   {
@@ -1437,7 +1436,6 @@ TEST_F(GoogleSqlLocalServiceImplTest,
     EXPECT_THAT(response1.descriptor_pool_id_list().registered_ids_size(), 4);
     kitchen_sink_pool_id =
         response1.descriptor_pool_id_list().registered_ids(0);
-    pool_b_id = response1.descriptor_pool_id_list().registered_ids(1);
     builtin_pool_id = response1.descriptor_pool_id_list().registered_ids(2);
     EXPECT_EQ(response1.descriptor_pool_id_list().registered_ids(3),
               builtin_pool_id);
@@ -1537,7 +1535,7 @@ void ExpectValueIsKitchenSink3(
     const ValueProto& value,
     const googlesql_test::Proto3KitchenSink& expected) {
   googlesql_test::Proto3KitchenSink actual;
-  ASSERT_TRUE(actual.ParseFromCord(absl::Cord(value.proto_value())));
+  ASSERT_TRUE(actual.ParseFromString(value.proto_value()));
   EXPECT_THAT(actual, EqualsProto(expected));
 }
 

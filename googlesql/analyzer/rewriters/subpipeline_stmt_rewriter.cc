@@ -30,8 +30,8 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/base/check.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 
 namespace googlesql {
 

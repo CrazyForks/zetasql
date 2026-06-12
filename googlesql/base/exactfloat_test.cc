@@ -128,14 +128,14 @@ double scalbln(double a, long exp) {
 // Here we fix the rounding functions to match MPFloat, which clamps out of
 // range values and returns the maximum possible value for NaN.
 
-#define FIX_INT_ROUNDING(T, fname)                      \
-  T fname(double a) {                                   \
-    if (std::isnan(a)) return std::numeric_limits<T>::max(); \
-    if (a <= std::numeric_limits<T>::min())             \
-      return std::numeric_limits<T>::min();             \
-    if (a >= std::numeric_limits<T>::max())             \
-      return std::numeric_limits<T>::max();             \
-    return ::fname(a);                                  \
+#define FIX_INT_ROUNDING(T, fname)                               \
+  T fname(double a) {                                            \
+    if (std::isnan(a)) return std::numeric_limits<T>::max();     \
+    if (a <= std::numeric_limits<T>::min())                      \
+      return std::numeric_limits<T>::min();                      \
+    if (a >= static_cast<double>(std::numeric_limits<T>::max())) \
+      return std::numeric_limits<T>::max();                      \
+    return ::fname(a);                                           \
   }
 
 FIX_INT_ROUNDING(long, lrint)

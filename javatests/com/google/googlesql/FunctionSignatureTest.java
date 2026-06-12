@@ -53,6 +53,17 @@ public class FunctionSignatureTest {
     assertThat(nullaryFunction.isConcrete()).isFalse();
     assertThat(nullaryFunction.debugString("NOW")).isEqualTo("NOW() -> TIMESTAMP");
 
+    FunctionSignatureOptionsProto rejectsCollationOptions =
+        FunctionSignatureOptionsProto.newBuilder().setRejectsCollation(true).build();
+    FunctionSignature rejectsCollationFunction =
+        new FunctionSignature(
+            new FunctionArgumentType(TypeFactory.createSimpleType(TypeKind.TYPE_TIMESTAMP)),
+            new ArrayList<>(),
+            0,
+            rejectsCollationOptions);
+    assertThat(rejectsCollationFunction.debugString("NOW", /* verbose= */ true))
+        .isEqualTo("NOW() -> TIMESTAMP rejects_collation=TRUE");
+
     // Model simple operator like '+'
     FunctionArgumentType typeInt64 =
         new FunctionArgumentType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64));

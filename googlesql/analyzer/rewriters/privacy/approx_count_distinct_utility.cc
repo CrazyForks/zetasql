@@ -55,12 +55,12 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "googlesql/base/check.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace differential_privacy {

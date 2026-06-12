@@ -46,8 +46,7 @@ QueryStatement [0-72] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   ARRAY {
     RETURN
@@ -104,13 +103,11 @@ QueryStatement [0-89] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   ARRAY {
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -158,8 +155,7 @@ QueryStatement [0-81] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   ARRAY {
     GRAPH aml
@@ -219,14 +215,12 @@ QueryStatement [0-98] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   ARRAY {
     GRAPH aml
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -272,8 +266,7 @@ QueryStatement [0-73] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   EXISTS {
     RETURN
@@ -330,13 +323,11 @@ QueryStatement [0-90] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   EXISTS {
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -384,8 +375,7 @@ QueryStatement [0-82] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   EXISTS {
     GRAPH aml
@@ -445,14 +435,12 @@ QueryStatement [0-99] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   EXISTS {
     GRAPH aml
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -498,8 +486,7 @@ QueryStatement [0-71] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   VALUE {
     RETURN
@@ -556,13 +543,11 @@ QueryStatement [0-88] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   VALUE {
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -610,8 +595,7 @@ QueryStatement [0-80] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   VALUE {
     GRAPH aml
@@ -671,14 +655,12 @@ QueryStatement [0-97] [GRAPH aml...one } as arr]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
 RETURN
   VALUE {
     GRAPH aml
     MATCH
-      (p
-      IS Person)
+      (p IS Person)
     RETURN
       1 AS one
   } AS arr
@@ -749,13 +731,11 @@ QueryStatement [0-113] [GRAPH aml...true AS val]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   WHERE
     n.name LIKE ANY(VALUE {
         MATCH
-          (p
-          IS Person)
+          (p IS Person)
         RETURN
           1 AS one
       })
@@ -821,13 +801,11 @@ QueryStatement [0-114] [GRAPH aml...true AS val]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   WHERE
     n.name LIKE SOME(VALUE {
         MATCH
-          (p
-          IS Person)
+          (p IS Person)
         RETURN
           1 AS one
       })
@@ -893,13 +871,11 @@ QueryStatement [0-113] [GRAPH aml...true AS val]
 --
 GRAPH aml
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   WHERE
     n.name LIKE ALL(VALUE {
         MATCH
-          (p
-          IS Person)
+          (p IS Person)
         RETURN
           1 AS one
       })
@@ -994,13 +970,11 @@ QueryStatement [0-95] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     n1.name IN {
       MATCH
-        (n2
-        IS Person)
+        (n2 IS Person)
       RETURN
         n2.name
     }
@@ -1065,14 +1039,12 @@ QueryStatement [0-104] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     n1.name IN {
       GRAPH fin
       MATCH
-        (n2
-        IS Person)
+        (n2 IS Person)
       RETURN
         n2.name
     }
@@ -1127,12 +1099,10 @@ QueryStatement [0-71] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     EXISTS {
-      (n2
-      IS Person)
+      (n2 IS Person)
     }
 RETURN
   n1.id
@@ -1180,13 +1150,11 @@ QueryStatement [0-80] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     EXISTS {
       GRAPH fin
-      (n2
-      IS Person)
+      (n2 IS Person)
     }
 RETURN
   n1.id
@@ -1236,12 +1204,10 @@ QueryStatement [0-80] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     EXISTS @{ hint = 1 } {
-      (n2
-      IS Person)
+      (n2 IS Person)
     }
 RETURN
   n1.id
@@ -1293,13 +1259,11 @@ QueryStatement [0-89] [GRAPH aml...RETURN n1.id]
 --
 GRAPH aml
 MATCH
-  (n1
-  IS Person)
+  (n1 IS Person)
   WHERE
     EXISTS @{ hint = 1 } {
       GRAPH fin
-      (n2
-      IS Person)
+      (n2 IS Person)
     }
 RETURN
   n1.id
@@ -1355,11 +1319,9 @@ GRAPH aml
 RETURN
   EXISTS {
     MATCH
-      (n1
-      IS Person)
+      (n1 IS Person)
     OPTIONAL MATCH
-      (n2
-      IS Person)
+      (n2 IS Person)
   }
 --
 ALTERNATION GROUP:  ,GRAPH fin
@@ -1406,11 +1368,9 @@ RETURN
   EXISTS {
     GRAPH fin
     MATCH
-      (n1
-      IS Person)
+      (n1 IS Person)
     OPTIONAL MATCH
-      (n2
-      IS Person)
+      (n2 IS Person)
   }
 --
 ALTERNATION GROUP: @{hint=1} ,
@@ -1458,11 +1418,9 @@ GRAPH aml
 RETURN
   EXISTS @{ hint = 1 } {
     MATCH
-      (n1
-      IS Person)
+      (n1 IS Person)
     OPTIONAL MATCH
-      (n2
-      IS Person)
+      (n2 IS Person)
   }
 --
 ALTERNATION GROUP: @{hint=1} ,GRAPH fin
@@ -1513,11 +1471,9 @@ RETURN
   EXISTS @{ hint = 1 } {
     GRAPH fin
     MATCH
-      (n1
-      IS Person)
+      (n1 IS Person)
     OPTIONAL MATCH
-      (n2
-      IS Person)
+      (n2 IS Person)
   }
 
 ==

@@ -37,6 +37,7 @@
 #include "googlesql/public/strings.h"
 #include "googlesql/public/types/timestamp_util.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -44,7 +45,6 @@
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 // This ParseTime() code was initially copied from base/time/format.cc.
 // It has been modified to provide GoogleSQL defined behavior for

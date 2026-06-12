@@ -299,6 +299,12 @@ std::vector<FunctionTestCall> GetFunctionTestsLower(
       {function_name, {"ΣaBc"}, "σabc"},
       {function_name, {"aΣBc"}, "aσbc"},
       {function_name, {"Σ"}, "σ"},
+      // Accents must be skipped and not affect the decision on σ vs ς.
+      {function_name, {"a`Σ"}, "a`ς"},
+      {function_name, {"a```Σ"}, "a```ς"},
+      {function_name, {"qwe`^^`Σ"}, "qwe`^^`ς"},
+      {function_name, {"a'Σ"}, "a'ς"},
+      {function_name, {"a'`'`'`'`Σ"}, "a'`'`'`'`ς"},
       // lower(bytes) -> bytes
       {function_name, {NullBytes()}, NullBytes()},
       {function_name, {Bytes("")}, Bytes("")},

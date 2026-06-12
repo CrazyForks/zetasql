@@ -158,23 +158,23 @@ SELECT
 # Report error at the analyzer stage.
 SELECT STRUCT {
    a {
-    b: 1 
+    b: 1
   }
 }
 --
-QueryStatement [0-38] [SELECT STRUCT...: 1    } }]
-  Query [0-38] [SELECT STRUCT...: 1    } }]
-    Select [0-38] [SELECT STRUCT...: 1    } }]
-      SelectList [7-38] [STRUCT {...: 1    } }]
-        SelectColumn [7-38] [STRUCT {...: 1    } }]
-          StructBracedConstructor [7-38] [STRUCT {...: 1    } }]
-            BracedConstructor [14-38] [{    a {     b: 1    } }]
-              BracedConstructorField [19-36] [a {     b: 1    }]
+QueryStatement [0-37] [SELECT STRUCT...b: 1   } }]
+  Query [0-37] [SELECT STRUCT...b: 1   } }]
+    Select [0-37] [SELECT STRUCT...b: 1   } }]
+      SelectList [7-37] [STRUCT {    a {     b: 1   } }]
+        SelectColumn [7-37] [STRUCT {    a {     b: 1   } }]
+          StructBracedConstructor [7-37] [STRUCT {    a {     b: 1   } }]
+            BracedConstructor [14-37] [{    a {     b: 1   } }]
+              BracedConstructorField [19-35] [a {     b: 1   }]
                 BracedConstructorLhs [19-20] [a]
                   PathExpression [19-20] [a]
                     Identifier(a) [19-20] [a]
-                BracedConstructorFieldValue [21-36] [{     b: 1    }]
-                  BracedConstructor [21-36] [{     b: 1    }]
+                BracedConstructorFieldValue [21-35] [{     b: 1   }]
+                  BracedConstructor [21-35] [{     b: 1   }]
                     BracedConstructorField [27-31] [b: 1]
                       BracedConstructorLhs [27-28] [b]
                         PathExpression [27-28] [b]
@@ -194,44 +194,44 @@ SELECT
 # Report error at the analyzer stage.
 SELECT STRUCT {
    a {
-    b: 1 
+    b: 1
   },
   c: {
-   d: 1 
+   d: 1
   }
 }
 --
-QueryStatement [0-59] [SELECT STRUCT...: 1    } }]
-  Query [0-59] [SELECT STRUCT...: 1    } }]
-    Select [0-59] [SELECT STRUCT...: 1    } }]
-      SelectList [7-59] [STRUCT {...: 1    } }]
-        SelectColumn [7-59] [STRUCT {...: 1    } }]
-          StructBracedConstructor [7-59] [STRUCT {...: 1    } }]
-            BracedConstructor [14-59] [{    a {...: 1    } }]
-              BracedConstructorField [19-36] [a {     b: 1    }]
+QueryStatement [0-57] [SELECT STRUCT...d: 1   } }]
+  Query [0-57] [SELECT STRUCT...d: 1   } }]
+    Select [0-57] [SELECT STRUCT...d: 1   } }]
+      SelectList [7-57] [STRUCT {...d: 1   } }]
+        SelectColumn [7-57] [STRUCT {...d: 1   } }]
+          StructBracedConstructor [7-57] [STRUCT {...d: 1   } }]
+            BracedConstructor [14-57] [{    a {...d: 1   } }]
+              BracedConstructorField [19-35] [a {     b: 1   }]
                 BracedConstructorLhs [19-20] [a]
                   PathExpression [19-20] [a]
                     Identifier(a) [19-20] [a]
-                BracedConstructorFieldValue [21-36] [{     b: 1    }]
-                  BracedConstructor [21-36] [{     b: 1    }]
+                BracedConstructorFieldValue [21-35] [{     b: 1   }]
+                  BracedConstructor [21-35] [{     b: 1   }]
                     BracedConstructorField [27-31] [b: 1]
                       BracedConstructorLhs [27-28] [b]
                         PathExpression [27-28] [b]
                           Identifier(b) [27-28] [b]
                       BracedConstructorFieldValue [30-31] [1]
                         IntLiteral(1) [30-31] [1]
-              BracedConstructorField [40-57] [c: {    d: 1    }]
-                BracedConstructorLhs [40-41] [c]
-                  PathExpression [40-41] [c]
-                    Identifier(c) [40-41] [c]
-                BracedConstructorFieldValue [43-57] [{    d: 1    }]
-                  BracedConstructor [43-57] [{    d: 1    }]
-                    BracedConstructorField [48-52] [d: 1]
-                      BracedConstructorLhs [48-49] [d]
-                        PathExpression [48-49] [d]
-                          Identifier(d) [48-49] [d]
-                      BracedConstructorFieldValue [51-52] [1]
-                        IntLiteral(1) [51-52] [1]
+              BracedConstructorField [39-55] [c: {    d: 1   }]
+                BracedConstructorLhs [39-40] [c]
+                  PathExpression [39-40] [c]
+                    Identifier(c) [39-40] [c]
+                BracedConstructorFieldValue [42-55] [{    d: 1   }]
+                  BracedConstructor [42-55] [{    d: 1   }]
+                    BracedConstructorField [47-51] [d: 1]
+                      BracedConstructorLhs [47-48] [d]
+                        PathExpression [47-48] [d]
+                          Identifier(d) [47-48] [d]
+                      BracedConstructorFieldValue [50-51] [1]
+                        IntLiteral(1) [50-51] [1]
 --
 SELECT
   STRUCT {
@@ -564,7 +564,7 @@ QueryStatement [0-58] [SELECT STRUCT...value: 1   } }]
           StructBracedConstructor [7-58] [STRUCT {...value: 1   } }]
             BracedConstructor [14-58] [{   (path....value: 1   } }]
               BracedConstructorField [18-56] [(path.to.extensio...lue: 1   }]
-                BracedConstructorLhs [18-37] [(path.to.extension)]
+                BracedConstructorLhs [19-36] [path.to.extension]
                   PathExpression [19-36] [path.to.extension]
                     Identifier(path) [19-23] [path]
                     Identifier(`to`) [24-26] [to]
@@ -670,7 +670,7 @@ SELECT STRUCT {foobar: 5
 # ARRAY keyword not allowed.
 SELECT STRUCT ARRAY<int32>{}
 --
-ERROR: Syntax error: Expected "<" but got keyword ARRAY [at 1:15]
+ERROR: Syntax error: Expected "(" or "<" or "{" but got keyword ARRAY [at 1:15]
 SELECT STRUCT ARRAY<int32>{}
               ^
 ==
@@ -686,15 +686,15 @@ SELECT NEW STRUCT {foo:1}
 # No field name.
 SELECT STRUCT {1}
 --
-ERROR: Syntax error: Unexpected integer literal "1" [at 1:16]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:17]
 SELECT STRUCT {1}
-               ^
+                ^
 ==
 
 # No field value.
 SELECT STRUCT {foobar}
 --
-ERROR: Syntax error: Unexpected "}" [at 1:22]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:22]
 SELECT STRUCT {foobar}
                      ^
 ==

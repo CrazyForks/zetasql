@@ -799,6 +799,16 @@ absl::Status GetVectorSearchTableValuedFunctions(
 absl::Status GetTimeSeriesTableValuedFunctions(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
     NameToTableValuedFunctionMap* table_valued_functions);
+
+// Adds KMEANS TVF to the given map.
+absl::Status GetKMeansTableValuedFunction(
+    TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
+    NameToTableValuedFunctionMap* table_valued_functions);
+
+// Add AI functions to the given map.
+absl::Status GetAIFunctions(TypeFactory* type_factory,
+                            const GoogleSQLBuiltinFunctionOptions& options,
+                            NameToFunctionMap* functions);
 }  // namespace googlesql
 
 #endif  // GOOGLESQL_COMMON_BUILTIN_FUNCTION_INTERNAL_H_

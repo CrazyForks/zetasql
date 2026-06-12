@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/base/arena.h"
 #include "googlesql/base/logging.h"
 #include "googlesql/common/errors.h"
 #include "googlesql/common/parsed_templated_sql_function.h"
@@ -42,6 +43,7 @@
 #include "googlesql/public/fix_suggestion.pb.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/function.pb.h"
+#include "googlesql/public/id_string.h"
 #include "googlesql/public/module_details.h"
 #include "googlesql/public/multi_catalog.h"
 #include "googlesql/public/non_sql_function.h"
@@ -65,6 +67,7 @@
 #include "absl/functional/bind_front.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -76,7 +79,53 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/stl_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+
+// This file implements the LazyResolutionCatalog and its associated helper
+// classes.
+//
+// Interaction Model:
+//
+// The LazyResolutionCatalog holds collections of LazyResolution<Type> objects
+// (e.g., LazyResolutionFunction, LazyResolutionView). Each
+// LazyResolution<Type> class encapsulates the logic for a specific type of
+// catalog object (FUNCTION, VIEW, CONSTANT, etc.) defined by a single CREATE
+// statement.
+// Each LazyResolution<Type> instance contains a LazyResolutionObject. The
+// LazyResolutionObject is responsible for the core lazy analysis of the SQL
+// statement, and it maintains the analysis output and the analysis status.
+//
+// When a LazyResolutionCatalog::Find<Type> method is called, it delegates to
+// FindObject which is templated on the specific type. If the object hasn't been
+// resolved yet, it calls LazyResolution<Type>::ResolveAndUpdateIfNeeded method,
+// which in turn, calls LazyResolutionObject::AnalyzeStatementIfNeeded to ensure
+// that analysis is performed. Once analysis is complete, the AnalyzerOutput
+// held by LazyResolutionObject is used to construct the final, type-specific
+// catalog object (e.g., SQLFunction, SQLView).
+//
+// Concurrency Model:
+//
+// The lazy initialization is thread-safe and designed to minimize lock
+// contention, progressing through three main states: Initial, Analyzed, and
+// Fully Initialized.
+//
+// 1.  Analysis Phase (Initial -> Analyzed):
+//     LazyResolutionObject::AnalyzeStatementIfNeeded allows multiple threads to
+//     attempt analysis concurrently. The potentially long-running analysis does
+//     NOT hold the lock. LazyResolutionObject::resolution_mutex_ is used only
+//     briefly to check state and commit the analysis results from the first
+//     completed thread. If another thread also completes analysis after the
+//     first thread, it discards its results.
+//
+// 2.  Object Creation Phase (Analyzed -> Fully Initialized):
+//     The creation of the final catalog object within LazyResolution<Type> is
+//     synchronized using:
+//     a)  The *reused* LazyResolutionObject::resolution_mutex_: This lock
+//         protects the block where the final object (e.g., function_) is
+//         created and assigned. This avoids contention with the analysis phase
+//         as it happens strictly after.
+//     b)  Anbool fully_initialized_ in LazyResolutionObject: This
+//         flag is set to true under the mutex lock once the final object is
+//         assigned.
 
 namespace googlesql {
 
@@ -241,6 +290,10 @@ absl::Status LazyResolutionCatalog::FindObject(
         cycle_detector_object.DetectCycle(object_type_name);
 
     if (!cycle_status.ok()) {
+      // DetectCycle could return a kResourceExhausted or kInternal error.
+      if (ShouldPropagateError(cycle_status)) {
+        return cycle_status;
+      }
       GOOGLESQL_RET_CHECK_EQ(absl::StatusCode::kInvalidArgument, cycle_status.code());
       return MakeStatusWithErrorLocation(
           cycle_status.code(), cycle_status.message(), source_filename_,
@@ -559,7 +612,7 @@ std::string LazyResolutionObject::TypeName(bool capitalized) const {
 }
 
 bool LazyResolutionObject::NeedsResolutionLocked() const {
-  return status_.ok() && analyzer_output_ == nullptr;
+  return !is_fully_initialized() && status_.ok();
 }
 
 bool LazyResolutionObject::NeedsResolution() const {
@@ -648,23 +701,41 @@ absl::Status LazyResolutionObject::AnalyzeStatementIfNeeded(
                                 analyzer_options.error_message_options()));
     return status();
   }
+
+  // Concurrent calls to AnalyzeStatementIfNeeded share the same
+  // AnalyzerOptions. If those options contain an googlesql_base::UnsafeArena, multiple
+  // threads would attempt to allocate from it simultaneously during analysis.
+  // Since googlesql_base::UnsafeArena is not thread-safe, we must provide each thread with its
+  // own Arena and IdStringPool to prevent data races. Ownership of this local
+  // Arena is transferred to the resulting AnalyzerOutput.
+  auto arena = std::make_shared<googlesql_base::UnsafeArena>(/*block_size=*/4096);
+  AnalyzerOptions local_analyzer_options = analyzer_options;
+  local_analyzer_options.set_arena(arena);
+  local_analyzer_options.set_id_string_pool(
+      std::make_shared<IdStringPool>(arena));
+
   std::unique_ptr<const AnalyzerOutput> analyzer_output;
   absl::Status analyzer_status = AnalyzeStatementFromParserOutputUnowned(
-      &parser_output_, analyzer_options, sql(), catalog, type_factory,
+      &parser_output_, local_analyzer_options, sql(), catalog, type_factory,
       &analyzer_output);
   absl::MutexLock lock(&resolution_mutex_);
   if (NeedsResolutionLocked()) {
     // If the object still needs resolution (another thread hasn't
     // finished resolution and updated state while we were resolving), then
     // update the <lazy_resolution_object_>'s <status_> and <analyzer_output_>.
-    if (analyzer_status.ok()) {
+    // The NeedsResolutionLocked check above can return true after analysis is
+    // complete but before the object is fully initialized. We must also check
+    // that analyzer_output_ is null here to prevent a writer-writer race where
+    // a subsequent thread would overwrite the (already computed) analyzer
+    // output.
+    if (analyzer_status.ok() && analyzer_output_ == nullptr) {
       status_ = std::move(analyzer_status);
       analyzer_output_ = std::move(analyzer_output);
     } else {
       // Ensure that the error message location is properly updated as per
       // the specified Mode.
       status_ = MakeInvalidObjectStatus(
-          analyzer_status, analyzer_options.error_message_options());
+          analyzer_status, local_analyzer_options.error_message_options());
     }
   } else {
     // Another thread finished resolution and updated the function, so we
@@ -793,6 +864,7 @@ absl::Status LazyResolutionFunction::ResolveAndUpdateIfNeeded(
   GOOGLESQL_RETURN_IF_ERROR(lazy_resolution_object_.AnalyzeStatementIfNeeded(
       analyzer_options, catalog, type_factory));
 
+  std::unique_ptr<Function> resolved_function;
   auto function_options = std::make_unique<FunctionOptions>();
   // User-defined functions often use CamelCase. Upper casing makes it
   // unreadable.
@@ -810,7 +882,7 @@ absl::Status LazyResolutionFunction::ResolveAndUpdateIfNeeded(
         *function_options, module_details_, this->ResolvedStatement(),
         ArgumentNames(), AggregateExpressionList(),
         lazy_resolution_object_.parse_resume_location(), &non_sql_function));
-    function_ = std::move(non_sql_function);
+    resolved_function = std::move(non_sql_function);
   } else if (IsTemplated()) {
     GOOGLESQL_RET_CHECK(templated_expression_resume_location_.has_value());
     auto templated_sql_function = std::make_unique<ParsedTemplatedSQLFunction>(
@@ -822,7 +894,7 @@ absl::Status LazyResolutionFunction::ResolveAndUpdateIfNeeded(
                                                    : Function::SCALAR),
         *function_options, lazy_resolution_object_.parser_output());
     templated_sql_function->set_resolution_catalog(catalog);
-    function_ = std::move(templated_sql_function);
+    resolved_function = std::move(templated_sql_function);
   } else {
     // If we got to here, then resolution_status() must be ok.
     GOOGLESQL_RET_CHECK_OK(resolution_status());
@@ -833,9 +905,25 @@ absl::Status LazyResolutionFunction::ResolveAndUpdateIfNeeded(
         *function_options, FunctionExpression(), ArgumentNames(),
         AggregateExpressionList(),
         lazy_resolution_object_.parse_resume_location(), &sql_function));
-    function_ = std::move(sql_function);
+    resolved_function = std::move(sql_function);
   }
-  function_->set_statement_context(statement_context());
+
+  GOOGLESQL_RET_CHECK_NE(resolved_function, nullptr);
+  resolved_function->set_statement_context(statement_context());
+
+  // We need to hold the lock while we assign the resolved function, since
+  // multiple threads may be waiting for resolution to complete.
+  {
+    absl::MutexLock lock(
+        &lazy_resolution_object_.resolved_object_assignment_mutex());
+    if (function_ != nullptr) {
+      GOOGLESQL_RET_CHECK(lazy_resolution_object_.is_fully_initialized());
+      return absl::OkStatus();
+    }
+    function_ = std::move(resolved_function);
+    lazy_resolution_object_.set_fully_initialized();
+  }
+
   return absl::OkStatus();
 }
 
@@ -1030,9 +1118,11 @@ absl::Status LazyResolutionTableFunction::ResolveAndUpdateIfNeeded(
     TypeFactory* type_factory) {
   GOOGLESQL_RETURN_IF_ERROR(lazy_resolution_object_.AnalyzeStatementIfNeeded(
       analyzer_options, catalog, type_factory));
+
+  std::unique_ptr<TableValuedFunction> resolved_table_function;
   if (googlesql_base::CaseEqual(ResolvedStatement()->language(), "REMOTE")) {
     GOOGLESQL_ASSIGN_OR_RETURN(
-        table_function_,
+        resolved_table_function,
         remote_tvf_factory_->CreateRemoteTVF(*ResolvedStatement(),
                                              module_details_, catalog),
         _.SetCode(absl::StatusCode::kInvalidArgument).SetPrepend()
@@ -1049,21 +1139,34 @@ absl::Status LazyResolutionTableFunction::ResolveAndUpdateIfNeeded(
           this->ResolvedStatement()->argument_name_list(),
           templated_expression_resume_location_.value());
       templated_sql_tvf->set_resolution_catalog(catalog);
-      table_function_ = std::move(templated_sql_tvf);
+      resolved_table_function = std::move(templated_sql_tvf);
     } else if (ResolvedStatement()->query()) {
       std::unique_ptr<SQLTableValuedFunction> sql_tvf;
-      // TODO: What should we do here if this has an error?
-      // Same with all the places here?  Should we set the object's
-      // status to error, or return the error?  What is the contract?
       GOOGLESQL_RETURN_IF_ERROR(
           SQLTableValuedFunction::Create(this->ResolvedStatement(), &sql_tvf));
-      table_function_ = std::move(sql_tvf);
+      resolved_table_function = std::move(sql_tvf);
     }
   }
+
+  GOOGLESQL_RET_CHECK_NE(resolved_table_function, nullptr);
   // User-defined tvfs often use CamelCase. Upper casing makes it
   // unreadable.
-  table_function_->mutable_tvf_options().set_uses_upper_case_sql_name(false);
-  table_function_->set_statement_context(statement_context());
+  resolved_table_function->mutable_tvf_options().set_uses_upper_case_sql_name(
+      false);
+  resolved_table_function->set_statement_context(statement_context());
+
+  // We need to hold the lock while we assign the resolved table function, since
+  // multiple threads may be waiting for resolution to complete.
+  {
+    absl::MutexLock lock(
+        &lazy_resolution_object_.resolved_object_assignment_mutex());
+    if (table_function_ != nullptr) {
+      return absl::OkStatus();
+    }
+    table_function_ = std::move(resolved_table_function);
+    lazy_resolution_object_.set_fully_initialized();
+  }
+
   return absl::OkStatus();
 }
 
@@ -1198,7 +1301,23 @@ absl::Status LazyResolutionConstant::ResolveAndUpdateIfNeeded(
     TypeFactory* type_factory) {
   GOOGLESQL_RETURN_IF_ERROR(lazy_resolution_object_.AnalyzeStatementIfNeeded(
       analyzer_options, catalog, type_factory));
-  return SQLConstant::Create(this->ResolvedStatement(), &sql_constant_);
+
+  std::unique_ptr<SQLConstant> resolved_sql_constant;
+  GOOGLESQL_RETURN_IF_ERROR(
+      SQLConstant::Create(this->ResolvedStatement(), &resolved_sql_constant));
+
+  // We need to hold the lock while we assign the resolved table function, since
+  // multiple threads may be waiting for resolution to complete.
+  {
+    absl::MutexLock lock(
+        &lazy_resolution_object_.resolved_object_assignment_mutex());
+    if (sql_constant_ != nullptr) {
+      return absl::OkStatus();
+    }
+    sql_constant_ = std::move(resolved_sql_constant);
+    lazy_resolution_object_.set_fully_initialized();
+  }
+  return absl::OkStatus();
 }
 
 const ResolvedCreateConstantStmt* LazyResolutionConstant::ResolvedStatement()
@@ -1393,10 +1512,22 @@ absl::Status LazyResolutionView::ResolveAndUpdateIfNeeded(
   // views can only have INVOKER rights.
   SimpleSQLView::SqlSecurity security = SQLView::kSecurityInvoker;
   GOOGLESQL_ASSIGN_OR_RETURN(
-      std::unique_ptr<SimpleSQLView> sql_view,
+      std::unique_ptr<SimpleSQLView> resolved_sql_view,
       SimpleSQLView::Create(Name(), columns, security, stmt->is_value_table(),
                             stmt->query()));
-  view_ = std::move(sql_view);
+
+  // We need to hold the lock while we assign the resolved view, since
+  // multiple threads may be waiting for resolution to complete.
+  {
+    absl::MutexLock lock(
+        &lazy_resolution_object_.resolved_object_assignment_mutex());
+    if (view_ != nullptr) {
+      return absl::OkStatus();
+    }
+    view_ = std::move(resolved_sql_view);
+    lazy_resolution_object_.set_fully_initialized();
+  }
+
   return absl::OkStatus();
 }
 
@@ -1457,8 +1588,22 @@ absl::Status LazyResolutionProcedure::ResolveAndUpdateIfNeeded(
       analyzer_options, catalog, type_factory));
 
   const ResolvedCreateProcedureStmt* stmt = this->ResolvedStatement();
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<SQLProcedure> resolved_procedure,
+                   SQLProcedure::Create(stmt, module_details_));
+  resolved_procedure->set_resolution_catalog(catalog);
 
-  GOOGLESQL_ASSIGN_OR_RETURN(procedure_, SQLProcedure::Create(stmt, module_details_));
+  // We need to hold the lock while we assign the resolved procedure, since
+  // multiple threads may be waiting for resolution to complete.
+  {
+    absl::MutexLock lock(
+        &lazy_resolution_object_.resolved_object_assignment_mutex());
+    if (procedure_ != nullptr) {
+      return absl::OkStatus();
+    }
+    procedure_ = std::move(resolved_procedure);
+    lazy_resolution_object_.set_fully_initialized();
+  }
+
   return absl::OkStatus();
 }
 

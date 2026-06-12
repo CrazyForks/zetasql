@@ -69,10 +69,6 @@ std::unique_ptr<MatcherCollection<absl::Status>> ReferenceExpectedErrorMatcher(
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kUnimplemented,
       "Unsupported built-in function: keys\\.keyset_chain"));
-  // b/111212209
-  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
-      absl::StatusCode::kInvalidArgument,
-      "Checking the presence of scalar field .* is not supported for proto3"));
   // The RQG can produce assignments to repeated proto values that contain
   // NULL.
   error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
@@ -148,25 +144,9 @@ std::unique_ptr<MatcherCollection<absl::Status>> ReferenceExpectedErrorMatcher(
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
       absl::StatusCode::kOutOfRange, "Floating point error in function.*"));
 
-  // Aggregate values can overflow in large queries. However, this might not be
-  // the behavior other engines would expect.
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kResourceExhausted,
-      "Aggregate values are limited to "));
-
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kResourceExhausted, "Arrays are limited to "));
-
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kOutOfRange,
-      "Cannot construct array Value larger than "));
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kOutOfRange,
-      "Cannot construct struct Value larger than "));
-
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kResourceExhausted,
-      "Out of memory for MemoryAccountant"));
+  // Reference size errors.
+  error_matchers.emplace_back(
+      ReferenceResultTooLargeErrorMatcher("ReferenceResultTooLargeErrors"));
 
   // Expected errors for JSON_OBJECT.
   error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
@@ -218,31 +198,46 @@ std::unique_ptr<MatcherCollection<absl::Status>> ReferenceExpectedErrorMatcher(
         "in ORDER_BY_AND_LIMIT_IN_AGGREGATE rewriter"));
   }
 
-  // TODO: Reference implementation does not support TOKENLIST
-  // for TO_JSON_STRING.
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kUnimplemented,
-      "Unsupported argument type TOKENLIST for TO_JSON_STRING"));
-
-  // TODO: Reference implementation does not support TOKENLIST
-  // for TO_JSON.
-  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
-      absl::StatusCode::kUnimplemented,
-      "Unsupported argument type TOKENLIST for TO_JSON"));
   error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
       absl::StatusCode::kOutOfRange,
-      "Unsupported argument type TOKENLIST for TO_JSON"));
-
-  // TODO: b/322857409 - Reference implementation does not support MAP for
-  // TO_JSON functions.
-  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
-      absl::StatusCode::kUnimplemented,
-      "Unsupported argument type MAP.* for TO_JSON"));
-  // JSON_OBJECT and JSON_ARRAY generate kOutOfRange. These are harder to
-  // address.
-  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
+      "Invalid input to JSON_OBJECT: Unsupported argument type "
+      "TOKENLIST for TO_JSON"));
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
       absl::StatusCode::kOutOfRange,
-      "(JSON_OBJECT|JSON_ARRAY).*Unsupported argument type MAP.* for TO_JSON"));
+      "Invalid input to JSON_ARRAY: Unsupported argument type "
+      "TOKENLIST for TO_JSON"));
+
+  error_matchers.emplace_back(std::make_unique<StatusRegexMatcher>(
+      absl::StatusCode::kInvalidArgument,
+      "Unsupported argument to (JSON_OBJECT|JSON_ARRAY): MAP.* "
+      "does not support conversion to JSON"));
+
+  return std::make_unique<MatcherCollection<absl::Status>>(
+      matcher_name, std::move(error_matchers));
+}
+
+std::unique_ptr<MatcherCollection<absl::Status>>
+ReferenceResultTooLargeErrorMatcher(std::string matcher_name) {
+  std::vector<std::unique_ptr<MatcherBase<absl::Status>>> error_matchers;
+  // Aggregate values can overflow in large queries. However, this might not be
+  // the behavior other engines would expect.
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+      absl::StatusCode::kResourceExhausted,
+      "Aggregate values are limited to "));
+
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+      absl::StatusCode::kResourceExhausted, "Arrays are limited to "));
+
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+      absl::StatusCode::kOutOfRange,
+      "Cannot construct array Value larger than "));
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+      absl::StatusCode::kOutOfRange,
+      "Cannot construct struct Value larger than "));
+
+  error_matchers.emplace_back(std::make_unique<StatusSubstringMatcher>(
+      absl::StatusCode::kResourceExhausted,
+      "Out of memory for MemoryAccountant"));
 
   return std::make_unique<MatcherCollection<absl::Status>>(
       matcher_name, std::move(error_matchers));

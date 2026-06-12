@@ -126,6 +126,39 @@ SELECT * FROM t1 MATCH_RECOGNIZE(
 ARRAY<STRUCT<m INT64>>[unknown order:{2002}, {2008}]
 ==
 
+# M_R in subqueries in DEFINE and in MEASURES.
+# Note: the nested queries are designed to be simple enough to verify - they
+# simply select the minimum `y`.
+[name=nested_match_recognize]
+SELECT * FROM t1 MATCH_RECOGNIZE(
+  ORDER BY rowid + rowid
+  MEASURES
+    (
+      SELECT min(m) FROM t1 MATCH_RECOGNIZE(
+        ORDER BY rowid + rowid
+        MEASURES any_value(y) AS m
+        PATTERN ( a )
+        DEFINE
+          a AS y = 100
+        )
+    ) AS m
+  PATTERN ( a b )
+  DEFINE
+    a AS y = (
+      SELECT min(m) FROM t1 MATCH_RECOGNIZE(
+        ORDER BY rowid + rowid
+        MEASURES any_value(y) AS m
+        PATTERN ( a )
+        DEFINE
+          a AS y = 100
+        )
+    ),
+    b AS y = 101
+)
+--
+ARRAY<STRUCT<m INT64>>[unknown order:{100}, {100}]
+==
+
 [required_features=MULTILEVEL_AGGREGATION,MATCH_RECOGNIZE]
 [name=multilevel_aggregation_basic]
 SELECT * FROM t1 MATCH_RECOGNIZE(

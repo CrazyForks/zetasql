@@ -20,8 +20,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #include "gtest/gtest.h"

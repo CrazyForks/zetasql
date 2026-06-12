@@ -1,0 +1,46 @@
+MODULE googlesql.testdata.modules.nested_error_source;
+
+CREATE PUBLIC FUNCTION nested_error_a(arg ANY TYPE)
+AS (
+  nested_error_b(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_b(arg ANY TYPE)
+AS (
+  nested_error_c(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_c(arg ANY TYPE)
+AS (
+  nested_error_d(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_d(arg ANY TYPE)
+AS (
+  nested_error_e(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_e(arg ANY TYPE)
+AS (
+  nested_error_f(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_f(arg ANY TYPE)
+AS (
+  nested_error_g(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_g(arg ANY TYPE)
+AS (
+  arg.nonexistent
+);
+
+CREATE PUBLIC FUNCTION nested_error_h(arg ANY TYPE)
+AS (
+  nested_error_i(arg)
+);
+
+CREATE PUBLIC FUNCTION nested_error_i(arg ANY TYPE)
+AS (
+  arg.nonexistent
+);

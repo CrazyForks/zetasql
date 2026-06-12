@@ -6213,6 +6213,62 @@ TEST(JsonSetTest, CreateIfMissingFalse) {
       R"({"a":null, "b":{}, "c":[], "d":{"e":1}, "f":[999, [], {}, [3, 4]]})");
 }
 
+TEST(JsonSetTest, ErrorOnTypeMismatch) {
+  constexpr absl::string_view kInitialValue = R"({"a":1, "b":[], "c":[1, {}]})";
+  struct TestCase {
+    std::string path;
+    JsonMismatchType mismatch_type;
+  };
+  std::vector<TestCase> test_cases = {
+      {.path = "$.a[0]",
+       .mismatch_type = JsonMismatchType::kArrayIndexMismatch},
+      {.path = "$.b.c",
+       .mismatch_type = JsonMismatchType::kObjectFieldMismatch},
+      {.path = "$.c[1][0]",
+       .mismatch_type = JsonMismatchType::kArrayIndexMismatch},
+      {.path = "$.a.b",
+       .mismatch_type = JsonMismatchType::kObjectFieldMismatch},
+  };
+
+  for (const auto& test_case : test_cases) {
+    for (bool create_if_missing : {true, false}) {
+      SCOPED_TRACE(absl::Substitute("JsonSet('$0', '$1', 10, $2, true)",
+                                    kInitialValue, test_case.path,
+                                    create_if_missing));
+      JSONValue value = JSONValue::ParseJSONString(kInitialValue).value();
+      JSONValueRef ref = value.GetRef();
+      std::unique_ptr<StrictJSONPathIterator> path_iterator =
+          ParseJSONPath(test_case.path);
+      JsonSetFailureDetails failure_details;
+      EXPECT_THAT(
+          JsonSet(ref, *path_iterator, Value::Int64(10), create_if_missing,
+                  LanguageOptions(),
+                  /*canonicalize_zero=*/true,
+                  /*error_on_type_mismatch=*/true, &failure_details),
+          StatusIs(absl::StatusCode::kOutOfRange, HasSubstr("Type mismatch")));
+      EXPECT_THAT(
+          ref,
+          JsonEq(JSONValue::ParseJSONString(kInitialValue)->GetConstRef()));
+      EXPECT_THAT(failure_details.mismatch_type, test_case.mismatch_type);
+    }
+  }
+}
+
+TEST(JsonSetTest, NoErrorOnTypeMismatch) {
+  constexpr absl::string_view kInitialValue = R"({"a":1})";
+  JSONValue value = JSONValue::ParseJSONString(kInitialValue).value();
+  JSONValueRef ref = value.GetRef();
+  std::unique_ptr<StrictJSONPathIterator> path_iterator = ParseJSONPath("$.a");
+  JsonSetFailureDetails failure_details;
+  GOOGLESQL_EXPECT_OK(JsonSet(ref, *path_iterator, Value::Int64(10),
+                    /*create_if_missing=*/true, LanguageOptions(),
+                    /*canonicalize_zero=*/true,
+                    /*error_on_type_mismatch=*/false, &failure_details));
+  EXPECT_THAT(ref,
+              JsonEq(JSONValue::ParseJSONString(R"({"a":10})")->GetConstRef()));
+  EXPECT_THAT(failure_details.mismatch_type, JsonMismatchType::kNone);
+}
+
 TEST(JsonStripNullsTest, NoopPathNonexistent) {
   constexpr absl::string_view kInitialValue =
       R"({"a":1, "b":[null, {"c":null}], "d":{"e":[null], "f":[null]}})";
@@ -6545,19 +6601,44 @@ struct JsonContainsTestCase {
   std::string input;
   std::string target;
   bool expected;
+  // If no value is given, the test case must pass for both "true" and "false"
+  // values of compare_numbers_in_decimal.
+  std::optional<bool> compare_numbers_in_decimal = std::nullopt;
 };
 
 void TestJsonContainsFn(absl::Span<const JsonContainsTestCase> cases) {
-  for (const auto& [input, target, expected] : cases) {
+  for (const auto& [input, target, expected, compare_numbers_in_decimal] :
+       cases) {
     JSONValue input_value = JSONValue::ParseJSONString(input).value();
     JSONValue target_value = JSONValue::ParseJSONString(target).value();
-    EXPECT_EQ(
-        JsonContains(input_value.GetConstRef(), target_value.GetConstRef()),
-        expected)
+    bool result =
+        JsonContains(input_value.GetConstRef(), target_value.GetConstRef(),
+                     compare_numbers_in_decimal.value_or(false));
+    EXPECT_EQ(result, expected)
         << "Failed test case: JSON_CONTAINS(" << input << ", " << target
         << ") should return " << !expected;
+    if (!compare_numbers_in_decimal.has_value()) {
+      EXPECT_EQ(
+          JsonContains(input_value.GetConstRef(), target_value.GetConstRef(),
+                       /*compare_numbers_in_decimal=*/true),
+          result)
+          << "Failed test case: JSON_CONTAINS(" << input << ", " << target
+          << ") with compare_numbers_in_decimal=true should return " << result;
+    }
   }
 }
+
+// This is the value 2^55 as a double serialized to JSON. It is interesting
+// because it is rounded when converting to decimal. JSON comparison with this
+// value are therefore sensitive to compare_numbers_in_decimal.
+constexpr const char* kRoundedDouble = R"(3.602879701896397e+16)";
+// This is the value of casting said double to an int64. It compares equal to
+// the double only when compare_numbers_in_decimal = false;
+constexpr const char* kRoundedDoubleToIntBinary = R"(36028797018963968)";
+// This is the value of converting the serialized decimal representation of the
+// double to an integer. It compares equal to the double only when
+// compare_numbers_in_decimal = true;
+constexpr const char* kRoundedDoubleToIntDecimal = R"(36028797018963970)";
 
 TEST(JsonContainsTest, JsonScalar) {
   std::vector<JsonContainsTestCase> cases;
@@ -6573,6 +6654,22 @@ TEST(JsonContainsTest, JsonScalar) {
   cases.push_back({R"(1)", R"(1.00)", true});
   cases.push_back({R"(1.0)", R"(1)", true});
   cases.push_back({R"(1.0)", R"(1.00)", true});
+
+  // Numeric cases which are sensitive to compare_numbers_in_decimal.
+  cases.push_back({kRoundedDouble, kRoundedDoubleToIntBinary, true,
+                   /*compare_numbers_in_decimal=*/false});
+  cases.push_back({kRoundedDouble, kRoundedDoubleToIntBinary, false,
+                   /*compare_numbers_in_decimal=*/true});
+  cases.push_back({kRoundedDouble, kRoundedDoubleToIntDecimal, false,
+                   /*compare_numbers_in_decimal=*/false});
+  cases.push_back({kRoundedDouble, kRoundedDoubleToIntDecimal, true,
+                   /*compare_numbers_in_decimal=*/true});
+
+  // Near-miss test case for compare_numbers_in_decimal. When both values are
+  // cast to doubles they are equal, but only because of rounding done during
+  // the int64 -> double conversion. These should not be equal in either decimal
+  // or binary comparison modes.
+  cases.push_back({R"(3.602879701896397e+16)", R"(36028797018963969)", false});
 
   // Test string type.
   cases.push_back({R"("true")", R"("true")", true});
@@ -6676,6 +6773,17 @@ TEST(JsonContainsTest, JsonArray) {
   cases.push_back({input, R"([{"d":{"e":6}}, {"b":4}])", true});
   cases.push_back({input, R"([{"d":{"e":6,"f":7}}])", true});
 
+  // Numeric cases which are sensitive to compare_numbers_in_decimal.
+  auto to_arr = [](const char* s) { return absl::StrCat("[", s, "]"); };
+  cases.push_back({to_arr(kRoundedDouble), to_arr(kRoundedDoubleToIntBinary),
+                   true, /*compare_numbers_in_decimal=*/false});
+  cases.push_back({to_arr(kRoundedDouble), to_arr(kRoundedDoubleToIntBinary),
+                   false, /*compare_numbers_in_decimal=*/true});
+  cases.push_back({to_arr(kRoundedDouble), to_arr(kRoundedDoubleToIntDecimal),
+                   false, /*compare_numbers_in_decimal=*/false});
+  cases.push_back({to_arr(kRoundedDouble), to_arr(kRoundedDoubleToIntDecimal),
+                   true, /*compare_numbers_in_decimal=*/true});
+
   TestJsonContainsFn(cases);
 }
 
@@ -6755,6 +6863,17 @@ TEST(JsonContainsTest, JsonObject) {
 
   cases.push_back({R"({})", R"({})", true});
   cases.push_back({R"({})", R"(null)", false});
+
+  // Numeric cases which are sensitive to compare_numbers_in_decimal.
+  auto to_obj = [](const char* s) { return absl::StrCat(R"({"n":)", s, "}"); };
+  cases.push_back({to_obj(kRoundedDouble), to_obj(kRoundedDoubleToIntBinary),
+                   true, /*compare_numbers_in_decimal=*/false});
+  cases.push_back({to_obj(kRoundedDouble), to_obj(kRoundedDoubleToIntBinary),
+                   false, /*compare_numbers_in_decimal=*/true});
+  cases.push_back({to_obj(kRoundedDouble), to_obj(kRoundedDoubleToIntDecimal),
+                   false, /*compare_numbers_in_decimal=*/false});
+  cases.push_back({to_obj(kRoundedDouble), to_obj(kRoundedDoubleToIntDecimal),
+                   true, /*compare_numbers_in_decimal=*/true});
 
   TestJsonContainsFn(cases);
 }

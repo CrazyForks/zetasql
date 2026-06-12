@@ -34,6 +34,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -43,7 +44,6 @@
 #include "unicode/utf8.h"
 #include "googlesql/base/edit_distance.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {
@@ -86,10 +86,10 @@ absl::Status PopulateSparseInput(absl::Span<const Value> input_array,
   absl::Status status;
   for (const Value& element : input_array) {
     if (element.is_null()) {
-      return absl::InvalidArgumentError("NULL array element");
+      return absl::OutOfRangeError("NULL array element");
     }
     if (element.field(0).is_null() || element.field(1).is_null()) {
-      return absl::InvalidArgumentError("NULL struct field");
+      return absl::OutOfRangeError("NULL struct field");
     }
     IdxType index;
     if constexpr (std::is_same_v<IdxType, std::string>) {
@@ -99,7 +99,7 @@ absl::Status PopulateSparseInput(absl::Span<const Value> input_array,
     }
     double value = element.field(1).Get<double>();
     if (!map.emplace(index, value).second) {
-      return absl::InvalidArgumentError(absl::Substitute(
+      return absl::OutOfRangeError(absl::Substitute(
           "Duplicate index $0 found in the input array", index));
     }
     all_indices.emplace(index);
@@ -148,7 +148,7 @@ absl::StatusOr<Value> ComputeCosineDistance(
   }
 
   if (len_a == 0 || len_b == 0) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         "Cannot compute cosine distance against zero vector");
   }
 
@@ -388,7 +388,7 @@ MakeZippedArrayElementsSupplier(const std::vector<Value>& vector1,
 
 absl::StatusOr<Value> CosineDistanceDense(Value vector1, Value vector2) {
   if (vector1.num_elements() != vector2.num_elements()) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         absl::Substitute("Array length mismatch: $0 and $1",
                          vector1.num_elements(), vector2.num_elements()));
   }
@@ -414,7 +414,7 @@ absl::StatusOr<Value> CosineDistanceSparseStringKey(Value vector1,
 
 absl::StatusOr<Value> EuclideanDistanceDense(Value vector1, Value vector2) {
   if (vector1.num_elements() != vector2.num_elements()) {
-    return absl::InvalidArgumentError(
+    return absl::OutOfRangeError(
         absl::Substitute("Array length mismatch: $0 and $1",
                          vector1.num_elements(), vector2.num_elements()));
   }
@@ -534,7 +534,7 @@ absl::StatusOr<std::vector<char32_t>> GetUtf8CodePoints(absl::string_view s) {
     UChar32 character;
     U8_NEXT(s, offset, s.size(), character);
     if (character < 0) {
-      return absl::InvalidArgumentError("Invalid UTF8 string");
+      return absl::OutOfRangeError("Invalid UTF8 string");
     }
     result.push_back(character);
   }
@@ -549,7 +549,7 @@ absl::StatusOr<int64_t> EditDistance(
                              ? max_distance_value.value()
                              : std::max(s0.size(), s1.size());
   if (max_distance < 0) {
-    return absl::InvalidArgumentError("Max distance must be non-negative");
+    return absl::OutOfRangeError("Max distance must be non-negative");
   }
   const int64_t max_possible_distance = std::max(s0.size(), s1.size());
   if (max_distance > max_possible_distance) {
@@ -574,7 +574,7 @@ absl::StatusOr<int64_t> EditDistanceBytes(
                              ? max_distance_value.value()
                              : std::max(s0.size(), s1.size());
   if (max_distance < 0) {
-    return absl::InvalidArgumentError("Max distance must be non-negative");
+    return absl::OutOfRangeError("Max distance must be non-negative");
   }
   const int64_t max_possible_distance = std::max(s0.size(), s1.size());
   if (max_distance > max_possible_distance) {

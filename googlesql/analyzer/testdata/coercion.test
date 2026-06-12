@@ -2894,8 +2894,6 @@ select 1 = CAST(1 as ROUNDING_MODE),
 
 [language_features=NONE,+NUMERIC_TYPE,+ROUND_WITH_ROUNDING_MODE]
 [product_mode={{internal|external}}]
-[no_java]
-# TODO: Fix java
 select STRUCT( nested_catalog.constant_rounding_mode) = struct(1)
 --
 ALTERNATION GROUP: internal
@@ -2922,7 +2920,7 @@ ALTERNATION GROUP: external
 ERROR: No matching signature for operator = for argument types: STRUCT<constant_rounding_mode ROUNDING_MODE>, STRUCT<INT64>
   Signature: T1 = T1
     Unable to find common supertype for templated argument <T1>
-      Input types for <T1>: {STRUCT<constant_rounding_mode ROUNDING_MODE>, STRUCT<INT64>} [at 2:8]
+      Input types for <T1>: {STRUCT<constant_rounding_mode ROUNDING_MODE>, STRUCT<INT64>} [at 1:8]
 select STRUCT( nested_catalog.constant_rounding_mode) = struct(1)
        ^
 
@@ -2930,8 +2928,6 @@ select STRUCT( nested_catalog.constant_rounding_mode) = struct(1)
 
 [language_features=NONE,+NUMERIC_TYPE,+ROUND_WITH_ROUNDING_MODE]
 [product_mode={{internal|external}}]
-[no_java]
-# TODO: Fix java
 select nested_catalog.constant_rounding_mode in (1, 2)
 --
 ALTERNATION GROUP: internal
@@ -2953,7 +2949,7 @@ QueryStmt
 --
 ALTERNATION GROUP: external
 --
-ERROR: No matching signature for operator IN for argument types ENUM<ROUNDING_MODE> and {INT64} [at 2:46]
+ERROR: No matching signature for operator IN for argument types ENUM<ROUNDING_MODE> and {INT64} [at 1:46]
 select nested_catalog.constant_rounding_mode in (1, 2)
                                              ^
 

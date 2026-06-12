@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/common/errors.h"
 #include "googlesql/common/function_utils.h"
 #include "googlesql/proto/function.pb.h"
 #include "googlesql/public/catalog.h"
@@ -37,12 +38,14 @@
 #include "googlesql/public/simple_table.pb.h"
 #include "googlesql/public/strings.h"
 #include "googlesql/public/types/annotation.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_deserializer.h"
 #include "googlesql/public/types/type_factory.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -51,7 +54,6 @@
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -423,6 +425,9 @@ absl::StatusOr<TVFRelationColumnProto> TVFSchemaColumn::ToProto(
   TVFRelationColumnProto proto;
   proto.set_name(name);
   proto.set_is_pseudo_column(is_pseudo_column);
+  if (is_passthrough_column) {
+    proto.set_is_passthrough_column(is_passthrough_column);
+  }
   GOOGLESQL_RETURN_IF_ERROR(type->SerializeToProtoAndDistinctFileDescriptors(
       proto.mutable_type(), file_descriptor_set_map));
   if (annotation_map != nullptr) {
@@ -435,6 +440,9 @@ absl::StatusOr<TVFRelationColumnProto> TVFSchemaColumn::ToProto(
   if (type_parse_location_range.has_value()) {
     GOOGLESQL_ASSIGN_OR_RETURN(*proto.mutable_type_parse_location_range(),
                      type_parse_location_range.value().ToProto());
+  }
+  if (!type_modifiers.IsEmpty()) {
+    GOOGLESQL_RETURN_IF_ERROR(type_modifiers.Serialize(proto.mutable_type_modifiers()));
   }
   return proto;
 }
@@ -450,8 +458,14 @@ absl::StatusOr<TVFSchemaColumn> TVFSchemaColumn::FromProto(
     GOOGLESQL_RETURN_IF_ERROR(type_deserializer.type_factory()->DeserializeAnnotationMap(
         proto.annotation_map(), &annotation_map));
   }
+  TypeModifiers type_modifiers;
+  if (proto.has_type_modifiers()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
+                     TypeModifiers::Deserialize(proto.type_modifiers()));
+  }
   TVFRelation::Column column(proto.name(), {type, annotation_map},
-                             proto.is_pseudo_column());
+                             proto.is_pseudo_column(),
+                             proto.is_passthrough_column(), type_modifiers);
   ParseLocationRange location_range;
   if (proto.has_name_parse_location_range()) {
     GOOGLESQL_ASSIGN_OR_RETURN(
@@ -472,6 +486,34 @@ absl::StatusOr<TVFSchemaColumn> TVFSchemaColumn::FromProto(
     const std::vector<const google::protobuf::DescriptorPool*>& pools,
     TypeFactory* factory) {
   return TVFSchemaColumn::FromProto(proto, TypeDeserializer(factory, pools));
+}
+
+absl::Status TVFSchemaColumn::IsValid(ProductMode product_mode) const {
+  if (!type_modifiers.IsEmpty()) {
+    absl::Status status = type->ValidateResolvedTypeParameters(
+        type_modifiers.type_parameters(), product_mode);
+    if (!status.ok()) {
+      return MakeSqlError() << "Type parameters must have compatible structure "
+                               "with the column type: "
+                            << DebugString(false);
+    }
+
+    const Collation& collation = type_modifiers.collation();
+    if (!collation.HasCompatibleStructure(type)) {
+      return MakeSqlError() << "Collation must have compatible structure with "
+                               "the column type: "
+                            << DebugString(false);
+    }
+  }
+
+  if (annotation_map != nullptr &&
+      !annotation_map->HasCompatibleStructure(type)) {
+    return MakeSqlError()
+           << "The annotation map is not compatible with column type: "
+           << DebugString(false);
+  }
+
+  return absl::OkStatus();
 }
 
 std::string TVFRelation::GetSQLDeclaration(ProductMode product_mode) const {
@@ -530,9 +572,11 @@ absl::StatusOr<TVFRelation> TVFRelation::Deserialize(
 
 bool operator==(const TVFSchemaColumn& a, const TVFSchemaColumn& b) {
   return a.name == b.name && a.is_pseudo_column == b.is_pseudo_column &&
+         a.is_passthrough_column == b.is_passthrough_column &&
          (a.type == b.type ||
           (a.type != nullptr && b.type != nullptr && a.type->Equals(b.type))) &&
-         AnnotationMap::Equals(a.annotation_map, b.annotation_map);
+         AnnotationMap::Equals(a.annotation_map, b.annotation_map) &&
+         a.type_modifiers == b.type_modifiers;
 }
 
 bool operator==(const TVFRelation& a, const TVFRelation& b) {

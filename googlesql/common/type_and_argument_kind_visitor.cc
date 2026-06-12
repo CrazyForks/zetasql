@@ -71,6 +71,7 @@ ComponentSignatureArgumentKindsMap() {
           {ARG_STRUCT_ANY, {}},
           {ARG_ENUM_ANY, {}},
           {ARG_PROTO_ANY, {}},
+          {ARG_TYPE_STRING_ANY, {}},
 
           // Even though PROTO_MAP_ANY is related to PROTO_MAP_KEY_ANY and
           // PROTO_MAP_VALUE_ANY, the type itself is not modeled as a
@@ -136,6 +137,7 @@ absl::StatusOr<bool> IsRelatedToOtherArguments(SignatureArgumentKind kind) {
     case ARG_TYPE_GRAPH_EDGE:
     case ARG_TYPE_GRAPH_ELEMENT:
     case ARG_TYPE_GRAPH_PATH:
+    case ARG_TYPE_STRING_ANY:
       return false;
     // Non-scalars should never be passed to this function.
     case ARG_TYPE_LAMBDA:

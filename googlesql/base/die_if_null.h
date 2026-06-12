@@ -18,6 +18,7 @@
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_DIE_IF_NULL_H_
 
 #include "googlesql/base/check.h"
+#include "googlesql/base/check.h"
 
 #define GOOGLESQL_DIE_IF_NULL(expr) ::googlesql_internal::DieIfNull(expr)
 

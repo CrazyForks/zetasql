@@ -43,6 +43,22 @@ class ResolvedASTVisitor {
     return node->ChildrenAccept(this);
   }
 
+  virtual absl::Status DefaultVisit(const ResolvedColumn& column) {
+    return VisitResolvedColumn(column);
+  }
+
+  virtual absl::Status DefaultVisit(const Type* type) {
+    return VisitType(type);
+  }
+
+  virtual absl::Status VisitResolvedColumn(const ResolvedColumn& column) {
+    return absl::OkStatus();
+  }
+
+  virtual absl::Status VisitType(const Type* type) {
+    return absl::OkStatus();
+  }
+
 # for node in nodes
   virtual absl::Status Visit{{node.name}}(const {{node.name}}* node) {
     return DefaultVisit(node);

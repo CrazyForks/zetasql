@@ -35,16 +35,13 @@
 #include <variant>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/base/path.h"
 #include "googlesql/common/float_margin.h"
 #include "googlesql/common/internal_value.h"
-#include "googlesql/common/measure_analysis_utils.h"
 #include "googlesql/common/options_utils.h"
 #include "googlesql/common/status_payload_utils.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/compliance/compliance_label.pb.h"
-#include "googlesql/compliance/compliance_label_extractor.h"
 #include "googlesql/compliance/known_error.pb.h"
 #include "googlesql/compliance/legal_runtime_errors.h"
 #include "googlesql/compliance/matchers.h"
@@ -74,7 +71,6 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/resolved_ast/sql_builder.h"
-#include "googlesql/testing/test_value.h"
 #include "googlesql/testing/type_util.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -84,8 +80,10 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
+#include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -107,12 +105,11 @@
 #include "googlesql/base/file_util.h"  
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/text_format.h"  
-#include "google/protobuf/text_format.h"
+#include "re2/re2.h"
 #include "googlesql/base/map_util.h"
 #include "farmhash.h"
-#include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 ABSL_FLAG(std::vector<std::string>, known_error_files, {},
           "Comma-separated list of known error filenames");
@@ -136,8 +133,9 @@ ABSL_FLAG(
     "is useful for test runs where the reason for error is not important. "
     "Other error codes like ALLOW_ERROR_OR_WRONG_ANSWER are still "
     "distinguished.");
-ABSL_FLAG(bool, googlesql_compliance_accept_all_test_output, false,
-          "Pretend no tests failed by ignoring their output.");
+ABSL_FLAG(bool, googlesql_compliance_only_inspect_test_case, false,
+          "Do as little work as possible, only calling InspectTestCase(). If "
+          "set, tests will not be executed, and results will not be enforced.");
 // Ideally we would rename this to --statement_name_pattern, but that might
 // break some command line somewhere.
 ABSL_FLAG(std::string, query_name_pattern, "",
@@ -172,6 +170,11 @@ ABSL_FLAG(bool, googlesql_compliance_extract_labels_using_all_rewrites, false,
 ABSL_FLAG(bool, googlesql_compliance_print_array_orderedness, false,
           "When true, includes the 'known order:', 'unknown order:' prefix "
           "on array values with two or more elements.");
+ABSL_FLAG(bool, googlesql_compliance_enforce_features_for_reference, false,
+          "When true, the compliance framework will enforce that tests with "
+          "required features that the reference implementation does not enable "
+          "by default or forbidden features that it does will fail the test "
+          "like any other engine.");
 
 ABSL_FLAG(bool, googlesql_verify_compliance_goldens, false,
           "When true the compliance test is verifying the expected or 'golden' "
@@ -199,6 +202,16 @@ class AutoLanguageOptions {
   ReferenceDriver* reference_driver_;
   LanguageOptions original_options_;
 };
+
+// Helper function to insert language features into the reference driver.
+void InsertLanguageFeatures(ReferenceDriver* driver,
+                            const std::set<LanguageFeature>& features) {
+  LanguageOptions language_options_copy = driver->language_options();
+  for (LanguageFeature feature : features) {
+    language_options_copy.EnableLanguageFeature(feature);
+  }
+  driver->SetLanguageOptions(language_options_copy);
+}
 
 }  // anonymous namespace
 
@@ -344,13 +357,17 @@ class Stats {
   // In both reference implementation test and engine test, compliance labels
   // will be extracted and written to undeclared output file.
   // This function can only be called after matchers are invoked by EXPECT_THAT.
+  //
+  // `actual_reason` If the engine returned a Status, this should be the
+  //     message. Otherwise it is a string hard coded at the
+  //     RecordComplianceTestLabelsProto that indicates how that path was taken.
   void RecordComplianceTestsLabelsProto(
       absl::string_view test_name, absl::string_view sql,
       const std::map<std::string, Value>& params, absl::string_view location,
       KnownErrorMode actual_error_mode,
       const absl::btree_set<std::string>& label_set,
-      absl::StatusCode expected_error_code,
-      absl::StatusCode actual_error_code) {
+      absl::StatusCode expected_error_code, absl::StatusCode actual_error_code,
+      absl::string_view actual_reason) {
     // We don't run most of this function in presubmit, so we add the check
     // before the early return to guard against regressions.
     ABSL_CHECK(!test_name.empty());
@@ -529,8 +546,8 @@ void Stats::RecordStatementExecutionTime(absl::Duration elapsed) {
 }
 
 void Stats::LogGoogletestProperties() const {
-  RecordProperty("Passed", num_executed_ - failures_.size());
-  RecordProperty("Failed", failures_.size());
+  RecordProperty("Passed", static_cast<int>(num_executed_ - failures_.size()));
+  RecordProperty("Failed", static_cast<int>(failures_.size()));
   RecordProperty("KnownErrors", num_known_errors_);
   RecordProperty(
       "Compliance",
@@ -736,9 +753,9 @@ std::string StatementResultToString(const StatementResult& stmt_result) {
                       SQLTestBase::ToString(status_or));
 }
 
-bool CompareScriptResults(const ScriptResult& expected,
-                          const ScriptResult& actual, FloatMargin float_margin,
-                          std::string* reason) {
+bool CompareScriptResults(const MultiStmtResult& expected,
+                          const MultiStmtResult& actual,
+                          FloatMargin float_margin, std::string* reason) {
   reason->clear();
   // Compare common statement results
   for (int i = 0; i < std::min(expected.statement_results.size(),
@@ -775,7 +792,7 @@ bool CompareScriptResults(const ScriptResult& expected,
 
 // TODO: b/388309312 - Change the string representation to start with
 // "MultiStmtResult" instead.
-std::string ScriptResultToString(const ScriptResult& result) {
+std::string ScriptResultToString(const MultiStmtResult& result) {
   return absl::StrCat(
       "ScriptResult\n",
       absl::StrJoin(result.statement_results, "\n",
@@ -801,10 +818,10 @@ MATCHER_P2(ReturnsStatusOrValue, expected, float_margin,
           {.interval_compare_mode = IntervalCompareMode::kSqlEquals,
            .float_margin = float_margin,
            .reason = &reason});
-    } else if (std::holds_alternative<ScriptResult>(expected.value()) &&
-               std::holds_alternative<ScriptResult>(arg.value())) {
-      passed = CompareScriptResults(std::get<ScriptResult>(expected.value()),
-                                    std::get<ScriptResult>(arg.value()),
+    } else if (std::holds_alternative<MultiStmtResult>(expected.value()) &&
+               std::holds_alternative<MultiStmtResult>(arg.value())) {
+      passed = CompareScriptResults(std::get<MultiStmtResult>(expected.value()),
+                                    std::get<MultiStmtResult>(arg.value()),
                                     float_margin, &reason);
     }
   } else if (!absl::GetFlag(FLAGS_ignore_wrong_error_codes)) {
@@ -912,7 +929,7 @@ class KnownErrorFilter
     const KnownErrorMode from_mode = sql_test_->known_error_mode();
     // CRASHES_DO_NOT_RUN is always skipped, return here.
     if (KnownErrorMode::CRASHES_DO_NOT_RUN == from_mode ||
-        absl::GetFlag(FLAGS_googlesql_compliance_accept_all_test_output)) {
+        absl::GetFlag(FLAGS_googlesql_compliance_only_inspect_test_case)) {
       LogToCSV(/*passed=*/false, from_mode);
       cached_match_result_ = true;
       return true;
@@ -942,7 +959,8 @@ class KnownErrorFilter
       sql_test_->stats_->RecordComplianceTestsLabelsProto(
           sql_test_->full_name_, sql_test_->sql_, sql_test_->parameters_,
           sql_test_->location(), to_mode, sql_test_->compliance_labels_,
-          expected_status_.code(), result.status().code());
+          expected_status_.code(), result.status().code(),
+          result.status().message());
     }
     // If true, mismatching error codes does not trigger test failure.
     bool ignore_error_code = false;
@@ -1332,6 +1350,7 @@ static void ExtractComplianceLabelsFromResolvedAST(
       RESOLVED_DELETE_STMT,
       RESOLVED_GENERALIZED_QUERY_STMT,
       RESOLVED_GENERALIZED_QUERY_SUBPIPELINE,
+      RESOLVED_TERMINAL_QUERY_STMT,
   });
   for (LanguageFeature feature : required_features) {
     language_options.EnableLanguageFeature(feature);
@@ -1345,6 +1364,7 @@ static void ExtractComplianceLabelsFromResolvedAST(
   language_options.set_product_mode(PRODUCT_INTERNAL);
   reference_driver->SetLanguageOptions(language_options);
   std::optional<bool> product_internal_uses_unsupported_type = false;
+  const Type* product_internal_unsupported_type_example = nullptr;
   // TODO: Refactor ReferenceDriver::GetAnalyzerOptions to take
   //     LanguageOptions as an argument so we don't have to set the state and
   //     then re-set it using AutoLanguageOptions
@@ -1379,7 +1399,8 @@ static void ExtractComplianceLabelsFromResolvedAST(
       product_internal_uses_unsupported_type =
           ReferenceDriver::UsesUnsupportedType(
               analyzer_options.language(),
-              product_internal_analyzer_out->resolved_statement());
+              product_internal_analyzer_out->resolved_statement(),
+              &product_internal_unsupported_type_example);
     }
   }
 
@@ -1387,6 +1408,7 @@ static void ExtractComplianceLabelsFromResolvedAST(
   language_options.set_product_mode(PRODUCT_EXTERNAL);
   reference_driver->SetLanguageOptions(language_options);
   std::optional<bool> product_external_uses_unsupported_type = false;
+  const Type* product_external_unsupported_type_example = nullptr;
   absl::StatusOr<AnalyzerOptions> product_external_analyzer_options_or_err =
       reference_driver->GetAnalyzerOptions(
           parameters, product_external_uses_unsupported_type);
@@ -1405,7 +1427,8 @@ static void ExtractComplianceLabelsFromResolvedAST(
       product_external_uses_unsupported_type =
           ReferenceDriver::UsesUnsupportedType(
               analyzer_options.language(),
-              product_external_analyzer_out->resolved_statement());
+              product_external_analyzer_out->resolved_statement(),
+              &product_external_unsupported_type_example);
     }
   }
 
@@ -1415,7 +1438,6 @@ static void ExtractComplianceLabelsFromResolvedAST(
   bool external_compiles = product_external_analyzer_options_or_err.ok() &&
                            product_external_analyze_status.ok() &&
                            !*product_external_uses_unsupported_type;
-  const ResolvedStatement* statement = nullptr;
   auto add_labels_from = [&](const AnalyzerOutput& output) {
     return ExtractComplianceLabelsNoCompression(output, compliance_labels);
   };
@@ -1429,6 +1451,20 @@ static void ExtractComplianceLabelsFromResolvedAST(
       to_report.Update(product_internal_analyze_status);
       to_report.Update(product_external_analyzer_options_or_err.status());
       to_report.Update(product_external_analyze_status);
+      if (product_internal_uses_unsupported_type.value_or(false)) {
+        to_report.Update(absl::InvalidArgumentError(absl::StrCat(
+            "Unsupported type with PRODUCT_INTERNAL: ",
+            product_internal_unsupported_type_example
+                ? product_internal_unsupported_type_example->DebugString()
+                : "[unknown]")));
+      }
+      if (product_external_uses_unsupported_type.value_or(false)) {
+        to_report.Update(absl::InvalidArgumentError(absl::StrCat(
+            "Unsupported type with PRODUCT_EXTERNAL: ",
+            product_external_unsupported_type_example
+                ? product_external_unsupported_type_example->DebugString()
+                : "[unknown]")));
+      }
       ADD_FAILURE()
           << "Test '" << test_name << "' does not successfully compile "
           << "with maximum features plus required less forbidden. This test is "
@@ -1443,15 +1479,12 @@ static void ExtractComplianceLabelsFromResolvedAST(
   } else if (internal_compiles && external_compiles) {
     compliance_labels.emplace(kProductModeInternalAndExternalLabel);
     // This is an arbitrary choice.
-    statement = product_internal_analyzer_out->resolved_statement();
     GOOGLESQL_EXPECT_OK(add_labels_from(*product_internal_analyzer_out));
   } else if (internal_compiles && !external_compiles) {
     compliance_labels.emplace(kProductModeInternalLabel);
-    statement = product_internal_analyzer_out->resolved_statement();
     GOOGLESQL_EXPECT_OK(add_labels_from(*product_internal_analyzer_out));
   } else if (!internal_compiles && external_compiles) {
     compliance_labels.emplace(kProductModeExternalLabel);
-    statement = product_external_analyzer_out->resolved_statement();
     GOOGLESQL_EXPECT_OK(add_labels_from(*product_external_analyzer_out));
   } else {
     ABSL_LOG(FATAL) << "Unreachable";
@@ -1466,6 +1499,7 @@ absl::StatusOr<ComplianceTestCaseResult> SQLTestBase::RunSQL(
   sql_ = sql;
   parameters_ = params;
   full_name_ = GenerateCodeBasedStatementName(sql_, parameters_);
+  GOOGLESQL_RETURN_IF_ERROR(InspectTestCase());
 
   absl::btree_set<std::string> labels = GetCodeBasedLabels();
   labels.insert(full_name_);
@@ -1473,8 +1507,6 @@ absl::StatusOr<ComplianceTestCaseResult> SQLTestBase::RunSQL(
 
   ABSL_LOG(INFO) << "Starting code-based test: " << full_name_;
   LogStrings(labels, "Effective labels: ");
-
-  GOOGLESQL_RETURN_IF_ERROR(InspectTestCase());
 
   known_error_mode_ = IsKnownError(labels, &by_set_);
   if (KnownErrorMode::CRASHES_DO_NOT_RUN == known_error_mode_) {
@@ -1485,6 +1517,22 @@ absl::StatusOr<ComplianceTestCaseResult> SQLTestBase::RunSQL(
   return ExecuteTestCase().driver_output();
 }
 
+// Helper for generating an explanation when a test is skipped due to feature
+// mismatch.
+static void AppendFeatureMismatchReason(
+    absl::string_view sort, const std::set<LanguageFeature>& features,
+    std::string& reason) {
+  if (features.empty()) {
+    return;
+  }
+  absl::StrAppend(
+      &reason, reason.empty() ? "" : "\n", "Driver ", sort, " feature(s): ",
+      absl::StrJoin(features, ", ",
+                    [](std::string* out, LanguageFeature feature) {
+                      absl::StrAppend(out, LanguageFeature_Name(feature));
+                    }));
+}
+
 void SQLTestBase::RunSQLOnFeaturesAndValidateResult(
     absl::string_view sql, const std::map<std::string, Value>& params,
     const std::set<LanguageFeature>& required_features,
@@ -1492,6 +1540,14 @@ void SQLTestBase::RunSQLOnFeaturesAndValidateResult(
     const Value& expected_value, const absl::Status& expected_status,
     const FloatMargin& float_margin) {
   full_name_ = GenerateCodeBasedStatementName(sql, params);
+  if (absl::GetFlag(FLAGS_googlesql_compliance_only_inspect_test_case)) {
+    // InspectTestCase() is called within RunSQL() below in the normal case.
+    // Call and return early here to minimize work done.
+    sql_ = sql;
+    parameters_ = params;
+    InspectTestCase().IgnoreError();
+    return;
+  }
 
   ABSL_CHECK(!script_mode_) << "Codebased tests don't run in script mode.";
   // TODO: Refactor so that extract labels can be in known_errors.
@@ -1559,23 +1615,45 @@ void SQLTestBase::RunSQLOnFeaturesAndValidateResult(
       EXPECT_FALSE(IsFeatureFalselyRequired(
           feature, /*require_inclusive=*/false, sql, params, required_features,
           run_result.status(), result_to_check, float_margin))
-          << "Feature is falsely prohibited: " << full_name() << ": " << sql
+          << "Feature is falsely forbidden: " << full_name() << ": " << sql
           << ": " << LanguageFeature_Name(feature);
     }
   } else {
-    bool driver_enables_right_features = true;
+    std::set<LanguageFeature> missing_required_features;
+    std::set<LanguageFeature> enabled_forbidden_features;
     for (LanguageFeature feature : required_features) {
-      driver_enables_right_features &= DriverSupportsFeature(feature);
+      if (!DriverSupportsFeature(feature)) {
+        missing_required_features.insert(feature);
+      }
     }
     for (LanguageFeature feature : forbidden_features) {
-      driver_enables_right_features &= !DriverSupportsFeature(feature);
+      if (DriverSupportsFeature(feature)) {
+        enabled_forbidden_features.insert(feature);
+      }
     }
+    bool driver_enables_right_features =
+        missing_required_features.empty() && enabled_forbidden_features.empty();
+    std::string feature_mismatch_reason = "";
+    AppendFeatureMismatchReason("does not enable required",
+                                missing_required_features,
+                                feature_mismatch_reason);
+    AppendFeatureMismatchReason("enables forbidden", enabled_forbidden_features,
+                                feature_mismatch_reason);
 
-    if (!driver_enables_right_features) {
+    // The reference implementation can be configured to run tests with any
+    // combination of language features enabled. All other engines will skip
+    // tests that require an incompatible set of features.
+    bool enforce_feature_support =
+        !driver()->IsReferenceImplementation() ||
+        absl::GetFlag(
+            FLAGS_googlesql_compliance_enforce_features_for_reference);
+
+    if (enforce_feature_support && !driver_enables_right_features) {
       stats_->RecordComplianceTestsLabelsProto(
           full_name_, sql, parameters_, location_,
           KnownErrorMode::ALLOW_UNIMPLEMENTED, compliance_labels_,
-          expected_status.code(), absl::StatusCode::kUnimplemented);
+          expected_status.code(), absl::StatusCode::kUnimplemented,
+          feature_mismatch_reason);
       return;  // Skip this test.
     }
     // Only run once. Use reference engine to check result. We don't compare
@@ -1590,7 +1668,8 @@ void SQLTestBase::RunSQLOnFeaturesAndValidateResult(
       stats_->RecordComplianceTestsLabelsProto(
           full_name_, sql_, parameters_, location_,
           KnownErrorMode::ALLOW_UNIMPLEMENTED, compliance_labels_,
-          expected_status.code(), absl::StatusCode::kUnimplemented);
+          expected_status.code(), absl::StatusCode::kUnimplemented,
+          "Engine does not support required type.");
       return;  // Skip this test. It uses types not supported by the driver.
     }
     SCOPED_TRACE(sql);
@@ -1668,7 +1747,7 @@ SQLTestBase::SQLTestBase(TestDriver* test_driver,
   }
 }
 
-SQLTestBase::~SQLTestBase() {}
+SQLTestBase::~SQLTestBase() = default;
 
 const std::unique_ptr<file_based_test_driver::TestCaseOptions>&
 SQLTestBase::options() {
@@ -1677,21 +1756,25 @@ SQLTestBase::options() {
 
 absl::Status SQLTestBase::CreateDatabase(const TestDatabase& test_db) {
   GOOGLESQL_RETURN_IF_ERROR(ValidateFirstColumnPrimaryKey(
-      test_db, driver()->GetSupportedLanguageOptions()));
+      test_db, IsVerifyingGoldens()
+                   ? reference_driver()->GetSupportedLanguageOptions()
+                   : driver()->GetSupportedLanguageOptions()));
 
   auto test_db_proto = std::make_unique<TestDatabaseProto>();
   GOOGLESQL_RETURN_IF_ERROR(SerializeTestDatabase(test_db, test_db_proto.get()));
 
-  absl::Status create_db_status = driver()->CreateDatabase(*test_db_proto);
-  if (!create_db_status.ok()) {
-    if (create_db_status.code() == absl::StatusCode::kUnimplemented &&
-        create_db_status.message() ==
-            "Test driver does not support creating database from proto") {
-      // Temporary fallback to the in-memory overload, until external
-      // drivers are all migrated to read from the proto.
-      GOOGLESQL_RETURN_IF_ERROR(driver()->CreateDatabase(test_db));
-    } else {
-      return create_db_status;
+  if (!IsVerifyingGoldens()) {
+    absl::Status create_db_status = driver()->CreateDatabase(*test_db_proto);
+    if (!create_db_status.ok()) {
+      if (create_db_status.code() == absl::StatusCode::kUnimplemented &&
+          create_db_status.message() ==
+              "Test driver does not support creating database from proto") {
+        // Temporary fallback to the in-memory overload, until external
+        // drivers are all migrated to read from the proto.
+        GOOGLESQL_RETURN_IF_ERROR(driver()->CreateDatabase(test_db));
+      } else {
+        return create_db_status;
+      }
     }
   }
   if (UseLeakyDescriptors()) {
@@ -1822,6 +1905,19 @@ void SQLTestBase::RunTestFromFile(
     absl::string_view sql,
     file_based_test_driver::RunTestCaseResult* test_result) {
   InitStatementState(sql, test_result);
+  if (absl::GetFlag(FLAGS_googlesql_compliance_only_inspect_test_case)) {
+    // Minimize work done and only inspect test case.
+    test_result_->set_ignore_test_output(true);
+    if (test_case_options_->prepare_database()) {
+      return;  // Not a real test case, don't inspect.
+    }
+    full_name_ =
+        FileBasedTestName(test_result_->filename(), test_case_options_->name());
+    sql_ = sql;
+    parameters_ = test_case_options_->params();
+    InspectTestCase().IgnoreError();
+    return;
+  }
   StepPrepareTimeZoneProtosEnums();
   StepSkipUnsupportedTest();
   StepPrepareDatabase();
@@ -1850,6 +1946,7 @@ void SQLTestBase::InitStatementState(
     absl::string_view sql,
     file_based_test_driver::RunTestCaseResult* test_result) {
   statement_workflow_ = NORMAL;
+  test_failure_reason_ = "";
   sql_ = sql;
   parameters_.clear();
   full_name_ = "";
@@ -1863,6 +1960,12 @@ void SQLTestBase::InitStatementState(
   // string without the name. Later on we will update the location string
   // when name is available.
   location_ = Location(test_result->filename(), test_result->line());
+
+  // Reset the primary key mode to DEFAULT in the reference driver.
+  if (driver()->IsReferenceImplementation()) {
+    static_cast<ReferenceDriver*>(driver())->SetPrimaryKeyMode(
+        PrimaryKeyMode::DEFAULT);
+  }
 
   std::string reason = "";
   auto status_or = test_file_options_->ProcessTestCase(sql, &reason);
@@ -1889,29 +1992,44 @@ void SQLTestBase::StepSkipUnsupportedTest() {
   }
 
   std::vector<std::string> skip_test_reasons;
+
   // The reference implementation can be configured to run tests with any
   // combination of language features enabled. All other engines will skip
   // tests that require an incompatible set of features.
-  if (!driver()->IsReferenceImplementation()) {
-    for (LanguageFeature required_feature :
-         test_case_options_->required_features()) {
-      if (!driver_language_options().LanguageFeatureEnabled(required_feature)) {
-        skip_test_reasons.push_back(absl::StrCat(
-            "Required feature, ", LanguageFeature_Name(required_feature),
-            ", not supported by engine"));
-        break;
-      }
-    }
+  bool enforce_feature_support =
+      !driver()->IsReferenceImplementation() ||
+      absl::GetFlag(FLAGS_googlesql_compliance_enforce_features_for_reference);
 
-    for (LanguageFeature forbidden_feature :
-         test_case_options_->forbidden_features()) {
-      if (driver_language_options().LanguageFeatureEnabled(forbidden_feature)) {
-        skip_test_reasons.push_back(absl::StrCat(
-            "Forbidden feature, ", LanguageFeature_Name(forbidden_feature),
-            ", present in engine's feature list"));
-        break;
-      }
+  std::set<LanguageFeature> missing_required_features;
+  for (LanguageFeature feature : test_case_options_->required_features()) {
+    if (!DriverSupportsFeature(feature)) {
+      missing_required_features.insert(feature);
     }
+  }
+  if (enforce_feature_support && !missing_required_features.empty()) {
+    skip_test_reasons.push_back("");
+    AppendFeatureMismatchReason("does not enable required",
+                                missing_required_features,
+                                skip_test_reasons.back());
+  }
+
+  std::set<LanguageFeature> enabled_forbidden_features;
+  for (LanguageFeature feature : test_case_options_->forbidden_features()) {
+    if (DriverSupportsFeature(feature)) {
+      enabled_forbidden_features.insert(feature);
+    }
+  }
+  if (enforce_feature_support && !enabled_forbidden_features.empty()) {
+    skip_test_reasons.push_back("");
+    AppendFeatureMismatchReason("enables forbidden", enabled_forbidden_features,
+                                skip_test_reasons.back());
+  }
+
+  // When testing the reference implementation, configure it to use whatever
+  // primary key mode the test case requires.
+  if (driver()->IsReferenceImplementation()) {
+    static_cast<ReferenceDriver*>(driver())->SetPrimaryKeyMode(
+        test_case_options_->primary_key_mode());
   }
 
   absl::StatusOr<bool> status_or_skip_test_for_primary_key_mode =
@@ -1928,16 +2046,18 @@ void SQLTestBase::StepSkipUnsupportedTest() {
         "Driver requested to skip tests in primary-key mode");
   }
 
-  if (absl::GetFlag(FLAGS_googlesql_compliance_accept_all_test_output)) {
+  if (absl::GetFlag(FLAGS_googlesql_compliance_only_inspect_test_case)) {
     skip_test_reasons.push_back(
-        "Command-line flag --googlesql_compliance_accept_all_test_output is "
+        "Command-line flag --googlesql_compliance_only_inspect_test_case is "
         "set");
   }
 
   if (!skip_test_reasons.empty()) {
-    ABSL_LOG(INFO) << "Test was skipped due to the following reasons:\n"
-              << absl::StrJoin(skip_test_reasons, "\n  ");
+    std::string skip_test_reason =
+        absl::StrCat("Test was skipped due to the following reasons:\n",
+                     absl::StrJoin(skip_test_reasons, "\n  "));
     test_result_->set_ignore_test_output(true);
+    test_failure_reason_ = skip_test_reason;
     statement_workflow_ = FEATURE_MISMATCH;
   }
 }
@@ -1982,14 +2102,19 @@ absl::Status SQLTestBase::AddConstants(
   if (!AllowsFailedReferenceSetup()) {
     GOOGLESQL_RETURN_IF_ERROR(reference_status);
   }
-  absl::Status driver_status = driver()->AddSqlConstants(create_constant_stmts);
-  if (!driver_status.ok()) {
-    // We don't want to fail the test because of a database setup failure.
-    // Any test statements that depend on this schema object should cause
-    // the test to fail in a more useful way.
-    ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+  bool should_cache = cache_stmts && reference_status.ok();
+  if (!IsVerifyingGoldens()) {
+    absl::Status driver_status =
+        driver()->AddSqlConstants(create_constant_stmts);
+    if (!driver_status.ok()) {
+      // We don't want to fail the test because of a database setup failure.
+      // Any test statements that depend on this schema object should cause
+      // the test to fail in a more useful way.
+      ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+    }
+    should_cache &= driver_status.ok();
   }
-  if (cache_stmts && reference_status.ok() && driver_status.ok()) {
+  if (should_cache) {
     for (const auto& stmt : create_constant_stmts) {
       constant_stmt_cache_.push_back(stmt);
     }
@@ -2004,14 +2129,18 @@ absl::Status SQLTestBase::AddViews(
   if (!AllowsFailedReferenceSetup()) {
     GOOGLESQL_RETURN_IF_ERROR(reference_status);
   }
-  absl::Status driver_status = driver()->AddViews(create_view_stmts);
-  if (!driver_status.ok()) {
-    // We don't want to fail the test because of a database setup failure.
-    // Any test statements that depend on this schema object should cause
-    // the test to fail in a more useful way.
-    ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+  bool should_cache = cache_stmts && reference_status.ok();
+  if (!IsVerifyingGoldens()) {
+    absl::Status driver_status = driver()->AddViews(create_view_stmts);
+    if (!driver_status.ok()) {
+      // We don't want to fail the test because of a database setup failure.
+      // Any test statements that depend on this schema object should cause
+      // the test to fail in a more useful way.
+      ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+    }
+    should_cache &= driver_status.ok();
   }
-  if (cache_stmts && reference_status.ok() && driver_status.ok()) {
+  if (should_cache) {
     for (const auto& stmt : create_view_stmts) {
       view_stmt_cache_.push_back(stmt);
     }
@@ -2026,14 +2155,18 @@ absl::Status SQLTestBase::AddFunctions(
   if (!AllowsFailedReferenceSetup()) {
     GOOGLESQL_RETURN_IF_ERROR(reference_status);
   }
-  absl::Status driver_status = driver()->AddSqlUdfs(create_function_stmts);
-  if (!driver_status.ok()) {
-    // We don't want to fail the test because of a database setup failure.
-    // Any test statements that depend on this schema object should cause
-    // the test to fail in a more useful way.
-    ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+  bool should_cache = cache_stmts && reference_status.ok();
+  if (!IsVerifyingGoldens()) {
+    absl::Status driver_status = driver()->AddSqlUdfs(create_function_stmts);
+    if (!driver_status.ok()) {
+      // We don't want to fail the test because of a database setup failure.
+      // Any test statements that depend on this schema object should cause
+      // the test to fail in a more useful way.
+      ABSL_LOG(ERROR) << "Prepare database failed with error: " << driver_status;
+    }
+    should_cache &= driver_status.ok();
   }
-  if (cache_stmts && reference_status.ok() && driver_status.ok()) {
+  if (should_cache) {
     for (const auto& stmt : create_function_stmts) {
       udf_stmt_cache_.push_back(stmt);
     }
@@ -2119,15 +2252,25 @@ void SQLTestBase::StepPrepareDatabase() {
   // may need to enable extra features that the reference driver does not
   // enable by default, for instance features which are still marked as
   // in development.
-  AutoLanguageOptions options_cleanup(reference_driver_);
+  AutoLanguageOptions reference_driver_options_cleanup(reference_driver_);
+  std::unique_ptr<AutoLanguageOptions> driver_options_cleanup;
+  if (!IsVerifyingGoldens() && driver()->IsReferenceImplementation()) {
+    driver_options_cleanup = std::make_unique<AutoLanguageOptions>(
+        static_cast<ReferenceDriver*>(driver()));
+  }
   if (!test_case_options_->prepare_database_additional_features().empty()) {
-    LanguageOptions language_options_copy =
-        reference_driver_->language_options();
-    for (LanguageFeature extra_feature :
-         test_case_options_->prepare_database_additional_features()) {
-      language_options_copy.EnableLanguageFeature(extra_feature);
+    prepare_database_additional_features_cache_.insert(
+        test_case_options_->prepare_database_additional_features().begin(),
+        test_case_options_->prepare_database_additional_features().end());
+    InsertLanguageFeatures(
+        reference_driver_,
+        test_case_options_->prepare_database_additional_features());
+
+    if (!IsVerifyingGoldens() && driver()->IsReferenceImplementation()) {
+      InsertLanguageFeatures(
+          static_cast<ReferenceDriver*>(driver()),
+          test_case_options_->prepare_database_additional_features());
     }
-    reference_driver_->SetLanguageOptions(language_options_copy);
   }
 
   if (CREATE_DATABASE != file_workflow_) {
@@ -2153,6 +2296,13 @@ void SQLTestBase::StepPrepareDatabase() {
     LanguageOptions lang_options;
     lang_options.set_product_mode(googlesql::ProductMode::PRODUCT_INTERNAL);
     lang_options.EnableMaximumLanguageFeaturesForDevelopment();
+    // Enabling MaximumLanguageFeaturesForDevelopment enables all features,
+    // including FEATURE_VECTOR_SEARCH_TVF. We remove it explicitly here
+    // because VECTOR_SEARCH_TVF is explicitly added to include_function_ids
+    // along with other needed functions in test_database_catalog.cc. If we
+    // don't disable it here, it will be added again leading to unrelated
+    // test failures for CreatePropertyGraph tests.
+    lang_options.DisableLanguageFeature(FEATURE_VECTOR_SEARCH_TVF);
     lang_options.AddSupportedStatementKind(RESOLVED_CREATE_PROPERTY_GRAPH_STMT);
     CheckCancellation(
         test_catalog.SetLanguageOptions(lang_options),
@@ -2349,15 +2499,18 @@ void SQLTestBase::StepExecuteStatementCheckResult() {
   }
 
   if (statement_workflow_ == FEATURE_MISMATCH) {
+    ABSL_DCHECK(test_result_ != nullptr);
     stats_->RecordComplianceTestsLabelsProto(
         full_name_, sql_, parameters_, location_,
         KnownErrorMode::ALLOW_UNIMPLEMENTED, compliance_labels_,
-        absl::StatusCode::kOk, absl::StatusCode::kUnimplemented);
+        absl::StatusCode::kOk, absl::StatusCode::kUnimplemented,
+        test_failure_reason_);
   } else if (statement_workflow_ == KNOWN_CRASH) {
     stats_->RecordComplianceTestsLabelsProto(
         full_name_, sql_, parameters_, location_,
         KnownErrorMode::CRASHES_DO_NOT_RUN, compliance_labels_,
-        absl::StatusCode::kOk, absl::StatusCode::kUnavailable);
+        absl::StatusCode::kOk, absl::StatusCode::kUnavailable,
+        "Evaluation skipped due to potential crash.");
   }
 
   if (statement_workflow_ != NORMAL) {
@@ -2420,7 +2573,8 @@ void SQLTestBase::StepExecuteStatementCheckResult() {
       stats_->RecordComplianceTestsLabelsProto(
           full_name_, sql_, parameters_, location_,
           KnownErrorMode::ALLOW_UNIMPLEMENTED, compliance_labels_,
-          absl::StatusCode::kOk, absl::StatusCode::kUnimplemented);
+          absl::StatusCode::kOk, absl::StatusCode::kUnimplemented,
+          "Test uses a type which is not supported in the engine");
       return;  // Skip this test. It uses types not supported by the driver.
     }
     if (absl::IsUnimplemented(ref_result.status())) {
@@ -2429,16 +2583,22 @@ void SQLTestBase::StepExecuteStatementCheckResult() {
                 << ref_result.status();
       // This test is not implemented by the reference implementation. Skip
       // checking the results because we have no results to check against.
+      std::string reason =
+          absl::StrCat("Reference implementation returns unimplemented: ",
+                       ref_result.status().message());
       stats_->RecordComplianceTestsLabelsProto(
           full_name_, sql_, parameters_, location_,
           KnownErrorMode::ALLOW_UNIMPLEMENTED, compliance_labels_,
-          absl::StatusCode::kUnimplemented, absl::StatusCode::kUnimplemented);
+          absl::StatusCode::kUnimplemented, absl::StatusCode::kUnimplemented,
+          reason);
       return;
     }
     TestResults actual_result = ExecuteTestCase();
     SCOPED_TRACE(absl::StrCat("Testcase: ", full_name_, "\nSQL:\n", sql_));
-    EXPECT_THAT(actual_result.driver_output(),
-                Returns(ref_result, kDefaultFloatMargin));
+    EXPECT_THAT(
+        actual_result.driver_output(),
+        Returns(ref_result, FloatMargin::UlpMargin(static_cast<int>(
+                                test_case_options_->float_margin_ulp_bits()))));
   }
 }
 
@@ -2490,7 +2650,7 @@ void SQLTestBase::ParseAndCompareExpectedResults(TestResults& test_result) {
     expected_string = absl::StripSuffix(expected_string, "\n");
   }
 
-  EXPECT_THAT(test_result, ToStringIs(std::string(expected_string)));
+  EXPECT_THAT(test_result, ToStringIs(expected_string));
 }
 
 void SQLTestBase::CheckCancellation(const absl::Status& status,
@@ -2542,7 +2702,7 @@ bool SQLTestBase::IsFeatureFalselyRequired(
     ABSL_DCHECK(features_minus_one.contains(feature));
     features_minus_one.erase(feature);
   } else {
-    // this is the "prohibited feature" case.
+    // this is the "forbidden feature" case.
     ABSL_DCHECK(!features_minus_one.contains(feature));
     features_minus_one.insert(feature);
   }
@@ -2589,7 +2749,7 @@ absl::Status SQLTestBase::AddKnownErrorEntry(
     if (SafeString(label) == label) {
       known_error_labels_.insert(label);
     } else if (googlesql_base::InsertIfNotPresent(&known_error_regex_strings_, label)) {
-      std::unique_ptr<RE2> regex(new RE2(label));
+      std::unique_ptr<RE2> regex = std::make_unique<RE2>(label);
       if (regex->ok()) {
         known_error_regexes_.push_back(std::move(regex));
       } else {
@@ -2637,7 +2797,7 @@ void SQLTestBase::LogStrings(const ContainerType& strings,
   const int flush_threshold = static_cast<int>(0.95 * kLogBufferSize);
   std::string buf;
   for (const auto& s : strings) {
-    const int logged_size = s.size() + 2;
+    const size_t logged_size = s.size() + 2;
     const bool want_flush = buf.size() + logged_size > flush_threshold;
     if (!buf.empty() && want_flush) {
       ABSL_LOG(INFO) << prefix << buf;
@@ -2824,20 +2984,25 @@ std::string SQLTestBase::ToString(
     internal::StatusToString(status_without_error_mode_payload));
   } else if (std::holds_alternative<Value>(status.value())) {
     const Value& value = std::get<Value>(status.value());
-    ABSL_CHECK(!value.is_null());
-    ABSL_CHECK(value.is_valid());
-    if (format_value_content_options_ == nullptr) {
-      result_string = InternalValue::FormatInternal(
-          value, {.force_type_at_top_level = true,
-                  .include_array_ordereness = absl::GetFlag(
-                      FLAGS_googlesql_compliance_print_array_orderedness)});
+    if (!value.is_valid()) {
+      // Value() is used for ResolvedTerminalQueryStmt (for `|> FINISH`) to
+      // represent no-output queries.
+      result_string = "No result table";
     } else {
-      result_string =
-          InternalValue::FormatInternal(value, *format_value_content_options_);
+      ABSL_CHECK(!value.is_null());
+      if (format_value_content_options_ == nullptr) {
+        result_string = InternalValue::FormatInternal(
+            value, {.force_type_at_top_level = true,
+                    .include_array_ordereness = absl::GetFlag(
+                        FLAGS_googlesql_compliance_print_array_orderedness)});
+      } else {
+        result_string = InternalValue::FormatInternal(
+            value, *format_value_content_options_);
+      }
     }
   } else {
     result_string =
-        ScriptResultToString(std::get<ScriptResult>(status.value()));
+        ScriptResultToString(std::get<MultiStmtResult>(status.value()));
   }
   absl::string_view trimmed_result;
   absl::Status ignored_status;
@@ -3050,6 +3215,24 @@ absl::Status SQLTestBase::CreateDatabase() {
   // SQL or use DDL to add measure columns to a table.
   MaybeAddMeasureTables(*test_case_options_, test_db_);
 
+  // Temporarily add any additional features required in [prepare_database] to
+  // the reference driver and test driver(if it is an actual reference driver).
+  AutoLanguageOptions reference_driver_options_cleanup(reference_driver_);
+  std::unique_ptr<AutoLanguageOptions> driver_options_cleanup;
+  if (!IsVerifyingGoldens() && driver()->IsReferenceImplementation()) {
+    driver_options_cleanup = std::make_unique<AutoLanguageOptions>(
+        static_cast<ReferenceDriver*>(driver()));
+  }
+  if (!prepare_database_additional_features_cache_.empty()) {
+    InsertLanguageFeatures(reference_driver_,
+                           prepare_database_additional_features_cache_);
+
+    if (!IsVerifyingGoldens() && driver()->IsReferenceImplementation()) {
+      InsertLanguageFeatures(static_cast<ReferenceDriver*>(driver()),
+                             prepare_database_additional_features_cache_);
+    }
+  }
+
   GOOGLESQL_RETURN_IF_ERROR(CreateDatabase(test_db_));
 
   if (!constant_stmt_cache_.empty()) {
@@ -3065,6 +3248,7 @@ absl::Status SQLTestBase::CreateDatabase() {
 
   // Only create test database once.
   test_db_.clear();
+  prepare_database_additional_features_cache_.clear();
 
   return absl::OkStatus();
 }
@@ -3163,6 +3347,9 @@ class SQLTestEnvironment : public ::testing::Environment {
   //
   // The labels can be copied/pasted into a known_errors file.
   void TearDown() override {
+    if (absl::GetFlag(FLAGS_googlesql_compliance_only_inspect_test_case)) {
+      return;
+    }
     SQLTestBase::stats_->LogGoogletestProperties();
     SQLTestBase::stats_->LogReport();
     if (absl::GetFlag(FLAGS_googlesql_compliance_write_labels_to_file)) {
@@ -3173,7 +3360,7 @@ class SQLTestEnvironment : public ::testing::Environment {
 
 // Enable human-readable display of ScriptResult objects in Sponge logs of
 // failing tests.
-std::ostream& operator<<(std::ostream& os, const ScriptResult& result) {
+std::ostream& operator<<(std::ostream& os, const MultiStmtResult& result) {
   return os << SQLTestBase::ToString(result);
 }
 

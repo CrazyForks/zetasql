@@ -35,6 +35,7 @@
 #include "absl/container/btree_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -42,7 +43,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/flat_set.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::formatter::internal {
 
@@ -176,6 +176,52 @@ bool ShouldAddABlankLineNearComment(bool is_between_statements,
     return true;
   }
   return false;
+}
+
+// Adds breakpoints for procedural statements, formatting blocks like
+// IF/THEN/ELSE/END IF.
+//
+// The layout rules for procedural blocks are:
+// 1. Always break before block openers (e.g. IF, CASE), closers (e.g. END), and
+//    continuers (e.g. ELSEIF, ELSE) that are not body starters.
+// 2. For continuers that are body starters (e.g. THEN, DO):
+//    If the block body is "complex", force a break both before and after
+//    the body starter. A body is considered "complex" if it contains a
+//    nested procedural block, or if it contains multiple statements
+//    (separated by semicolons).
+//
+//    Note:
+//    - If the body is "simple" (a single statement), we do not force
+//    breaks here. If the resulting segment exceeds the maximum line length,
+//    the general BreakAllLongLines pass will handle breaking before the
+//    body starter.
+//    - Branch dividers like ELSE and ELSEIF are not body starters, so Rule 1
+//    unconditionally breaks before them. We also evaluate Rule 2 for them to
+//    force a break after the branch divider if its body is complex, ensuring
+//    consistency with complex body starters.
+void AddBreakpointsForProceduralBlock(const StmtLayout& layout,
+                                      const StmtLayout::Line& line,
+                                      int chunk_index, const Chunk& chunk,
+                                      absl::btree_set<int>& breakpoints) {
+  bool break_before = !chunk.IsProceduralBodyStarter();
+  bool break_after = false;
+
+  if (chunk.IsComplexProceduralBody()) {
+    break_before = break_after = true;
+  }
+
+  // Rule 1 & 2: Always break before procedural block openers, closers, or
+  // continuers (or complex body starters) so they start on a new line.
+  if (break_before && chunk_index > line.start) {
+    breakpoints.insert(chunk_index);
+  }
+  // Rule 2: For complex blocks, break after the body starter to put contents on
+  // the next line. Do not break if the next chunk is a comment, as
+  // BreakComments() already handles line breaks around comments.
+  if (break_after && chunk_index + 1 < line.end &&
+      !layout.ChunkAt(chunk_index + 1).IsCommentOnly()) {
+    breakpoints.insert(chunk_index + 1);
+  }
 }
 
 }  // namespace
@@ -570,6 +616,12 @@ void StmtLayout::BreakOnMandatoryLineBreaks() {
     absl::btree_set<int> breakpoints;
     for (int i = line.start; i < line.end; ++i) {
       const Chunk& chunk = ChunkAt(i);
+      // Break after statements ending with a semicolon. Inline trailing
+      // comments are fused into the same chunk, so `chunk.LastKeyword() == ";"`
+      // correctly places the breakpoint after the comment.
+      if (chunk.LastKeyword() == ";" && i + 1 < line.end) {
+        breakpoints.insert(i + 1);
+      }
       if (chunk.FirstKeyword() == "AS" &&
           chunk.FirstToken().Is(Token::Type::TOP_LEVEL_KEYWORD)) {
         // Top-level `AS` keywords always start on their own line.  (This does
@@ -593,6 +645,8 @@ void StmtLayout::BreakOnMandatoryLineBreaks() {
         // For CREATE TABLE / EXPORT DATA statements, always add a new line
         // after the table name, even if the entire statement fits on one line.
         breakpoints.insert(i + 1);
+      } else if (chunk.FirstToken().IsProceduralKeyword()) {
+        AddBreakpointsForProceduralBlock(*this, line, i, chunk, breakpoints);
       } else if (chunk.LastKeyword() == "CASE" && i + 1 < line.end) {
         // If there is more than one WHEN clause inside one CASE expression,
         // each WHEN should be on a separate line.
@@ -1031,6 +1085,9 @@ void StmtLayout::PruneLineBreaks() {
         if (prev_chunk_length == (curr_line_level - prev_line_level)) {
           try_merging_line = true;
         }
+        if (prev_chunk.FirstKeyword() == "|>" && first_chunk.IsSetOperator()) {
+          try_merging_line = true;
+        }
       }
     }
     if (first_chunk.FirstKeyword() == "OPTIONS" &&
@@ -1218,12 +1275,19 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
   if (ChunkAt(line.start).IsCommentOnly()) {
     return line.start + 1;
   }
+
+  int best_chunk = line.start + 1;
+  // If we have "|> UNION ALL ...", we want to keep "|> UNION ALL" on the same
+  // line. So we skip the set operator.
+  if (ChunkAt(line.start).FirstKeyword() == "|>" && best_chunk < line.end &&
+      ChunkAt(best_chunk).IsSetOperator()) {
+    best_chunk++;
+  }
+
   int start_level = ChunkAt(line.start).ChunkBlock()->Level();
 
   int chunk_after_line_limit =
       FirstChunkEndingAfterColumn(line, options_.LineLengthLimit());
-
-  int best_chunk = line.start + 1;
   while (best_chunk < chunk_after_line_limit &&
          ChunkAt(best_chunk).ChunkBlock()->Level() == start_level) {
     // Advance breakpoint through the chunks with the same level.
@@ -1231,10 +1295,12 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
     // * a top level clause - e.g., break "SELECT FROM ..." which is a broken
     //   SQL, but we still want to put top level tokens separately.
     // * a comma - e.g., break "a, b, c, .." list if it is too long.
-    if (ChunkAt(best_chunk).IsTopLevelClauseChunk() ||
+    if (ChunkAt(best_chunk).IsCommentOnly() ||
+        ChunkAt(best_chunk).IsTopLevelClauseChunk() ||
         ChunkAt(best_chunk).IsSetOperator() ||
         ChunkAt(best_chunk - 1).LastKeyword() == "," ||
-        ChunkAt(best_chunk).StartsWithChainableBooleanOperator()) {
+        ChunkAt(best_chunk).StartsWithChainableBooleanOperator() ||
+        ChunkAt(best_chunk).FirstToken().IsProceduralContinuerOrCloser()) {
       break;
     }
     ++best_chunk;
@@ -1318,9 +1384,19 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
         }
         best_level = level;
         best_chunk = position;
-        skip_until = best_chunk;
       } else if (level == best_level) {
-        if (best_level == start_level) {
+        const Chunk* first_non_comment_chunk =
+            chunk->IsCommentOnly() ? chunk->NextNonCommentChunk() : chunk;
+
+        // Skip leading comments to correctly identify procedural continuers
+        // (e.g. WHEN, THEN, ELSE) even if they are preceded by comments.
+        if (first_non_comment_chunk != nullptr &&
+            first_non_comment_chunk->PositionInQuery() <=
+                (*i)->LastChunkUnder()->PositionInQuery() &&
+            first_non_comment_chunk->FirstToken()
+                .IsProceduralContinuerOrCloser()) {
+          best_chunk = position;
+        } else if (best_level == start_level) {
           // TODO: Check if we can come up with some generic
           // solution rather than hard-coding each scenario when we prefer
           // keeping the chunks on the same line.
@@ -1331,7 +1407,6 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
             // line length limit. But if it doesn't, we then want to prefer to
             // break after the ",".
             best_chunk = position;
-            skip_until = best_chunk;
           } else if (chunk->IsSetOperator()) {
             // Some keywords connect bigger parts of the query, but they are on
             // the same level with top level keywords. For instance:
@@ -1343,16 +1418,13 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
             // before deciding if we want to split the first SELECT statement
             // further.
             best_chunk = position;
-            skip_until = best_chunk;
           } else if (chunk->FirstKeyword() == "|>") {
             // Prefer breaking query at pipe operators.
             best_chunk = position;
-            skip_until = best_chunk;
           }
         } else if (chunk->FirstToken().Is(
                        Token::Type::JOIN_CONDITION_KEYWORD)) {
           best_chunk = position;
-          skip_until = best_chunk;
         } else if (ChunkAt(best_chunk).LastKeywordsAre("@", "{") &&
                    !chunk->ClosesParenOrBracketBlock()) {
           // Prefer breaking after query hint if the following chunks are on the
@@ -1361,7 +1433,6 @@ int StmtLayout::BestBreakpoint(const Line& line) const {
           //   foo;                       @{hint}
           //                              foo;
           best_chunk = position;
-          skip_until = best_chunk;
         }
       }
     }
@@ -1620,7 +1691,15 @@ absl::btree_set<int> StmtLayout::FindSiblingBreakpoints(const Line& line,
   //  SELECT * FROM Bar
   // We want to add breakpoints around UNION ALL but not before FROM clause if
   // it fits on one line.
-  if (ChunkAt(break_point).IsSetOperator()) {
+  //
+  // But if the set operator is part of a pipe operator (e.g. "|> UNION ALL"),
+  // treat it as a regular sibling chunk, so that we don't force a line break
+  // between "|>" and "UNION ALL".
+  const Chunk* prev_chunk_at_break_point =
+      ChunkAt(break_point).PreviousNonCommentChunk();
+  if (ChunkAt(break_point).IsSetOperator() &&
+      (prev_chunk_at_break_point == nullptr ||
+       prev_chunk_at_break_point->FirstKeyword() != "|>")) {
     for (auto sibling = break_point_parent->children().begin();
          sibling != break_point_parent->children().end(); ++sibling) {
       if (!(*sibling)->IsLeaf() || !(*sibling)->Chunk()->IsSetOperator()) {
@@ -1697,6 +1776,12 @@ absl::btree_set<int> StmtLayout::FindSiblingBreakpoints(const Line& line,
         result.insert(join_cond_pos);
       }
     } else {
+      // Don't break before set operator if it is part of a pipe operator.
+      const Chunk* prev_chunk_at_sibling = ChunkAt(t).PreviousNonCommentChunk();
+      if (ChunkAt(t).IsSetOperator() && prev_chunk_at_sibling != nullptr &&
+          prev_chunk_at_sibling->FirstKeyword() == "|>") {
+        continue;
+      }
       result.insert(t);
     }
   }

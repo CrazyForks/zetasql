@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "googlesql/common/float_margin.h"
 #include "googlesql/compliance/known_error.pb.h"
 #include "googlesql/compliance/test_driver.h"
 #include "googlesql/public/options.pb.h"
@@ -131,6 +132,8 @@ class FilebasedSQLTestCaseOptions {
     return exclude_in_sql_builder_pipe_sql_equivalence_tests_;
   }
 
+  int64_t float_margin_ulp_bits() const { return float_margin_ulp_bits_; }
+
  private:
   // Encapsulation wise, these two classes are designed to work as one.
   friend class FilebasedSQLTestFileOptions;
@@ -153,6 +156,7 @@ class FilebasedSQLTestCaseOptions {
   bool skip_required_feature_integrity_check_ = false;
   bool use_test_database_copy_ = false;
   bool exclude_in_sql_builder_pipe_sql_equivalence_tests_ = false;
+  int64_t float_margin_ulp_bits_ = FloatMargin::kDefaultUlpBits;
 
   FilebasedSQLTestCaseOptions();
 };

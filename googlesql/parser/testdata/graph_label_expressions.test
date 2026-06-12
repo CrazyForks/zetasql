@@ -38,17 +38,18 @@ QueryStatement [0-99] [select * from...m k`) ) g1]
                     GraphLabelFilter [51-59] [IS `A.B`]
                       GraphElementLabel [54-59] [`A.B`]
                         Identifier(`A.B`) [54-59] [`A.B`]
-          SelectList [71-93] [1 AS one, x.a AS `m k`]
-            SelectColumn [71-79] [1 AS one]
-              IntLiteral(1) [71-72] [1]
-              Alias [73-79] [AS one]
-                Identifier(one) [76-79] [one]
-            SelectColumn [81-93] [x.a AS `m k`]
-              PathExpression [81-84] [x.a]
-                Identifier(x) [81-82] [x]
-                Identifier(a) [83-84] [a]
-              Alias [85-93] [AS `m k`]
-                Identifier(`m k`) [88-93] [`m k`]
+          Select [63-94] [COLUMNS(1...AS `m k`)]
+            SelectList [71-93] [1 AS one, x.a AS `m k`]
+              SelectColumn [71-79] [1 AS one]
+                IntLiteral(1) [71-72] [1]
+                Alias [73-79] [AS one]
+                  Identifier(one) [76-79] [one]
+              SelectColumn [81-93] [x.a AS `m k`]
+                PathExpression [81-84] [x.a]
+                  Identifier(x) [81-82] [x]
+                  Identifier(a) [83-84] [a]
+                Alias [85-93] [AS `m k`]
+                  Identifier(`m k`) [88-93] [`m k`]
           Alias [97-99] [g1]
             Identifier(g1) [97-99] [g1]
 --
@@ -58,8 +59,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS `A.B`)
+      (x IS `A.B`)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -94,17 +94,18 @@ QueryStatement [0-95] [select * from...m k`) ) g1]
                     GraphLabelFilter [51-55] [IS A]
                       GraphElementLabel [54-55] [A]
                         Identifier(A) [54-55] [A]
-          SelectList [67-89] [1 AS one, x.a AS `m k`]
-            SelectColumn [67-75] [1 AS one]
-              IntLiteral(1) [67-68] [1]
-              Alias [69-75] [AS one]
-                Identifier(one) [72-75] [one]
-            SelectColumn [77-89] [x.a AS `m k`]
-              PathExpression [77-80] [x.a]
-                Identifier(x) [77-78] [x]
-                Identifier(a) [79-80] [a]
-              Alias [81-89] [AS `m k`]
-                Identifier(`m k`) [84-89] [`m k`]
+          Select [59-90] [COLUMNS(1...AS `m k`)]
+            SelectList [67-89] [1 AS one, x.a AS `m k`]
+              SelectColumn [67-75] [1 AS one]
+                IntLiteral(1) [67-68] [1]
+                Alias [69-75] [AS one]
+                  Identifier(one) [72-75] [one]
+              SelectColumn [77-89] [x.a AS `m k`]
+                PathExpression [77-80] [x.a]
+                  Identifier(x) [77-78] [x]
+                  Identifier(a) [79-80] [a]
+                Alias [81-89] [AS `m k`]
+                  Identifier(`m k`) [84-89] [`m k`]
           Alias [93-95] [g1]
             Identifier(g1) [93-95] [g1]
 --
@@ -114,8 +115,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS A)
+      (x IS A)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -151,17 +151,18 @@ QueryStatement [0-96] [select * from...m k`) ) g1]
                       GraphLabelOperation(NOT) [54-56] [!A]
                         GraphElementLabel [55-56] [A]
                           Identifier(A) [55-56] [A]
-          SelectList [68-90] [1 AS one, x.a AS `m k`]
-            SelectColumn [68-76] [1 AS one]
-              IntLiteral(1) [68-69] [1]
-              Alias [70-76] [AS one]
-                Identifier(one) [73-76] [one]
-            SelectColumn [78-90] [x.a AS `m k`]
-              PathExpression [78-81] [x.a]
-                Identifier(x) [78-79] [x]
-                Identifier(a) [80-81] [a]
-              Alias [82-90] [AS `m k`]
-                Identifier(`m k`) [85-90] [`m k`]
+          Select [60-91] [COLUMNS(1...AS `m k`)]
+            SelectList [68-90] [1 AS one, x.a AS `m k`]
+              SelectColumn [68-76] [1 AS one]
+                IntLiteral(1) [68-69] [1]
+                Alias [70-76] [AS one]
+                  Identifier(one) [73-76] [one]
+              SelectColumn [78-90] [x.a AS `m k`]
+                PathExpression [78-81] [x.a]
+                  Identifier(x) [78-79] [x]
+                  Identifier(a) [80-81] [a]
+                Alias [82-90] [AS `m k`]
+                  Identifier(`m k`) [85-90] [`m k`]
           Alias [94-96] [g1]
             Identifier(g1) [94-96] [g1]
 --
@@ -171,8 +172,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! A)
+      (x IS ! A)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -207,17 +207,18 @@ QueryStatement [0-97] [select * from...m k`) ) g1]
                     GraphLabelFilter [51-57] [IS (A)]
                       GraphElementLabel [55-56] [A]
                         Identifier(A) [55-56] [A]
-          SelectList [69-91] [1 AS one, x.a AS `m k`]
-            SelectColumn [69-77] [1 AS one]
-              IntLiteral(1) [69-70] [1]
-              Alias [71-77] [AS one]
-                Identifier(one) [74-77] [one]
-            SelectColumn [79-91] [x.a AS `m k`]
-              PathExpression [79-82] [x.a]
-                Identifier(x) [79-80] [x]
-                Identifier(a) [81-82] [a]
-              Alias [83-91] [AS `m k`]
-                Identifier(`m k`) [86-91] [`m k`]
+          Select [61-92] [COLUMNS(1...AS `m k`)]
+            SelectList [69-91] [1 AS one, x.a AS `m k`]
+              SelectColumn [69-77] [1 AS one]
+                IntLiteral(1) [69-70] [1]
+                Alias [71-77] [AS one]
+                  Identifier(one) [74-77] [one]
+              SelectColumn [79-91] [x.a AS `m k`]
+                PathExpression [79-82] [x.a]
+                  Identifier(x) [79-80] [x]
+                  Identifier(a) [81-82] [a]
+                Alias [83-91] [AS `m k`]
+                  Identifier(`m k`) [86-91] [`m k`]
           Alias [95-97] [g1]
             Identifier(g1) [95-97] [g1]
 --
@@ -227,8 +228,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS A)
+      (x IS A)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -264,17 +264,18 @@ QueryStatement [0-100] [select * from...m k`) ) g1]
                       GraphLabelOperation(NOT) [55-59] [!(A)]
                         GraphElementLabel [57-58] [A]
                           Identifier(A) [57-58] [A]
-          SelectList [72-94] [1 AS one, x.a AS `m k`]
-            SelectColumn [72-80] [1 AS one]
-              IntLiteral(1) [72-73] [1]
-              Alias [74-80] [AS one]
-                Identifier(one) [77-80] [one]
-            SelectColumn [82-94] [x.a AS `m k`]
-              PathExpression [82-85] [x.a]
-                Identifier(x) [82-83] [x]
-                Identifier(a) [84-85] [a]
-              Alias [86-94] [AS `m k`]
-                Identifier(`m k`) [89-94] [`m k`]
+          Select [64-95] [COLUMNS(1...AS `m k`)]
+            SelectList [72-94] [1 AS one, x.a AS `m k`]
+              SelectColumn [72-80] [1 AS one]
+                IntLiteral(1) [72-73] [1]
+                Alias [74-80] [AS one]
+                  Identifier(one) [77-80] [one]
+              SelectColumn [82-94] [x.a AS `m k`]
+                PathExpression [82-85] [x.a]
+                  Identifier(x) [82-83] [x]
+                  Identifier(a) [84-85] [a]
+                Alias [86-94] [AS `m k`]
+                  Identifier(`m k`) [89-94] [`m k`]
           Alias [98-100] [g1]
             Identifier(g1) [98-100] [g1]
 --
@@ -284,8 +285,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS (! A))
+      (x IS (! A))
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -319,17 +319,18 @@ QueryStatement [0-95] [select * from...m k`) ) g1]
                     Identifier(x) [49-50] [x]
                     GraphLabelFilter [51-55] [IS %]
                       GraphWildcardLabel [54-55] [%]
-          SelectList [67-89] [1 AS one, x.a AS `m k`]
-            SelectColumn [67-75] [1 AS one]
-              IntLiteral(1) [67-68] [1]
-              Alias [69-75] [AS one]
-                Identifier(one) [72-75] [one]
-            SelectColumn [77-89] [x.a AS `m k`]
-              PathExpression [77-80] [x.a]
-                Identifier(x) [77-78] [x]
-                Identifier(a) [79-80] [a]
-              Alias [81-89] [AS `m k`]
-                Identifier(`m k`) [84-89] [`m k`]
+          Select [59-90] [COLUMNS(1...AS `m k`)]
+            SelectList [67-89] [1 AS one, x.a AS `m k`]
+              SelectColumn [67-75] [1 AS one]
+                IntLiteral(1) [67-68] [1]
+                Alias [69-75] [AS one]
+                  Identifier(one) [72-75] [one]
+              SelectColumn [77-89] [x.a AS `m k`]
+                PathExpression [77-80] [x.a]
+                  Identifier(x) [77-78] [x]
+                  Identifier(a) [79-80] [a]
+                Alias [81-89] [AS `m k`]
+                  Identifier(`m k`) [84-89] [`m k`]
           Alias [93-95] [g1]
             Identifier(g1) [93-95] [g1]
 --
@@ -339,8 +340,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS %)
+      (x IS %)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -375,17 +375,18 @@ QueryStatement [0-96] [select * from...m k`) ) g1]
                     GraphLabelFilter [51-56] [IS !%]
                       GraphLabelOperation(NOT) [54-56] [!%]
                         GraphWildcardLabel [55-56] [%]
-          SelectList [68-90] [1 AS one, x.a AS `m k`]
-            SelectColumn [68-76] [1 AS one]
-              IntLiteral(1) [68-69] [1]
-              Alias [70-76] [AS one]
-                Identifier(one) [73-76] [one]
-            SelectColumn [78-90] [x.a AS `m k`]
-              PathExpression [78-81] [x.a]
-                Identifier(x) [78-79] [x]
-                Identifier(a) [80-81] [a]
-              Alias [82-90] [AS `m k`]
-                Identifier(`m k`) [85-90] [`m k`]
+          Select [60-91] [COLUMNS(1...AS `m k`)]
+            SelectList [68-90] [1 AS one, x.a AS `m k`]
+              SelectColumn [68-76] [1 AS one]
+                IntLiteral(1) [68-69] [1]
+                Alias [70-76] [AS one]
+                  Identifier(one) [73-76] [one]
+              SelectColumn [78-90] [x.a AS `m k`]
+                PathExpression [78-81] [x.a]
+                  Identifier(x) [78-79] [x]
+                  Identifier(a) [80-81] [a]
+                Alias [82-90] [AS `m k`]
+                  Identifier(`m k`) [85-90] [`m k`]
           Alias [94-96] [g1]
             Identifier(g1) [94-96] [g1]
 --
@@ -395,8 +396,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! %)
+      (x IS ! %)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -430,17 +430,18 @@ QueryStatement [0-97] [select * from...m k`) ) g1]
                     Identifier(x) [49-50] [x]
                     GraphLabelFilter [51-57] [IS (%)]
                       GraphWildcardLabel [55-56] [%]
-          SelectList [69-91] [1 AS one, x.a AS `m k`]
-            SelectColumn [69-77] [1 AS one]
-              IntLiteral(1) [69-70] [1]
-              Alias [71-77] [AS one]
-                Identifier(one) [74-77] [one]
-            SelectColumn [79-91] [x.a AS `m k`]
-              PathExpression [79-82] [x.a]
-                Identifier(x) [79-80] [x]
-                Identifier(a) [81-82] [a]
-              Alias [83-91] [AS `m k`]
-                Identifier(`m k`) [86-91] [`m k`]
+          Select [61-92] [COLUMNS(1...AS `m k`)]
+            SelectList [69-91] [1 AS one, x.a AS `m k`]
+              SelectColumn [69-77] [1 AS one]
+                IntLiteral(1) [69-70] [1]
+                Alias [71-77] [AS one]
+                  Identifier(one) [74-77] [one]
+              SelectColumn [79-91] [x.a AS `m k`]
+                PathExpression [79-82] [x.a]
+                  Identifier(x) [79-80] [x]
+                  Identifier(a) [81-82] [a]
+                Alias [83-91] [AS `m k`]
+                  Identifier(`m k`) [86-91] [`m k`]
           Alias [95-97] [g1]
             Identifier(g1) [95-97] [g1]
 --
@@ -450,8 +451,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS %)
+      (x IS %)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -486,17 +486,18 @@ QueryStatement [0-98] [select * from...m k`) ) g1]
                     GraphLabelFilter [51-58] [IS !(%)]
                       GraphLabelOperation(NOT) [54-58] [!(%)]
                         GraphWildcardLabel [56-57] [%]
-          SelectList [70-92] [1 AS one, x.a AS `m k`]
-            SelectColumn [70-78] [1 AS one]
-              IntLiteral(1) [70-71] [1]
-              Alias [72-78] [AS one]
-                Identifier(one) [75-78] [one]
-            SelectColumn [80-92] [x.a AS `m k`]
-              PathExpression [80-83] [x.a]
-                Identifier(x) [80-81] [x]
-                Identifier(a) [82-83] [a]
-              Alias [84-92] [AS `m k`]
-                Identifier(`m k`) [87-92] [`m k`]
+          Select [62-93] [COLUMNS(1...AS `m k`)]
+            SelectList [70-92] [1 AS one, x.a AS `m k`]
+              SelectColumn [70-78] [1 AS one]
+                IntLiteral(1) [70-71] [1]
+                Alias [72-78] [AS one]
+                  Identifier(one) [75-78] [one]
+              SelectColumn [80-92] [x.a AS `m k`]
+                PathExpression [80-83] [x.a]
+                  Identifier(x) [80-81] [x]
+                  Identifier(a) [82-83] [a]
+                Alias [84-92] [AS `m k`]
+                  Identifier(`m k`) [87-92] [`m k`]
           Alias [96-98] [g1]
             Identifier(g1) [96-98] [g1]
 --
@@ -506,8 +507,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! %)
+      (x IS ! %)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -547,17 +547,18 @@ QueryStatement [0-101] [select * from...m k`) ) g1]
                         GraphLabelOperation(NOT) [59-61] [!b]
                           GraphElementLabel [60-61] [b]
                             Identifier(b) [60-61] [b]
-          SelectList [73-95] [1 AS one, x.a AS `m k`]
-            SelectColumn [73-81] [1 AS one]
-              IntLiteral(1) [73-74] [1]
-              Alias [75-81] [AS one]
-                Identifier(one) [78-81] [one]
-            SelectColumn [83-95] [x.a AS `m k`]
-              PathExpression [83-86] [x.a]
-                Identifier(x) [83-84] [x]
-                Identifier(a) [85-86] [a]
-              Alias [87-95] [AS `m k`]
-                Identifier(`m k`) [90-95] [`m k`]
+          Select [65-96] [COLUMNS(1...AS `m k`)]
+            SelectList [73-95] [1 AS one, x.a AS `m k`]
+              SelectColumn [73-81] [1 AS one]
+                IntLiteral(1) [73-74] [1]
+                Alias [75-81] [AS one]
+                  Identifier(one) [78-81] [one]
+              SelectColumn [83-95] [x.a AS `m k`]
+                PathExpression [83-86] [x.a]
+                  Identifier(x) [83-84] [x]
+                  Identifier(a) [85-86] [a]
+                Alias [87-95] [AS `m k`]
+                  Identifier(`m k`) [90-95] [`m k`]
           Alias [99-101] [g1]
             Identifier(g1) [99-101] [g1]
 --
@@ -567,8 +568,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! A & ! b)
+      (x IS ! A & ! b)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -608,17 +608,18 @@ QueryStatement [0-101] [select * from...m k`) ) g1]
                         GraphLabelOperation(NOT) [59-61] [!b]
                           GraphElementLabel [60-61] [b]
                             Identifier(b) [60-61] [b]
-          SelectList [73-95] [1 AS one, x.a AS `m k`]
-            SelectColumn [73-81] [1 AS one]
-              IntLiteral(1) [73-74] [1]
-              Alias [75-81] [AS one]
-                Identifier(one) [78-81] [one]
-            SelectColumn [83-95] [x.a AS `m k`]
-              PathExpression [83-86] [x.a]
-                Identifier(x) [83-84] [x]
-                Identifier(a) [85-86] [a]
-              Alias [87-95] [AS `m k`]
-                Identifier(`m k`) [90-95] [`m k`]
+          Select [65-96] [COLUMNS(1...AS `m k`)]
+            SelectList [73-95] [1 AS one, x.a AS `m k`]
+              SelectColumn [73-81] [1 AS one]
+                IntLiteral(1) [73-74] [1]
+                Alias [75-81] [AS one]
+                  Identifier(one) [78-81] [one]
+              SelectColumn [83-95] [x.a AS `m k`]
+                PathExpression [83-86] [x.a]
+                  Identifier(x) [83-84] [x]
+                  Identifier(a) [85-86] [a]
+                Alias [87-95] [AS `m k`]
+                  Identifier(`m k`) [90-95] [`m k`]
           Alias [99-101] [g1]
             Identifier(g1) [99-101] [g1]
 --
@@ -628,8 +629,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! A | ! b)
+      (x IS ! A | ! b)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -673,17 +673,18 @@ QueryStatement [0-107] [select * from...m k`) ) g1]
                             Identifier(C) [62-63] [C]
                           GraphElementLabel [66-67] [D]
                             Identifier(D) [66-67] [D]
-          SelectList [79-101] [1 AS one, x.a AS `m k`]
-            SelectColumn [79-87] [1 AS one]
-              IntLiteral(1) [79-80] [1]
-              Alias [81-87] [AS one]
-                Identifier(one) [84-87] [one]
-            SelectColumn [89-101] [x.a AS `m k`]
-              PathExpression [89-92] [x.a]
-                Identifier(x) [89-90] [x]
-                Identifier(a) [91-92] [a]
-              Alias [93-101] [AS `m k`]
-                Identifier(`m k`) [96-101] [`m k`]
+          Select [71-102] [COLUMNS(1...AS `m k`)]
+            SelectList [79-101] [1 AS one, x.a AS `m k`]
+              SelectColumn [79-87] [1 AS one]
+                IntLiteral(1) [79-80] [1]
+                Alias [81-87] [AS one]
+                  Identifier(one) [84-87] [one]
+              SelectColumn [89-101] [x.a AS `m k`]
+                PathExpression [89-92] [x.a]
+                  Identifier(x) [89-90] [x]
+                  Identifier(a) [91-92] [a]
+                Alias [93-101] [AS `m k`]
+                  Identifier(`m k`) [96-101] [`m k`]
           Alias [105-107] [g1]
             Identifier(g1) [105-107] [g1]
 --
@@ -693,8 +694,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS A & B | C & D)
+      (x IS A & B | C & D)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -739,17 +739,18 @@ QueryStatement [0-110] [select * from...m k`) ) g1]
                             GraphWildcardLabel [65-66] [%]
                         GraphElementLabel [69-70] [D]
                           Identifier(D) [69-70] [D]
-          SelectList [82-104] [1 AS one, x.a AS `m k`]
-            SelectColumn [82-90] [1 AS one]
-              IntLiteral(1) [82-83] [1]
-              Alias [84-90] [AS one]
-                Identifier(one) [87-90] [one]
-            SelectColumn [92-104] [x.a AS `m k`]
-              PathExpression [92-95] [x.a]
-                Identifier(x) [92-93] [x]
-                Identifier(a) [94-95] [a]
-              Alias [96-104] [AS `m k`]
-                Identifier(`m k`) [99-104] [`m k`]
+          Select [74-105] [COLUMNS(1...AS `m k`)]
+            SelectList [82-104] [1 AS one, x.a AS `m k`]
+              SelectColumn [82-90] [1 AS one]
+                IntLiteral(1) [82-83] [1]
+                Alias [84-90] [AS one]
+                  Identifier(one) [87-90] [one]
+              SelectColumn [92-104] [x.a AS `m k`]
+                PathExpression [92-95] [x.a]
+                  Identifier(x) [92-93] [x]
+                  Identifier(a) [94-95] [a]
+                Alias [96-104] [AS `m k`]
+                  Identifier(`m k`) [99-104] [`m k`]
           Alias [108-110] [g1]
             Identifier(g1) [108-110] [g1]
 --
@@ -759,8 +760,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS ! A | ! B & ! % | D)
+      (x IS ! A | ! B & ! % | D)
     COLUMNS(
       1 AS one,
       x.a AS `m k`
@@ -805,17 +805,18 @@ QueryStatement [0-113] [select * from...m k`) ) g1]
                             Identifier(C) [66-67] [C]
                           GraphLabelOperation(NOT) [70-72] [!%]
                             GraphWildcardLabel [71-72] [%]
-          SelectList [85-107] [1 AS one, x.a AS `m k`]
-            SelectColumn [85-93] [1 AS one]
-              IntLiteral(1) [85-86] [1]
-              Alias [87-93] [AS one]
-                Identifier(one) [90-93] [one]
-            SelectColumn [95-107] [x.a AS `m k`]
-              PathExpression [95-98] [x.a]
-                Identifier(x) [95-96] [x]
-                Identifier(a) [97-98] [a]
-              Alias [99-107] [AS `m k`]
-                Identifier(`m k`) [102-107] [`m k`]
+          Select [77-108] [COLUMNS(1...AS `m k`)]
+            SelectList [85-107] [1 AS one, x.a AS `m k`]
+              SelectColumn [85-93] [1 AS one]
+                IntLiteral(1) [85-86] [1]
+                Alias [87-93] [AS one]
+                  Identifier(one) [90-93] [one]
+              SelectColumn [95-107] [x.a AS `m k`]
+                PathExpression [95-98] [x.a]
+                  Identifier(x) [95-96] [x]
+                  Identifier(a) [97-98] [a]
+                Alias [99-107] [AS `m k`]
+                  Identifier(`m k`) [102-107] [`m k`]
           Alias [111-113] [g1]
             Identifier(g1) [111-113] [g1]
 --
@@ -825,8 +826,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      (x
-      IS !(A | B) &(C | ! %))
+      (x IS !(A | B) &(C | ! %))
     COLUMNS(
       1 AS one,
       x.a AS `m k`

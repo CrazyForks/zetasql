@@ -27,11 +27,11 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_node.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -182,5 +182,54 @@ ToPropertySpecifications(std::vector<const ResolvedExpr*> exprs) {
   return property_specifications;
 }
 
+bool IsRestrictivePathMode(ResolvedGraphPathModeEnums::PathMode path_mode) {
+  return path_mode == ResolvedGraphPathModeEnums::SIMPLE ||
+         path_mode == ResolvedGraphPathModeEnums::ACYCLIC ||
+         path_mode == ResolvedGraphPathModeEnums::TRAIL;
+}
+
+bool HasSearchPrefix(
+    ResolvedGraphPathSearchPrefixEnums::PathSearchPrefixType prefix_type) {
+  return prefix_type != ResolvedGraphPathSearchPrefixEnums::
+                            PATH_SEARCH_PREFIX_TYPE_UNSPECIFIED;
+}
+
+absl::StatusOr<Value> IntersectPeriods(const Value& period1,
+                                       const Value& period2) {
+  GOOGLESQL_RET_CHECK(!period1.is_null() && !period2.is_null());
+  GOOGLESQL_RET_CHECK(period1.type()->IsRange() && period2.type()->IsRange());
+  GOOGLESQL_RET_CHECK(period1.type()->AsRange()->element_type()->IsTimestamp());
+  GOOGLESQL_RET_CHECK(period2.type()->AsRange()->element_type()->IsTimestamp());
+
+  Value intersect_start = period1.start().LessThan(period2.start())
+                              ? period2.start()
+                              : period1.start();
+  Value intersect_end;
+  if (period1.end().is_null() && period2.end().is_null()) {
+    intersect_end = Value::NullTimestamp();
+  } else if (period1.end().is_null()) {
+    intersect_end = period2.end();
+  } else if (period2.end().is_null()) {
+    intersect_end = period1.end();
+  } else {
+    intersect_end =
+        period1.end().LessThan(period2.end()) ? period1.end() : period2.end();
+  }
+
+  return Value::MakeRange(intersect_start, intersect_end);
+}
+
+absl::StatusOr<bool> PeriodContainsPoint(const Value& period,
+                                         const Value& point) {
+  GOOGLESQL_RET_CHECK(!period.is_null() && !point.is_null());
+  GOOGLESQL_RET_CHECK(period.type()->IsRange());
+  GOOGLESQL_RET_CHECK(period.type()->AsRange()->element_type()->IsTimestamp());
+  GOOGLESQL_RET_CHECK(point.type()->IsTimestamp());
+
+  bool le_start = period.start().is_null() || !point.LessThan(period.start());
+  bool gt_end = period.end().is_null() || point.LessThan(period.end());
+
+  return le_start && gt_end;
+}
 
 }  // namespace googlesql

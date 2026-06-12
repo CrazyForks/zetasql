@@ -1706,12 +1706,9 @@ FROM
           a_4 AS a_7
         NEXT
         MATCH
-          (a_8
-          IS (% | ! %))
-          -[a_9
-          IS (% | ! %)]->
-          (a_10
-          IS (% | ! %))
+          (a_8 IS (% | ! %))
+          -[a_9 IS (% | ! %)]->
+          (a_10 IS (% | ! %))
         RETURN
           a_5 AS a_11,
           a_6 AS a_12,
@@ -1738,12 +1735,9 @@ FROM
       a_4 AS a_7
     NEXT
     MATCH
-      (a_8
-      IS (% | ! %))
-      -[a_9
-      IS (% | ! %)]->
-      (a_10
-      IS (% | ! %))
+      (a_8 IS (% | ! %))
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS (% | ! %))
     RETURN
       a_5 AS a_11,
       a_6 AS a_12,
@@ -1931,12 +1925,9 @@ FROM
       GRAPH_TABLE(
         aml
         MATCH
-          (a_2
-          IS (% | ! %))
-          -[a_3
-          IS (% | ! %)]->
-          (a_4
-          IS (% | ! %))
+          (a_2 IS (% | ! %))
+          -[a_3 IS (% | ! %)]->
+          (a_4 IS (% | ! %))
         RETURN
           a_2 AS a_5,
           a_3 AS a_6,
@@ -1966,12 +1957,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       a_2 AS a_5,
       a_3 AS a_6,

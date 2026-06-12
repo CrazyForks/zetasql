@@ -3,9 +3,19 @@
 # Braced constructors disabled
 SELECT NEW x {}
 --
-ERROR: Braced constructors are not supported [at 2:14]
-SELECT NEW x {}
-             ^
+QueryStatement [31-46] [SELECT NEW x {}]
+  Query [31-46] [SELECT NEW x {}]
+    Select [31-46] [SELECT NEW x {}]
+      SelectList [38-46] [NEW x {}]
+        SelectColumn [38-46] [NEW x {}]
+          BracedNewConstructor [38-46] [NEW x {}]
+            SimpleType [42-43] [x]
+              PathExpression [42-43] [x]
+                Identifier(x) [42-43] [x]
+            BracedConstructor [44-46] [{}]
+--
+SELECT
+  NEW x { }
 ==
 
 # No field constructor.
@@ -547,7 +557,7 @@ QueryStatement [0-57] [SELECT NEW...value: 1   } }]
                 Identifier(x) [11-12] [x]
             BracedConstructor [13-57] [{   (path....value: 1   } }]
               BracedConstructorField [17-55] [(path.to.extensio...lue: 1   }]
-                BracedConstructorLhs [17-36] [(path.to.extension)]
+                BracedConstructorLhs [18-35] [path.to.extension]
                   PathExpression [18-35] [path.to.extension]
                     Identifier(path) [18-22] [path]
                     Identifier(`to`) [23-25] [to]
@@ -624,7 +634,7 @@ QueryStatement [0-80] [SELECT NEW...baz: 1 }]
                   StringLiteral [22-27] ["bar"]
                     StringLiteralComponent("bar") [22-27] ["bar"]
               BracedConstructorField [31-69] [(path.to.extensio...lue: 1   }]
-                BracedConstructorLhs [31-50] [(path.to.extension)]
+                BracedConstructorLhs [32-49] [path.to.extension]
                   PathExpression [32-49] [path.to.extension]
                     Identifier(path) [32-36] [path]
                     Identifier(`to`) [37-39] [to]
@@ -670,11 +680,9 @@ ERROR: Syntax error: Function call cannot be applied to this expression. Functio
   ^
 ==
 
-# An expression that looks like a function call in the RHS, specifically the
-# part "column(path.to.expression)" because a comma is missing after "column"
-# which is required by the proto NEW braced constructor just before setting
-# extension fields. This parses correct but we appropriately treat this as an
-# error in the analyzer.
+# An expression that looks sorta like an unpdate constructor but probably is the
+# user trying to set an extension field after omiting the comma. The NEW braced
+# constructor requires a comma before setting an extension field.
 SELECT NEW x {
   foo: column
   (path.to.extension) {
@@ -698,7 +706,7 @@ QueryStatement [0-80] [SELECT NEW...baz: 1 }]
                   PathExpression [17-20] [foo]
                     Identifier(foo) [17-20] [foo]
                 BracedConstructorFieldValue [22-69] [column   (...value: 1   }]
-                  UpdateConstructor [22-69] [column   (...value: 1   }]
+                  BracedConstructorExtendedExpr [22-69] [column   (...value: 1   }]
                     FunctionCall [22-50] [column   (path.to.extension)]
                       PathExpression [22-28] [column]
                         Identifier(column) [22-28] [column]
@@ -793,7 +801,7 @@ WITH
   )
 SELECT
   NEW foo.TestExtraPB {
-    int32_val1 : `UPDATE`(foo.TestExtraPBExtensionHolder.test_extra_proto_extension) {
+    int32_val1 : UPDATE(foo.TestExtraPBExtensionHolder.test_extra_proto_extension) {
       ext_value : ARRAY[1]
     }
   }
@@ -913,7 +921,7 @@ QueryStatement [0-69] [SELECT NEW...blah"   } }]
                     IntLiteral(3) [23-24] [3]
                     IntLiteral(5) [27-28] [5]
               BracedConstructorField [33-67] [(bar.baz)..."blah"   }]
-                BracedConstructorLhs [33-42] [(bar.baz)]
+                BracedConstructorLhs [34-41] [bar.baz]
                   PathExpression [34-41] [bar.baz]
                     Identifier(bar) [34-37] [bar]
                     Identifier(baz) [38-41] [baz]
@@ -977,7 +985,7 @@ QueryStatement [0-95] [SELECT NEW...blah"   } }]
                               Identifier(a) [49-50] [a]
                             IntLiteral(1) [53-54] [1]
               BracedConstructorField [59-93] [(bar.baz)..."blah"   }]
-                BracedConstructorLhs [59-68] [(bar.baz)]
+                BracedConstructorLhs [60-67] [bar.baz]
                   PathExpression [60-67] [bar.baz]
                     Identifier(bar) [60-63] [bar]
                     Identifier(baz) [64-67] [baz]
@@ -1033,7 +1041,7 @@ QueryStatement [0-67] [SELECT NEW...blah"   } }]
                     IntLiteral(3) [22-23] [3]
                     IntLiteral(5) [26-27] [5]
               BracedConstructorField [31-65] [(bar.baz)..."blah"   }]
-                BracedConstructorLhs [31-40] [(bar.baz)]
+                BracedConstructorLhs [32-39] [bar.baz]
                   PathExpression [32-39] [bar.baz]
                     Identifier(bar) [32-35] [bar]
                     Identifier(baz) [36-39] [baz]
@@ -1087,7 +1095,7 @@ QueryStatement [0-82] [SELECT NEW...blah"   } }]
                     StringLiteral [36-41] ["bar"]
                       StringLiteralComponent("bar") [36-41] ["bar"]
               BracedConstructorField [46-80] [(bar.baz)..."blah"   }]
-                BracedConstructorLhs [46-55] [(bar.baz)]
+                BracedConstructorLhs [47-54] [bar.baz]
                   PathExpression [47-54] [bar.baz]
                     Identifier(bar) [47-50] [bar]
                     Identifier(baz) [51-54] [baz]
@@ -1478,15 +1486,15 @@ SELECT NEW struct {1, 2}
 # No field name.
 SELECT NEW ProtoType {1}
 --
-ERROR: Syntax error: Unexpected integer literal "1" [at 1:23]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:24]
 SELECT NEW ProtoType {1}
-                      ^
+                       ^
 ==
 
 # No field value.
 SELECT NEW ProtoType {foobar}
 --
-ERROR: Syntax error: Unexpected "}" [at 1:29]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:29]
 SELECT NEW ProtoType {foobar}
                             ^
 ==
@@ -1518,3 +1526,91 @@ SELECT
   NEW package.Message {
     field : FORK()
   }
+==
+
+SELECT NEW Thing
+  {
+    key {
+      part: [{ string_value: Tab.col.key.reference_string }]
+    },
+    value {
+      type_url: 'some.string.literal',
+      value: Tab.col.data
+    }
+  }
+FROM Tab
+--
+QueryStatement [0-194] [SELECT NEW...} FROM Tab]
+  Query [0-194] [SELECT NEW...} FROM Tab]
+    Select [0-194] [SELECT NEW...} FROM Tab]
+      SelectList [7-185] [NEW Thing...}   }]
+        SelectColumn [7-185] [NEW Thing...}   }]
+          BracedNewConstructor [7-185] [NEW Thing...}   }]
+            SimpleType [11-16] [Thing]
+              PathExpression [11-16] [Thing]
+                Identifier(Thing) [11-16] [Thing]
+            BracedConstructor [19-185] [{     key...}   }]
+              BracedConstructorField [25-97] [key {...erence_string }]     }]
+                BracedConstructorLhs [25-28] [key]
+                  PathExpression [25-28] [key]
+                    Identifier(key) [25-28] [key]
+                BracedConstructorFieldValue [29-97] [{       part...string }]     }]
+                  BracedConstructor [29-97] [{       part...string }]     }]
+                    BracedConstructorField [37-91] [part: [{ string_v..._string }]]
+                      BracedConstructorLhs [37-41] [part]
+                        PathExpression [37-41] [part]
+                          Identifier(part) [37-41] [part]
+                      BracedConstructorFieldValue [43-91] [[{ string_value...ce_string }]]
+                        ArrayConstructor [43-91] [[{ string_value...ce_string }]]
+                          BracedConstructor [44-90] [{ string_value...ence_string }]
+                            BracedConstructorField [46-88] [string_value...eference_string]
+                              BracedConstructorLhs [46-58] [string_value]
+                                PathExpression [46-58] [string_value]
+                                  Identifier(string_value) [46-58] [string_value]
+                              BracedConstructorFieldValue [60-88] [Tab.col.key.reference_string]
+                                PathExpression [60-88] [Tab.col.key.reference_string]
+                                  Identifier(Tab) [60-63] [Tab]
+                                  Identifier(col) [64-67] [col]
+                                  Identifier(key) [68-71] [key]
+                                  Identifier(reference_string) [72-88] [reference_string]
+              BracedConstructorField [103-181] [value {...data     }]
+                BracedConstructorLhs [103-108] [value]
+                  PathExpression [103-108] [value]
+                    Identifier(value) [103-108] [value]
+                BracedConstructorFieldValue [109-181] [{       type_url...data     }]
+                  BracedConstructor [109-181] [{       type_url...data     }]
+                    BracedConstructorField [117-148] [type_url:...string.literal']
+                      BracedConstructorLhs [117-125] [type_url]
+                        PathExpression [117-125] [type_url]
+                          Identifier(type_url) [117-125] [type_url]
+                      BracedConstructorFieldValue [127-148] ['some.string.literal']
+                        StringLiteral [127-148] ['some.string.literal']
+                          StringLiteralComponent('some.string.literal') [127-148] ['some.string.literal']
+                    BracedConstructorField [156-175] [value: Tab.col.data]
+                      BracedConstructorLhs [156-161] [value]
+                        PathExpression [156-161] [value]
+                          Identifier(value) [156-161] [value]
+                      BracedConstructorFieldValue [163-175] [Tab.col.data]
+                        PathExpression [163-175] [Tab.col.data]
+                          Identifier(Tab) [163-166] [Tab]
+                          Identifier(col) [167-170] [col]
+                          Identifier(data) [171-175] [data]
+      FromClause [186-194] [FROM Tab]
+        TablePathExpression [191-194] [Tab]
+          PathExpression [191-194] [Tab]
+            Identifier(Tab) [191-194] [Tab]
+--
+SELECT
+  NEW Thing {
+    key  {
+      part : ARRAY[{
+        string_value : Tab.col.key.reference_string
+      }]
+    },
+    value  {
+      type_url : 'some.string.literal',
+      value : Tab.col.data
+    }
+  }
+FROM
+  Tab

@@ -376,6 +376,17 @@ QueryStmt
           +-SingleRowScan
 ==
 
+# TODO Braced constructors should work in hints.
+[language_features=NONE,+BRACED_PROTO_CONSTRUCTORS]
+select @{ proto_hint="int32_val2:5",
+          proto_hint={ int32_val2:5 }
+        } 1
+--
+ERROR: Unable to infer a type for braced constructor [at 2:22]
+          proto_hint={ int32_val2:5 }
+                     ^
+==
+
 # Enum array hints aren't actually working unless we explicitly type the value
 # because we don't support implicit coercion of array values.
 select @{ enum_array_hint={{[1,2]|['TESTENUM1']|[]}} } 1
@@ -686,6 +697,34 @@ ExportDataStmt
     | +-x#1 := Literal(type=INT64, value=1)
     +-input_scan=
       +-SingleRowScan
+==
+
+export data OPTIONS(enum_option=TESTENUM1, proto_option="xint32_val2:5")
+as select 1 x
+--
+ERROR: Could not cast literal "xint32_val2:5" to type googlesql_test.TestExtraPB (Error parsing proto: Message type "googlesql_test.TestExtraPB" has no field named "xint32_val2". [1:12]) [at 1:57]
+export data OPTIONS(enum_option=TESTENUM1, proto_option="xint32_val2:5")
+                                                        ^
+==
+
+# TODO Braced constructors should work in options.
+[language_features=NONE,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(enum_option=TESTENUM1, proto_option={ int32_val2:5 })
+as select 1 x
+--
+ERROR: Unable to infer a type for braced constructor [at 1:57]
+export data OPTIONS(enum_option=TESTENUM1, proto_option={ int32_val2:5 })
+                                                        ^
+==
+
+# TODO Braced constructors should work in options.
+[language_features=NONE,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(enum_option=TESTENUM1, proto_option={ xint32_val2:5 })
+as select 1 x
+--
+ERROR: Unable to infer a type for braced constructor [at 1:57]
+export data OPTIONS(enum_option=TESTENUM1, proto_option={ xint32_val2:5 })
+                                                        ^
 ==
 
 export data OPTIONS(INT32_option="123")
@@ -1362,3 +1401,228 @@ ALTERNATION GROUP: MATERIALIZED VIEW,-=
 ERROR: Invalid operator -= for option string_option with expected type STRING [at 1:42]
 ALTER MATERIALIZED VIEW foo SET OPTIONS (string_option -= 'str1');
                                          ^
+==
+
+export data OPTIONS(FROM struct(1 as int32_option))
+as select 1 x
+--
+ERROR: OPTIONS (FROM <struct_expression>) is not supported [at 1:21]
+export data OPTIONS(FROM struct(1 as int32_option))
+                    ^
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM struct(1 as int32_option))
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+|   +-Literal(type=STRUCT<int32_option INT64>, value={int32_option:1})
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM 1)
+as select 1 x
+--
+ERROR: OPTIONS FROM expression must be a STRUCT, but has type INT64 [at 1:26]
+export data OPTIONS(FROM 1)
+                         ^
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM struct(1 as int32_option), int64_option=123)
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Literal(type=STRUCT<int32_option INT64>, value={int32_option:1})
+| +-int64_option := Literal(type=INT64, value=123)
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM struct("a" as string_option), string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Literal(type=STRUCT<string_option STRING>, value={string_option:"a"})
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM struct("a" as string_option), FROM struct("b" as string_option), string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Literal(type=STRUCT<string_option STRING>, value={string_option:"a"})
+| +-FROM
+| | +-Literal(type=STRUCT<string_option STRING>, value={string_option:"b"})
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(FROM {string_option: "a"}, string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Literal(type=STRUCT<string_option STRING>, value={string_option:"a"})
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(FROM struct{string_option: "a"}, string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Literal(type=STRUCT<string_option STRING>, value={string_option:"a"})
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM coalesce(struct("a" as string_option)), string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-FunctionCall(GoogleSQL:coalesce(repeated(1) STRUCT<string_option STRING>) -> STRUCT<string_option STRING>)
+| |   +-Literal(type=STRUCT<string_option STRING>, value={string_option:"a"})
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT]
+export data OPTIONS(FROM @test_param_struct, string_option="a")
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+| | +-Parameter(type=STRUCT<a INT32, b STRING>, name="test_param_struct")
+| +-string_option := Literal(type=STRING, value="a")
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(FROM struct<a INT64>{a: "b"})
+as select 1 x
+--
+ERROR: Struct field 1 has type STRING which does not coerce to INT64 [at 1:45]
+export data OPTIONS(FROM struct<a INT64>{a: "b"})
+                                            ^
+==
+
+[language_features=NONE,+OPTIONS_FROM_STRUCT,+BRACED_PROTO_CONSTRUCTORS]
+export data OPTIONS(FROM struct<a STRING>{a: "b"})
+as select 1 x
+--
+ExportDataStmt
++-option_list=
+| +-FROM
+|   +-Literal(type=STRUCT<a STRING>, value={a:"b"}, has_explicit_type=TRUE)
++-output_column_list=
+| +-$create_as.x#1 AS x [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$create_as.x#1]
+    +-expr_list=
+    | +-x#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan

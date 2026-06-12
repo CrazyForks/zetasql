@@ -41,6 +41,7 @@
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
@@ -50,7 +51,6 @@
 #include "googlesql/base/stl_util.h"
 #include "googlesql/base/mathutil.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -2046,9 +2046,8 @@ absl::StatusOr<FixedInt<64, 4>> FixedIntFromScaledValue(
       *most_significant_byte == '\x0') {
     return FixedInt<64, 4>();
   }
-  little_endian_value =
-      absl::string_view(little_endian_value.data(),
-                        most_significant_byte - little_endian_value.data() + 1);
+  little_endian_value = little_endian_value.substr(
+      0, most_significant_byte - little_endian_value.data() + 1);
 
   if (source_scale <= fractional_digits_to_keep) {
     // Scale up the value.

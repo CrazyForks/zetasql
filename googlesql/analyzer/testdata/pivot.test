@@ -7664,3 +7664,225 @@ PIVOT(COUNT(Key GROUP BY Key HAVING true) FOR Key IN (0, 1));
 ERROR: PIVOT expression cannot be a multi-level aggregate function call [at 2:7]
 PIVOT(COUNT(Key GROUP BY Key HAVING true) FOR Key IN (0, 1));
       ^
+
+==
+
+# PIVOT with collation on aggregate argument
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTs]
+WITH t AS (
+  SELECT COLLATE('a', 'und:ci') AS val_ci, 1 AS b
+)
+SELECT *
+FROM t
+PIVOT(count(distinct val_ci) FOR b IN (1));
+--
+[PRE-REWRITE AST]
+QueryStmt
++-output_column_list=
+| +-$pivot._1#6 AS _1 [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$pivot._1#6]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[val_ci#1, b#2]
+    |       +-expr_list=
+    |       | +-val_ci#1 :=
+    |       | | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       | |   +-type_annotation_map={Collation:"und:ci"}
+    |       | |   +-Literal(type=STRING, value="a")
+    |       | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       | +-b#2 := Literal(type=INT64, value=1)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$pivot._1#6]
+        +-input_scan=
+          +-PivotScan
+            +-column_list=[$pivot._1#6]
+            +-input_scan=
+            | +-WithRefScan(column_list=t.[val_ci#3, b#4], with_query_name="t")
+            +-pivot_expr_list=
+            | +-AggregateFunctionCall(GoogleSQL:count(STRING) -> INT64)
+            |   +-parse_location=86-108
+            |   +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.val_ci#3{Collation:"und:ci"})
+            |   +-collation_list=[und:ci]
+            |   +-distinct=TRUE
+            +-for_expr=
+            | +-ColumnRef(parse_location=113-114, type=INT64, column=t.b#4)
+            +-pivot_value_list=
+            | +-Literal(type=INT64, value=1, preserve_in_literal_remover=TRUE)
+            +-pivot_column_list=
+              +-PivotColumn(column=$pivot._1#6, pivot_expr_index=0, pivot_value_index=0)
+
+Rewrite ERROR: generic::unimplemented: Collation is not supported in a PIVOT clause yet [at 6:7]
+PIVOT(count(distinct val_ci) FOR b IN (1));
+      ^
+
+==
+
+# PIVOT with collation on FOR expression
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTs]
+WITH t AS (
+  SELECT 1 AS val, COLLATE('a', 'und:ci') AS target_ci
+)
+SELECT *
+FROM t
+PIVOT(sum(val) FOR target_ci IN ('a' AS a));
+--
+[PRE-REWRITE AST]
+QueryStmt
++-output_column_list=
+| +-$pivot.a#6 AS a [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$pivot.a#6]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[val#1, target_ci#2]
+    |       +-expr_list=
+    |       | +-val#1 := Literal(type=INT64, value=1)
+    |       | +-target_ci#2 :=
+    |       |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       |     +-type_annotation_map={Collation:"und:ci"}
+    |       |     +-Literal(type=STRING, value="a")
+    |       |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$pivot.a#6]
+        +-input_scan=
+          +-PivotScan
+            +-column_list=[$pivot.a#6]
+            +-input_scan=
+            | +-WithRefScan(column_list=t.[val#3, target_ci#4], with_query_name="t")
+            +-pivot_expr_list=
+            | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+            |   +-parse_location=91-99
+            |   +-ColumnRef(type=INT64, column=t.val#3)
+            +-for_expr=
+            | +-ColumnRef(parse_location=104-113, type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.target_ci#4{Collation:"und:ci"})
+            +-pivot_value_list=
+            | +-Literal(type=STRING, value="a")
+            +-pivot_column_list=
+            | +-PivotColumn(column=$pivot.a#6, pivot_expr_index=0, pivot_value_index=0)
+            +-pivot_value_collation=und:ci
+
+Rewrite ERROR: generic::unimplemented: Collation is not supported in a PIVOT clause yet [at 6:20]
+PIVOT(sum(val) FOR target_ci IN ('a' AS a));
+                   ^
+
+==
+
+# PIVOT with collation in IN list values
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTs]
+WITH t AS (
+  SELECT 1 AS val, 'a' AS target
+)
+SELECT *
+FROM t
+PIVOT(sum(val) FOR target IN (COLLATE('a', 'und:ci') AS a));
+--
+QueryStmt
++-output_column_list=
+| +-$pivot.a#6 AS a [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$pivot.a#6]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[val#1, target#2]
+    |       +-expr_list=
+    |       | +-val#1 := Literal(type=INT64, value=1)
+    |       | +-target#2 := Literal(type=STRING, value="a")
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$pivot.a#6]
+        +-input_scan=
+          +-PivotScan
+            +-column_list=[$pivot.a#6]
+            +-input_scan=
+            | +-WithRefScan(column_list=t.[val#3, target#4], with_query_name="t")
+            +-pivot_expr_list=
+            | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+            |   +-parse_location=69-77
+            |   +-ColumnRef(type=INT64, column=t.val#3)
+            +-for_expr=
+            | +-ColumnRef(parse_location=82-88, type=STRING, column=t.target#4)
+            +-pivot_value_list=
+            | +-Cast(STRING -> STRING)
+            |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+            |     +-type_annotation_map={Collation:"und:ci"}
+            |     +-Literal(type=STRING, value="a")
+            |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+            +-pivot_column_list=
+              +-PivotColumn(column=$pivot.a#6, pivot_expr_index=0, pivot_value_index=0)
+
+
+DEPRECATION WARNING:
+PIVOT IN list item has collation which will be ignored [at 6:31]
+PIVOT(sum(val) FOR target IN (COLLATE('a', 'und:ci') AS a));
+                              ^
+[googlesql.DeprecationWarning] { kind: PIVOT_VALUE_HAS_COLLATION }
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$pivot.a#6 AS a [INT64]
++-query=
+  +-WithScan
+    +-column_list=[$pivot.a#6]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[val#1, target#2]
+    |       +-expr_list=
+    |       | +-val#1 := Literal(type=INT64, value=1)
+    |       | +-target#2 := Literal(type=STRING, value="a")
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$pivot.a#6]
+        +-input_scan=
+          +-AggregateScan
+            +-column_list=[$pivot.a#6]
+            +-input_scan=
+            | +-ProjectScan
+            |   +-column_list=[t.val#3, t.target#4, $pivot.$pivot_value#7, $pivot.$pivot_expr_arg#8]
+            |   +-expr_list=
+            |   | +-$pivot_value#7 := ColumnRef(parse_location=82-88, type=STRING, column=t.target#4)
+            |   | +-$pivot_expr_arg#8 := ColumnRef(type=INT64, column=t.val#3)
+            |   +-input_scan=
+            |     +-WithRefScan(column_list=t.[val#3, target#4], with_query_name="t")
+            +-aggregate_list=
+              +-a#6 :=
+                +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+                  +-FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
+                    +-FunctionCall(GoogleSQL:$is_not_distinct_from(STRING, STRING) -> BOOL)
+                    | +-ColumnRef(type=STRING, column=$pivot.$pivot_value#7)
+                    | +-Cast(STRING -> STRING)
+                    |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+                    |     +-type_annotation_map={Collation:"und:ci"}
+                    |     +-Literal(type=STRING, value="a")
+                    |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+                    +-ColumnRef(type=INT64, column=$pivot.$pivot_expr_arg#8)
+                    +-Literal(type=INT64, value=NULL)

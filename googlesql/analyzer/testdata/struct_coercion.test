@@ -1066,7 +1066,11 @@ ERROR: No matching signature for operator = for argument types: STRUCT<key INT64
   Signature: INT64 = UINT64
     Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type INT64
   Signature: UINT64 = INT64
-    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type UINT64 [at 3:7]
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type UINT64
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type JSON
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type JSON [at 3:7]
 where struct(key, key) = ('1', '1');
       ^
 ==
@@ -1106,7 +1110,11 @@ ERROR: No matching signature for operator = for argument types: STRUCT<key INT64
   Signature: INT64 = UINT64
     Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type INT64
   Signature: UINT64 = INT64
-    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type UINT64 [at 3:7]
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type UINT64
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type JSON
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type STRUCT<key INT64, key INT64> to expected type JSON [at 3:7]
 where struct(key, key) = struct<key uint64, key int64>(cast(1 as uint64), 1);
       ^
 ==

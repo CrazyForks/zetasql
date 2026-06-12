@@ -1,7 +1,5 @@
 [default enabled_ast_rewrites=DEFAULTS]
 [default language_features=NONE,+LIKE_ANY_SOME_ALL]
-
-[no_java]
 [language_features=NONE,{{|+LIKE_ANY_SOME_ALL}}]
 select 'a' LIKE {{ANY|SOME|ALL}} ('a', 'b', 'c');
 --
@@ -1670,21 +1668,21 @@ select 'a' LIKE {{ANY|SOME|ALL}} (select 'a')
 --
 ALTERNATION GROUP: ANY
 --
-ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE ANY (pattern1, pattern2, ...)? [at 1:21]
+ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE ANY (pattern1, pattern2, ...)? [at 1:22]
 select 'a' LIKE ANY (select 'a')
-                    ^
+                     ^
 --
 ALTERNATION GROUP: SOME
 --
-ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE SOME (pattern1, pattern2, ...)? [at 1:22]
+ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE SOME (pattern1, pattern2, ...)? [at 1:23]
 select 'a' LIKE SOME (select 'a')
-                     ^
+                      ^
 --
 ALTERNATION GROUP: ALL
 --
-ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE ALL (pattern1, pattern2, ...)? [at 1:21]
+ERROR: The LIKE ANY|SOME|ALL operator does not support subquery expression as patterns. Patterns must be string or bytes; did you mean LIKE ALL (pattern1, pattern2, ...)? [at 1:22]
 select 'a' LIKE ALL (select 'a')
-                    ^
+                     ^
 ==
 
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
@@ -1757,6 +1755,91 @@ QueryStmt
     +-input_scan=
       +-SingleRowScan
 
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=STRING, value="a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=STRING, value="a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
 --
 ALTERNATION GROUP: LIKE,ALL
 --
@@ -1780,6 +1863,92 @@ QueryStmt
     |         | +-$col1#1 := Literal(type=STRING, value="a")
     |         +-input_scan=
     |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=STRING, value="a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=STRING, value="a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
 
@@ -1810,6 +1979,92 @@ QueryStmt
     |           +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |       +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=STRING, value="a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=STRING, value="a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
 --
 ALTERNATION GROUP: NOT LIKE,ALL
 --
@@ -1833,6 +2088,93 @@ QueryStmt
     |         | +-$col1#1 := Literal(type=STRING, value="a")
     |         +-input_scan=
     |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |       +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=STRING, value="a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=STRING, value="a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
 ==
@@ -1867,6 +2209,91 @@ QueryStmt
     +-input_scan=
       +-SingleRowScan
 
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<BYTES>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<BYTES>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(BYTES, BYTES) -> BOOL)
+    |         |               |     +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |                     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=BYTES, value=b"a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<BYTES>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
 --
 ALTERNATION GROUP: LIKE,ALL
 --
@@ -1890,6 +2317,92 @@ QueryStmt
     |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
     |         +-input_scan=
     |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<BYTES>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<BYTES>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(BYTES, BYTES) -> BOOL)
+    |         |               |     +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |                     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=BYTES, value=b"a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<BYTES>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
 
@@ -1920,6 +2433,92 @@ QueryStmt
     |           +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<BYTES>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<BYTES>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(BYTES, BYTES) -> BOOL)
+    |         |               |       +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |                     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=BYTES, value=b"a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<BYTES>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
 --
 ALTERNATION GROUP: NOT LIKE,ALL
 --
@@ -1943,6 +2542,93 @@ QueryStmt
     |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
     |         +-input_scan=
     |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<BYTES>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<BYTES>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<BYTES>, column=$subquery1.patterns#4, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(BYTES, BYTES) -> BOOL)
+    |         |               |       +-ColumnRef(type=BYTES, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(BYTES) -> BOOL)
+    |         |                     +-ColumnRef(type=BYTES, column=$array.pattern#5)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=BYTES, value=b"a")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<BYTES>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=BYTES, value=b"a")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
     +-input_scan=
       +-SingleRowScan
 ==
@@ -1992,39 +2678,39 @@ select 'a' {{LIKE|NOT LIKE}} {{ANY|SOME|ALL}} (select 'a', 'b')
 --
 ALTERNATION GROUP: LIKE,ANY
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:21]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:22]
 select 'a' LIKE ANY (select 'a', 'b')
-                    ^
+                     ^
 --
 ALTERNATION GROUP: LIKE,SOME
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:22]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:23]
 select 'a' LIKE SOME (select 'a', 'b')
-                     ^
+                      ^
 --
 ALTERNATION GROUP: LIKE,ALL
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:21]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:22]
 select 'a' LIKE ALL (select 'a', 'b')
-                    ^
+                     ^
 --
 ALTERNATION GROUP: NOT LIKE,ANY
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:25]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:26]
 select 'a' NOT LIKE ANY (select 'a', 'b')
-                        ^
+                         ^
 --
 ALTERNATION GROUP: NOT LIKE,SOME
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:26]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:27]
 select 'a' NOT LIKE SOME (select 'a', 'b')
-                         ^
+                          ^
 --
 ALTERNATION GROUP: NOT LIKE,ALL
 --
-ERROR: Subquery of a LIKE expression must have only one output column [at 1:25]
+ERROR: Subquery of a LIKE expression must have only one output column [at 1:26]
 select 'a' NOT LIKE ALL (select 'a', 'b')
-                        ^
+                         ^
 ==
 
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
@@ -2617,6 +3303,112 @@ QueryStmt
                     |   +-field_descriptor=repeated_string_val
                     |   +-default_value=[]
                     +-element_column_list=[$array.repeated_string_val#4]
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TestTable.key#1 AS key [INT32]
+| +-TestTable.TestEnum#2 AS TestEnum [ENUM<googlesql_test.TestEnum>]
+| +-TestTable.KitchenSink#3 AS KitchenSink [PROTO<googlesql_test.KitchenSinkPB>]
++-query=
+  +-ProjectScan
+    +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+    +-input_scan=
+      +-FilterScan
+        +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+        +-input_scan=
+        | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2], alias="T")
+        +-filter_expr=
+          +-SubqueryExpr
+            +-type=BOOL
+            +-subquery_type=SCALAR
+            +-parameter_list=
+            | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+            +-subquery=
+              +-ProjectScan
+                +-column_list=[$expr_subquery.$col1#11]
+                +-expr_list=
+                | +-$col1#11 :=
+                |   +-SubqueryExpr
+                |     +-type=BOOL
+                |     +-subquery_type=SCALAR
+                |     +-parameter_list=
+                |     | +-ColumnRef(type=STRING, column=$subquery1.input#5)
+                |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6)
+                |     +-subquery=
+                |       +-ProjectScan
+                |         +-column_list=[$expr_subquery.$col1#10]
+                |         +-expr_list=
+                |         | +-$col1#10 :=
+                |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+                |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+                |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+                |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+                |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     |   +-Literal(type=INT64, value=0)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#8)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#9)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         +-input_scan=
+                |           +-AggregateScan
+                |             +-column_list=$aggregate.[$agg1#8, $agg2#9]
+                |             +-input_scan=
+                |             | +-ArrayScan
+                |             |   +-column_list=[$array.pattern#7]
+                |             |   +-array_expr_list=
+                |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |             |   +-element_column_list=[$array.pattern#7]
+                |             +-aggregate_list=
+                |               +-$agg1#8 :=
+                |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+                |               |     +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |               |     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                |               +-$agg2#9 :=
+                |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |                     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                +-input_scan=
+                  +-ProjectScan
+                    +-column_list=$subquery1.[input#5, patterns#6]
+                    +-expr_list=
+                    | +-input#5 :=
+                    | | +-GetProtoField
+                    | |   +-type=STRING
+                    | |   +-expr=
+                    | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    | |   +-field_descriptor=string_val
+                    | |   +-default_value="default_name"
+                    | +-patterns#6 :=
+                    |   +-SubqueryExpr
+                    |     +-type=ARRAY<STRING>
+                    |     +-subquery_type=ARRAY
+                    |     +-parameter_list=
+                    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |     +-subquery=
+                    |       +-ProjectScan
+                    |         +-column_list=[$array.repeated_string_val#4]
+                    |         +-input_scan=
+                    |           +-ArrayScan
+                    |             +-column_list=[$array.repeated_string_val#4]
+                    |             +-array_expr_list=
+                    |             | +-GetProtoField
+                    |             |   +-type=ARRAY<STRING>
+                    |             |   +-expr=
+                    |             |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |             |   +-field_descriptor=repeated_string_val
+                    |             |   +-default_value=[]
+                    |             +-element_column_list=[$array.repeated_string_val#4]
+                    +-input_scan=
+                      +-SingleRowScan
 --
 ALTERNATION GROUP: LIKE,ALL
 --
@@ -2660,6 +3452,113 @@ QueryStmt
                     |   +-field_descriptor=repeated_string_val
                     |   +-default_value=[]
                     +-element_column_list=[$array.repeated_string_val#4]
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TestTable.key#1 AS key [INT32]
+| +-TestTable.TestEnum#2 AS TestEnum [ENUM<googlesql_test.TestEnum>]
+| +-TestTable.KitchenSink#3 AS KitchenSink [PROTO<googlesql_test.KitchenSinkPB>]
++-query=
+  +-ProjectScan
+    +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+    +-input_scan=
+      +-FilterScan
+        +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+        +-input_scan=
+        | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2], alias="T")
+        +-filter_expr=
+          +-SubqueryExpr
+            +-type=BOOL
+            +-subquery_type=SCALAR
+            +-parameter_list=
+            | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+            +-subquery=
+              +-ProjectScan
+                +-column_list=[$expr_subquery.$col1#11]
+                +-expr_list=
+                | +-$col1#11 :=
+                |   +-SubqueryExpr
+                |     +-type=BOOL
+                |     +-subquery_type=SCALAR
+                |     +-parameter_list=
+                |     | +-ColumnRef(type=STRING, column=$subquery1.input#5)
+                |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6)
+                |     +-subquery=
+                |       +-ProjectScan
+                |         +-column_list=[$expr_subquery.$col1#10]
+                |         +-expr_list=
+                |         | +-$col1#10 :=
+                |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+                |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+                |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+                |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+                |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     |   +-Literal(type=INT64, value=0)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#8)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#9)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         +-input_scan=
+                |           +-AggregateScan
+                |             +-column_list=$aggregate.[$agg1#8, $agg2#9]
+                |             +-input_scan=
+                |             | +-ArrayScan
+                |             |   +-column_list=[$array.pattern#7]
+                |             |   +-array_expr_list=
+                |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |             |   +-element_column_list=[$array.pattern#7]
+                |             +-aggregate_list=
+                |               +-$agg1#8 :=
+                |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+                |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+                |               |     +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |               |     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                |               +-$agg2#9 :=
+                |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |                     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                +-input_scan=
+                  +-ProjectScan
+                    +-column_list=$subquery1.[input#5, patterns#6]
+                    +-expr_list=
+                    | +-input#5 :=
+                    | | +-GetProtoField
+                    | |   +-type=STRING
+                    | |   +-expr=
+                    | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    | |   +-field_descriptor=string_val
+                    | |   +-default_value="default_name"
+                    | +-patterns#6 :=
+                    |   +-SubqueryExpr
+                    |     +-type=ARRAY<STRING>
+                    |     +-subquery_type=ARRAY
+                    |     +-parameter_list=
+                    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |     +-subquery=
+                    |       +-ProjectScan
+                    |         +-column_list=[$array.repeated_string_val#4]
+                    |         +-input_scan=
+                    |           +-ArrayScan
+                    |             +-column_list=[$array.repeated_string_val#4]
+                    |             +-array_expr_list=
+                    |             | +-GetProtoField
+                    |             |   +-type=ARRAY<STRING>
+                    |             |   +-expr=
+                    |             |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |             |   +-field_descriptor=repeated_string_val
+                    |             |   +-default_value=[]
+                    |             +-element_column_list=[$array.repeated_string_val#4]
+                    +-input_scan=
+                      +-SingleRowScan
 --
 ALTERNATION GROUPS:
     NOT LIKE,ANY
@@ -2705,6 +3604,113 @@ QueryStmt
                     |   +-field_descriptor=repeated_string_val
                     |   +-default_value=[]
                     +-element_column_list=[$array.repeated_string_val#4]
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TestTable.key#1 AS key [INT32]
+| +-TestTable.TestEnum#2 AS TestEnum [ENUM<googlesql_test.TestEnum>]
+| +-TestTable.KitchenSink#3 AS KitchenSink [PROTO<googlesql_test.KitchenSinkPB>]
++-query=
+  +-ProjectScan
+    +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+    +-input_scan=
+      +-FilterScan
+        +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+        +-input_scan=
+        | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2], alias="T")
+        +-filter_expr=
+          +-SubqueryExpr
+            +-type=BOOL
+            +-subquery_type=SCALAR
+            +-parameter_list=
+            | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+            +-subquery=
+              +-ProjectScan
+                +-column_list=[$expr_subquery.$col1#11]
+                +-expr_list=
+                | +-$col1#11 :=
+                |   +-SubqueryExpr
+                |     +-type=BOOL
+                |     +-subquery_type=SCALAR
+                |     +-parameter_list=
+                |     | +-ColumnRef(type=STRING, column=$subquery1.input#5)
+                |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6)
+                |     +-subquery=
+                |       +-ProjectScan
+                |         +-column_list=[$expr_subquery.$col1#10]
+                |         +-expr_list=
+                |         | +-$col1#10 :=
+                |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+                |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+                |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+                |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+                |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     |   +-Literal(type=INT64, value=0)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#8)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#9)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         +-input_scan=
+                |           +-AggregateScan
+                |             +-column_list=$aggregate.[$agg1#8, $agg2#9]
+                |             +-input_scan=
+                |             | +-ArrayScan
+                |             |   +-column_list=[$array.pattern#7]
+                |             |   +-array_expr_list=
+                |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |             |   +-element_column_list=[$array.pattern#7]
+                |             +-aggregate_list=
+                |               +-$agg1#8 :=
+                |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+                |               |       +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |               |       +-ColumnRef(type=STRING, column=$array.pattern#7)
+                |               +-$agg2#9 :=
+                |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |                     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                +-input_scan=
+                  +-ProjectScan
+                    +-column_list=$subquery1.[input#5, patterns#6]
+                    +-expr_list=
+                    | +-input#5 :=
+                    | | +-GetProtoField
+                    | |   +-type=STRING
+                    | |   +-expr=
+                    | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    | |   +-field_descriptor=string_val
+                    | |   +-default_value="default_name"
+                    | +-patterns#6 :=
+                    |   +-SubqueryExpr
+                    |     +-type=ARRAY<STRING>
+                    |     +-subquery_type=ARRAY
+                    |     +-parameter_list=
+                    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |     +-subquery=
+                    |       +-ProjectScan
+                    |         +-column_list=[$array.repeated_string_val#4]
+                    |         +-input_scan=
+                    |           +-ArrayScan
+                    |             +-column_list=[$array.repeated_string_val#4]
+                    |             +-array_expr_list=
+                    |             | +-GetProtoField
+                    |             |   +-type=ARRAY<STRING>
+                    |             |   +-expr=
+                    |             |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |             |   +-field_descriptor=repeated_string_val
+                    |             |   +-default_value=[]
+                    |             +-element_column_list=[$array.repeated_string_val#4]
+                    +-input_scan=
+                      +-SingleRowScan
 --
 ALTERNATION GROUP: NOT LIKE,ALL
 --
@@ -2748,6 +3754,114 @@ QueryStmt
                     |   +-field_descriptor=repeated_string_val
                     |   +-default_value=[]
                     +-element_column_list=[$array.repeated_string_val#4]
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TestTable.key#1 AS key [INT32]
+| +-TestTable.TestEnum#2 AS TestEnum [ENUM<googlesql_test.TestEnum>]
+| +-TestTable.KitchenSink#3 AS KitchenSink [PROTO<googlesql_test.KitchenSinkPB>]
++-query=
+  +-ProjectScan
+    +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+    +-input_scan=
+      +-FilterScan
+        +-column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3]
+        +-input_scan=
+        | +-TableScan(column_list=TestTable.[key#1, TestEnum#2, KitchenSink#3], table=TestTable, column_index_list=[0, 1, 2], alias="T")
+        +-filter_expr=
+          +-SubqueryExpr
+            +-type=BOOL
+            +-subquery_type=SCALAR
+            +-parameter_list=
+            | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+            +-subquery=
+              +-ProjectScan
+                +-column_list=[$expr_subquery.$col1#11]
+                +-expr_list=
+                | +-$col1#11 :=
+                |   +-SubqueryExpr
+                |     +-type=BOOL
+                |     +-subquery_type=SCALAR
+                |     +-parameter_list=
+                |     | +-ColumnRef(type=STRING, column=$subquery1.input#5)
+                |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6)
+                |     +-subquery=
+                |       +-ProjectScan
+                |         +-column_list=[$expr_subquery.$col1#10]
+                |         +-expr_list=
+                |         | +-$col1#10 :=
+                |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+                |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+                |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+                |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+                |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |         |     |   +-Literal(type=INT64, value=0)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#8)
+                |         |     +-Literal(type=BOOL, value=false)
+                |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#9)
+                |         |     +-Literal(type=BOOL, value=NULL)
+                |         |     +-Literal(type=BOOL, value=true)
+                |         +-input_scan=
+                |           +-AggregateScan
+                |             +-column_list=$aggregate.[$agg1#8, $agg2#9]
+                |             +-input_scan=
+                |             | +-ArrayScan
+                |             |   +-column_list=[$array.pattern#7]
+                |             |   +-array_expr_list=
+                |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#6, is_correlated=TRUE)
+                |             |   +-element_column_list=[$array.pattern#7]
+                |             +-aggregate_list=
+                |               +-$agg1#8 :=
+                |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+                |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+                |               |       +-ColumnRef(type=STRING, column=$subquery1.input#5, is_correlated=TRUE)
+                |               |       +-ColumnRef(type=STRING, column=$array.pattern#7)
+                |               +-$agg2#9 :=
+                |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+                |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                |                     +-ColumnRef(type=STRING, column=$array.pattern#7)
+                +-input_scan=
+                  +-ProjectScan
+                    +-column_list=$subquery1.[input#5, patterns#6]
+                    +-expr_list=
+                    | +-input#5 :=
+                    | | +-GetProtoField
+                    | |   +-type=STRING
+                    | |   +-expr=
+                    | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    | |   +-field_descriptor=string_val
+                    | |   +-default_value="default_name"
+                    | +-patterns#6 :=
+                    |   +-SubqueryExpr
+                    |     +-type=ARRAY<STRING>
+                    |     +-subquery_type=ARRAY
+                    |     +-parameter_list=
+                    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |     +-subquery=
+                    |       +-ProjectScan
+                    |         +-column_list=[$array.repeated_string_val#4]
+                    |         +-input_scan=
+                    |           +-ArrayScan
+                    |             +-column_list=[$array.repeated_string_val#4]
+                    |             +-array_expr_list=
+                    |             | +-GetProtoField
+                    |             |   +-type=ARRAY<STRING>
+                    |             |   +-expr=
+                    |             |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+                    |             |   +-field_descriptor=repeated_string_val
+                    |             |   +-default_value=[]
+                    |             +-element_column_list=[$array.repeated_string_val#4]
+                    +-input_scan=
+                      +-SingleRowScan
 ==
 
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_ARRAY]
@@ -3000,6 +4114,114 @@ QueryStmt
     |           +-SingleRowScan
     +-input_scan=
       +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#12]
+    |         +-expr_list=
+    |         | +-$col1#12 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#11]
+    |         |         +-expr_list=
+    |         |         | +-$col1#11 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         |               +-$agg2#10 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 :=
+    |             | | +-GetProtoField
+    |             | |   +-type=STRING
+    |             | |   +-expr=
+    |             | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             | |   +-field_descriptor=string_val
+    |             | |   +-default_value="default_name"
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-parameter_list=
+    |             |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#4]
+    |             |         +-expr_list=
+    |             |         | +-$col1#4 :=
+    |             |         |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |             |         |     +-GetProtoField
+    |             |         |     | +-type=STRING
+    |             |         |     | +-expr=
+    |             |         |     | | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |     | +-field_descriptor=string_val
+    |             |         |     | +-default_value="default_name"
+    |             |         |     +-GetProtoField
+    |             |         |       +-type=STRING
+    |             |         |       +-expr=
+    |             |         |       | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |       +-field_descriptor=MIXED_case
+    |             |         |       +-default_value=""
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 --
 ALTERNATION GROUP: LIKE,ALL
 --
@@ -3043,6 +4265,115 @@ QueryStmt
     |         |       +-default_value=""
     |         +-input_scan=
     |           +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#12]
+    |         +-expr_list=
+    |         | +-$col1#12 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#11]
+    |         |         +-expr_list=
+    |         |         | +-$col1#11 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         |               +-$agg2#10 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 :=
+    |             | | +-GetProtoField
+    |             | |   +-type=STRING
+    |             | |   +-expr=
+    |             | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             | |   +-field_descriptor=string_val
+    |             | |   +-default_value="default_name"
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-parameter_list=
+    |             |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#4]
+    |             |         +-expr_list=
+    |             |         | +-$col1#4 :=
+    |             |         |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |             |         |     +-GetProtoField
+    |             |         |     | +-type=STRING
+    |             |         |     | +-expr=
+    |             |         |     | | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |     | +-field_descriptor=string_val
+    |             |         |     | +-default_value="default_name"
+    |             |         |     +-GetProtoField
+    |             |         |       +-type=STRING
+    |             |         |       +-expr=
+    |             |         |       | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |       +-field_descriptor=MIXED_case
+    |             |         |       +-default_value=""
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
     +-input_scan=
       +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 --
@@ -3092,6 +4423,115 @@ QueryStmt
     |           +-SingleRowScan
     +-input_scan=
       +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#12]
+    |         +-expr_list=
+    |         | +-$col1#12 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#11]
+    |         |         +-expr_list=
+    |         |         | +-$col1#11 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |       +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         |               +-$agg2#10 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 :=
+    |             | | +-GetProtoField
+    |             | |   +-type=STRING
+    |             | |   +-expr=
+    |             | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             | |   +-field_descriptor=string_val
+    |             | |   +-default_value="default_name"
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-parameter_list=
+    |             |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#4]
+    |             |         +-expr_list=
+    |             |         | +-$col1#4 :=
+    |             |         |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |             |         |     +-GetProtoField
+    |             |         |     | +-type=STRING
+    |             |         |     | +-expr=
+    |             |         |     | | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |     | +-field_descriptor=string_val
+    |             |         |     | +-default_value="default_name"
+    |             |         |     +-GetProtoField
+    |             |         |       +-type=STRING
+    |             |         |       +-expr=
+    |             |         |       | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |       +-field_descriptor=MIXED_case
+    |             |         |       +-default_value=""
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 --
 ALTERNATION GROUP: NOT LIKE,ALL
 --
@@ -3138,6 +4578,115 @@ QueryStmt
     +-input_scan=
       +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#12]
+    |         +-expr_list=
+    |         | +-$col1#12 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#11]
+    |         |         +-expr_list=
+    |         |         | +-$col1#11 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |       +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         |               +-$agg2#10 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 :=
+    |             | | +-GetProtoField
+    |             | |   +-type=STRING
+    |             | |   +-expr=
+    |             | |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             | |   +-field_descriptor=string_val
+    |             | |   +-default_value="default_name"
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-parameter_list=
+    |             |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#4]
+    |             |         +-expr_list=
+    |             |         | +-$col1#4 :=
+    |             |         |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |             |         |     +-GetProtoField
+    |             |         |     | +-type=STRING
+    |             |         |     | +-expr=
+    |             |         |     | | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |     | +-field_descriptor=string_val
+    |             |         |     | +-default_value="default_name"
+    |             |         |     +-GetProtoField
+    |             |         |       +-type=STRING
+    |             |         |       +-expr=
+    |             |         |       | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |         |       +-field_descriptor=MIXED_case
+    |             |         |       +-default_value=""
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
 ==
 
 # Test collation for LIKE ANY|SOME with CI collation on one of the RHS elements.
@@ -3792,7 +5341,7 @@ QueryStmt
 
 ==
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL]
 # Test collation for LIKE {{ANY|SOME}} with "binary" and "ci" collation compare error
@@ -3807,7 +5356,7 @@ ERROR: Collation conflict: "binary" vs. "und:ci". Collation on argument 2 ("bina
             ^
 ==
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL]
 # Test collation for LIKE ALL with "binary" and "ci" collation compare error
@@ -3821,7 +5370,7 @@ ERROR: Collation conflict: "binary" vs. "und:ci". Collation on argument 2 ("bina
 ==
 
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_ARRAY,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
 # Collation test for like any unnest
@@ -3925,7 +5474,7 @@ QueryStmt
 
 ==
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_ARRAY,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
 # Collation for not like all unnest
@@ -4133,7 +5682,7 @@ QueryStmt
       +-TableScan(column_list=CollatedTable.[string_ci#1, array_with_string_ci#4], table=CollatedTable, column_index_list=[0, 3])
 ==
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_ARRAY,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
 # Collation for like any/some/all unnest with mix of collated and non collated arguments in the patterns array
@@ -4355,7 +5904,7 @@ QueryStmt
       +-SingleRowScan
 ==
 
-# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
 [no_java]
 [language_features=NONE,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_ARRAY,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
 # Collation for like any/some/all unnest with collation only present for search value
@@ -6106,4 +7655,694 @@ ALTERNATION GROUP: ALL
 ERROR: Syntax error: Unexpected keyword ARRAY [at 2:37]
 select 'a' LIKE ALL UNNEST(['a'] as array);
                                     ^
+==
 
+[language_features=DEV]
+select [struct('ab' as x)].x like all unnest([struct('a%' as y), struct('%b')].y);
+--
+ERROR: Cannot access field x on a value with type ARRAY<STRUCT<x STRING>>. You may need an explicit call to FLATTEN, and the flattened argument may only contain 'dot' after the first array [at 1:28]
+select [struct('ab' as x)].x like all unnest([struct('a%' as y), struct('%b')...
+                           ^
+
+==
+
+[language_features=DEV]
+select struct('ab' as x).x like all unnest([struct('a%' as y), struct('%b')].y);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$like_all_array(STRING, ARRAY<STRING>) -> BOOL)
+    |     +-GetStructField
+    |     | +-type=STRING
+    |     | +-expr=
+    |     | | +-Literal(type=STRUCT<x STRING>, value={x:"ab"})
+    |     | +-field_idx=0
+    |     +-Flatten
+    |       +-type=ARRAY<STRING>
+    |       +-expr=
+    |       | +-Literal(type=ARRAY<STRUCT<y STRING>>, value=[{y:"a%"}, {y:"%b"}])
+    |       +-get_field_list=
+    |         +-GetStructField
+    |           +-type=STRING
+    |           +-expr=
+    |           | +-FlattenedArg(type=STRUCT<y STRING>)
+    |           +-field_idx=0
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#14]
+    |         +-expr_list=
+    |         | +-$col1#14 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#13]
+    |         |         +-expr_list=
+    |         |         | +-$col1#13 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$with_side_effects(BOOL, BYTES) -> BOOL)
+    |         |         |     |   +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     |   +-ColumnRef(type=BYTES, column=$aggregate.$side_effects#10)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$with_side_effects(BOOL, BYTES) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg2#11)
+    |         |         |     | +-ColumnRef(type=BYTES, column=$aggregate.$side_effects#12)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $side_effects#10, $agg2#11, $side_effects#12]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 [side_effect_column=$side_effects#10] :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         |               +-$agg2#11 [side_effect_column=$side_effects#12] :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 :=
+    |             | | +-GetStructField
+    |             | |   +-type=STRING
+    |             | |   +-expr=
+    |             | |   | +-Literal(type=STRUCT<x STRING>, value={x:"ab"})
+    |             | |   +-field_idx=0
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-subquery_type=SCALAR
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$with_expr.injected#15]
+    |             |         +-expr_list=
+    |             |         | +-injected#15 :=
+    |             |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRING>, ARRAY<STRING>) -> ARRAY<STRING>)
+    |             |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<y STRING>>) -> BOOL)
+    |             |         |     | +-ColumnRef(type=ARRAY<STRUCT<y STRING>>, column=$flatten_input.injected#2)
+    |             |         |     +-Literal(type=ARRAY<STRING>, value=NULL)
+    |             |         |     +-SubqueryExpr
+    |             |         |       +-type=ARRAY<STRING>
+    |             |         |       +-subquery_type=ARRAY
+    |             |         |       +-parameter_list=
+    |             |         |       | +-ColumnRef(type=ARRAY<STRUCT<y STRING>>, column=$flatten_input.injected#2)
+    |             |         |       +-subquery=
+    |             |         |         +-OrderByScan
+    |             |         |           +-column_list=[$flatten.injected#5]
+    |             |         |           +-is_ordered=TRUE
+    |             |         |           +-input_scan=
+    |             |         |           | +-ProjectScan
+    |             |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5]
+    |             |         |           |   +-expr_list=
+    |             |         |           |   | +-injected#5 :=
+    |             |         |           |   |   +-GetStructField
+    |             |         |           |   |     +-type=STRING
+    |             |         |           |   |     +-expr=
+    |             |         |           |   |     | +-ColumnRef(type=STRUCT<y STRING>, column=$flatten.injected#3)
+    |             |         |           |   |     +-field_idx=0
+    |             |         |           |   +-input_scan=
+    |             |         |           |     +-ArrayScan
+    |             |         |           |       +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |             |         |           |       +-array_expr_list=
+    |             |         |           |       | +-ColumnRef(type=ARRAY<STRUCT<y STRING>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |             |         |           |       +-element_column_list=[$flatten.injected#3]
+    |             |         |           |       +-array_offset_column=
+    |             |         |           |         +-ColumnHolder(column=$offset.injected#4)
+    |             |         |           +-order_by_item_list=
+    |             |         |             +-OrderByItem
+    |             |         |               +-column_ref=
+    |             |         |                 +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |             |         +-input_scan=
+    |             |           +-ProjectScan
+    |             |             +-column_list=[$flatten_input.injected#2]
+    |             |             +-expr_list=
+    |             |             | +-injected#2 := Literal(type=ARRAY<STRUCT<y STRING>>, value=[{y:"a%"}, {y:"%b"}])
+    |             |             +-input_scan=
+    |             |               +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Test collation for LIKE ANY (subquery) with CI collation on LHS search string.
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
+[no_java]
+[language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+SELECT COLLATE('Google', 'und:ci') LIKE ANY (SELECT 'google')
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=LIKE_ANY
+    |     +-in_expr=
+    |     | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |     |   +-type_annotation_map={Collation:"und:ci"}
+    |     |   +-Literal(type=STRING, value="Google")
+    |     |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |     +-in_collation=und:ci
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#1]
+    |         +-expr_list=
+    |         | +-$col1#1 := Literal(type=STRING, value="google")
+    |         +-input_scan=
+    |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"})
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"}, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"}, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         |               |     +-collation_list=[und:ci]
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 :=
+    |             | | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |             | |   +-type_annotation_map={Collation:"und:ci"}
+    |             | |   +-Literal(type=STRING, value="Google")
+    |             | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 := Literal(type=STRING, value="google")
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+# Test collation for LIKE ALL (subquery) with CI collation on the subquery output.
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
+[no_java]
+[language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+SELECT 'Google' LIKE ALL (SELECT COLLATE('google', 'und:ci'))
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=LIKE_ALL
+    |     +-in_expr=
+    |     | +-Literal(type=STRING, value="Google")
+    |     +-in_collation=und:ci
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#1{Collation:"und:ci"}]
+    |         +-expr_list=
+    |         | +-$col1#1 :=
+    |         |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |         |     +-type_annotation_map={Collation:"und:ci"}
+    |         |     +-Literal(type=STRING, value="google")
+    |         |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |         +-input_scan=
+    |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#3, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         |               |     +-collation_list=[und:ci]
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 := Literal(type=STRING, value="Google")
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1{Collation:"und:ci"}]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 :=
+    |             |         |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |             |         |     +-type_annotation_map={Collation:"und:ci"}
+    |             |         |     +-Literal(type=STRING, value="google")
+    |             |         |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+# Test collation for NOT LIKE ANY (subquery) with CI collation on both sides.
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
+[no_java]
+[language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+SELECT COLLATE('A', 'und:ci') NOT LIKE ANY (SELECT COLLATE('a', 'und:ci'))
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=NOT_LIKE_ANY
+    |     +-in_expr=
+    |     | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |     |   +-type_annotation_map={Collation:"und:ci"}
+    |     |   +-Literal(type=STRING, value="A")
+    |     |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |     +-in_collation=und:ci
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#1{Collation:"und:ci"}]
+    |         +-expr_list=
+    |         | +-$col1#1 :=
+    |         |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |         |     +-type_annotation_map={Collation:"und:ci"}
+    |         |     +-Literal(type=STRING, value="a")
+    |         |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |         +-input_scan=
+    |           +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#9]
+    |         +-expr_list=
+    |         | +-$col1#9 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"})
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#8]
+    |         |         +-expr_list=
+    |         |         | +-$col1#8 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"}, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg1#6)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#7)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#6, $agg2#7]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#4<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#5{Collation:"und:ci"}]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#6 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |               |     +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.input#3{Collation:"und:ci"}, is_correlated=TRUE)
+    |         |               |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         |               |       +-collation_list=[und:ci]
+    |         |               +-$agg2#7 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#5{Collation:"und:ci"})
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#3, patterns#4]
+    |             +-expr_list=
+    |             | +-input#3 :=
+    |             | | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |             | |   +-type_annotation_map={Collation:"und:ci"}
+    |             | |   +-Literal(type=STRING, value="A")
+    |             | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |             | +-patterns#4 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[$expr_subquery.$col1#1{Collation:"und:ci"}]
+    |             |         +-expr_list=
+    |             |         | +-$col1#1 :=
+    |             |         |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |             |         |     +-type_annotation_map={Collation:"und:ci"}
+    |             |         |     +-Literal(type=STRING, value="a")
+    |             |         |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |             |         +-input_scan=
+    |             |           +-SingleRowScan
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Test collation conflict error in quantified LIKE with subquery.
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
+[no_java]
+[language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+SELECT COLLATE('A', 'und:ci') LIKE ANY (SELECT COLLATE('a', 'binary'))
+--
+ERROR: Collation conflict: "und:ci" vs. "binary". Collation for LIKE operator is different on input expr ("und:ci") and subquery column ("binary") [at 1:41]
+SELECT COLLATE('A', 'und:ci') LIKE ANY (SELECT COLLATE('a', 'binary'))
+                                        ^
+
+==
+
+# Test collation propagation with table columns in quantified LIKE subquery.
+# TODO: Collation/Annotation specific GoogleSQL analyzer tests are not working as expected while executed in java mode.
+[no_java]
+[language_features=NONE,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+# string_ci column has 'und:ci' collation.
+SELECT 'google' LIKE ALL (SELECT string_ci FROM CollatedTable)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=LIKE_ALL
+    |     +-in_expr=
+    |     | +-Literal(type=STRING, value="google")
+    |     +-in_collation=und:ci
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}]
+    |         +-input_scan=
+    |           +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#12]
+    |         +-expr_list=
+    |         | +-$col1#12 :=
+    |         |   +-SubqueryExpr
+    |         |     +-type=BOOL
+    |         |     +-subquery_type=SCALAR
+    |         |     +-parameter_list=
+    |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6)
+    |         |     | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#7<{Collation:"und:ci"}>)
+    |         |     +-subquery=
+    |         |       +-ProjectScan
+    |         |         +-column_list=[$expr_subquery.$col1#11]
+    |         |         +-expr_list=
+    |         |         | +-$col1#11 :=
+    |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
+    |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+    |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
+    |         |         |     | | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#7<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |         |     |   +-FunctionCall(GoogleSQL:array_length(ARRAY<STRING>) -> INT64)
+    |         |         |     |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#7<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |         |     |   +-Literal(type=INT64, value=0)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         |     +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
+    |         |         |     +-Literal(type=BOOL, value=false)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
+    |         |         |     +-Literal(type=BOOL, value=NULL)
+    |         |         |     +-Literal(type=BOOL, value=true)
+    |         |         +-input_scan=
+    |         |           +-AggregateScan
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
+    |         |             +-input_scan=
+    |         |             | +-ArrayScan
+    |         |             |   +-column_list=[$array.pattern#8{Collation:"und:ci"}]
+    |         |             |   +-array_expr_list=
+    |         |             |   | +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$subquery1.patterns#7<{Collation:"und:ci"}>, is_correlated=TRUE)
+    |         |             |   +-element_column_list=[$array.pattern#8{Collation:"und:ci"}]
+    |         |             +-aggregate_list=
+    |         |               +-$agg1#9 :=
+    |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
+    |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
+    |         |               |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#8{Collation:"und:ci"})
+    |         |               |     +-collation_list=[und:ci]
+    |         |               +-$agg2#10 :=
+    |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
+    |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+    |         |                     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$array.pattern#8{Collation:"und:ci"})
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input#6, patterns#7]
+    |             +-expr_list=
+    |             | +-input#6 := Literal(type=STRING, value="google")
+    |             | +-patterns#7 :=
+    |             |   +-SubqueryExpr
+    |             |     +-type=ARRAY<STRING>
+    |             |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |             |     +-subquery_type=ARRAY
+    |             |     +-subquery=
+    |             |       +-ProjectScan
+    |             |         +-column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}]
+    |             |         +-input_scan=
+    |             |           +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan

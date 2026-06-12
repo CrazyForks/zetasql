@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.googlesql.TypeTestBase.checkSerializable;
 import static com.google.googlesql.TypeTestBase.checkTypeSerializationAndDeserialization;
-import static org.junit.Assert.fail;
 
 import com.google.common.testing.EqualsTester;
 import com.google.googlesql.GoogleSQLDescriptorPool.GeneratedDescriptorPool;
@@ -52,6 +51,9 @@ public class ArrayTypeTest {
         TypeFactory.createArrayType(TypeFactory.createSimpleType(TypeKind.TYPE_INT32)));
     ProtoType protoType = factory.createProtoType(TypeProto.class);
     checkTypeSerializationAndDeserialization(TypeFactory.createArrayType(protoType));
+
+    ArrayType nestedArrayType = TypeFactory.createArrayType(protoType);
+    checkTypeSerializationAndDeserialization(TypeFactory.createArrayType(nestedArrayType));
   }
 
   @Test
@@ -66,17 +68,18 @@ public class ArrayTypeTest {
         .isNotNull();
 
     checkSerializable(TypeFactory.createArrayType(protoType));
+
+    ArrayType nestedArrayType = TypeFactory.createArrayType(protoType);
+    checkSerializable(TypeFactory.createArrayType(nestedArrayType));
   }
 
   @Test
-  public void testNoArrayOfArray() {
-    ArrayType array =
-        TypeFactory.createArrayType(TypeFactory.createSimpleType(TypeKind.TYPE_INT32));
-    try {
-      TypeFactory.createArrayType(array);
-      fail("Should not be able to create array of array.");
-    } catch (IllegalArgumentException expected) {
-    }
+  public void testArrayOfArray() {
+    ArrayType outerArray =
+        TypeFactory.createArrayType(
+            TypeFactory.createArrayType(TypeFactory.createSimpleType(TypeKind.TYPE_INT32)));
+    assertThat(outerArray.getElementType().isArray()).isTrue();
+    assertThat(outerArray.getElementType().asArray().getElementType().isInt32()).isTrue();
   }
 
   @Test

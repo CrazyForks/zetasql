@@ -1,0 +1,270 @@
+create live table t as select 1
+--
+CreateLiveTableStatement [0-31] [create live...as select 1]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  Query [23-31] [select 1]
+    Select [23-31] [select 1]
+      SelectList [30-31] [1]
+        SelectColumn [30-31] [1]
+          IntLiteral(1) [30-31] [1]
+--
+CREATE LIVE TABLE t AS
+SELECT
+  1
+==
+
+create or replace temp live table if not exists t options(x=1) as select a from b
+--
+ERROR: Syntax error: TEMP, TEMPORARY, PUBLIC, or PRIVATE modifiers are not supported for LIVE TABLE [at 1:19]
+create or replace temp live table if not exists t options(x=1) as select a fr...
+                  ^
+==
+
+drop live table t
+--
+DropStatement LIVE TABLE [0-17] [drop live table t]
+  PathExpression [16-17] [t]
+    Identifier(t) [16-17] [t]
+--
+DROP LIVE TABLE t
+==
+
+drop live table if exists t
+--
+DropStatement LIVE TABLE(is_if_exists) [0-27] [drop live table if exists t]
+  PathExpression [26-27] [t]
+    Identifier(t) [26-27] [t]
+--
+DROP LIVE TABLE IF EXISTS t
+==
+
+CREATE LIVE TABLE my_path.utmtable.Sink AS SELECT 1
+--
+CreateLiveTableStatement [0-51] [CREATE LIVE...AS SELECT 1]
+  PathExpression [18-39] [my_path.utmtable.Sink]
+    Identifier(my_path) [18-25] [my_path]
+    Identifier(utmtable) [26-34] [utmtable]
+    Identifier(Sink) [35-39] [Sink]
+  Query [43-51] [SELECT 1]
+    Select [43-51] [SELECT 1]
+      SelectList [50-51] [1]
+        SelectColumn [50-51] [1]
+          IntLiteral(1) [50-51] [1]
+--
+CREATE LIVE TABLE my_path.utmtable.Sink AS
+SELECT
+  1
+==
+
+CREATE LIVE TABLE my_path.`{INSTANCE<>prod}`.`{DEPLOYMENT}withsuffix`.utmtable.Sink OPTIONS (x=1) AS SELECT 1
+--
+CreateLiveTableStatement [0-109] [CREATE LIVE...AS SELECT 1]
+  PathExpression [18-83] [my_path.`{...utmtable.Sink]
+    Identifier(my_path) [18-25] [my_path]
+    Identifier(`{INSTANCE<>prod}`) [26-44] [`{INSTANCE<>prod}`]
+    Identifier(`{DEPLOYMENT}withsuffix`) [45-69] [`{DEPLOYMENT}withsuffix`]
+    Identifier(utmtable) [70-78] [utmtable]
+    Identifier(Sink) [79-83] [Sink]
+  OptionsList [92-97] [(x=1)]
+    OptionsEntry [93-96] [x=1]
+      Identifier(x) [93-94] [x]
+      IntLiteral(1) [95-96] [1]
+  Query [101-109] [SELECT 1]
+    Select [101-109] [SELECT 1]
+      SelectList [108-109] [1]
+        SelectColumn [108-109] [1]
+          IntLiteral(1) [108-109] [1]
+--
+CREATE LIVE TABLE my_path.`{INSTANCE<>prod}`.`{DEPLOYMENT}withsuffix`.utmtable.Sink OPTIONS(x = 1) AS
+SELECT
+  1
+==
+
+CREATE OR REPLACE LIVE TABLE IF NOT EXISTS my_path.utmtable.Sink AS SELECT 1
+--
+CreateLiveTableStatement(is_or_replace, is_if_not_exists) [0-76] [CREATE OR...AS SELECT 1]
+  PathExpression [43-64] [my_path.utmtable.Sink]
+    Identifier(my_path) [43-50] [my_path]
+    Identifier(utmtable) [51-59] [utmtable]
+    Identifier(Sink) [60-64] [Sink]
+  Query [68-76] [SELECT 1]
+    Select [68-76] [SELECT 1]
+      SelectList [75-76] [1]
+        SelectColumn [75-76] [1]
+          IntLiteral(1) [75-76] [1]
+--
+CREATE OR REPLACE LIVE TABLE IF NOT EXISTS my_path.utmtable.Sink AS
+SELECT
+  1
+==
+
+DROP LIVE TABLE my_path.utmtable.Sink
+--
+DropStatement LIVE TABLE [0-37] [DROP LIVE...utmtable.Sink]
+  PathExpression [16-37] [my_path.utmtable.Sink]
+    Identifier(my_path) [16-23] [my_path]
+    Identifier(utmtable) [24-32] [utmtable]
+    Identifier(Sink) [33-37] [Sink]
+--
+DROP LIVE TABLE my_path.utmtable.Sink
+==
+
+DROP LIVE TABLE IF EXISTS my_path.`{INSTANCE<>prod}`.utmtable.Sink
+--
+DropStatement LIVE TABLE(is_if_exists) [0-66] [DROP LIVE...utmtable.Sink]
+  PathExpression [26-66] [my_path.`{...utmtable.Sink]
+    Identifier(my_path) [26-33] [my_path]
+    Identifier(`{INSTANCE<>prod}`) [34-52] [`{INSTANCE<>prod}`]
+    Identifier(utmtable) [53-61] [utmtable]
+    Identifier(Sink) [62-66] [Sink]
+--
+DROP LIVE TABLE IF EXISTS my_path.`{INSTANCE<>prod}`.utmtable.Sink
+==
+
+CREATE LIVE TABLE t OPTIONS(x=1)
+--
+ERROR: Syntax error: Expected keyword AS but got end of statement [at 1:33]
+CREATE LIVE TABLE t OPTIONS(x=1)
+                                ^
+==
+
+CREATE LIVE TABLE AS SELECT 1
+--
+ERROR: Syntax error: Unexpected keyword AS [at 1:19]
+CREATE LIVE TABLE AS SELECT 1
+                  ^
+==
+
+CREATE LIVE TABLE t (x INT64) AS SELECT 1
+--
+CreateLiveTableStatement [0-41] [CREATE LIVE...AS SELECT 1]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  TableElementList [20-29] [(x INT64)]
+    ColumnDefinition [21-28] [x INT64]
+      Identifier(x) [21-22] [x]
+      SimpleColumnSchema [23-28] [INT64]
+        PathExpression [23-28] [INT64]
+          Identifier(INT64) [23-28] [INT64]
+  Query [33-41] [SELECT 1]
+    Select [33-41] [SELECT 1]
+      SelectList [40-41] [1]
+        SelectColumn [40-41] [1]
+          IntLiteral(1) [40-41] [1]
+--
+CREATE LIVE TABLE t
+(
+  x INT64
+) AS
+SELECT
+  1
+==
+
+CREATE LIVE TABLE t PARTITION BY x AS SELECT 1, 2 as x
+--
+CreateLiveTableStatement [0-54] [CREATE LIVE...1, 2 as x]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  PartitionBy [20-34] [PARTITION BY x]
+    PathExpression [33-34] [x]
+      Identifier(x) [33-34] [x]
+  Query [38-54] [SELECT 1, 2 as x]
+    Select [38-54] [SELECT 1, 2 as x]
+      SelectList [45-54] [1, 2 as x]
+        SelectColumn [45-46] [1]
+          IntLiteral(1) [45-46] [1]
+        SelectColumn [48-54] [2 as x]
+          IntLiteral(2) [48-49] [2]
+          Alias [50-54] [as x]
+            Identifier(x) [53-54] [x]
+--
+CREATE LIVE TABLE t PARTITION BY x AS
+SELECT
+  1,
+  2 AS x
+==
+
+CREATE LIVE TABLE t CLUSTER BY x AS SELECT 1, 2 as x
+--
+CreateLiveTableStatement [0-52] [CREATE LIVE...1, 2 as x]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  ClusterBy [20-32] [CLUSTER BY x]
+    PathExpression [31-32] [x]
+      Identifier(x) [31-32] [x]
+  Query [36-52] [SELECT 1, 2 as x]
+    Select [36-52] [SELECT 1, 2 as x]
+      SelectList [43-52] [1, 2 as x]
+        SelectColumn [43-44] [1]
+          IntLiteral(1) [43-44] [1]
+        SelectColumn [46-52] [2 as x]
+          IntLiteral(2) [46-47] [2]
+          Alias [48-52] [as x]
+            Identifier(x) [51-52] [x]
+--
+CREATE LIVE TABLE t CLUSTER BY x AS
+SELECT
+  1,
+  2 AS x
+==
+
+CREATE PUBLIC LIVE TABLE t AS SELECT 1
+--
+ERROR: Syntax error: TEMP, TEMPORARY, PUBLIC, or PRIVATE modifiers are not supported for LIVE TABLE [at 1:8]
+CREATE PUBLIC LIVE TABLE t AS SELECT 1
+       ^
+==
+
+CREATE PRIVATE LIVE TABLE t AS SELECT 1
+--
+ERROR: Syntax error: TEMP, TEMPORARY, PUBLIC, or PRIVATE modifiers are not supported for LIVE TABLE [at 1:8]
+CREATE PRIVATE LIVE TABLE t AS SELECT 1
+       ^
+==
+
+CREATE LIVE TABLE t DEFAULT COLLATE 'und:ci' AS SELECT 1
+--
+CreateLiveTableStatement [0-56] [CREATE LIVE...AS SELECT 1]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  Collate [28-44] [COLLATE 'und:ci']
+    StringLiteral [36-44] ['und:ci']
+      StringLiteralComponent('und:ci') [36-44] ['und:ci']
+  Query [48-56] [SELECT 1]
+    Select [48-56] [SELECT 1]
+      SelectList [55-56] [1]
+        SelectColumn [55-56] [1]
+          IntLiteral(1) [55-56] [1]
+--
+CREATE LIVE TABLE t DEFAULT COLLATE 'und:ci' AS
+SELECT
+  1
+==
+
+[language_features=NONE,+TTL]
+CREATE LIVE TABLE t ROW DELETION POLICY (x > 1000) AS SELECT 1, 2 as x
+--
+ERROR: Syntax error: Expected keyword AS but got keyword ROW [at 1:21]
+CREATE LIVE TABLE t ROW DELETION POLICY (x > 1000) AS SELECT 1, 2 as x
+                    ^
+==
+
+CREATE LIVE TABLE t WITH CONNECTION c AS SELECT 1
+--
+CreateLiveTableStatement [0-49] [CREATE LIVE...AS SELECT 1]
+  PathExpression [18-19] [t]
+    Identifier(t) [18-19] [t]
+  WithConnectionClause [20-37] [WITH CONNECTION c]
+    ConnectionClause [25-37] [CONNECTION c]
+      PathExpression [36-37] [c]
+        Identifier(c) [36-37] [c]
+  Query [41-49] [SELECT 1]
+    Select [41-49] [SELECT 1]
+      SelectList [48-49] [1]
+        SelectColumn [48-49] [1]
+          IntLiteral(1) [48-49] [1]
+--
+CREATE LIVE TABLE t WITH CONNECTION c AS
+SELECT
+  1

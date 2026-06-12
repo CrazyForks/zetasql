@@ -23,20 +23,28 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/container/fixed_array.h"
+#include "googlesql/base/check.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/string_view.h"
 #include "googlesql/base/endian.h"
 #include "googlesql/base/logging.h"
 
@@ -570,8 +578,7 @@ TEST(IPAddressTest, IPAddressToUInt128) {
 }
 
 // Various death tests for IPAddress emergency behavior in production that
-// should simply result in ABSL_CHECK failures in debug mode.
-
+// should simply result in ABSL_CHECK failures.
 TEST(IPAddressDeathTest, EmergencyCoercion) {
   const std::string kIPv6Address = "2001:700:300:1803::1";
   IPAddress addr;
@@ -579,12 +586,7 @@ TEST(IPAddressDeathTest, EmergencyCoercion) {
 
   ABSL_CHECK(StringToIPAddress(kIPv6Address, &addr));
 
-  if (GOOGLESQL_DEBUG_MODE) {
-    EXPECT_DEBUG_DEATH(addr4 = addr.ipv4_address(), "Check failed");
-  } else {
-    ScopedMockLogVerifier log("returning IPv4-coerced address");
-    addr4 = addr.ipv4_address();
-  }
+  EXPECT_DEATH(addr4 = addr.ipv4_address(), "Check failed");
 }
 
 TEST(IPAddressDeathTest, EmergencyCompatibility) {
@@ -594,13 +596,7 @@ TEST(IPAddressDeathTest, EmergencyCompatibility) {
 
   ABSL_CHECK(StringToIPAddress(kIPv4Address, &addr));
 
-  if (GOOGLESQL_DEBUG_MODE) {
-    EXPECT_DEBUG_DEATH(addr6 = addr.ipv6_address(), "Check failed");
-  } else {
-    ScopedMockLogVerifier log("returning IPv6 mapped address");
-    addr6 = addr.ipv6_address();
-    EXPECT_EQ("::ffff:129.240.2.40", IPAddress(addr6).ToString());
-  }
+  EXPECT_DEATH(addr6 = addr.ipv6_address(), "Check failed");
 }
 
 // Invalid conversion in *OrDie() functions.

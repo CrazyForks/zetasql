@@ -31,10 +31,13 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <cstdlib>
 #include <iterator>
 #include <new>
 #include <vector>
 
+#include "absl/base/macros.h"
+#include "googlesql/base/check.h"
 #include "absl/synchronization/mutex.h"
 #include "googlesql/base/logging.h"
 
@@ -464,7 +467,7 @@ char* SafeArena::Realloc(char* original, size_t oldsize, size_t newsize) {
   assert(oldsize >= 0 && newsize >= 0);
   // if original happens to be the last allocation we can avoid fragmentation.
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (AdjustLastAlloc(original, newsize)) {
       return original;
     }

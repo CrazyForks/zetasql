@@ -116,6 +116,7 @@ class ASTNode : public googlesql_base::ArenaOnlyGladiator {
   }
   const ASTNode* child(int i) const { return children_[i]; }
   ASTNode* mutable_child(int i) { return children_[i]; }
+  absl::Status set_child(int i, ASTNode* child);
 
   // Returns the index of the first child of a node kind or -1 if not found.
   int find_child_index(ASTNodeKind kind) const {

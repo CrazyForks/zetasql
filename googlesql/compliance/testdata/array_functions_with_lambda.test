@@ -198,3 +198,47 @@ ARRAY<STRUCT<BOOL, BOOL>>[{true, false}]
 SELECT ARRAY_FILTER(@lambda, e->e=2)
 --
 ARRAY<STRUCT<ARRAY<>>>[{ARRAY<INT64>[2]}]
+==
+
+[required_features=INLINE_LAMBDA_ARGUMENT,ARRAY_OF_ARRAY]
+[name=nested_arrays]
+SELECT
+  ARRAY_TRANSFORM(arr1, e1 -> [e1, arr2[offset(0)]]) AS arr_transform,
+  ARRAY_CONCAT(arr1, arr2) AS arr_concat,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+ARRAY<STRUCT<
+        arr_transform ARRAY<>,
+        arr_concat ARRAY<>
+      >>
+[{ARRAY<ARRAY<>>[known order:
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:1, 2],
+      ARRAY<INT64>[known order:5, 6]
+    ],
+    ARRAY<ARRAY<>>[known order:
+      ARRAY<INT64>[known order:3, 4],
+      ARRAY<INT64>[known order:5, 6]
+    ]
+  ],
+  ARRAY<ARRAY<>>[known order:
+    ARRAY<INT64>[known order:1, 2],
+    ARRAY<INT64>[known order:3, 4],
+    ARRAY<INT64>[known order:5, 6],
+    ARRAY<INT64>[known order:7, 8]
+  ]}]
+==
+
+[required_features=INLINE_LAMBDA_ARGUMENT,ARRAY_OF_ARRAY,ARRAY_EQUALITY]
+[name=nested_arrays_with_array_includes_lambda]
+SELECT
+  ARRAY_INCLUDES([arr1, arr2], e1 -> ARRAY_INCLUDES_ALL(e1, [[1, 2], [3, 4]])) AS arr_includes,
+FROM (
+  SELECT [[1,2], [3,4]] AS arr1,
+         [[5,6], [7,8]] AS arr2,
+)
+--
+ARRAY<STRUCT<arr_includes BOOL>>[{true}]

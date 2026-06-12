@@ -2708,7 +2708,6 @@ ARRAY<STRUCT<row_id INT64, row_id INT64>>[unknown order:
 # Grouping of doubles.
 # -------------------
 [name=groupby_zeroes]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DOUBLE
 from (select -0.0 DOUBLE union all
       select +0.0 union all
@@ -2736,7 +2735,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_positive_infinities]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DOUBLE
 from (select IEEE_DIVIDE(1, 0) DOUBLE union all
       select POW(0.1, IEEE_DIVIDE(-1, 0)) union all
@@ -2753,7 +2751,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_negative_infinities]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DOUBLE
 from (select IEEE_DIVIDE(-1, 0) DOUBLE union all
       select POW(IEEE_DIVIDE(-1, 0), 3) union all
@@ -2767,7 +2764,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_nan]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT NAN
 from (select TAN(IEEE_DIVIDE(1, 0)) NAN union all
       select TAN(IEEE_DIVIDE(-1, 0)) union all
@@ -2786,7 +2782,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_doubles]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DOUBLE
 from (select -0.0 DOUBLE union all
       select +0.0 union all
@@ -2850,7 +2845,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_orderby_desc_doubles]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT DOUBLE
 from (select -0.0 DOUBLE union all
       select +0.0 union all
@@ -2917,7 +2911,6 @@ NOTE: Reference implementation reports non-determinism.
 # Grouping of floats.
 # -------------------
 [name=groupby_zeroes_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT FLOAT
 from (select cast(-0.0 as float) FLOAT union all
       select cast(+0.0 as float) union all
@@ -2945,7 +2938,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_positive_infinities_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT FLOAT
 from (select cast(IEEE_DIVIDE(1, 0) as float) FLOAT union all
       select cast(POW(0.1, IEEE_DIVIDE(-1, 0)) as float) union all
@@ -2962,7 +2954,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_negative_infinities_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT FLOAT
 from (select cast(IEEE_DIVIDE(-1, 0) as float) FLOAT union all
       select cast(POW(IEEE_DIVIDE(-1, 0), 3) as float) union all
@@ -2976,7 +2967,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_nan_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT NAN
 from (select cast(TAN(IEEE_DIVIDE(1, 0)) as float) NAN union all
       select cast(TAN(IEEE_DIVIDE(-1, 0)) as float) union all
@@ -2995,7 +2985,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_floats]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT FLOAT
 from (select cast(-0.0 as float) FLOAT union all
       select cast(+0.0 as float) union all
@@ -3059,7 +3048,6 @@ NOTE: Reference implementation reports non-determinism.
 ==
 
 [name=groupby_orderby_desc_floats]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT FLOAT
 from (select cast(-0.0 as float) FLOAT union all
       select cast(+0.0 as float) union all
@@ -3218,7 +3206,6 @@ ARRAY<STRUCT<uint64_val UINT64, cnt INT64>>[known order:
 ]
 ==
 [name=groupby_single_base_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT float_val, count(*) as cnt FROM AllTypesTable t
 GROUP BY float_val
 ORDER BY float_val ASC
@@ -3244,7 +3231,6 @@ ARRAY<STRUCT<float_val FLOAT, cnt INT64>>[known order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=groupby_single_base_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT double_val, count(*) as cnt FROM AllTypesTable t
 GROUP BY double_val
 ORDER BY double_val ASC
@@ -3588,7 +3574,6 @@ ARRAY<STRUCT<c1 UINT64, cnt INT64>>[known order:
 ]
 ==
 [name=groupby_single_computed_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT float_val + 0.125 as c1, count(*) as cnt FROM AllTypesTable t
 GROUP BY c1
 ORDER BY c1 ASC
@@ -3614,7 +3599,6 @@ ARRAY<STRUCT<c1 DOUBLE, cnt INT64>>[known order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=groupby_single_computed_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT double_val * 2 as c1, count(*) as cnt FROM AllTypesTable t
 GROUP BY c1
 ORDER BY c1 ASC
@@ -3857,7 +3841,6 @@ ARRAY<STRUCT<uint64_val UINT64, int32_val INT32, cnt INT64>>[known order:
 ]
 ==
 [name=groupby_multi_base_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT float_val, double_val, count(*) as cnt FROM AllTypesTable t
 GROUP BY float_val, double_val
 ORDER BY float_val ASC, double_val ASC
@@ -3885,7 +3868,6 @@ ARRAY<STRUCT<float_val FLOAT, double_val DOUBLE, cnt INT64>>[unknown order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=groupby_multi_base_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT double_val, str_val, count(*) as cnt FROM AllTypesTable t
 GROUP BY double_val, str_val
 ORDER BY double_val ASC, str_val DESC

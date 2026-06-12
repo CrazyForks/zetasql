@@ -44,12 +44,15 @@ namespace googlesql {
 //
 // If 'target_type' is non-null, coerces the expression to be of type
 // 'target_type'.
-absl::Status InternalAnalyzeExpression(absl::string_view sql,
-                                       const AnalyzerOptions& options,
-                                       Catalog* catalog,
-                                       TypeFactory* type_factory,
-                                       AnnotatedType target_type,
-                                       std::unique_ptr<AnalyzerOutput>* output);
+//
+// If `type_modifiers` is not std::nullopt, it would apply in the coercion to
+// target type.
+// `type_modifiers` must be `std::nullopt` if `target_type` is nullptr.
+absl::Status InternalAnalyzeExpression(
+    absl::string_view sql, const AnalyzerOptions& options, Catalog* catalog,
+    TypeFactory* type_factory, const Type* target_type,
+    std::optional<TypeModifiers> type_modifiers,
+    std::unique_ptr<AnalyzerOutput>* output);
 
 // Coerces <resolved_expr> to <target_type>, using assignment semantics
 // For details, see Coercer::AssignableTo() in
@@ -60,14 +63,16 @@ absl::Status InternalAnalyzeExpression(absl::string_view sql,
 absl::Status ConvertExprToTargetType(
     const ASTExpression& ast_expression, absl::string_view sql,
     const AnalyzerOptions& analyzer_options, Catalog* catalog,
-    TypeFactory* type_factory, AnnotatedType target_type,
+    TypeFactory* type_factory, const Type* target_type,
+    std::optional<TypeModifiers> type_modifiers,
     std::unique_ptr<const ResolvedExpr>* resolved_expr);
 
 absl::Status InternalAnalyzeExpressionFromParserAST(
     const ASTExpression& ast_expression,
     std::unique_ptr<ParserOutput> parser_output, absl::string_view sql,
     const AnalyzerOptions& options, Catalog* catalog, TypeFactory* type_factory,
-    AnnotatedType target_type, std::unique_ptr<AnalyzerOutput>* output);
+    const Type* target_type, std::optional<TypeModifiers> type_modifiers,
+    std::unique_ptr<AnalyzerOutput>* output);
 }  // namespace googlesql
 
 #endif  // GOOGLESQL_ANALYZER_ANALYZER_IMPL_H_

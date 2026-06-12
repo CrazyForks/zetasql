@@ -31,6 +31,7 @@
 #include "googlesql/parser/parser_mode.h"
 #include "googlesql/parser/tm_token.h"
 #include "googlesql/parser/token_with_location.h"
+#include "googlesql/parser/tokenizer.h"
 #include "googlesql/public/error_helpers.h"
 #include "googlesql/public/functions/convert_string.h"
 #include "googlesql/public/parse_location.h"
@@ -39,11 +40,11 @@
 #include "googlesql/public/value.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -253,25 +254,26 @@ absl::Status GetParseTokens(const ParseTokenOptions& options,
 
   auto arena = std::make_unique<googlesql_base::UnsafeArena>(/*block_size=*/4096);
   parser::StackFrame::StackFrameFactory stack_frame_factory;
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      auto tokenizer,
-      parser::LookaheadTransformer::Create(
-          mode, resume_location->filename(), resume_location->input(),
-          resume_location->byte_position(), options.language_options,
-          parser::MacroExpansionMode::kNone,
-          /*macro_catalog=*/nullptr, arena.get(), stack_frame_factory));
+  auto input = std::make_unique<parser::GoogleSqlTokenizer>(
+      resume_location->filename(), resume_location->input(),
+      resume_location->byte_position());
+  GOOGLESQL_ASSIGN_OR_RETURN(auto tokenizer,
+                   parser::LookaheadTransformer::Create(
+                       mode, options.language_options, input.get()));
 
   absl::Status status;
   ParseLocationRange previous_location;
   ParseLocationRange location;
   while (true) {
-    parser::Token bison_token;
-    status = ConvertInternalErrorPayloadsToExternal(
-        tokenizer->GetNextToken(&location /* input and output */, &bison_token),
-        resume_location->input());
-    if (!status.ok()) {
+    auto status_or_token = tokenizer->GetNextToken();
+    if (!status_or_token.ok()) {
+      status = ConvertInternalErrorPayloadsToExternal(status_or_token.status(),
+                                                      resume_location->input());
       break;
     }
+
+    parser::Token token = status_or_token->kind;
+    location = status_or_token->location;
     bool is_adjacent_to_prior_token =
         previous_location.IsAdjacentlyFollowedBy(location);
     previous_location = location;
@@ -280,7 +282,7 @@ absl::Status GetParseTokens(const ParseTokenOptions& options,
         resume_location->input(), location.start().GetByteOffset(),
         location.end().GetByteOffset() - location.start().GetByteOffset()));
     status = ConvertInternalErrorPayloadsToExternal(
-        ConvertBisonToken(bison_token, is_adjacent_to_prior_token, location,
+        ConvertBisonToken(token, is_adjacent_to_prior_token, location,
                           std::move(image), tokens),
         resume_location->input());
     if (!status.ok()) {
@@ -290,7 +292,7 @@ absl::Status GetParseTokens(const ParseTokenOptions& options,
     if (options.max_tokens > 0 && tokens->size() >= options.max_tokens) {
       break;
     }
-    if (bison_token == Token::EOI) {
+    if (token == Token::EOI) {
       break;
     }
     if (options.stop_at_end_of_statement &&
@@ -344,8 +346,20 @@ std::string ParseToken::GetSQL() const {
     case KEYWORD:
       return absl::AsciiStrToUpper(GetImage());
     case IDENTIFIER_OR_KEYWORD:
-    case IDENTIFIER:
       return ToIdentifierLiteral(value_.string_value());
+    case IDENTIFIER: {
+      // Preserve explicit backticks for non-reserved keywords.
+      // This avoids forcing backticks globally for common identifier names
+      // (like `value`), without losing context when omitting them would change
+      // the token's meaning.
+      const parser::KeywordInfo* info =
+          parser::GetKeywordInfo(value_.string_value());
+      if (!image_.empty() && image_.front() == '`' && info != nullptr &&
+          !info->IsAlwaysReserved()) {
+        return ToAlwaysQuotedIdentifierLiteral(value_.string_value());
+      }
+      return ToIdentifierLiteral(value_.string_value());
+    }
     case VALUE:
       if (value_.is_valid() && value_.type()->IsFloatingPoint()) {
         // Floating point literals like ".1" and "1." should not be printed as

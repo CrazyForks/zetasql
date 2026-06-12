@@ -45,29 +45,35 @@ class ErrorCatalog : public Catalog {
   std::string FullName() const override { return "catalog_with_errors"; }
 
   // Catalog interface implementations that always return an error.
+  using Catalog::FindTable;  // Support non-virtual signatures.
   absl::Status FindTable(const absl::Span<const std::string>& path,
                          const Table** table,
-                         const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
+  using Catalog::FindModel;  // Support non-virtual signatures.
   absl::Status FindModel(const absl::Span<const std::string>& path,
                          const Model** table,
-                         const FindOptions& options = FindOptions()) override;
-  absl::Status FindFunction(
-      const absl::Span<const std::string>& path, const Function** function,
-      const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
+  using Catalog::FindFunction;  // Support non-virtual signatures.
+  absl::Status FindFunction(const absl::Span<const std::string>& path,
+                            const Function** function,
+                            const FindOptions& options) override;
+  using Catalog::FindTableValuedFunction;  // Support non-virtual signatures.
   absl::Status FindTableValuedFunction(
       const absl::Span<const std::string>& path,
       const TableValuedFunction** function,
-      const FindOptions& options = FindOptions()) override;
-  absl::Status FindProcedure(
-      const absl::Span<const std::string>& path, const Procedure** procedure,
-      const FindOptions& options = FindOptions()) override;
+      const FindOptions& options) override;
+  using Catalog::FindProcedure;  // Support non-virtual signatures.
+  absl::Status FindProcedure(const absl::Span<const std::string>& path,
+                             const Procedure** procedure,
+                             const FindOptions& options) override;
+  using Catalog::FindType;  // Support non-virtual signatures.
   absl::Status FindType(const absl::Span<const std::string>& path,
-                        const Type** type,
-                        const FindOptions& options = FindOptions()) override;
-  absl::Status FindConstantWithPathPrefix(
-      absl::Span<const std::string> path, int* num_names_consumed,
-      const Constant** constant,
-      const FindOptions& options = FindOptions()) override;
+                        const Type** type, const FindOptions& options) override;
+  using Catalog::FindConstantWithPathPrefix;  // Support non-virtual signatures.
+  absl::Status FindConstantWithPathPrefix(absl::Span<const std::string> path,
+                                          int* num_names_consumed,
+                                          const Constant** constant,
+                                          const FindOptions& options) override;
 
  private:
   // Private constructor, forcing users to invoke the Create() method

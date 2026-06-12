@@ -34,12 +34,13 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -49,6 +50,8 @@ std::string GetAnnotationKindName(AnnotationKind kind) {
       return "Collation";
     case AnnotationKind::kTimestampPrecision:
       return "TimestampPrecision";
+    case AnnotationKind::kIsVersioned:
+      return "IsVersioned";
     case AnnotationKind::kSampleAnnotation:
       return "SampleAnnotation";
     case AnnotationKind::kMaxBuiltinAnnotationKind:
@@ -348,6 +351,35 @@ std::string AnnotationMap::DebugStringInternal(
     absl::StrAppend(&out, "}");
   }
   return out;
+}
+
+static absl::Status CheckIndexInBounds(int index, int num_fields) {
+  GOOGLESQL_RET_CHECK(index >= 0 && index < num_fields)
+      << "Index " << index << " out of bounds: `num_fields` is " << num_fields;
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<const AnnotationMap*> StructAnnotationMap::child(int i) const {
+  GOOGLESQL_RETURN_IF_ERROR(CheckIndexInBounds(i, num_fields()));
+  return fields_[i].get();
+}
+
+absl::StatusOr<AnnotationMap*> StructAnnotationMap::mutable_child(int i) {
+  GOOGLESQL_RETURN_IF_ERROR(CheckIndexInBounds(i, num_fields()));
+  return fields_[i].get();
+}
+
+const AnnotationMap* StructAnnotationMap::field(int i) const {
+  auto field_or = child(i);
+  GOOGLESQL_DCHECK_OK(field_or.status());
+  return field_or.value();
+}
+
+AnnotationMap* StructAnnotationMap::mutable_field(int i) {
+  auto field_or = mutable_child(i);
+  GOOGLESQL_DCHECK_OK(field_or.status());
+  return field_or.value();
 }
 
 // TODO: Leaving this temporarily to ease the migration of callers.

@@ -15,6 +15,7 @@
 //
 #include "googlesql/base/time_proto_util.h"
 
+#include <cstdint>
 #include <limits>
 
 #include "google/protobuf/timestamp.pb.h"
@@ -24,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "googlesql/base/testing/status_matchers.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace googlesql_base {
 

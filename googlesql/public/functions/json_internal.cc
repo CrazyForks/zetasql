@@ -26,6 +26,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -33,7 +34,6 @@
 #include "absl/strings/string_view.h"
 #include "googlesql/base/case.h"  
 #include "re2/re2.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {
@@ -311,6 +311,26 @@ StrictJSONPathIterator::Create(absl::string_view path, bool enable_lax_mode) {
   }
   return absl::WrapUnique(
       new StrictJSONPathIterator(std::move(tokens), path_options));
+}
+
+absl::StatusOr<std::unique_ptr<StrictJSONPathIterator>>
+StrictJSONPathIterator::Create(
+    std::vector<std::variant<int64_t, std::string>> tokens,
+    bool enable_lax_mode) {
+  std::vector<StrictJSONPathToken> strict_tokens;
+  strict_tokens.push_back(StrictJSONPathToken(std::monostate()));
+  for (auto& token : tokens) {
+    if (std::holds_alternative<int64_t>(token)) {
+      int64_t index = std::get<int64_t>(token);
+      StrictJSONPathToken strict_token(index);
+      strict_tokens.push_back(StrictJSONPathToken(std::move(strict_token)));
+    } else {
+      std::string parsed_string = std::get<std::string>(token);
+      strict_tokens.push_back(StrictJSONPathToken(std::move(parsed_string)));
+    }
+  }
+  return absl::WrapUnique(
+      new StrictJSONPathIterator(std::move(strict_tokens), JsonPathOptions()));
 }
 
 }  // namespace json_internal

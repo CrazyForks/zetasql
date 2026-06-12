@@ -6,13 +6,13 @@
 
 GoogleSQL supports the following timestamp functions.
 
-IMPORTANT: Before working with these functions, you need to understand
+Important: Before working with these functions, you need to understand
 the difference between the formats in which timestamps are stored and displayed,
 and how time zones are used for the conversion between these formats.
 To learn more, see
 [How time zones work with timestamp functions][timestamp-link-to-timezone-definitions].
 
-NOTE: These functions return a runtime error if overflow occurs; result
+Note: These functions return a runtime error if overflow occurs; result
 values are bounded by the defined [`DATE` range][data-types-link-to-date_type]
 and [`TIMESTAMP` range][data-types-link-to-timestamp_type].
 

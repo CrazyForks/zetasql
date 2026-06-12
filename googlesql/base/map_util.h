@@ -75,6 +75,7 @@
 //
 
 #include <stddef.h>
+
 #include <iterator>
 #include <memory>
 #include <string>
@@ -82,10 +83,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
+#include "googlesql/base/check.h"
 #include "absl/meta/type_traits.h"
 #include "googlesql/base/logging.h"
 #include "googlesql/base/map_traits.h"
-#include "googlesql/base/no_destructor.h"
 
 namespace googlesql_base {
 
@@ -107,7 +109,7 @@ template <typename M, typename = void>
 struct HasTryEmplace : std::false_type {};
 
 template <typename M>
-struct HasTryEmplace<M, absl::void_t<decltype(std::declval<M>().try_emplace(
+struct HasTryEmplace<M, std::void_t<decltype(std::declval<M>().try_emplace(
                             std::declval<const MapUtilKeyT<M>&>()))>>
     : std::true_type {};
 
@@ -124,7 +126,7 @@ struct InitType<M, typename std::enable_if<!std::is_convertible<
 
 template <typename V>
 const V& ValueInitializedDefault() {
-  static const googlesql_base::NoDestructor<V> value_initialized_default{};
+  static const absl::NoDestructor<V> value_initialized_default{};
   return *value_initialized_default;
 }
 

@@ -21,9 +21,9 @@
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

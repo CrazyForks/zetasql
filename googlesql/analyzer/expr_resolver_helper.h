@@ -503,6 +503,13 @@ class ResolvedTVFArg {
     return std::move(descriptor_);
   }
 
+  const std::vector<ResolvedColumn>& GetPassthroughColumns() const {
+    return passthrough_columns_;
+  }
+  void SetPassthroughColumns(std::vector<ResolvedColumn> columns) {
+    passthrough_columns_ = std::move(columns);
+  }
+
  private:
   enum {
     UNDEFINED,
@@ -527,6 +534,9 @@ class ResolvedTVFArg {
   // Indicates whether this is a relation created as a pipe CALL input table.
   // Can only be true if type_ is SCAN.
   bool is_pipe_input_table_ = false;
+
+  // Cached passthrough columns for the scan.
+  std::vector<ResolvedColumn> passthrough_columns_;
 };
 
 // Computes the default alias to use for an expression.

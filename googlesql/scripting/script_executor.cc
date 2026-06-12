@@ -29,10 +29,10 @@
 #include "googlesql/scripting/parsed_script.h"
 #include "googlesql/scripting/script_executor_impl.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

@@ -190,7 +190,9 @@ public class SimpleCatalogTest {
     TableValuedFunction tvf =
         new ForwardInputSchemaToOutputSchemaTVF(
             ImmutableList.of("test_tvf_name"),
-            new FunctionSignature(TABLE_TYPE, ImmutableList.of(TABLE_TYPE), /* contextId= */ -1));
+            ImmutableList.of(
+                new FunctionSignature(
+                    TABLE_TYPE, ImmutableList.of(TABLE_TYPE), /* contextId= */ -1)));
     List<FunctionArgumentType> arguments = new ArrayList<>();
     FunctionArgumentType typeInt64 =
         new FunctionArgumentType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64));
@@ -304,12 +306,13 @@ public class SimpleCatalogTest {
       catalog.addTableValuedFunction(
           new TableValuedFunction.ForwardInputSchemaToOutputSchemaTVF(
               ImmutableList.of("test_tvf_name"),
-              new FunctionSignature(
-                  new FunctionArgumentType(
-                      TypeFactory.createSimpleType(TypeKind.TYPE_INT64),
-                      ArgumentCardinality.REQUIRED),
-                  ImmutableList.of(),
-                  /* contextId= */ -1)));
+              ImmutableList.of(
+                  new FunctionSignature(
+                      new FunctionArgumentType(
+                          TypeFactory.createSimpleType(TypeKind.TYPE_INT64),
+                          ArgumentCardinality.REQUIRED),
+                      ImmutableList.of(),
+                      /* contextId= */ -1))));
       fail();
     } catch (IllegalArgumentException expected) {
     }
@@ -365,7 +368,9 @@ public class SimpleCatalogTest {
     TableValuedFunction tvf =
         new ForwardInputSchemaToOutputSchemaTVF(
             ImmutableList.of("test_tvf_name"),
-            new FunctionSignature(TABLE_TYPE, ImmutableList.of(TABLE_TYPE), /* contextId= */ -1));
+            ImmutableList.of(
+                new FunctionSignature(
+                    TABLE_TYPE, ImmutableList.of(TABLE_TYPE), /* contextId= */ -1)));
     TableValuedFunction tvfWithGroupName =
         new TableValuedFunction(
             ImmutableList.of("tvf_name"),
@@ -822,6 +827,56 @@ public class SimpleCatalogTest {
     expected.getTableBuilder(0).setSerializationId(table.getId());
     expected.getModelBuilder(0).setId(model.getId());
     assertThat(catalogProto).isEqualTo(expected.build());
+  }
+
+  @Test
+  public void testSerialize_skipsAlias() {
+    SimpleCatalog catalog = new SimpleCatalog("catalog1");
+    Function functionWithAlias =
+        new Function(
+            "substr",
+            Function.GOOGLESQL_FUNCTION_GROUP_NAME,
+            Mode.SCALAR,
+            ImmutableList.of(
+                new FunctionSignature(
+                    new FunctionArgumentType(
+                        TypeFactory.createSimpleType(TypeKind.TYPE_INT64),
+                        ArgumentCardinality.REQUIRED),
+                    ImmutableList.of(),
+                    -1)),
+            FunctionOptionsProto.newBuilder().setAliasName("substring").build());
+
+    Function functionWithoutAlias =
+        new Function(
+            "no_alias_func",
+            Function.GOOGLESQL_FUNCTION_GROUP_NAME,
+            Mode.SCALAR,
+            ImmutableList.of(
+                new FunctionSignature(
+                    new FunctionArgumentType(
+                        TypeFactory.createSimpleType(TypeKind.TYPE_INT64),
+                        ArgumentCardinality.REQUIRED),
+                    ImmutableList.of(),
+                    -1)));
+
+    catalog.addFunction(functionWithAlias);
+    catalog.addFunction(functionWithoutAlias);
+
+    assertThat(catalog.getFunctionNameList())
+        .containsExactly("googlesql:no_alias_func", "googlesql:substr");
+
+    assertThat(catalog.getFunction("substring", new Catalog.FindOptions()))
+        .isEqualTo(functionWithAlias);
+
+    FileDescriptorSetsBuilder fileDescriptorSetsBuilder = new FileDescriptorSetsBuilder();
+    SimpleCatalogProto serializedCatalogProto = catalog.serialize(fileDescriptorSetsBuilder);
+
+    assertThat(serializedCatalogProto.getCustomFunctionCount()).isEqualTo(2);
+    List<String> serializedNames = new ArrayList<>();
+    for (int i = 0; i < serializedCatalogProto.getCustomFunctionCount(); i++) {
+      serializedNames.add(serializedCatalogProto.getCustomFunction(i).getNamePath(0));
+    }
+    assertThat(serializedNames).containsExactly("substr", "no_alias_func");
   }
 
   @Test

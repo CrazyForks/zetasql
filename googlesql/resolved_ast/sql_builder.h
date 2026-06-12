@@ -407,6 +407,8 @@ class SQLBuilder : public ResolvedASTVisitor {
 
   // Visit methods for types of ResolvedStatement.
   absl::Status VisitResolvedQueryStmt(const ResolvedQueryStmt* node) override;
+  absl::Status VisitResolvedTerminalQueryStmt(
+      const ResolvedTerminalQueryStmt* node) override;
   absl::Status VisitResolvedGeneralizedQueryStmt(
       const ResolvedGeneralizedQueryStmt* node) override;
   absl::Status VisitResolvedMultiStmt(const ResolvedMultiStmt* node) override;
@@ -438,6 +440,8 @@ class SQLBuilder : public ResolvedASTVisitor {
       const ResolvedCreateTableAsSelectStmt* node, bool generate_as_pipe);
   absl::Status VisitResolvedCreateViewStmt(
       const ResolvedCreateViewStmt* node) override;
+  absl::Status VisitResolvedCreateLiveTableStmt(
+      const ResolvedCreateLiveTableStmt* node) override;
   absl::Status VisitResolvedCreateMaterializedViewStmt(
       const ResolvedCreateMaterializedViewStmt* node) override;
   absl::Status VisitResolvedCreateApproxViewStmt(
@@ -561,6 +565,8 @@ class SQLBuilder : public ResolvedASTVisitor {
       const ResolvedExpressionColumn* node) override;
   absl::Status VisitResolvedCatalogColumnRef(
       const ResolvedCatalogColumnRef* node) override;
+  absl::Status VisitResolvedFunctionRef(
+      const ResolvedFunctionRef* node) override;
   absl::Status VisitResolvedLiteral(const ResolvedLiteral* node) override;
   absl::Status VisitResolvedConstant(const ResolvedConstant* node) override;
   absl::Status VisitResolvedFunctionCall(
@@ -688,6 +694,7 @@ class SQLBuilder : public ResolvedASTVisitor {
   absl::Status VisitResolvedAssertScan(const ResolvedAssertScan* node) override;
   absl::Status VisitResolvedLogScan(const ResolvedLogScan* node) override;
   absl::Status VisitResolvedPipeIfScan(const ResolvedPipeIfScan* node) override;
+  absl::Status VisitResolvedFinishScan(const ResolvedFinishScan* node) override;
   absl::Status VisitResolvedPipeForkScan(
       const ResolvedPipeForkScan* node) override;
   absl::Status VisitResolvedPipeTeeScan(
@@ -708,6 +715,7 @@ class SQLBuilder : public ResolvedASTVisitor {
       const ResolvedSubpipelineStmt* node) override;
   absl::Status VisitResolvedStatementWithPipeOperatorsStmt(
       const ResolvedStatementWithPipeOperatorsStmt* node) override;
+  absl::Status VisitResolvedAlignScan(const ResolvedAlignScan* node) override;
 
   // Visit methods for analytic functions related nodes.
   absl::Status VisitResolvedAnalyticFunctionGroup(
@@ -1509,6 +1517,9 @@ class GqlReturnOpSQLBuilder : public SQLBuilder {
       int* max_seen_alias_id, const SQLBuilderOptions& options,
       const CopyableState& state);
 
+  // Returns the aliases for the output columns in the semantic order of
+  // output_column_list_. Assumes that output_column_to_alias_ has a mapping
+  // for all columns in output_column_list_.
   std::vector<std::string> GetOutputColumnAliases();
 
   std::string GetReturnColumnExpr(const ResolvedColumn& column);

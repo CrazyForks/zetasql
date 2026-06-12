@@ -22,14 +22,19 @@
 #include <vector>
 
 #include "googlesql/base/logging.h"
+#include "googlesql/common/warning_sink.h"
 #include "googlesql/parser/ast_node.h"
 #include "googlesql/parser/ast_node_kind.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parser.h"
+#include "googlesql/parser/parser_internal.h"
+#include "googlesql/parser/parser_mode.h"
+#include "googlesql/parser/parser_runtime_info.h"
 #include "googlesql/parser/statement_properties.h"
 #include "googlesql/parser/tm_token.h"
 #include "googlesql/parser/tokenizer.h"
 #include "googlesql/public/error_helpers.h"
+#include "googlesql/public/graph_dml_parse_util.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/parse_location.h"
@@ -38,11 +43,12 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -125,6 +131,8 @@ ResolvedNodeKind GetStatementKind(ASTNodeKind node_kind) {
       return RESOLVED_CREATE_PROPERTY_GRAPH_STMT;
     case AST_CREATE_TABLE_STATEMENT:
       return RESOLVED_CREATE_TABLE_STMT;
+    case AST_CREATE_LIVE_TABLE_STATEMENT:
+      return RESOLVED_CREATE_LIVE_TABLE_STMT;
     case AST_CREATE_EXTERNAL_TABLE_STATEMENT:
       return RESOLVED_CREATE_EXTERNAL_TABLE_STMT;
     case AST_CREATE_PRIVILEGE_RESTRICTION_STATEMENT:
@@ -185,6 +193,8 @@ ResolvedNodeKind GetStatementKind(ASTNodeKind node_kind) {
     case AST_DROP_SEARCH_INDEX_STATEMENT:
       return RESOLVED_DROP_INDEX_STMT;
     case AST_DROP_VECTOR_INDEX_STATEMENT:
+      return RESOLVED_DROP_INDEX_STMT;
+    case AST_DROP_AI_INDEX_STATEMENT:
       return RESOLVED_DROP_INDEX_STMT;
     case AST_GRANT_STATEMENT:
       return RESOLVED_GRANT_STMT;
@@ -335,6 +345,7 @@ absl::Status GetNextStatementProperties(
     case AST_CREATE_SNAPSHOT_TABLE_STATEMENT:
     case AST_CREATE_TABLE_FUNCTION_STATEMENT:
     case AST_CREATE_TABLE_STATEMENT:
+    case AST_CREATE_LIVE_TABLE_STATEMENT:
     case AST_CREATE_VIEW_STATEMENT:
     case AST_DEFINE_TABLE_STATEMENT:
     case AST_DROP_ALL_ROW_ACCESS_POLICIES_STATEMENT:
@@ -347,6 +358,7 @@ absl::Status GetNextStatementProperties(
     case AST_DROP_SNAPSHOT_TABLE_STATEMENT:
     case AST_DROP_SEARCH_INDEX_STATEMENT:
     case AST_DROP_VECTOR_INDEX_STATEMENT:
+    case AST_DROP_AI_INDEX_STATEMENT:
     case AST_DROP_STATEMENT:
     case AST_UNDROP_STATEMENT:
     case AST_RENAME_STATEMENT:
@@ -418,6 +430,36 @@ absl::Status GetNextStatementProperties(
       break;
   }
 
+  if (ast_statement_properties.is_top_level_graph_statement_syntax) {
+    std::unique_ptr<ASTNode> output;
+    auto runtime_info = std::make_unique<ParserRuntimeInfo>();
+    WarningSink warning_sink(/*consider_location=*/true);
+    // We ignore parser errors here. GetNextStatementProperties is expected to
+    // succeed and return properties on a best-effort basis even for
+    // syntactically invalid statements.
+    auto status = parser::ParseInternal(
+        parser::ParserMode::kStatement, resume_location.filename(),
+        resume_location.input(), resume_location.byte_position(),
+        parser_options.id_string_pool().get(), parser_options.arena().get(),
+        parser_options.language_options(),
+        parser_options.macro_expansion_mode(), parser_options.macro_catalog(),
+        &output, *runtime_info, warning_sink, &allocated_ast_nodes,
+        &ast_statement_properties,
+        /*statement_end_byte_offset=*/nullptr);
+    if (!status.ok()) {
+      // Only swallow syntax errors. Any other error should be returned.
+      if (status.code() != absl::StatusCode::kInvalidArgument) {
+        GOOGLESQL_RETURN_IF_ERROR(status);
+      }
+    } else {
+      GOOGLESQL_RET_CHECK(output != nullptr);
+      GOOGLESQL_ASSIGN_OR_RETURN(bool has_graph_dml, HasGraphDml(output.get()));
+      if (has_graph_dml) {
+        statement_properties->statement_category = StatementProperties::DML;
+      }
+    }
+  }
+
   statement_properties->statement_level_hints.clear();
   ast_statement_properties.statement_level_hints.swap(
       statement_properties->statement_level_hints);
@@ -433,11 +475,11 @@ absl::Status SkipNextStatement(ParseResumeLocation* resume_location,
       resume_location->filename(), resume_location->input(),
       resume_location->byte_position());
 
-  ParseLocationRange range;
   std::optional<int> semicolon_byte_offset;
   *at_end_of_input = false;
   while (true) {
-    GOOGLESQL_ASSIGN_OR_RETURN(parser::Token next_token, tokenizer->GetNextToken(&range));
+    GOOGLESQL_ASSIGN_OR_RETURN(auto next_token_with_location, tokenizer->GetNextToken());
+    parser::Token next_token = next_token_with_location.kind;
     if (next_token == parser::Token::EOI) {
       *at_end_of_input = true;
       break;
@@ -455,7 +497,8 @@ absl::Status SkipNextStatement(ParseResumeLocation* resume_location,
       // We've hit a semicolon.  We're at the end of the statement, but continue
       // consuming additional comments, breaking once we get to EOI or another
       // non-comment token.
-      semicolon_byte_offset = range.end().GetByteOffset();
+      semicolon_byte_offset =
+          next_token_with_location.location.end().GetByteOffset();
       continue;
     }
   }
@@ -551,7 +594,7 @@ absl::StatusOr<std::vector<absl::string_view>> ListSelectExpressions(
 // of the first SELECT statement.
 // The output columns of a SQL Statement with PIPE operations is determined by
 // the final PIPE_SELECT operation.
-absl ::StatusOr<const ASTSelect*> GetSelectNodeFromAST(const ASTQuery* query) {
+absl::StatusOr<const ASTSelect*> GetSelectNodeFromAST(const ASTQuery* query) {
   GOOGLESQL_RET_CHECK(query != nullptr);
   absl::Span<const ASTPipeOperator* const> pipe_operator_list =
       query->pipe_operator_list();

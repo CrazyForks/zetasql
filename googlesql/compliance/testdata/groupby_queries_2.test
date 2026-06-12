@@ -1215,7 +1215,6 @@ ARRAY<STRUCT<c1 UINT64, c2 INT32, cnt INT64>>[known order:
 ]
 ==
 [name=groupby_multi_computed_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT float_val + 0.5 as c1, double_val as c2, count(*) as cnt
 FROM AllTypesTable t
 GROUP BY c1, c2
@@ -1244,7 +1243,6 @@ ARRAY<STRUCT<c1 DOUBLE, c2 DOUBLE, cnt INT64>>[unknown order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=groupby_multi_computed_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT double_val - 0.75 as c1, str_val as c2, count(*) as cnt
 FROM AllTypesTable t
 GROUP BY c1, c2
@@ -1494,7 +1492,6 @@ ARRAY<STRUCT<c1 UINT64>>[known order:
 ]
 ==
 [name=distinct_single_base_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1 FROM (SELECT DISTINCT float_val as c1 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC
 --
@@ -1519,7 +1516,6 @@ ARRAY<STRUCT<c1 FLOAT>>[known order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=distinct_single_base_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1 FROM (SELECT DISTINCT double_val as c1 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC
 --
@@ -1695,7 +1691,6 @@ ARRAY<STRUCT<c1 UINT64>>[known order:
 ]
 ==
 [name=distinct_single_computed_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1 FROM (
   SELECT DISTINCT float_val + 0.125 as c1 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC
@@ -1721,7 +1716,6 @@ ARRAY<STRUCT<c1 DOUBLE>>[known order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=distinct_single_computed_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1 FROM (SELECT DISTINCT double_val * 2 as c1 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC
 --
@@ -1890,7 +1884,6 @@ ARRAY<STRUCT<c1 UINT64, c2 INT32>>[known order:
 ]
 ==
 [name=distinct_multi_base_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1, s.c2 FROM (
   SELECT DISTINCT float_val as c1, double_val as c2 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC, s.c2 ASC
@@ -1918,7 +1911,6 @@ ARRAY<STRUCT<c1 FLOAT, c2 DOUBLE>>[unknown order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=distinct_multi_base_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1, s.c2 FROM (
   SELECT DISTINCT double_val as c1, str_val as c2 FROM AllTypesTable t) s
 ORDER BY s.c1 ASC, s.c2 ASC
@@ -2209,7 +2201,6 @@ ARRAY<STRUCT<c1 UINT64, c2 INT32>>[known order:
 ]
 ==
 [name=distinct_multi_computed_column_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1, s.c2 FROM (
   SELECT DISTINCT float_val + 0.5 as c1, double_val as c2
   FROM AllTypesTable t) s
@@ -2238,7 +2229,6 @@ ARRAY<STRUCT<c1 DOUBLE, c2 DOUBLE>>[unknown order:
 NOTE: Reference implementation reports non-determinism.
 ==
 [name=distinct_multi_computed_column_double]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT s.c1, s.c2 FROM (
   SELECT DISTINCT double_val - 0.75 as c1, str_val as c2
   FROM AllTypesTable t) s

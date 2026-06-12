@@ -38,6 +38,7 @@
 #include "googlesql/public/types/value_equality_check_options.h"
 #include "googlesql/public/types/value_representations.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -54,6 +55,7 @@ namespace googlesql {
 
 class ArrayType;
 class AnnotationMap;
+class DeclarativeType;
 class EnumType;
 class ExtendedType;
 class GraphElementType;
@@ -63,6 +65,7 @@ class MapType;
 class MeasureType;
 class ProtoType;
 class RangeType;
+class RowOrTableType;
 class RowType;
 class StructType;
 class Type;
@@ -71,6 +74,7 @@ class TypeFactoryBase;
 class TypeModifiers;
 class TypeParameterValue;
 class TypeParameters;
+class TableRefType;
 class Value;
 class ValueContent;
 class ValueProto;
@@ -165,12 +169,17 @@ class Type {
   bool IsGraphPath() const { return kind_ == TYPE_GRAPH_PATH; }
   bool IsMap() const { return kind_ == TYPE_MAP; }
 
-  bool IsRow() const { return kind_ == TYPE_ROW; }
-  virtual bool IsMultiRow() const { return false; }
-  virtual bool IsSingleRow() const { return false; }
+  virtual bool IsRow() const { return false; }
+  virtual bool IsTable() const { return false; }
+  virtual bool IsSingleRowTable() const { return false; }
+  virtual bool IsMultiRowTable() const { return false; }
+  bool IsRowOrTable() const { return kind_ == TYPE_ROW; }
 
-  // True for ARRAY and RowTypes with `IsJoin()` true.
+  // True for ARRAY and for RowTypes with `IsTable()` true.
   bool IsArrayLike() const;
+  // True for ROW types and for TABLE types with UNIQUE (i.e. single-row
+  // tables).
+  bool IsRowLike() const;
 
   // Get the element type for types with `IsArrayLike()` true.
   // Internal error for other types.
@@ -234,6 +243,7 @@ class Type {
   // TYPE_EXTENDED type kind and their classes inherit googlesql::ExtendedType
   // class.
   bool IsExtendedType() const { return kind_ == TYPE_EXTENDED; }
+  bool IsDeclarativeType() const { return kind_ == TYPE_DECLARATIVE; }
 
   // Return this Type cast to the given subclass, or nullptr if this type
   // is not of the requested type.
@@ -241,13 +251,16 @@ class Type {
   virtual const StructType* AsStruct() const { return nullptr; }
   virtual const ProtoType* AsProto() const { return nullptr; }
   virtual const EnumType* AsEnum() const { return nullptr; }
+  virtual const DeclarativeType* AsDeclarativeType() const { return nullptr; }
   virtual const ExtendedType* AsExtendedType() const { return nullptr; }
   virtual const RangeType* AsRange() const { return nullptr; }
   virtual const GraphElementType* AsGraphElement() const { return nullptr; }
   virtual const GraphPathType* AsGraphPath() const { return nullptr; }
   virtual const MapType* AsMap() const { return nullptr; }
   virtual const MeasureType* AsMeasure() const { return nullptr; }
-  virtual const RowType* AsRow() const { return nullptr; }
+  virtual const RowOrTableType* AsRowOrTable() const { return nullptr; }
+  virtual const RowType* AsRowType() const { return nullptr; }
+  virtual const TableRefType* AsTableRefType() const { return nullptr; }
 
   // Returns true if the type supports grouping with respect to the
   // 'language_options'. E.g. struct type supports grouping if the
@@ -515,7 +528,15 @@ class Type {
   std::string DebugString(bool details = false) const;
 
   // Returns type printed as capitalized string.
-  virtual std::string CapitalizedName() const = 0;
+  // Avoid this method!! It exists only as debt and part of some DebugStrings.
+  // Specifically: it comes up in Value::DebugString(), when verbose=true, which
+  // is not the case for any user-facing text.
+  // UNDER NO CIRCUMSTANCES should it be called directly or indirectly for any
+  // user-facing content, including error messages.
+  // TODO: b/153789049 - Remove this method and migrate all callers and goldens
+  // to the canonical name methods like TypeName(), etc.
+  ABSL_DEPRECATED("Use ShortTypeName() or TypeName() instead.")
+  virtual std::string CapitalizedName() const;
 
   // Adds capitalized type name to a given string.
   // TODO Remove this method and use DebugString instead.
@@ -530,17 +551,32 @@ class Type {
                          // * has_X for field X
     HAS_AMBIGUOUS_FIELD  // Multiple fields with that name.
   };
+  struct FindFieldResult {
+    HasFieldResult has_field;
+    int field_id = -1;
+  };
 
-  // If this method returns HAS_FIELD or HAS_PSEUDO_FIELD and <field_id> is
-  // non-NULL, then <field_id> is set to
-  // - the field index for STRUCTs;
-  // - the field tag number for PROTOs;
-  // - the property type index for GRAPH_ELEMENTs;
-  // <include_pseudo_fields> specifies whether virtual fields should be
+  // Check if this type contains a field with the given name.
+  //
+  // If the lookup returns HAS_FIELD or HAS_PSEUDO_FIELD (and for HasField,
+  // `field_id` is non-NULL), then `field_id` is set to:
+  //   - The field index for STRUCTs
+  //   - The field tag number for PROTOs
+  //   - The property type index for GRAPH_ELEMENTs
+  // `include_pseudo_fields` specifies whether virtual fields should be
   // returned or used for ambiguity check.
+  //
+  // HasField is deprecated, prefer FindField. If HasField is called on a Type
+  // which may return a Status, it will ABSL_DCHECK unconditionally, and will return
+  // HAS_NO_FIELD if a non-OK Status occurs.
+  ABSL_DEPRECATED("Use FindField instead of HasField (b/512564707)")
   HasFieldResult HasField(const std::string& name, int* field_id = nullptr,
                           bool include_pseudo_fields = true) const {
     return HasFieldImpl(name, field_id, include_pseudo_fields);
+  }
+  absl::StatusOr<FindFieldResult> FindField(
+      const absl::string_view name, bool include_pseudo_fields = true) const {
+    return FindFieldImpl(name, include_pseudo_fields);
   }
 
   // Return true if this type has any fields.
@@ -822,11 +858,26 @@ class Type {
   virtual void DebugStringImpl(bool details, TypeOrStringVector* stack,
                                std::string* debug_string) const = 0;
 
-  // Checks whether type has field of given name. Is called from HasField.
-  // `field_id` can be nullptr.
-  virtual HasFieldResult HasFieldImpl(const std::string& name, int* field_id,
+  // Checks whether type has a field of the given name. HasFieldImpl is called
+  // by HasField, FindFieldImpl is called by FindField.
+  //
+  // Types which do not need to return a Status should override `HasFieldImpl`.
+  // Types which may return a Status should override both:
+  //   - `FindFieldImpl` with their implementation.
+  //   - `HasFieldImpl` with an unconditional ABSL_DCHECK (callsites must migrate in
+  //      order to use the type), a call to `FindFieldImpl`, and return
+  //      HAS_NO_FIELD if a non-OK Status is returned.
+  virtual HasFieldResult HasFieldImpl(absl::string_view name,
+                                      int* /*absl_nullable*/ field_id,
                                       bool include_pseudo_fields) const {
     return HAS_NO_FIELD;
+  }
+  virtual absl::StatusOr<FindFieldResult> FindFieldImpl(
+      absl::string_view name, bool include_pseudo_fields) const {
+    int field_id = -1;
+    HasFieldResult result =
+        HasFieldImpl(name, &field_id, include_pseudo_fields);
+    return FindFieldResult{.has_field = result, .field_id = field_id};
   }
 
   // *ValueContent* functions below are used as an interface between
@@ -841,6 +892,7 @@ class Type {
   friend class Value;
   friend class InternalValue;
   friend class ContainerType;
+  friend class DeclarativeType;
   friend struct HashableValueContentContainerElementIgnoringFloat;
 
   FRIEND_TEST(TypeTest, FormatValueContentArraySQLLiteralMode);
@@ -854,6 +906,10 @@ class Type {
   FRIEND_TEST(MapTest, FormatValueContentSQLExpressionMode);
   FRIEND_TEST(MapTestFormatValueContentDebugMode, FormatValueContentDebugMode);
   FRIEND_TEST(MapTest, FormatValueContentDebugModeEmptyMap);
+
+  FRIEND_TEST(DeclarativeTypeTest, DeclarativeTypeEstimateMemoryOwned);
+  FRIEND_TEST(DeclarativeTypeTest,
+              DeclarativeTypeEstimateMemoryOwned_ComplexBackingType);
 
   // Copies value's content to another value. Is called when one value is
   // assigned to another. It's expected that content of destination is empty

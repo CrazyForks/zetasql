@@ -36,10 +36,8 @@ body, input, textarea, select {
   font-size: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    filter: invert(90%) hue-rotate(180deg) contrast(105%);
-  }
+.dark-mode {
+  filter: invert(90%) hue-rotate(180deg) contrast(105%);
 }
 
 select {
@@ -100,13 +98,12 @@ main {
 }
 
 /* Undos dark mode filter for avatar images */
-@media (prefers-color-scheme: dark) {
-  .avatar {
-    filter: invert(90%) hue-rotate(180deg) contrast(105%);
-  }
+.dark-mode .avatar {
+  filter: invert(90%) hue-rotate(180deg) contrast(105%);
 }
 
-#header #share-link {
+#header #share-link,
+#header #dark-mode-toggle {
   float: right;
   font-size: 0.5em;
   padding: 0.4em 0.6em;
@@ -117,14 +114,26 @@ main {
   cursor: pointer;
 }
 
-#header #share-link:hover {
+#header #share-link:hover,
+#header #dark-mode-toggle:hover {
   background-color: #c74dd1;
   border-color: #1597ec;
 }
 
-#header #share-link:active {
+#header #share-link:active,
+#header #dark-mode-toggle:active {
   border-color: #fff;
   border-style: dashed;
+}
+
+/* Display/hide the dark-mode-toggle icons based on the mode */
+#dark-mode-toggle .sun-icon { display: none; }
+#dark-mode-toggle .moon-icon { display: block; }
+.dark-mode #dark-mode-toggle .sun-icon { display: block; }
+.dark-mode #dark-mode-toggle .moon-icon { display: none; }
+
+#dark-mode-toggle svg {
+  vertical-align: middle;
 }
 
 .left-section {

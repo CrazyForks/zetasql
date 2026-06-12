@@ -26,6 +26,7 @@
 #include "googlesql/analyzer/expr_resolver_helper.h"
 #include "googlesql/analyzer/query_resolver_helper.h"
 #include "googlesql/analyzer/resolver.h"
+#include "googlesql/common/constant_utils.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parse_tree_errors.h"
@@ -46,12 +47,12 @@
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -106,9 +107,11 @@ struct AnalyticFunctionResolver::WindowExprInfo {
   // Construct a WindowExprInfo for an expression that is not an ordinal or
   // alias reference.
   WindowExprInfo(const ASTNode* ast_location_in,
-                 const ResolvedExpr* resolved_expr_in)
-      : ast_location(ast_location_in), select_list_index(-1),
-        resolved_expr(resolved_expr_in), type(resolved_expr->type()) {}
+                 std::unique_ptr<const ResolvedExpr> resolved_expr_in)
+      : ast_location(ast_location_in),
+        select_list_index(-1),
+        resolved_expr(std::move(resolved_expr_in)),
+        type(resolved_expr->type()) {}
 
   WindowExprInfo(const WindowExprInfo&) = delete;
   WindowExprInfo& operator=(const WindowExprInfo&) = delete;
@@ -130,10 +133,11 @@ struct AnalyticFunctionResolver::WindowExprInfo {
 };
 
 AnalyticFunctionResolver::AnalyticFunctionResolver(
-    Resolver* resolver, NamedWindowInfoMap* named_window_info_map)
+    Resolver* resolver,
+    std::unique_ptr<NamedWindowInfoMap> named_window_info_map)
     : resolver_(resolver) {
   if (named_window_info_map != nullptr) {
-    named_window_info_map_.reset(named_window_info_map);
+    named_window_info_map_ = std::move(named_window_info_map);
   } else {
     named_window_info_map_ = std::make_unique<NamedWindowInfoMap>();
   }
@@ -174,9 +178,9 @@ absl::Status AnalyticFunctionResolver::SetWindowClause(
   return absl::OkStatus();
 }
 
-AnalyticFunctionResolver::NamedWindowInfoMap*
-    AnalyticFunctionResolver::ReleaseNamedWindowInfoMap() {
-  return named_window_info_map_.release();
+std::unique_ptr<AnalyticFunctionResolver::NamedWindowInfoMap>
+AnalyticFunctionResolver::ReleaseNamedWindowInfoMap() {
+  return std::move(named_window_info_map_);
 }
 
 void AnalyticFunctionResolver::DisableNamedWindowRefs(
@@ -446,7 +450,7 @@ absl::Status AnalyticFunctionResolver::ResolveOverClauseAndCreateAnalyticColumn(
     group_info = new_group_info.get();
     googlesql_base::InsertOrDie(&ast_window_spec_to_function_group_map_,
                      ast_grouping_window_spec, new_group_info.get());
-    analytic_function_groups_.emplace_back(new_group_info.release());
+    analytic_function_groups_.emplace_back(std::move(new_group_info));
   } else {
     group_info = *found_group_info;
   }
@@ -607,7 +611,7 @@ absl::Status AnalyticFunctionResolver::ResolveWindowPartitionByPreAggregation(
     GOOGLESQL_RETURN_IF_ERROR(ResolveWindowExpression(
         ast_partition_expr, partitioning_resolution_info.get(), allow_ordinals,
         &partitioning_expr_info, &partitioning_expr_type));
-    partition_by_info->emplace_back(partitioning_expr_info.release());
+    partition_by_info->emplace_back(std::move(partitioning_expr_info));
 
     std::string no_partitioning_type;
     if (!partitioning_expr_type->SupportsPartitioning(resolver_->language(),
@@ -651,21 +655,8 @@ absl::Status AnalyticFunctionResolver::ResolveWindowOrderByPreAggregation(
         ast_ordering_expr->expression(), ordering_resolution_info.get(),
         allow_ordinals, &ordering_expr_info, &ordering_expr_type));
     GOOGLESQL_RET_CHECK(ordering_expr_type != nullptr);
-    order_by_info->emplace_back(ordering_expr_info.release());
+    order_by_info->emplace_back(std::move(ordering_expr_info));
 
-    // Do not allow floating point order keys in a range window
-    // if DISALLOW_GROUP_BY_FLOAT is enabled.
-    if (is_in_range_window &&
-        resolver_->language().LanguageFeatureEnabled(
-            FEATURE_DISALLOW_GROUP_BY_FLOAT) &&
-        ordering_expr_type->IsFloatingPoint()) {
-      return MakeSqlErrorAt(ast_ordering_expr)
-             << "Ordering by expressions of type "
-             << Type::TypeKindToString(
-                    ordering_expr_type->kind(),
-                    resolver_->language().product_mode())
-             << " is not allowed in a RANGE-based window";
-    }
 
     std::string type_description;
     if (!ordering_expr_type->SupportsOrdering(resolver_->language(),
@@ -709,7 +700,7 @@ absl::Status AnalyticFunctionResolver::ResolveWindowExpression(
 
   *expr_type_out = tmp_resolved_expr->type();
   *resolved_item_out =
-      std::make_unique<WindowExprInfo>(ast_expr, tmp_resolved_expr.release());
+      std::make_unique<WindowExprInfo>(ast_expr, std::move(tmp_resolved_expr));
 
   return absl::OkStatus();
 }
@@ -899,17 +890,26 @@ absl::Status AnalyticFunctionResolver::ResolveWindowFrameOffsetExpr(
                                          frame_expr_resolution_info.get(),
                                          resolved_offset_expr));
 
-  if ((*resolved_offset_expr)->node_kind() != RESOLVED_PARAMETER &&
-      (*resolved_offset_expr)->node_kind() != RESOLVED_LITERAL) {
-    return MakeSqlErrorAt(ast_frame_expr)
-           << "Window framing expression must be a literal or parameter";
+  if (resolver_->language().LanguageFeatureEnabled(
+          FEATURE_QUERY_CONSTANT_WINDOW_FRAME_EXPRESSIONS)) {
+    if (!IsQueryConstant(resolved_offset_expr->get())) {
+      return MakeSqlErrorAt(ast_frame_expr)
+             << "Window framing expression must be constant within the "
+                "local query scope";
+    }
+  } else {
+    if ((*resolved_offset_expr)->node_kind() != RESOLVED_LITERAL &&
+        (*resolved_offset_expr)->node_kind() != RESOLVED_PARAMETER) {
+      return MakeSqlErrorAt(ast_frame_expr)
+             << "Window framing expression must be a literal or parameter";
+    }
   }
 
   // Check the expression type and coerce it if necessary.
   if (frame_unit == ResolvedWindowFrame::ROWS) {
     GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
         ast_frame_expr->expression(), resolver_->type_factory_->get_int64(),
-        Resolver::kImplicitCoercion,
+        TypeModifiers(), Resolver::kImplicitCoercion,
         "Window framing expression for ROWS can only be of integer type, but "
         "has type $1",
         resolved_offset_expr));
@@ -918,7 +918,7 @@ absl::Status AnalyticFunctionResolver::ResolveWindowFrameOffsetExpr(
     ABSL_DCHECK(ordering_expr_type != nullptr);
 
     GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
-        ast_frame_expr->expression(), ordering_expr_type,
+        ast_frame_expr->expression(), ordering_expr_type, TypeModifiers(),
         Resolver::kImplicitCoercion,
         "Window framing expression has type $1 that cannot coerce to the type "
         "of the ORDER BY expression, which is $0",

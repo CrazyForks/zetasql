@@ -4060,13 +4060,23 @@ SELECT row_id, group_id, ELEMENTWISE_SUM(numeric_array_val) OVER (  ) FROM TestT
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
   {
+    4,
     2,
+    ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
+  },
+  {
+    1,
     1,
     ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
-    4,
+    5,
     2,
+    ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
+  },
+  {
+    2,
+    1,
     ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
@@ -4075,18 +4085,8 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
     ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
-    1,
-    1,
-    ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
-  },
-  {
     3,
     1,
-    ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
-  },
-  {
-    5,
-    2,
     ARRAY<NUMERIC>[known order:9, 13, 17, 17, NULL]
   }
 ]
@@ -4501,13 +4501,23 @@ SELECT row_id, group_id, ELEMENTWISE_SUM(bignumeric_array_val) OVER (  ) FROM Te
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
   {
+    4,
     2,
+    ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
+  },
+  {
+    1,
     1,
     ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
-    4,
+    5,
     2,
+    ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
+  },
+  {
+    2,
+    1,
     ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
@@ -4516,18 +4526,8 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
     ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
   },
   {
-    1,
-    1,
-    ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
-  },
-  {
     3,
     1,
-    ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
-  },
-  {
-    5,
-    2,
     ARRAY<BIGNUMERIC>[known order:9, 13, 17, 17, NULL]
   }
 ]
@@ -4941,25 +4941,7 @@ SELECT CAST(6 AS int64),
 SELECT row_id, group_id, ELEMENTWISE_SUM(interval_array_val) OVER (  ) FROM TestTable AS col1;
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
-  {2,
-   1,
-   ARRAY<INTERVAL>[known order:
-     0-9 0 0:0:0,
-     1-1 0 0:0:0,
-     1-5 0 0:0:0,
-     1-5 0 0:0:0,
-     NULL
-   ]},
   {4,
-   2,
-   ARRAY<INTERVAL>[known order:
-     0-9 0 0:0:0,
-     1-1 0 0:0:0,
-     1-5 0 0:0:0,
-     1-5 0 0:0:0,
-     NULL
-   ]},
-  {6,
    2,
    ARRAY<INTERVAL>[known order:
      0-9 0 0:0:0,
@@ -4977,7 +4959,16 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
      1-5 0 0:0:0,
      NULL
    ]},
-  {3,
+  {5,
+   2,
+   ARRAY<INTERVAL>[known order:
+     0-9 0 0:0:0,
+     1-1 0 0:0:0,
+     1-5 0 0:0:0,
+     1-5 0 0:0:0,
+     NULL
+   ]},
+  {2,
    1,
    ARRAY<INTERVAL>[known order:
      0-9 0 0:0:0,
@@ -4986,8 +4977,17 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
      1-5 0 0:0:0,
      NULL
    ]},
-  {5,
+  {6,
    2,
+   ARRAY<INTERVAL>[known order:
+     0-9 0 0:0:0,
+     1-1 0 0:0:0,
+     1-5 0 0:0:0,
+     1-5 0 0:0:0,
+     NULL
+   ]},
+  {3,
+   1,
    ARRAY<INTERVAL>[known order:
      0-9 0 0:0:0,
      1-1 0 0:0:0,
@@ -9425,13 +9425,23 @@ SELECT row_id, group_id, ELEMENTWISE_AVG(numeric_array_val) OVER (  ) FROM TestT
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
   {
+    4,
     2,
+    ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
+  },
+  {
+    1,
     1,
     ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
-    4,
+    5,
     2,
+    ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
+  },
+  {
+    2,
+    1,
     ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
@@ -9440,18 +9450,8 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
     ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
-    1,
-    1,
-    ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
-  },
-  {
     3,
     1,
-    ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
-  },
-  {
-    5,
-    2,
     ARRAY<NUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   }
 ]
@@ -9874,13 +9874,23 @@ SELECT row_id, group_id, ELEMENTWISE_AVG(bignumeric_array_val) OVER (  ) FROM Te
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
   {
+    4,
     2,
+    ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
+  },
+  {
+    1,
     1,
     ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
-    4,
+    5,
     2,
+    ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
+  },
+  {
+    2,
+    1,
     ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
@@ -9889,18 +9899,8 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
     ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   },
   {
-    1,
-    1,
-    ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
-  },
-  {
     3,
     1,
-    ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
-  },
-  {
-    5,
-    2,
     ARRAY<BIGNUMERIC>[known order:2.25, 3.25, 4.25, 4.25, NULL]
   }
 ]
@@ -10322,25 +10322,7 @@ SELECT CAST(6 AS int64),
 SELECT row_id, group_id, ELEMENTWISE_AVG(interval_array_val) OVER (  ) FROM TestTable AS col1;
 --
 ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
-  {2,
-   1,
-   ARRAY<INTERVAL>[known order:
-     0-2 7 12:0:0,
-     0-3 7 12:0:0,
-     0-4 7 12:0:0,
-     0-4 7 12:0:0,
-     NULL
-   ]},
   {4,
-   2,
-   ARRAY<INTERVAL>[known order:
-     0-2 7 12:0:0,
-     0-3 7 12:0:0,
-     0-4 7 12:0:0,
-     0-4 7 12:0:0,
-     NULL
-   ]},
-  {6,
    2,
    ARRAY<INTERVAL>[known order:
      0-2 7 12:0:0,
@@ -10358,7 +10340,16 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
      0-4 7 12:0:0,
      NULL
    ]},
-  {3,
+  {5,
+   2,
+   ARRAY<INTERVAL>[known order:
+     0-2 7 12:0:0,
+     0-3 7 12:0:0,
+     0-4 7 12:0:0,
+     0-4 7 12:0:0,
+     NULL
+   ]},
+  {2,
    1,
    ARRAY<INTERVAL>[known order:
      0-2 7 12:0:0,
@@ -10367,8 +10358,17 @@ ARRAY<STRUCT<row_id INT64, group_id INT64, ARRAY<>>>[unknown order:
      0-4 7 12:0:0,
      NULL
    ]},
-  {5,
+  {6,
    2,
+   ARRAY<INTERVAL>[known order:
+     0-2 7 12:0:0,
+     0-3 7 12:0:0,
+     0-4 7 12:0:0,
+     0-4 7 12:0:0,
+     NULL
+   ]},
+  {3,
+   1,
    ARRAY<INTERVAL>[known order:
      0-2 7 12:0:0,
      0-3 7 12:0:0,

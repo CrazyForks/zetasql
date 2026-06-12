@@ -25,10 +25,10 @@
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/types/type.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

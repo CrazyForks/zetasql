@@ -574,8 +574,9 @@ class GraphTableQueryResolver {
   // Resolves graph table shape. Creates <expr_list> that describes how
   // <output_column_list> is produced.
   absl::Status ResolveGraphTableShape(
-      const ASTSelectList* ast_select_list, const NameScope* input_scope,
-      NameListPtr* output_name_list, ResolvedColumnList* output_column_list,
+      const ASTSelect* ast_select, const NameScope* input_scope,
+      QueryResolutionInfo* query_resolution_info, NameListPtr* output_name_list,
+      ResolvedColumnList* output_column_list,
       std::vector<std::unique_ptr<const ResolvedComputedColumn>>* expr_list)
       const;
 
@@ -604,7 +605,8 @@ class GraphTableQueryResolver {
   // by `n`, one column per property. Inputs must not be null.
   absl::Status ResolveSelectColumn(
       const ASTSelectColumn* ast_select_column, const NameScope* input_scope,
-      NameList* output_name_list, ResolvedColumnList* output_column_list,
+      QueryResolutionInfo* query_resolution_info, NameList* output_name_list,
+      ResolvedColumnList* output_column_list,
       std::vector<std::unique_ptr<const ResolvedComputedColumn>>* expr_list)
       const;
 

@@ -1,0 +1,9 @@
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.named_constant_duplicate;
+--
+CONSTANT named_constant=Int64(1) (INT64)
+--
+Module errors:
+INVALID_ARGUMENT: Constants must have unique names, but found duplicate name named_constant [at .../googlesql/testdata/modules/named_constant_duplicate.sqlm:4:1]
+CREATE PUBLIC CONSTANT named_constant = 20 * 30;
+^

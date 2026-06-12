@@ -27,14 +27,15 @@
 #include "googlesql/public/evaluator_table_iterator.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/string_view.h"
+#include "googlesql/base/status_macros.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/json_util.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -63,6 +64,9 @@ void ExecuteQueryStreamProtobufWriter::FlushStatement(bool at_end,
 
 absl::Status ExecuteQueryStreamProtobufWriter::executed(
     const ResolvedNode& ast, std::unique_ptr<EvaluatorTableIterator> iter) {
+  if (iter == nullptr) {
+    return ExecuteQueryWriter::executed(ast, std::move(iter));
+  }
   // Use a new pool every time to not retain the generated proto descriptors
   google::protobuf::DescriptorPool pool{parent_descriptor_pool_};
   pool.AllowUnknownDependencies();

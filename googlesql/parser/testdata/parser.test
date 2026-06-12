@@ -1744,12 +1744,11 @@ QueryStatement [0-88] [select cast...minute) from t]
             FormatClause [25-80] [FORMAT format_str...|| minute]
               PathExpression [32-45] [format_string]
                 Identifier(format_string) [32-45] [format_string]
-              BinaryExpression(||) [59-80] [hour || ':' || minute]
-                BinaryExpression(||) [59-70] [hour || ':']
-                  PathExpression [59-63] [hour]
-                    Identifier(hour) [59-63] [hour]
-                  StringLiteral [67-70] [':']
-                    StringLiteralComponent(':') [67-70] [':']
+              ConcatExpr [59-80] [hour || ':' || minute]
+                PathExpression [59-63] [hour]
+                  Identifier(hour) [59-63] [hour]
+                StringLiteral [67-70] [':']
+                  StringLiteralComponent(':') [67-70] [':']
                 PathExpression [74-80] [minute]
                   Identifier(minute) [74-80] [minute]
       FromClause [82-88] [from t]
@@ -1778,12 +1777,11 @@ QueryStatement [0-93] [select safe_cast...ute) from t]
             FormatClause [30-85] [FORMAT format_str...|| minute]
               PathExpression [37-50] [format_string]
                 Identifier(format_string) [37-50] [format_string]
-              BinaryExpression(||) [64-85] [hour || ':' || minute]
-                BinaryExpression(||) [64-75] [hour || ':']
-                  PathExpression [64-68] [hour]
-                    Identifier(hour) [64-68] [hour]
-                  StringLiteral [72-75] [':']
-                    StringLiteralComponent(':') [72-75] [':']
+              ConcatExpr [64-85] [hour || ':' || minute]
+                PathExpression [64-68] [hour]
+                  Identifier(hour) [64-68] [hour]
+                StringLiteral [72-75] [':']
+                  StringLiteralComponent(':') [72-75] [':']
                 PathExpression [79-85] [minute]
                   Identifier(minute) [79-85] [minute]
       FromClause [87-93] [from t]
@@ -2274,55 +2272,55 @@ SELECT ( foo ] ], foo
 --
 ALTERNATION GROUP: {,),)
 --
-ERROR: Syntax error: Unexpected ")" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ) ), foo
              ^
 --
 ALTERNATION GROUP: {,),}
 --
-ERROR: Syntax error: Unexpected ")" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ) }, foo
              ^
 --
 ALTERNATION GROUP: {,),]
 --
-ERROR: Syntax error: Unexpected ")" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ) ], foo
              ^
 --
 ALTERNATION GROUP: {,},)
 --
-ERROR: Syntax error: Unexpected "}" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo } ), foo
              ^
 --
 ALTERNATION GROUP: {,},}
 --
-ERROR: Syntax error: Unexpected "}" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo } }, foo
              ^
 --
 ALTERNATION GROUP: {,},]
 --
-ERROR: Syntax error: Unexpected "}" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo } ], foo
              ^
 --
 ALTERNATION GROUP: {,],)
 --
-ERROR: Syntax error: Unexpected "]" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ] ), foo
              ^
 --
 ALTERNATION GROUP: {,],}
 --
-ERROR: Syntax error: Unexpected "]" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ] }, foo
              ^
 --
 ALTERNATION GROUP: {,],]
 --
-ERROR: Syntax error: Unexpected "]" [at 1:14]
+ERROR: Syntax error: Invalid braced constructor element, expected ':' followed by an expression that computes the value [at 1:14]
 SELECT { foo ] ], foo
              ^
 --
@@ -2459,21 +2457,21 @@ SELECT ( x BETWEEN y], foo
 --
 ALTERNATION GROUP: {,)
 --
-ERROR: Syntax error: Unexpected keyword BETWEEN [at 1:12]
+ERROR: Syntax error: Unexpected ")" [at 1:21]
 SELECT { x BETWEEN y), foo
-           ^
+                    ^
 --
 ALTERNATION GROUP: {,}
 --
-ERROR: Syntax error: Unexpected keyword BETWEEN [at 1:12]
+ERROR: Syntax error: Unexpected "}" [at 1:21]
 SELECT { x BETWEEN y}, foo
-           ^
+                    ^
 --
 ALTERNATION GROUP: {,]
 --
-ERROR: Syntax error: Unexpected keyword BETWEEN [at 1:12]
+ERROR: Syntax error: Unexpected "]" [at 1:21]
 SELECT { x BETWEEN y], foo
-           ^
+                    ^
 --
 ALTERNATION GROUP: [,)
 --

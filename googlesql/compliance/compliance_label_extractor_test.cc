@@ -24,8 +24,8 @@
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/strings/string_view.h"
 
 namespace googlesql {
 

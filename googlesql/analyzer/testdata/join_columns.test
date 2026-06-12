@@ -1,7 +1,9 @@
 [default use_database=TpchCatalog]
+[language_features=MAXIMUM{{|,+ROW_TYPE}}]
+# TABLE type should be disallowed even if FEATURE_ROW_TYPE is enabled.
 FROM Nation
 --
-ERROR: Table Nation has column Region with unsupported ROW type [at 1:6]
+ERROR: Table Nation has column Region with unsupported TABLE type [at 2:6]
 FROM Nation
      ^
 ==
@@ -9,10 +11,10 @@ FROM Nation
 # TODO Get the default test modes working.
 [default no_run_deserializer]
 [default no_run_sqlbuilder]
-[default language_features=MAXIMUM,+ROW_TYPE]
-[default enabled_ast_rewrites=DEFAULTS]
+[default language_features=MAXIMUM,+TABLE_TYPE]
+[default enabled_ast_rewrites=DEFAULTS,+ROW_TYPE]
 # This works because the join columns are pseudo-columns and they get pruned,
-# so it isn't trying to return ROW types.
+# so it isn't trying to return TABLE types.
 FROM Nation
 --
 QueryStmt
@@ -38,7 +40,7 @@ QueryStmt
     +-input_scan=
     | +-TableScan(table=Nation)
     +-describe_expr=
-      +-Describe#8 := Literal(type=STRING, value="**Columns**:\nTable Alias  Column Name  Type\n-----------  -----------  ------\nNation       N_NATIONKEY  UINT64\nNation       N_NAME       STRING\nNation       N_REGIONKEY  UINT64\nNation       N_COMMENT    STRING\n\n**Pseudo-columns**:\nTable Alias  Column Name  Type\n-----------  -----------  ------------------\nNation       Customers    MULTIROW<Customer>\nNation       Region       ROW<Region>\nNation       Suppliers    MULTIROW<Supplier>\n\n**Table Aliases**:\nTable Alias  Columns                                      Pseudo-columns\n-----------  -------------------------------------------  ----------------------------\nNation       N_NATIONKEY, N_NAME, N_REGIONKEY, N_COMMENT  Customers, Region, Suppliers\n")
+      +-Describe#8 := Literal(type=STRING, value="**Columns**:\nTable Alias  Column Name  Type\n-----------  -----------  ------\nNation       N_NATIONKEY  UINT64\nNation       N_NAME       STRING\nNation       N_REGIONKEY  UINT64\nNation       N_COMMENT    STRING\n\n**Pseudo-columns**:\nTable Alias  Column Name  Type\n-----------  -----------  -------------------------\nNation       Customers    TABLE<ROW<Customer>>\nNation       Region       TABLE UNIQUE<ROW<Region>>\nNation       Suppliers    TABLE<ROW<Supplier>>\n\n**Table Aliases**:\nTable Alias  Columns                                      Pseudo-columns\n-----------  -------------------------------------------  ----------------------------\nNation       N_NATIONKEY, N_NAME, N_REGIONKEY, N_COMMENT  Region, Suppliers, Customers\n")
 
 [DESCRIBE output]
 **Columns**:
@@ -51,22 +53,22 @@ Nation       N_COMMENT    STRING
 
 **Pseudo-columns**:
 Table Alias  Column Name  Type
-\-----------  -----------  ------------------
-Nation       Customers    MULTIROW<Customer>
-Nation       Region       ROW<Region>
-Nation       Suppliers    MULTIROW<Supplier>
+\-----------  -----------  -------------------------
+Nation       Customers    TABLE<ROW<Customer>>
+Nation       Region       TABLE UNIQUE<ROW<Region>>
+Nation       Suppliers    TABLE<ROW<Supplier>>
 
 **Table Aliases**:
 Table Alias  Columns                                      Pseudo-columns
 \-----------  -------------------------------------------  ----------------------------
-Nation       N_NATIONKEY, N_NAME, N_REGIONKEY, N_COMMENT  Customers, Region, Suppliers
+Nation       N_NATIONKEY, N_NAME, N_REGIONKEY, N_COMMENT  Region, Suppliers, Customers
 \
 ==
 
 FROM Nation n
 |> SELECT n.Region
 --
-ERROR: Returning expressions of type ROW is not allowed [at 1:1]
+ERROR: Returning expressions of type TABLE is not allowed [at 1:1]
 FROM Nation n
 ^
 ==
@@ -86,7 +88,7 @@ QueryStmt
     |   +-GetRowField
     |     +-type=STRING
     |     +-expr=
-    |     | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    |     | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     |     +-column=Region.R_NAME
     +-input_scan=
       +-ProjectScan
@@ -152,7 +154,7 @@ QueryStmt
     |   +-GetRowField
     |     +-type=STRING
     |     +-expr=
-    |     | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    |     | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     |     +-column=Region.R_NAME
     +-input_scan=
       +-TableScan(column_list=Nation.[N_NAME#2, Region#5], table=Nation, column_index_list=[1, 4], alias="n")
@@ -209,7 +211,7 @@ ERROR: Table Region does not have a column xxx [at 2:20]
 FROM Region r
 |> SELECT r.Nations.xxx
 --
-ERROR: Cannot access fields on an expression with type MULTIROW<Nation>; Fields of MULTIROW columns can be read in JOIN, UNNEST, and FLATTEN [at 2:21]
+ERROR: Cannot access fields on an expression with type TABLE<ROW<Nation>>; Fields of TABLE-typed columns can be read in JOIN, UNNEST, and FLATTEN [at 2:21]
 |> SELECT r.Nations.xxx
                     ^
 ==
@@ -217,7 +219,7 @@ ERROR: Cannot access fields on an expression with type MULTIROW<Nation>; Fields 
 FROM Region r
 |> SELECT r.Nations.n_name
 --
-ERROR: Cannot access fields on an expression with type MULTIROW<Nation>; Fields of MULTIROW columns can be read in JOIN, UNNEST, and FLATTEN [at 2:21]
+ERROR: Cannot access fields on an expression with type TABLE<ROW<Nation>>; Fields of TABLE-typed columns can be read in JOIN, UNNEST, and FLATTEN [at 2:21]
 |> SELECT r.Nations.n_name
                     ^
 ==
@@ -237,12 +239,12 @@ QueryStmt
     |     +-type=STRING
     |     +-expr=
     |     | +-GetRowField
-    |     |   +-type=ROW<Nation (join)>
+    |     |   +-type=TABLE UNIQUE<ROW<Nation>>
     |     |   +-expr=
     |     |   | +-GetRowField
-    |     |   |   +-type=ROW<Customer (join)>
+    |     |   |   +-type=TABLE UNIQUE<ROW<Customer>>
     |     |   |   +-expr=
-    |     |   |   | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order#17)
+    |     |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order#17)
     |     |   |   +-column=Orders.Customer
     |     |   +-column=Customer.Nation
     |     +-column=Nation.N_NAME
@@ -392,19 +394,19 @@ QueryStmt
     | | +-GetRowField
     | |   +-type=UINT64
     | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     | |   +-column=Region.R_REGIONKEY
     | +-R_NAME#9 :=
     | | +-GetRowField
     | |   +-type=STRING
     | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     | |   +-column=Region.R_NAME
     | +-R_COMMENT#10 :=
     |   +-GetRowField
     |     +-type=STRING
     |     +-expr=
-    |     | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    |     | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     |     +-column=Region.R_COMMENT
     +-input_scan=
       +-TableScan(column_list=[Nation.Region#5], table=Nation, column_index_list=[4], alias="n")
@@ -504,13 +506,13 @@ QueryStmt
     | | +-GetRowField
     | |   +-type=UINT64
     | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     | |   +-column=Region.R_REGIONKEY
     | +-R_NAME#9 :=
     |   +-GetRowField
     |     +-type=STRING
     |     +-expr=
-    |     | +-ColumnRef(type=ROW<Region (join)>, column=Nation.Region#5)
+    |     | +-ColumnRef(type=TABLE UNIQUE<ROW<Region>>, column=Nation.Region#5)
     |     +-column=Region.R_NAME
     +-input_scan=
       +-TableScan(column_list=[Nation.Region#5], table=Nation, column_index_list=[4], alias="n")
@@ -595,7 +597,7 @@ QueryStmt
     |   +-Flatten
     |     +-type=ARRAY<DATE>
     |     +-expr=
-    |     | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+    |     | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
     |     +-get_field_list=
     |       +-GetRowField
     |         +-type=DATE
@@ -702,7 +704,7 @@ QueryStmt
     |   +-Flatten
     |     +-type=ARRAY<STRING>
     |     +-expr=
-    |     | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+    |     | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
     |     +-get_field_list=
     |       +-GetRowField
     |         +-type=STRING
@@ -810,20 +812,20 @@ QueryStmt
     |   +-Flatten
     |     +-type=ARRAY<STRING>
     |     +-expr=
-    |     | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+    |     | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
     |     +-get_field_list=
     |       +-GetRowField
-    |       | +-type=MULTIROW<LineItem (join)>
+    |       | +-type=TABLE<ROW<LineItem>>
     |       | +-expr=
     |       | | +-FlattenedArg(type=ROW<Orders>)
     |       | +-column=Orders.LineItems
     |       +-GetRowField
-    |       | +-type=ROW<PartSupp (join)>
+    |       | +-type=TABLE UNIQUE<ROW<PartSupp>>
     |       | +-expr=
     |       | | +-FlattenedArg(type=ROW<LineItem>)
     |       | +-column=LineItem.PartSupp
     |       +-GetRowField
-    |       | +-type=ROW<Part (join)>
+    |       | +-type=TABLE UNIQUE<ROW<Part>>
     |       | +-expr=
     |       | | +-FlattenedArg(type=ROW<PartSupp>)
     |       | +-column=PartSupp.Part
@@ -1048,7 +1050,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Orders#9], table=Customer, column_index_list=[1, 8], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+        | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
         +-element_column_list=[$array.o#11]
 
 
@@ -1127,7 +1129,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Nation#10], table=Customer, column_index_list=[1, 9], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+        | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
         +-element_column_list=[$array.n#11]
 
 
@@ -1251,12 +1253,12 @@ QueryStmt
         | +-TableScan(column_list=Customer.[C_NAME#2, Orders#9], table=Customer, column_index_list=[1, 8], alias="c")
         +-array_expr_list=
         | +-Flatten
-        |   +-type=MULTIROW<LineItem (join)>
+        |   +-type=TABLE<ROW<LineItem>>
         |   +-expr=
-        |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+        |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
         |   +-get_field_list=
         |     +-GetRowField
-        |       +-type=MULTIROW<LineItem (join)>
+        |       +-type=TABLE<ROW<LineItem>>
         |       +-expr=
         |       | +-FlattenedArg(type=ROW<Orders>)
         |       +-column=Orders.LineItems
@@ -1368,10 +1370,10 @@ QueryStmt
         | +-Flatten
         |   +-type=ARRAY<DOUBLE>
         |   +-expr=
-        |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+        |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
         |   +-get_field_list=
         |     +-GetRowField
-        |     | +-type=MULTIROW<LineItem (join)>
+        |     | +-type=TABLE<ROW<LineItem>>
         |     | +-expr=
         |     | | +-FlattenedArg(type=ROW<Orders>)
         |     | +-column=Orders.LineItems
@@ -1494,12 +1496,12 @@ QueryStmt
         | +-TableScan(column_list=[Customer.Orders#9], table=Customer, column_index_list=[8])
         +-array_expr_list=
         | +-Flatten
-        |   +-type=MULTIROW<LineItem (join)>
+        |   +-type=TABLE<ROW<LineItem>>
         |   +-expr=
-        |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+        |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
         |   +-get_field_list=
         |     +-GetRowField
-        |       +-type=MULTIROW<LineItem (join)>
+        |       +-type=TABLE<ROW<LineItem>>
         |       +-expr=
         |       | +-FlattenedArg(type=ROW<Orders>)
         |       +-column=Orders.LineItems
@@ -1605,10 +1607,10 @@ QueryStmt
     | +-Flatten
     |   +-type=ARRAY<DOUBLE>
     |   +-expr=
-    |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+    |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
     |   +-get_field_list=
     |     +-GetRowField
-    |     | +-type=MULTIROW<LineItem (join)>
+    |     | +-type=TABLE<ROW<LineItem>>
     |     | +-expr=
     |     | | +-FlattenedArg(type=ROW<Orders>)
     |     | +-column=Orders.LineItems
@@ -1749,7 +1751,7 @@ QueryStmt
     |   +-input_scan=
     |   | +-TableScan(column_list=[Customer.Nation#10], table=Customer, column_index_list=[9], alias="c")
     |   +-array_expr_list=
-    |   | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+    |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
     |   +-element_column_list=[$array.Nation#11]
     |   +-is_outer=TRUE
     +-aggregate_list=
@@ -1830,7 +1832,7 @@ QueryStmt
     |   +-input_scan=
     |   | +-TableScan(column_list=[Customer.Orders#9], table=Customer, column_index_list=[8], alias="c")
     |   +-array_expr_list=
-    |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+    |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
     |   +-element_column_list=[$array.Orders#11]
     +-aggregate_list=
       +-$agg1#12 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
@@ -1892,7 +1894,7 @@ QueryStmt
     |   +-input_scan=
     |   | +-TableScan(column_list=[Customer.Orders#9], table=Customer, column_index_list=[8], alias="c")
     |   +-array_expr_list=
-    |   | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+    |   | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
     |   +-element_column_list=[$array.Orders#11]
     |   +-is_outer=TRUE
     +-aggregate_list=
@@ -1982,7 +1984,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Nation#10], table=Customer, column_index_list=[1, 9], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+        | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
         +-element_column_list=[$array.Nation#11]
         +-join_expr=
           +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
@@ -2072,7 +2074,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Nation#10], table=Customer, column_index_list=[1, 9], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+        | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
         +-element_column_list=[$array.Nation#11]
         +-join_expr=
         | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
@@ -2164,7 +2166,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Nation#10], table=Customer, column_index_list=[1, 9], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+        | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
         +-element_column_list=[$array.Nation#11]
         +-join_expr=
           +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
@@ -2240,7 +2242,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Customer.[C_NAME#2, Nation#10], table=Customer, column_index_list=[1, 9], alias="c")
         +-array_expr_list=
-        | +-ColumnRef(type=ROW<Nation (join)>, column=Customer.Nation#10)
+        | +-ColumnRef(type=TABLE UNIQUE<ROW<Nation>>, column=Customer.Nation#10)
         +-element_column_list=[$array.Nation#11]
         +-join_expr=
         | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
@@ -2352,7 +2354,7 @@ QueryStmt
         |       +-input_scan=
         |       | +-TableScan(column_list=Customer.[C_NAME#2, Orders#9], table=Customer, column_index_list=[1, 8], alias="c")
         |       +-array_expr_list=
-        |       | +-ColumnRef(type=MULTIROW<Orders (join)>, column=Customer.Orders#9)
+        |       | +-ColumnRef(type=TABLE<ROW<Orders>>, column=Customer.Orders#9)
         |       +-element_column_list=[$array.o1#11]
         +-right_scan=
         | +-ProjectScan
@@ -2371,7 +2373,7 @@ QueryStmt
         |       +-input_scan=
         |       | +-TableScan(column_list=[LineItem.Order_#29], table=LineItem, column_index_list=[17], alias="Lineitem")
         |       +-array_expr_list=
-        |       | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#29)
+        |       | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#29)
         |       +-element_column_list=[$array.o2#33]
         +-join_expr=
         | +-FunctionCall(GoogleSQL:$equal(UINT64, UINT64) -> BOOL)
@@ -2538,16 +2540,16 @@ QueryStmt
     | | +-GetRowField
     | |   +-type=STRING
     | |   +-expr=
-    | |   | +-ColumnRef(type=ROW<PartSupp (join)>, column=LineItem.PartSupp#19)
+    | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<PartSupp>>, column=LineItem.PartSupp#19)
     | |   +-column=PartSupp.PS_COMMENT
     | +-p_name#23 :=
     | | +-GetRowField
     | |   +-type=STRING
     | |   +-expr=
     | |   | +-GetRowField
-    | |   |   +-type=ROW<Part (join)>
+    | |   |   +-type=TABLE UNIQUE<ROW<Part>>
     | |   |   +-expr=
-    | |   |   | +-ColumnRef(type=ROW<PartSupp (join)>, column=LineItem.PartSupp#19)
+    | |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<PartSupp>>, column=LineItem.PartSupp#19)
     | |   |   +-column=PartSupp.Part
     | |   +-column=Part.P_NAME
     | +-s_name#24 :=
@@ -2555,9 +2557,9 @@ QueryStmt
     |     +-type=STRING
     |     +-expr=
     |     | +-GetRowField
-    |     |   +-type=ROW<Supplier (join)>
+    |     |   +-type=TABLE UNIQUE<ROW<Supplier>>
     |     |   +-expr=
-    |     |   | +-ColumnRef(type=ROW<PartSupp (join)>, column=LineItem.PartSupp#19)
+    |     |   | +-ColumnRef(type=TABLE UNIQUE<ROW<PartSupp>>, column=LineItem.PartSupp#19)
     |     |   +-column=PartSupp.Supplier
     |     +-column=Supplier.S_NAME
     +-input_scan=
@@ -2737,7 +2739,7 @@ QueryStmt
 FROM Part p
 |> SELECT p_brand, p.PartSupps.ps_comment
 --
-ERROR: Cannot access fields on an expression with type MULTIROW<PartSupp>; Fields of MULTIROW columns can be read in JOIN, UNNEST, and FLATTEN [at 2:32]
+ERROR: Cannot access fields on an expression with type TABLE<ROW<PartSupp>>; Fields of TABLE-typed columns can be read in JOIN, UNNEST, and FLATTEN [at 2:32]
 |> SELECT p_brand, p.PartSupps.ps_comment
                                ^
 ==
@@ -2758,10 +2760,10 @@ QueryStmt
     |   +-Flatten
     |     +-type=ARRAY<STRING>
     |     +-expr=
-    |     | +-ColumnRef(type=MULTIROW<PartSupp (join)>, column=Part.PartSupps#10)
+    |     | +-ColumnRef(type=TABLE<ROW<PartSupp>>, column=Part.PartSupps#10)
     |     +-get_field_list=
     |       +-GetRowField
-    |       | +-type=ROW<Supplier (join)>
+    |       | +-type=TABLE UNIQUE<ROW<Supplier>>
     |       | +-expr=
     |       | | +-FlattenedArg(type=ROW<PartSupp>)
     |       | +-column=PartSupp.Supplier
@@ -2908,7 +2910,7 @@ QueryStmt
         +-input_scan=
         | +-TableScan(column_list=Part.[P_NAME#2, PartSupps#10], table=Part, column_index_list=[1, 9], alias="p")
         +-array_expr_list=
-        | +-ColumnRef(type=MULTIROW<PartSupp (join)>, column=Part.PartSupps#10)
+        | +-ColumnRef(type=TABLE<ROW<PartSupp>>, column=Part.PartSupps#10)
         +-element_column_list=[$array.ps#12]
 
 
@@ -2976,7 +2978,7 @@ QueryStmt
     |   +-Flatten
     |     +-type=ARRAY<STRING>
     |     +-expr=
-    |     | +-ColumnRef(type=MULTIROW<PartSupp (join)>, column=Part.PartSupps#10)
+    |     | +-ColumnRef(type=TABLE<ROW<PartSupp>>, column=Part.PartSupps#10)
     |     +-get_field_list=
     |       +-GetRowField
     |         +-type=STRING
@@ -3109,23 +3111,23 @@ QueryStmt
         | | +-GetRowField
         | |   +-type=STRING
         | |   +-expr=
-        | |   | +-ColumnRef(type=ROW<Customer (join)>, column=cte.Customer#15)
+        | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Customer>>, column=cte.Customer#15)
         | |   +-column=Customer.C_NAME
         | +-n_name#19 :=
         | | +-GetRowField
         | |   +-type=STRING
         | |   +-expr=
         | |   | +-GetRowField
-        | |   |   +-type=ROW<Nation (join)>
+        | |   |   +-type=TABLE UNIQUE<ROW<Nation>>
         | |   |   +-expr=
-        | |   |   | +-ColumnRef(type=ROW<Customer (join)>, column=cte.Customer#15)
+        | |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Customer>>, column=cte.Customer#15)
         | |   |   +-column=Customer.Nation
         | |   +-column=Nation.N_NAME
         | +-$col4#20 :=
         | | +-Flatten
         | |   +-type=ARRAY<STRING>
         | |   +-expr=
-        | |   | +-ColumnRef(type=MULTIROW<LineItem (join)>, column=cte.Lineitems#16)
+        | |   | +-ColumnRef(type=TABLE<ROW<LineItem>>, column=cte.Lineitems#16)
         | |   +-get_field_list=
         | |     +-GetRowField
         | |       +-type=STRING
@@ -3150,12 +3152,12 @@ QueryStmt
             |   |     o_orderkey UINT64 cte.o_orderkey#12
             |   |     o_orderdate DATE cte.o_orderdate#13
             |   |     o_clerk STRING cte.o_clerk#14
-            |   |     Customer ROW<Customer> cte.Customer#15
-            |   |     Lineitems MULTIROW<LineItem> cte.Lineitems#16
+            |   |     Customer TABLE UNIQUE<ROW<Customer>> cte.Customer#15
+            |   |     Lineitems TABLE<ROW<LineItem>> cte.Lineitems#16
             |   |   NameScope:
             |   |     Names:
-            |   |       Customer -> ROW<Customer> (cte.Customer#15)
-            |   |       Lineitems -> MULTIROW<LineItem> (cte.Lineitems#16)
+            |   |       Customer -> TABLE UNIQUE<ROW<Customer>> (cte.Customer#15)
+            |   |       Lineitems -> TABLE<ROW<LineItem>> (cte.Lineitems#16)
             |   |       o_clerk -> STRING (cte.o_clerk#14)
             |   |       o_orderdate -> DATE (cte.o_orderdate#13)
             |   |       o_orderkey -> UINT64 (cte.o_orderkey#12)
@@ -3170,7 +3172,7 @@ QueryStmt
             |   +-input_scan=
             |     +-WithRefScan(column_list=cte.[o_orderkey#12, o_orderdate#13, o_clerk#14, Customer#15, Lineitems#16], with_query_name="cte")
             +-array_expr_list=
-            | +-ColumnRef(type=MULTIROW<LineItem (join)>, column=cte.Lineitems#16)
+            | +-ColumnRef(type=TABLE<ROW<LineItem>>, column=cte.Lineitems#16)
             +-element_column_list=[$array.li#17]
 
 
@@ -3369,12 +3371,12 @@ QueryStmt
             |   |     o_orderkey UINT64 cte.o_orderkey#12
             |   |     o_orderdate DATE cte.o_orderdate#13
             |   |     o_clerk STRING cte.o_clerk#14
-            |   |     Customer ROW<Customer> cte.Customer#15
-            |   |     Lineitems MULTIROW<LineItem> cte.Lineitems#16
+            |   |     Customer TABLE UNIQUE<ROW<Customer>> cte.Customer#15
+            |   |     Lineitems TABLE<ROW<LineItem>> cte.Lineitems#16
             |   |   NameScope:
             |   |     Names:
-            |   |       Customer -> ROW<Customer> (cte.Customer#15)
-            |   |       Lineitems -> MULTIROW<LineItem> (cte.Lineitems#16)
+            |   |       Customer -> TABLE UNIQUE<ROW<Customer>> (cte.Customer#15)
+            |   |       Lineitems -> TABLE<ROW<LineItem>> (cte.Lineitems#16)
             |   |       o_clerk -> STRING (cte.o_clerk#14)
             |   |       o_orderdate -> DATE (cte.o_orderdate#13)
             |   |       o_orderkey -> UINT64 (cte.o_orderkey#12)
@@ -3430,9 +3432,9 @@ QueryStmt
     | |   +-type=UINT64
     | |   +-expr=
     | |   | +-GetRowField
-    | |   |   +-type=ROW<Customer (join)>
+    | |   |   +-type=TABLE UNIQUE<ROW<Customer>>
     | |   |   +-expr=
-    | |   |   | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#18)
+    | |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#18)
     | |   |   +-column=Orders.Customer
     | |   +-column=Customer.C_CUSTKEY
     | +-r_name#23 :=
@@ -3440,15 +3442,15 @@ QueryStmt
     |     +-type=STRING
     |     +-expr=
     |     | +-GetRowField
-    |     |   +-type=ROW<Region (join)>
+    |     |   +-type=TABLE UNIQUE<ROW<Region>>
     |     |   +-expr=
     |     |   | +-GetRowField
-    |     |   |   +-type=ROW<Nation (join)>
+    |     |   |   +-type=TABLE UNIQUE<ROW<Nation>>
     |     |   |   +-expr=
     |     |   |   | +-GetRowField
-    |     |   |   |   +-type=ROW<Customer (join)>
+    |     |   |   |   +-type=TABLE UNIQUE<ROW<Customer>>
     |     |   |   |   +-expr=
-    |     |   |   |   | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#18)
+    |     |   |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#18)
     |     |   |   |   +-column=Orders.Customer
     |     |   |   +-column=Customer.Nation
     |     |   +-column=Nation.Region
@@ -3721,9 +3723,9 @@ QueryStmt
     |   |   |     +-type=STRING
     |   |   |     +-expr=
     |   |   |     | +-GetRowField
-    |   |   |     |   +-type=ROW<Nation (join)>
+    |   |   |     |   +-type=TABLE UNIQUE<ROW<Nation>>
     |   |   |     |   +-expr=
-    |   |   |     |   | +-ColumnRef(type=ROW<Supplier (join)>, column=LineItem.Supplier#21)
+    |   |   |     |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Supplier>>, column=LineItem.Supplier#21)
     |   |   |     |   +-column=Supplier.Nation
     |   |   |     +-column=Nation.N_NAME
     |   |   +-input_scan=
@@ -3738,27 +3740,27 @@ QueryStmt
     |   |           | | +-type=UINT64
     |   |           | | +-expr=
     |   |           | | | +-GetRowField
-    |   |           | | |   +-type=ROW<Customer (join)>
+    |   |           | | |   +-type=TABLE UNIQUE<ROW<Customer>>
     |   |           | | |   +-expr=
-    |   |           | | |   | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#18)
+    |   |           | | |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#18)
     |   |           | | |   +-column=Orders.Customer
     |   |           | | +-column=Customer.C_NATIONKEY
     |   |           | +-GetRowField
     |   |           |   +-type=UINT64
     |   |           |   +-expr=
-    |   |           |   | +-ColumnRef(type=ROW<Supplier (join)>, column=LineItem.Supplier#21)
+    |   |           |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Supplier>>, column=LineItem.Supplier#21)
     |   |           |   +-column=Supplier.S_NATIONKEY
     |   |           +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
     |   |           | +-GetRowField
     |   |           | | +-type=STRING
     |   |           | | +-expr=
     |   |           | | | +-GetRowField
-    |   |           | | |   +-type=ROW<Region (join)>
+    |   |           | | |   +-type=TABLE UNIQUE<ROW<Region>>
     |   |           | | |   +-expr=
     |   |           | | |   | +-GetRowField
-    |   |           | | |   |   +-type=ROW<Nation (join)>
+    |   |           | | |   |   +-type=TABLE UNIQUE<ROW<Nation>>
     |   |           | | |   |   +-expr=
-    |   |           | | |   |   | +-ColumnRef(type=ROW<Supplier (join)>, column=LineItem.Supplier#21)
+    |   |           | | |   |   | +-ColumnRef(type=TABLE UNIQUE<ROW<Supplier>>, column=LineItem.Supplier#21)
     |   |           | | |   |   +-column=Supplier.Nation
     |   |           | | |   +-column=Nation.Region
     |   |           | | +-column=Region.R_NAME
@@ -3767,14 +3769,14 @@ QueryStmt
     |   |           | +-GetRowField
     |   |           | | +-type=DATE
     |   |           | | +-expr=
-    |   |           | | | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#18)
+    |   |           | | | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#18)
     |   |           | | +-column=Orders.O_ORDERDATE
     |   |           | +-Literal(type=DATE, value=1994-01-01, has_explicit_type=TRUE)
     |   |           +-FunctionCall(GoogleSQL:$less(DATE, DATE) -> BOOL)
     |   |             +-GetRowField
     |   |             | +-type=DATE
     |   |             | +-expr=
-    |   |             | | +-ColumnRef(type=ROW<Orders (join)>, column=LineItem.Order_#18)
+    |   |             | | +-ColumnRef(type=TABLE UNIQUE<ROW<Orders>>, column=LineItem.Order_#18)
     |   |             | +-column=Orders.O_ORDERDATE
     |   |             +-FunctionCall(GoogleSQL:date_add(DATE, INT64, ENUM<googlesql.functions.DateTimestampPart>) -> DATE)
     |   |               +-Literal(type=DATE, value=1994-01-01, has_explicit_type=TRUE)

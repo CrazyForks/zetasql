@@ -1,0 +1,70 @@
+# Tests focused on CREATE TABLE FUNCTION statements inside of modules
+#
+# These tests take module contents as input, create a ModuleCatalog from the
+# contents, and then dump the relevant module information.  The module
+# information that can be dumped is controlled by various flags (see
+# googlesql/common/run_modules_test.cc for the full
+# list).  By default, all table functions in the module are resolved,
+# use DebugString() for output, and module errors are also provided in
+# the output.
+
+# A simple CREATE TABLE FUNCTION statement.
+MODULE a.1;
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select a);
+--
+TVF:foo
+  (INT32 a) -> TABLE<a INT32>
+==
+
+# A function references a table function.
+MODULE a.2;
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select a);
+CREATE PUBLIC FUNCTION bar(a int32) as ((select * from foo(a)));
+--
+Lazy_resolution_function:bar
+  (INT32 a) -> INT32
+
+TVF:foo
+  (INT32 a) -> TABLE<a INT32>
+==
+
+# A table function references a function.
+MODULE a.3;
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select a);
+CREATE PUBLIC FUNCTION bar(a int32) as ((select * from foo(a)));
+--
+Lazy_resolution_function:bar
+  (INT32 a) -> INT32
+
+TVF:foo
+  (INT32 a) -> TABLE<a INT32>
+==
+
+# A table function and function reference each other.
+MODULE a.4;
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select bar(a));
+CREATE PUBLIC FUNCTION bar(a int32) as ((select * from foo(a)));
+--
+Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:24]
+CREATE PUBLIC FUNCTION bar(a int32) as ((select * from foo(a)));
+                       ^
+Invalid table-valued function foo [at 3:56]
+CREATE PUBLIC FUNCTION bar(a int32) as ((select * from foo(a)));
+                                                       ^
+Table function foo is invalid [at 2:30]
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select bar(a));
+                             ^
+Invalid function bar [at 2:54]
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select bar(a));
+                                                     ^
+Recursive dependencies detected when resolving function a.4.bar, which include objects (a.4.bar, a.4.foo, a.4.bar) [at 3:24]
+
+TVF:foo
+ERROR: Table function foo is invalid [at 2:30]
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select bar(a));
+                             ^
+Invalid function bar [at 2:54]
+CREATE PUBLIC TABLE FUNCTION foo(a int32) as (select bar(a));
+                                                     ^
+Recursive dependencies detected when resolving function a.4.bar, which include objects (a.4.bar, a.4.foo, a.4.bar) [at 3:24]

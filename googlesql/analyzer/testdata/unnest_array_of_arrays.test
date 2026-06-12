@@ -1,0 +1,268 @@
+[default language_features=MAXIMUM,+ARRAY_OF_ARRAY]
+
+# UNNEST on literal array of arrays
+SELECT element FROM UNNEST([[1, 2], [3, 4]]) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#1 AS element [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$array.element#1]
+    +-input_scan=
+      +-ArrayScan
+        +-column_list=[$array.element#1]
+        +-array_expr_list=
+        | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+        +-element_column_list=[$array.element#1]
+==
+
+# UNNEST on deeply nested array with NULLs
+SELECT element FROM UNNEST([[[[1,2, NULL, 4], [NULL], NULL, [5, 6]]], NULL, [[[7, 8]]]]) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#1 AS element [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$array.element#1]
+    +-input_scan=
+      +-ArrayScan
+        +-column_list=[$array.element#1]
+        +-array_expr_list=
+        | +-Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2, NULL, 4], [NULL], NULL, [5, 6]]], NULL, [[[7, 8]]]])
+        +-element_column_list=[$array.element#1]
+==
+
+# UNNEST on deeply nested array with more NULLs
+SELECT element FROM UNNEST([[[[1,2]], NULL, [[NULL]], [[NULL]]], [[[3,4], [NULL, 6]]], NULL, [[[7, 8], [NULL]]]]) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#1 AS element [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$array.element#1]
+    +-input_scan=
+      +-ArrayScan
+        +-column_list=[$array.element#1]
+        +-array_expr_list=
+        | +-Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2]], NULL, [[NULL]], [[NULL]]], [[[3, 4], [NULL, 6]]], NULL, [[[7, 8], [NULL]]]])
+        +-element_column_list=[$array.element#1]
+==
+
+# UNNEST on non-literal array of arrays
+WITH T AS (SELECT [[1, 2], [3, 4]] AS arr)
+SELECT element FROM T, UNNEST(T.arr) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#3 AS element [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$array.element#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$array.element#3]
+        +-input_scan=
+          +-ArrayScan
+            +-column_list=[T.arr#2, $array.element#3]
+            +-input_scan=
+            | +-WithRefScan(column_list=[T.arr#2], with_query_name="T")
+            +-array_expr_list=
+            | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=T.arr#2)
+            +-element_column_list=[$array.element#3]
+==
+
+# UNNEST on a complex path - Expected to fail until implemented.
+WITH T AS (
+  SELECT [[  -- Outermost array
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[1, 2], [3]] AS f2
+        ),
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[4, 5]] AS f2
+        )
+      ] AS f1
+    ),
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[6]] AS f2
+        )
+      ] AS f1
+    )
+  ]] AS arr
+)
+SELECT element FROM T, UNNEST(T.arr.f1.f2) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#3 AS element [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$array.element#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$array.element#3]
+        +-input_scan=
+          +-ArrayScan
+            +-column_list=[T.arr#2, $array.element#3]
+            +-input_scan=
+            | +-WithRefScan(column_list=[T.arr#2], with_query_name="T")
+            +-array_expr_list=
+            | +-Flatten
+            |   +-type=ARRAY<ARRAY<INT64>>
+            |   +-expr=
+            |   | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=T.arr#2)
+            |   +-get_field_list=
+            |   | +-GetStructField
+            |   | | +-type=ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>
+            |   | | +-expr=
+            |   | | | +-FlattenedArg(type=STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>)
+            |   | | +-field_idx=0
+            |   | +-GetStructField
+            |   |   +-type=ARRAY<ARRAY<INT64>>
+            |   |   +-expr=
+            |   |   | +-FlattenedArg(type=STRUCT<f2 ARRAY<ARRAY<INT64>>>)
+            |   |   +-field_idx=0
+            |   +-depth=
+            |     +-Literal(type=INT64, value=1, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+            +-element_column_list=[$array.element#3]
+==
+
+# UNNEST on array of structs with field access
+SELECT element FROM UNNEST(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[{x: [[[1, 2]], NULL, [[3, NULL]], ARRAY<ARRAY<INT64>>[[NULL]]]}, NULL, {x: [[[NULL], [4]]]}].x) AS element
+--
+QueryStmt
++-output_column_list=
+| +-$array.element#1 AS element [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$array.element#1]
+    +-input_scan=
+      +-ArrayScan
+        +-column_list=[$array.element#1]
+        +-array_expr_list=
+        | +-Flatten
+        |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+        |   +-expr=
+        |   | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+        |   +-get_field_list=
+        |   | +-GetStructField
+        |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+        |   |   +-expr=
+        |   |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+        |   |   +-field_idx=0
+        |   +-depth=
+        |     +-Literal(type=INT64, value=1, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+        +-element_column_list=[$array.element#1]
+==
+
+WITH T AS (SELECT [[1, 2], [3, 4]] AS arr)
+SELECT [1, 2] IN UNNEST(T.arr) FROM T
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [BOOL]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#3]
+        +-expr_list=
+        | +-$col1#3 :=
+        |   +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+        |     +-Literal(type=ARRAY<INT64>, value=[1, 2])
+        |     +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=T.arr#2)
+        +-input_scan=
+          +-WithRefScan(column_list=[T.arr#2], with_query_name="T")
+==
+
+# Path with a field access in the arg to IN UNNEST()
+WITH T AS (SELECT [STRUCT([1, 2] AS field)] AS arr)
+SELECT [1, 2] IN UNNEST(T.arr.field) FROM T
+--
+
+ERROR: No matching signature for operator IN UNNEST for argument types: ARRAY<INT64>, ARRAY<INT64> [at 2:15]
+SELECT [1, 2] IN UNNEST(T.arr.field) FROM T
+              ^
+==
+
+# Path with a field access in the arg to IN UNNEST()
+# But the FLATTEN() call isolates it from the UNNEST(), so doesn't get
+# depth implicitly set to 1.
+WITH T AS (SELECT [STRUCT([1, 2] AS field)] AS arr)
+SELECT [1, 2] IN UNNEST(FLATTEN(T.arr.field, depth => 0)) FROM T
+--
+
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [BOOL]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<STRUCT<field ARRAY<INT64>>>, value=[{field:[1, 2]}])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#3]
+        +-expr_list=
+        | +-$col1#3 :=
+        |   +-FunctionCall(GoogleSQL:$in_array(ARRAY<INT64>, ARRAY<ARRAY<INT64>>) -> BOOL)
+        |     +-Literal(type=ARRAY<INT64>, value=[1, 2])
+        |     +-Flatten
+        |       +-type=ARRAY<ARRAY<INT64>>
+        |       +-expr=
+        |       | +-ColumnRef(type=ARRAY<STRUCT<field ARRAY<INT64>>>, column=T.arr#2)
+        |       +-get_field_list=
+        |       | +-GetStructField
+        |       |   +-type=ARRAY<INT64>
+        |       |   +-expr=
+        |       |   | +-FlattenedArg(type=STRUCT<field ARRAY<INT64>>)
+        |       |   +-field_idx=0
+        |       +-depth=
+        |         +-Literal(type=INT64, value=0, preserve_in_literal_remover=TRUE)
+        +-input_scan=
+          +-WithRefScan(column_list=[T.arr#2], with_query_name="T")

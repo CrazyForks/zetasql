@@ -1,0 +1,32 @@
+# These tests take module contents as input, create a ModuleCatalog from the
+# contents, and then dump the relevant module information.  The module
+# information that can be dumped is controlled by various flags (see
+# googlesql/common/run_modules_test.cc for the full
+# list).  By default, all functions in the module are resolved, module
+# functions use DebugString(/*verbose=*/true) for output, and module
+# errors are provided in the output.
+
+[no_resolve_statements]
+MODULE a.b.c;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+--
+Lazy_resolution_function:foo
+==
+
+[show_module_contents]
+MODULE d.e.f;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+--
+Module contents:
+MODULE d.e.f;
+CREATE PUBLIC FUNCTION foo(a int32) as (a);
+--
+Lazy_resolution_function:foo
+  (INT32 a) -> INT32
+==
+
+MODULE d.e.f;
+CREATE PRIVATE FUNCTION foo(a int32) as (a);
+--
+PRIVATE Lazy_resolution_function:foo
+  (INT32 a) -> INT32

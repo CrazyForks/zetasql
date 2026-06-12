@@ -57,11 +57,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -146,7 +146,7 @@ class LazyResolutionCatalogTest : public ::testing::Test {
     return ParseStatement(statement, parser_options_, parser_output);
   }
 
- private:
+ protected:
   // Analyzer options to use for the test.
   AnalyzerOptions analyzer_options_;
 
@@ -1131,10 +1131,7 @@ class LazyResolutionViewTest : public ::testing::Test {
     // We must enable CREATE VIEW statements to run these tests.
     analyzer_options_.mutable_language()->SetSupportsAllStatementKinds();
     analyzer_options_.mutable_language()->EnableMaximumLanguageFeatures();
-    // TODO: Remove explicitly enabling this feature after removing
-    // in-development option from the views-in-modules language feature.
-    analyzer_options_.mutable_language()->EnableLanguageFeature(
-        FEATURE_VIEWS_IN_MODULES);
+
     // This makes it easier to verify that the error locations indicated
     // in the message line up with the statements in the module string/file.
     analyzer_options_.set_error_message_mode(
@@ -1242,11 +1239,6 @@ class LazyResolutionProcedureTest : public ::testing::Test {
     analyzer_options_.mutable_language()->SetSupportsAllStatementKinds();
     analyzer_options_.mutable_language()->EnableMaximumLanguageFeatures();
 
-    // TODO: Remove explicitly enabling this feature after
-    // removing in-development option from the procedures-in-modules language
-    // feature.
-    analyzer_options_.mutable_language()->EnableLanguageFeature(
-        FEATURE_PROCEDURES_IN_MODULES);
     analyzer_options_.set_error_message_mode(
         ERROR_MESSAGE_MULTI_LINE_WITH_CARET);
     analyzer_options_.set_statement_context(CONTEXT_MODULE);
@@ -1307,6 +1299,8 @@ TEST_F(LazyResolutionProcedureTest, SimpleProcedure) {
   EXPECT_THAT(sql_procedure->resolved_statement(), NotNull());
   EXPECT_EQ(sql_procedure->resolved_statement()->procedure_body(),
             "BEGIN SELECT 1; END");
+  EXPECT_EQ(sql_procedure->resolution_catalog(),
+            lazy_resolution_catalog_.get());
 }
 
 TEST_F(LazyResolutionProcedureTest, SimpleProcedureWithArguments) {

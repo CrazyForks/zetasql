@@ -1,0 +1,496 @@
+# Basic module tests for functions that reference other functions in the
+# same module.  This includes infinite loop testing.
+
+# a -> b -> c -> d <- e <- f
+#
+# a references b
+# b references c
+# c references d
+# e references d
+# f references e
+MODULE self_referencing_module;
+CREATE PUBLIC FUNCTION a(d int64) as (b(d+100));
+CREATE PUBLIC FUNCTION b(d int64) as (c(d+20));
+CREATE PUBLIC FUNCTION c(c int64) as (d(c+10));
+CREATE PUBLIC FUNCTION d(b int64) as (b);
+CREATE PUBLIC FUNCTION e(a int64) as (d(a+1));
+CREATE PUBLIC FUNCTION f(d int64) as (e(d+2));
+--
+Lazy_resolution_function:a
+  (INT64 d) -> INT64
+
+Lazy_resolution_function:b
+  (INT64 d) -> INT64
+
+Lazy_resolution_function:c
+  (INT64 c) -> INT64
+
+Lazy_resolution_function:d
+  (INT64 b) -> INT64
+
+Lazy_resolution_function:e
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:f
+  (INT64 d) -> INT64
+==
+
+# Same as the previous, but with only private functions.
+MODULE self_referencing_module;
+CREATE PRIVATE FUNCTION a(d int64) as (b(d+100));
+CREATE PRIVATE FUNCTION b(d int64) as (c(d+20));
+CREATE PRIVATE FUNCTION c(c int64) as (d(c+10));
+CREATE PRIVATE FUNCTION d(b int64) as (b);
+CREATE PRIVATE FUNCTION e(a int64) as (d(a+1));
+CREATE PRIVATE FUNCTION f(d int64) as (e(d+2));
+--
+PRIVATE Lazy_resolution_function:a
+  (INT64 d) -> INT64
+
+PRIVATE Lazy_resolution_function:b
+  (INT64 d) -> INT64
+
+PRIVATE Lazy_resolution_function:c
+  (INT64 c) -> INT64
+
+PRIVATE Lazy_resolution_function:d
+  (INT64 b) -> INT64
+
+PRIVATE Lazy_resolution_function:e
+  (INT64 a) -> INT64
+
+PRIVATE Lazy_resolution_function:f
+  (INT64 d) -> INT64
+==
+
+# Same as the previous, but with a mix of public and private functions.
+MODULE self_referencing_module;
+CREATE PUBLIC FUNCTION a(d int64) as (b(d+100));
+CREATE PRIVATE FUNCTION b(d int64) as (c(d+20));
+CREATE PRIVATE FUNCTION c(c int64) as (d(c+10));
+CREATE PUBLIC FUNCTION d(b int64) as (b);
+CREATE PRIVATE FUNCTION e(a int64) as (d(a+1));
+CREATE PUBLIC FUNCTION f(d int64) as (e(d+2));
+--
+Lazy_resolution_function:a
+  (INT64 d) -> INT64
+
+PRIVATE Lazy_resolution_function:b
+  (INT64 d) -> INT64
+
+PRIVATE Lazy_resolution_function:c
+  (INT64 c) -> INT64
+
+Lazy_resolution_function:d
+  (INT64 b) -> INT64
+
+PRIVATE Lazy_resolution_function:e
+  (INT64 a) -> INT64
+
+Lazy_resolution_function:f
+  (INT64 d) -> INT64
+==
+
+# Two infinite loops:
+#   foo -> bar -> foo
+#   baz -> baz
+MODULE simple_module;
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+--
+Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:24]
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+                       ^
+Invalid function foo [at 3:41]
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+                                        ^
+Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:24]
+
+Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+                       ^
+Invalid function baz [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+                                        ^
+The function simple_module.baz is recursive [at 4:24]
+
+Lazy_resolution_function:foo
+ERROR: Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:24]
+==
+
+# Same as the previous, with private functions.
+MODULE simple_module;
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+CREATE PRIVATE FUNCTION bar(c int64) as (foo(c+10));
+CREATE PRIVATE FUNCTION baz(c int64) as (baz(c+10));
+--
+PRIVATE Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:25]
+CREATE PRIVATE FUNCTION bar(c int64) as (foo(c+10));
+                        ^
+Invalid function foo [at 3:42]
+CREATE PRIVATE FUNCTION bar(c int64) as (foo(c+10));
+                                         ^
+Function foo is invalid [at 2:25]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                        ^
+Invalid function bar [at 2:46]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                                             ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:25]
+
+PRIVATE Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 4:25]
+CREATE PRIVATE FUNCTION baz(c int64) as (baz(c+10));
+                        ^
+Invalid function baz [at 4:42]
+CREATE PRIVATE FUNCTION baz(c int64) as (baz(c+10));
+                                         ^
+The function simple_module.baz is recursive [at 4:25]
+
+PRIVATE Lazy_resolution_function:foo
+ERROR: Function foo is invalid [at 2:25]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                        ^
+Invalid function bar [at 2:46]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                                             ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:25]
+==
+
+# Same as the previous, with a mix of public and private functions.
+MODULE simple_module;
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+--
+Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:24]
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+                       ^
+Invalid function foo [at 3:41]
+CREATE PUBLIC FUNCTION bar(c int64) as (foo(c+10));
+                                        ^
+Function foo is invalid [at 2:25]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                        ^
+Invalid function bar [at 2:46]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                                             ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:24]
+
+Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+                       ^
+Invalid function baz [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (baz(c+10));
+                                        ^
+The function simple_module.baz is recursive [at 4:24]
+
+PRIVATE Lazy_resolution_function:foo
+ERROR: Function foo is invalid [at 2:25]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                        ^
+Invalid function bar [at 2:46]
+CREATE PRIVATE FUNCTION foo(d int64) as (1 + bar(d));
+                                             ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.foo, simple_module.bar) [at 3:24]
+==
+
+# Infinite loop:
+#   foo -> bar -> baz -> foo
+#
+#   bat - invalid since it refers to bar which takes part in an infinite loop
+#   good_fn - valid function
+MODULE simple_module;
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+CREATE PUBLIC FUNCTION bat(c int64) as (bar(c+10));
+CREATE PUBLIC FUNCTION good_fn(c int64) as (c+10);
+--
+PRIVATE Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:25]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                        ^
+Invalid function baz [at 3:42]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                                         ^
+Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                       ^
+Invalid function foo [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                                        ^
+Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.baz, simple_module.foo, simple_module.bar) [at 3:25]
+
+Lazy_resolution_function:bat
+ERROR: Function bat is invalid [at 5:24]
+CREATE PUBLIC FUNCTION bat(c int64) as (bar(c+10));
+                       ^
+Invalid function bar [at 5:41]
+CREATE PUBLIC FUNCTION bat(c int64) as (bar(c+10));
+                                        ^
+Function bar is invalid [at 3:25]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                        ^
+Invalid function baz [at 3:42]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                                         ^
+Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                       ^
+Invalid function foo [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                                        ^
+Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.baz, simple_module.foo, simple_module.bar) [at 3:25]
+
+Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                       ^
+Invalid function foo [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (foo(c+10));
+                                        ^
+Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.baz, simple_module.foo, simple_module.bar) [at 3:25]
+
+Lazy_resolution_function:foo
+ERROR: Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Recursive dependencies detected when resolving function simple_module.bar, which include objects (simple_module.bar, simple_module.baz, simple_module.foo, simple_module.bar) [at 3:25]
+
+Lazy_resolution_function:good_fn
+  (INT64 c) -> INT64
+==
+
+# Reference chain, where the end of the reference chain is invalid:
+#   foo -> bar -> baz -> bat
+#
+#   bat - invalid due to bad expression
+MODULE simple_module;
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+--
+PRIVATE Lazy_resolution_function:bar
+ERROR: Function bar is invalid [at 3:25]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                        ^
+Invalid function baz [at 3:42]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                                         ^
+Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                       ^
+Invalid function bat [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                                        ^
+Function bat is invalid [at 5:24]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                       ^
+No matching signature for operator +
+  Argument types: DOUBLE, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type DOUBLE to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL [at 5:42]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                                         ^
+
+Lazy_resolution_function:bat
+ERROR: Function bat is invalid [at 5:24]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                       ^
+No matching signature for operator +
+  Argument types: DOUBLE, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type DOUBLE to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL [at 5:42]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                                         ^
+
+Lazy_resolution_function:baz
+ERROR: Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                       ^
+Invalid function bat [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                                        ^
+Function bat is invalid [at 5:24]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                       ^
+No matching signature for operator +
+  Argument types: DOUBLE, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type DOUBLE to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL [at 5:42]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                                         ^
+
+Lazy_resolution_function:foo
+ERROR: Function foo is invalid [at 2:24]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                       ^
+Invalid function bar [at 2:45]
+CREATE PUBLIC FUNCTION foo(d int64) as (1 + bar(d));
+                                            ^
+Function bar is invalid [at 3:25]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                        ^
+Invalid function baz [at 3:42]
+CREATE PRIVATE FUNCTION bar(c int64) as (baz(c+10));
+                                         ^
+Function baz is invalid [at 4:24]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                       ^
+Invalid function bat [at 4:41]
+CREATE PUBLIC FUNCTION baz(c int64) as (bat(c));
+                                        ^
+Function bat is invalid [at 5:24]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                       ^
+No matching signature for operator +
+  Argument types: DOUBLE, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type DOUBLE to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type DOUBLE to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type DOUBLE to expected type INTERVAL [at 5:42]
+CREATE PUBLIC FUNCTION bat(c double) as (c + "foo");
+                                         ^

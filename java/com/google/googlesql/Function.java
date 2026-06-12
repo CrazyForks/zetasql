@@ -17,16 +17,16 @@
 
 package com.google.googlesql;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.googlesql.FunctionProtos.FunctionOptionsProto;
 import com.google.googlesql.FunctionProtos.FunctionProto;
-import com.google.googlesql.FunctionProtos.FunctionSignatureProto;
 import com.google.googlesql.GoogleSQLFunctions.FunctionEnums.Mode;
 import com.google.googlesql.GoogleSQLFunctions.FunctionEnums.WindowOrderSupport;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -124,10 +124,13 @@ public class Function implements Serializable {
     if (proto.getGroup().equals(TemplatedSQLFunction.TEMPLATED_SQL_FUNCTION_GROUP)) {
       return TemplatedSQLFunction.deserialize(proto, pools);
     }
-    List<FunctionSignature> signatures = new ArrayList<>();
-    for (FunctionSignatureProto signature : proto.getSignatureList()) {
-      signatures.add(FunctionSignature.deserialize(signature, pools));
+    if (proto.getGroup().equals(FunctionTypedParameter.FUNCTION_TYPED_PARAMETER_GROUP)) {
+      return FunctionTypedParameter.deserialize(proto, pools);
     }
+    ImmutableList<FunctionSignature> signatures =
+        proto.getSignatureList().stream()
+            .map(s -> FunctionSignature.deserialize(s, pools))
+            .collect(toImmutableList());
     return new Function(
         proto.getNamePathList(), proto.getGroup(), proto.getMode(), signatures,
         proto.getOptions());
@@ -201,6 +204,10 @@ public class Function implements Serializable {
     return mode == Mode.ANALYTIC;
   }
 
+  public boolean isFunctionTypedParameter() {
+    return false;
+  }
+
   public String debugString(boolean verbose) {
     if (!verbose) {
       return getFullName();
@@ -244,6 +251,39 @@ public class Function implements Serializable {
     }
     if (isAnalytic() && !options.getSupportsOverClause()) {
       throw new IllegalArgumentException("Analytic functions must support over clause");
+    }
+  }
+
+  /**
+   * This represents a function-typed argument of a SQL UDF. This is used as a placeholder during
+   * resolution of calls to the argument within the UDF body.
+   */
+  public static class FunctionTypedParameter extends Function {
+    public static final String FUNCTION_TYPED_PARAMETER_GROUP = "FUNCTION_TYPED_PARAMETER";
+
+    public FunctionTypedParameter(
+        List<String> namePath, List<FunctionSignature> signatures, FunctionOptionsProto options) {
+      super(namePath, FUNCTION_TYPED_PARAMETER_GROUP, Mode.SCALAR, signatures, options);
+    }
+
+    public FunctionTypedParameter(List<String> namePath, List<FunctionSignature> signatures) {
+      this(namePath, signatures, FunctionOptionsProto.getDefaultInstance());
+    }
+
+    @Override
+    public boolean isFunctionTypedParameter() {
+      return true;
+    }
+
+    /* Deserializes this function from a protocol buffer. */
+    public static FunctionTypedParameter deserialize(
+        FunctionProto proto, final ImmutableList<? extends DescriptorPool> pools) {
+      Preconditions.checkArgument(proto.getGroup().equals(FUNCTION_TYPED_PARAMETER_GROUP), proto);
+      ImmutableList<FunctionSignature> signatures =
+          proto.getSignatureList().stream()
+              .map(s -> FunctionSignature.deserialize(s, pools))
+              .collect(toImmutableList());
+      return new FunctionTypedParameter(proto.getNamePathList(), signatures, proto.getOptions());
     }
   }
 

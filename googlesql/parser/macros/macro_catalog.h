@@ -21,9 +21,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 
 #include "googlesql/public/parse_location.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -71,7 +71,7 @@ struct MacroInfo {
     return body_location.GetTextFrom(source_text);
   }
 
-  // TODO: b/310027386 - Use default == operator once GoogleSQL OSS builds with
+  // TODO: b/310027386 - Use default == operator once GoogleSQL builds with
   // C++20.
   friend bool operator==(const MacroInfo& lhs, const MacroInfo& rhs) {
     return lhs.source_text == rhs.source_text && lhs.location == rhs.location &&
@@ -95,6 +95,12 @@ struct MacroCatalogOptions {
 // the future, like catalog.h, with multi-part paths.
 class MacroCatalog {
  public:
+  // Returns a statically allocated empty macro catalog.
+  static const MacroCatalog& EmptyMacroCatalog() {
+    static const absl::NoDestructor<MacroCatalog> kEmptyMacroCatalog;
+    return *kEmptyMacroCatalog;
+  }
+
   explicit MacroCatalog(MacroCatalogOptions options = {})
       : options_(options),
         macros_(std::make_shared<

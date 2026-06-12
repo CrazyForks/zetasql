@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 
@@ -42,7 +43,9 @@ class ExecuteQueryWebRequest {
       std::optional<ExecuteQueryConfig::SqlMode> sql_mode,
       std::optional<SQLBuilder::TargetSyntaxMode> target_syntax_mode,
       std::string query, std::string catalog,
-      std::string enabled_language_features, std::string enabled_ast_rewrites);
+      std::string enabled_language_features,
+      std::string enabled_language_features_text,
+      std::string enabled_ast_rewrites, std::string enabled_ast_rewrites_text);
 
   const std::string& query() const { return query_; }
   const ModeSet& modes() const { return modes_; }
@@ -54,12 +57,27 @@ class ExecuteQueryWebRequest {
   }
   const std::string& catalog() const { return catalog_; }
 
-  const std::string& GetEnabledLanguageFeaturesOptionsStr() const {
-    return enabled_language_features_;
+  std::string GetEnabledLanguageFeaturesOptionsStr() const {
+    if (enabled_language_features_text_.empty()) {
+      return enabled_language_features_;
+    }
+    return absl::StrCat(enabled_language_features_, ",",
+                        enabled_language_features_text_);
   }
 
-  const std::string& GetEnabledAstRewritesOptionsStr() const {
-    return enabled_ast_rewrites_;
+  const std::string& GetEnabledLanguageFeaturesTextStr() const {
+    return enabled_language_features_text_;
+  }
+
+  std::string GetEnabledAstRewritesOptionsStr() const {
+    if (enabled_ast_rewrites_text_.empty()) {
+      return enabled_ast_rewrites_;
+    }
+    return absl::StrCat(enabled_ast_rewrites_, ",", enabled_ast_rewrites_text_);
+  }
+
+  const std::string& GetEnabledAstRewritesTextStr() const {
+    return enabled_ast_rewrites_text_;
   }
 
   std::string DebugString() const;
@@ -71,7 +89,9 @@ class ExecuteQueryWebRequest {
   std::string query_;
   std::string catalog_;
   std::string enabled_language_features_;
+  std::string enabled_language_features_text_;
   std::string enabled_ast_rewrites_;
+  std::string enabled_ast_rewrites_text_;
 };
 
 // Handler for a web request. This class takes an incoming request, executes
@@ -89,9 +109,10 @@ class ExecuteQueryWebHandler {
 
  private:
   absl::Status ExecuteQueryImpl(const ExecuteQueryWebRequest& request,
+                                ExecuteQueryConfig& config,
                                 ExecuteQueryWriter& exec_query_writer);
   bool ExecuteQuery(const ExecuteQueryWebRequest& request,
-                    std::string& error_msg,
+                    ExecuteQueryConfig& config, std::string& error_msg,
                     ExecuteQueryWriter& exec_query_writer);
 
   const QueryWebTemplates& templates_;

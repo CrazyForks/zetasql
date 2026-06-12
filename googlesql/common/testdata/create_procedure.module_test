@@ -1,0 +1,209 @@
+# Simple PUBLIC procedure
+MODULE m;
+CREATE PUBLIC PROCEDURE p0() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p0
+==
+
+# Simple PRIVATE procedure
+MODULE m;
+CREATE PRIVATE PROCEDURE p1() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PRIVATE PROCEDURE p1
+==
+
+# Procedure with IN and INOUT arguments
+MODULE m;
+CREATE PUBLIC PROCEDURE p2(IN a INT64, INOUT b STRING) OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p2
+==
+
+# Procedure with unresolved name in body
+MODULE m;
+CREATE PUBLIC PROCEDURE p3() OPTIONS (allowed_references = 'global') BEGIN SELECT a; END;
+--
+PROCEDURE p3
+==
+
+# Procedure without PUBLIC/PRIVATE modifier
+MODULE m;
+CREATE PROCEDURE p4() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p4
+ERROR: Procedure p4 is invalid [at 2:18]
+CREATE PROCEDURE p4() OPTIONS (allowed_references = 'global') BEGIN SELECT 1;...
+                 ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at 2:1]
+CREATE PROCEDURE p4() OPTIONS (allowed_references = 'global') BEGIN SELECT 1;...
+^
+==
+
+# Procedure with CREATE OR REPLACE
+MODULE m;
+CREATE OR REPLACE PUBLIC PROCEDURE p5() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p5
+ERROR: Procedure p5 is invalid [at 2:36]
+CREATE OR REPLACE PUBLIC PROCEDURE p5() OPTIONS (allowed_references = 'global...
+                                   ^
+Modules do not support CREATE OR REPLACE for CREATE PROCEDURE [at 2:1]
+CREATE OR REPLACE PUBLIC PROCEDURE p5() OPTIONS (allowed_references = 'global...
+^
+==
+
+# Procedure with IF NOT EXISTS
+MODULE m;
+CREATE PUBLIC PROCEDURE IF NOT EXISTS p6() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p6
+ERROR: Procedure p6 is invalid [at 2:39]
+CREATE PUBLIC PROCEDURE IF NOT EXISTS p6() OPTIONS (allowed_references = 'glo...
+                                      ^
+Modules do not support IF NOT EXISTS for CREATE PROCEDURE [at 2:1]
+CREATE PUBLIC PROCEDURE IF NOT EXISTS p6() OPTIONS (allowed_references = 'glo...
+^
+==
+
+# Duplicate procedure name
+MODULE m;
+CREATE PUBLIC PROCEDURE p7() OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+CREATE PRIVATE PROCEDURE p7() OPTIONS (allowed_references = 'global') BEGIN SELECT 2; END;
+--
+PROCEDURE p7
+--
+Module errors:
+INVALID_ARGUMENT: Procedures must have unique names, but found duplicate name p7 [at 3:26]
+CREATE PRIVATE PROCEDURE p7() OPTIONS (allowed_references = 'global') BEGIN S...
+                         ^
+==
+
+# Procedure with LANGUAGE clause
+MODULE m;
+CREATE PUBLIC PROCEDURE p8() LANGUAGE REMOTE;
+--
+PROCEDURE p8
+==
+
+# Remote procedure with allowed_references='GLOBAL'
+MODULE m;
+CREATE PUBLIC PROCEDURE p8_global() OPTIONS(allowed_references='GLOBAL') LANGUAGE REMOTE;
+--
+PROCEDURE p8_global
+==
+
+# Remote procedure with allowed_references='BUILTIN'
+MODULE m;
+CREATE PUBLIC PROCEDURE p8_builtin() OPTIONS(allowed_references='BUILTIN') LANGUAGE REMOTE;
+--
+PROCEDURE p8_builtin
+==
+
+# Procedure with invalid LANGUAGE clause
+MODULE m;
+CREATE PUBLIC PROCEDURE p9() LANGUAGE python;
+--
+PROCEDURE p9
+ERROR: Procedure p9 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p9() LANGUAGE python;
+                        ^
+Invalid LANGUAGE: python. Only LANGUAGE REMOTE is supported for procedures inside modules [at 2:30]
+CREATE PUBLIC PROCEDURE p9() LANGUAGE python;
+                             ^
+==
+
+# Procedure with WITH CONNECTION clause
+MODULE m;
+CREATE PUBLIC PROCEDURE p9() WITH CONNECTION OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+--
+Module errors:
+INVALID_ARGUMENT: Syntax error: Expected keyword BEGIN or keyword LANGUAGE or keyword OPTIONS but got "(" [at 2:54]
+CREATE PUBLIC PROCEDURE p9() WITH CONNECTION OPTIONS (allowed_references = 'g...
+                                                     ^
+==
+
+# Procedure with unsupported option
+MODULE m;
+CREATE PUBLIC PROCEDURE p10() OPTIONS (foo='bar', allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p10
+==
+
+# Procedure without allowed_references option
+MODULE m;
+CREATE PUBLIC PROCEDURE p11() BEGIN SELECT 1; END;
+--
+PROCEDURE p11
+ERROR: Procedure p11 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p11() BEGIN SELECT 1; END;
+                        ^
+Procedures defined inside modules must have an effective 'allowed_references' value of 'GLOBAL', set via OPTIONS on the CREATE PROCEDURE or MODULE statement. [at 2:1]
+CREATE PUBLIC PROCEDURE p11() BEGIN SELECT 1; END;
+^
+==
+
+# Procedure with allowed_references=builtin
+MODULE m;
+CREATE PUBLIC PROCEDURE p12() OPTIONS(allowed_references = 'builtin') BEGIN SELECT 1; END;
+--
+PROCEDURE p12
+ERROR: Procedure p12 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p12() OPTIONS(allowed_references = 'builtin') BEGIN S...
+                        ^
+Procedures defined inside modules must have an effective 'allowed_references' value of 'GLOBAL', set via OPTIONS on the CREATE PROCEDURE or MODULE statement. [at 2:1]
+CREATE PUBLIC PROCEDURE p12() OPTIONS(allowed_references = 'builtin') BEGIN S...
+^
+==
+
+# Procedure without allowed_references option, but with allowed_references=GLOBAL on MODULE
+MODULE m OPTIONS (allowed_references = 'global');
+CREATE PUBLIC PROCEDURE p12() BEGIN SELECT 1; END;
+--
+PROCEDURE p12
+==
+
+# Procedure with invalid argument type
+MODULE m;
+CREATE PUBLIC PROCEDURE p13(a BadType) OPTIONS(allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p13
+ERROR: Procedure p13 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p13(a BadType) OPTIONS(allowed_references = 'global')...
+                        ^
+Type not found: BadType [at 2:31]
+CREATE PUBLIC PROCEDURE p13(a BadType) OPTIONS(allowed_references = 'global')...
+                              ^
+==
+
+# Procedure with ANY TYPE argument
+MODULE m;
+CREATE PUBLIC PROCEDURE p14(x ANY TYPE) OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p14
+==
+
+# Procedure with duplicate parameter name
+MODULE m;
+CREATE PUBLIC PROCEDURE p15(a INT64, a STRING) OPTIONS (allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p15
+ERROR: Procedure p15 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p15(a INT64, a STRING) OPTIONS (allowed_references = ...
+                        ^
+Duplicate argument name a [at 2:38]
+CREATE PUBLIC PROCEDURE p15(a INT64, a STRING) OPTIONS (allowed_references = ...
+                                     ^
+==
+
+# Procedures in modules requires global catalog, but none provided.
+[no_provide_global_catalog]
+MODULE m;
+CREATE PUBLIC PROCEDURE p16() OPTIONS(allowed_references = 'global') BEGIN SELECT 1; END;
+--
+PROCEDURE p16
+ERROR: Procedure p16 is invalid [at 2:25]
+CREATE PUBLIC PROCEDURE p16() OPTIONS(allowed_references = 'global') BEGIN SE...
+                        ^
+Global references are not supported by this execution environment
+==

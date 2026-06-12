@@ -1274,29 +1274,6 @@ class Value {
   // default, only Array values print their types.
   std::string FormatInternal(Type::FormatValueContentOptions options) const;
 
-  // Type cannot create a list of Values because it cannot depend on
-  // "value" package. Thus for Array/Struct/Range types that need list of
-  // values, we will create them from Value directly.
-  // Similarly for GraphElementType and GraphPath.
-  // TODO: This can be avoided when we create virtual value list
-  // interface which can be defined outside of "value", but Value provides its
-  // implementation which it feeds to above types.
-  bool DoesTypeUseValueList() const {
-    return metadata_.type_kind() == TYPE_ARRAY ||
-           metadata_.type_kind() == TYPE_STRUCT ||
-           metadata_.type_kind() == TYPE_GRAPH_ELEMENT ||
-           metadata_.type_kind() == TYPE_GRAPH_PATH ||
-           metadata_.type_kind() == TYPE_RANGE;
-  }
-
-  // Type cannot create a list of Values because it cannot depend on
-  // "value" package. Thus for Map type that needs a list of values, we
-  // will create them from Value directly.
-  bool DoesTypeUseValueMap() const { return metadata_.type_kind() == TYPE_MAP; }
-
-  bool DoesTypeUseValueMeasure() const {
-    return metadata_.type_kind() == TYPE_MEASURE;
-  }
 
   // Gets Value's content. Requires: has_content() == true.
   ValueContent GetContent() const;

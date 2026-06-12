@@ -24,8 +24,8 @@
 #include "googlesql/public/simple_token_list.h"
 #include "googlesql/public/simple_token_list.h"
 #include "googlesql/public/value.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 
 namespace googlesql {
 

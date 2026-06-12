@@ -34,12 +34,14 @@
 #include "googlesql/reference_impl/tuple.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+
+using CollatorPtrList = std::vector<const googlesql::GoogleSqlCollator*>;
 
 namespace googlesql {
 
@@ -48,54 +50,13 @@ namespace googlesql {
 static absl::Status GetGoogleSqlCollators(
     absl::Span<const KeyArg* const> keys,
     absl::Span<const TupleData* const> params, EvaluationContext* context,
-    CollatorList* collators) {
-  for (int i = 0; i < keys.size(); ++i) {
-    if (keys.at(i)->collation() != nullptr) {
-      TupleSlot collation_slot;
-      absl::Status status;
-      if (!keys.at(i)->collation()->EvalSimple(params, context, &collation_slot,
-                                               &status)) {
-        return status;
-      }
-      const Value& collation_value = collation_slot.value();
-      if (collation_value.is_null()) {
-        return ::googlesql_base::OutOfRangeErrorBuilder()
-               << "COLLATE requires non-NULL collation name";
-      }
-      if (context->GetLanguageOptions().LanguageFeatureEnabled(
-              FEATURE_DISALLOW_LEGACY_UNICODE_COLLATION) &&
-          collation_value.type_kind() == TYPE_STRING &&
-          absl::StartsWith(collation_value.string_value(), "unicode:")) {
-        return ::googlesql_base::OutOfRangeErrorBuilder()
-               << "COLLATE has invalid collation name '"
-               << collation_value.string_value() << "'";
-      }
-
-      std::unique_ptr<const GoogleSqlCollator> collator;
-      switch (collation_value.type_kind()) {
-        case TYPE_STRING: {
-          GOOGLESQL_ASSIGN_OR_RETURN(collator,
-                           MakeSqlCollatorLite(collation_value.string_value()));
-          break;
-        }
-        case TYPE_PROTO: {
-          GOOGLESQL_ASSIGN_OR_RETURN(
-              collator, GetCollatorFromResolvedCollationValue(collation_value));
-          break;
-        }
-        default:
-          GOOGLESQL_RET_CHECK_FAIL() << "Unexpected type kind of collation_value "
-                           << Type::TypeKindToString(
-                                  collation_value.type_kind(),
-                                  PRODUCT_INTERNAL);
-      }
-
-      collators->emplace_back(std::move(collator));
-    } else {
-      collators->emplace_back(nullptr);
-    }
+    CollatorPtrList* collators) {
+  collators->reserve(keys.size());
+  for (const KeyArg* key : keys) {
+    GOOGLESQL_ASSIGN_OR_RETURN(CollatorPtrInfo collator_info,
+                     key->GetCollator(context, params));
+    collators->push_back(collator_info.collator);
   }
-
   return absl::OkStatus();
 }
 
@@ -110,8 +71,7 @@ absl::StatusOr<std::unique_ptr<TupleComparator>> TupleComparator::Create(
     absl::Span<const KeyArg* const> keys, absl::Span<const int> slots_for_keys,
     absl::Span<const int> extra_sort_key_slots,
     absl::Span<const TupleData* const> params, EvaluationContext* context) {
-  std::shared_ptr<CollatorList> collators =
-      std::make_shared<CollatorList>(CollatorList());
+  auto collators = std::make_shared<CollatorPtrList>();
   GOOGLESQL_RETURN_IF_ERROR(
       GetGoogleSqlCollators(keys, params, context, collators.get()));
   return absl::WrapUnique(new TupleComparator(keys, slots_for_keys,
@@ -125,75 +85,179 @@ bool TupleComparator::operator()(const TupleData& t1,
                  /*collator_caused_equality=*/nullptr);
 }
 
+static int CompareNoCollation(const Value& v1, const Value& v2,
+                              bool nulls_first, bool key_is_const,
+                              bool compare_floating_point_approximately,
+                              bool* has_approximate_comparison) {
+  if (v1.is_null() || v2.is_null()) {
+    if (v1.is_null() && v2.is_null()) {  // NULLs are considered equal.
+      return 0;
+    }
+    if (nulls_first) {
+      return v1.is_null() ? -1 : 1;
+    }
+    return v1.is_null() ? 1 : -1;
+  }
+
+  if (compare_floating_point_approximately && v1.type()->IsFloatingPoint() &&
+      !key_is_const) {
+    double v1_double = v1.ToDouble();
+    if (!kDefaultFloatMargin.Equal(v1_double, v2.ToDouble())) {
+      return v1.LessThan(v2) ? -1 : 1;
+    }
+
+    if (std::isfinite(v1_double) && has_approximate_comparison != nullptr) {
+      *has_approximate_comparison = true;
+    }
+    return 0;
+  }
+
+  if (v1.Equals(v2)) {
+    return 0;
+  }
+
+  return v1.LessThan(v2) ? -1 : 1;
+}
+
+// Compares two GoogleSQL Value objects, respecting the collation rules
+// defined by the provided GoogleSqlCollator. The collator can be a
+// StringGoogleSqlCollator for simple string comparisons or a
+// CompositeGoogleSqlCollator for complex types like ARRAY and STRUCT.
+//
+// Returns -1 if v1 is less than v2.
+// Returns 1 if v1 is greater than v2.
+// Returns 0 is v1 is equal to v2.
+//
+// If an error occurs, <*error> will be updated.
+//
+// `nulls_first`: boolean because NULLS LAST is the default for DESC order,
+// while NULLS FIRST is the default for ASC order.
+static int CompareValueWithCollation(const Value& v1, const Value& v2,
+                                     const GoogleSqlCollator* collator,
+                                     bool nulls_first, bool key_is_const,
+                                     bool compare_floating_point_approximately,
+                                     bool* has_approximate_comparison,
+                                     bool* collator_caused_equality) {
+  ABSL_DCHECK(v1.type()->Equals(v2.type()))
+      << "Cannot compare values of different types: "
+      << v1.type()->DebugString() << " and " << v2.type()->DebugString();
+
+  if (v1.is_null() || v2.is_null() || collator == nullptr) {
+    // No collator provided, use standard Value comparison
+    return CompareNoCollation(v1, v2, nulls_first, key_is_const,
+                              compare_floating_point_approximately,
+                              has_approximate_comparison);
+  }
+
+  if (v1.type()->IsString() || v1.type()->IsBytes()) {
+    ABSL_DCHECK(!collator->IsComposite());
+    // Assumed to be a StringGoogleSqlCollator
+    absl::Status error;
+    int64_t result =
+        collator->CompareUtf8(v1.string_value(), v2.string_value(), &error);
+    GOOGLESQL_DCHECK_OK(error);
+
+    if (result != 0) {             // v1 != v2
+      return result < 0 ? -1 : 1;  // v1 < v2
+    }
+
+    // Collated comparison returned 0.
+    if (collator_caused_equality != nullptr &&
+        v1.string_value() != v2.string_value()) {
+      // The strings are unequal, but the collator caused them to be
+      // considered equal.
+      *collator_caused_equality = true;
+    }
+    return 0;
+  }
+
+  ABSL_DCHECK(collator->IsComposite())
+      << "Type is not STRING nor BYTES, collator is not null, but is not "
+         "composite: "
+      << collator->DebugString()
+      << " Accompanying type: " << v1.type()->DebugString();
+
+  const CompositeGoogleSqlCollator* composite_collator =
+      collator->AsComposite();
+  ABSL_DCHECK(composite_collator != nullptr);
+
+  // CompositeGoogleSqlCollator
+  switch (v1.type_kind()) {
+    case TYPE_ARRAY: {
+      const auto& children = composite_collator->child_collators();
+      ABSL_DCHECK_EQ(children.size(), 1);
+
+      const GoogleSqlCollator* element_collator = children[0].get();
+      absl::Span<const Value> elements1 = v1.elements();
+      absl::Span<const Value> elements2 = v2.elements();
+      for (size_t i = 0; i < elements1.size() && i < elements2.size(); ++i) {
+        int result = CompareValueWithCollation(
+            elements1[i], elements2[i], element_collator, nulls_first,
+            key_is_const, compare_floating_point_approximately,
+            has_approximate_comparison, collator_caused_equality);
+        if (result != 0) return result;
+      }
+      if (elements1.size() < elements2.size()) return -1;
+      if (elements1.size() > elements2.size()) return 1;
+      return 0;
+    }
+    case TYPE_STRUCT: {
+      const auto& children = composite_collator->child_collators();
+      ABSL_DCHECK_EQ(children.size(), v1.num_fields());
+      ABSL_DCHECK_EQ(v1.num_fields(), v2.num_fields());
+      for (int i = 0; i < v1.num_fields(); ++i) {
+        int result = CompareValueWithCollation(
+            v1.field(i), v2.field(i), children[i].get(), nulls_first,
+            key_is_const, compare_floating_point_approximately,
+            has_approximate_comparison, collator_caused_equality);
+        if (result != 0) return result;
+      }
+      return 0;
+    }
+    default:
+      ABSL_LOG(ERROR) << "CompositeGoogleSqlCollator can only be used with ARRAY "
+                     "or STRUCT types, but found: "
+                  << v1.type()->DebugString();
+      return 0;
+  }
+}
+
 bool TupleComparator::Compare(const TupleData& t1, const TupleData& t2,
                               bool compare_floating_point_approximately,
                               bool* has_approximate_comparison,
                               bool* collator_caused_equality) const {
   for (int i = 0; i < keys_.size(); ++i) {
     const KeyArg* key = keys_[i];
-    const GoogleSqlCollator* collator = (*collators_)[i].get();
-
     const int slot_idx = slots_for_keys_[i];
     const Value& v1 = t1.slot(slot_idx).value();
     const Value& v2 = t2.slot(slot_idx).value();
 
-    if (v1.is_null() || v2.is_null()) {
-      if (v1.is_null() && v2.is_null()) {  // NULLs are considered equal.
-        continue;
-      }
-      if (key->is_descending()) {
-        // NULLS LAST is the default for DESC order.
-        const bool nulls_last = key->null_order() != KeyArg::kNullsFirst;
-        // Non-null sorts after null except with nulls-first ordering.
-        return nulls_last ? !v1.is_null() : v1.is_null();
-      } else {
-        // NULLS FIRST is the default for ASC order.
-        const bool nulls_first = key->null_order() != KeyArg::kNullsLast;
-        // Null sorts before non-null except with nulls-last ordering.
-        return nulls_first ? !v2.is_null() : v2.is_null();
-      }
+    const GoogleSqlCollator* collator = (*collators_)[i];
+
+    bool nulls_first;
+    if (key->is_descending()) {
+      // NULLS LAST is the default for DESC order.
+      nulls_first = key->null_order() == KeyArg::kNullsFirst;
+
+      // Compare() below gives the order assuming ASC order, and letting the
+      // caller invert. So now that we have the desired final order, we need to
+      // invert it when passing it to Compare().
+      nulls_first = !nulls_first;
+    } else {
+      // NULLS FIRST is the default for ASC order.
+      nulls_first = key->null_order() != KeyArg::kNullsLast;
     }
 
-    if (collator != nullptr) {
-      ABSL_DCHECK(v1.type()->IsString());
-      ABSL_DCHECK(v2.type()->IsString());
-      absl::Status status;
-      int64_t result =
-          collator->CompareUtf8(v1.string_value(), v2.string_value(), &status);
-      GOOGLESQL_DCHECK_OK(status);
-      if (result != 0) {  // v1 != v2
-        if (key->is_descending()) {
-          return result > 0;  // v1 > v2
-        } else {
-          return result < 0;  // v1 < v2
-        }
-      } else if (collator_caused_equality != nullptr &&
-                 v1.string_value() != v2.string_value()) {
-        // The strings are unequal, but the collator caused them to be
-        // considered equal.
-        *collator_caused_equality = true;
-      }
-    } else if (compare_floating_point_approximately &&
-               key->type()->IsFloatingPoint() &&
-               !key->value_expr()->IsConstant()) {
-      double v1_double = v1.ToDouble();
-      if (!kDefaultFloatMargin.Equal(v1_double, v2.ToDouble())) {
-        if (key->is_descending()) {
-          return v2.LessThan(v1);
-        } else {
-          return v1.LessThan(v2);
-        }
-      } else if (std::isfinite(v1_double) &&
-                 has_approximate_comparison != nullptr) {
-        *has_approximate_comparison = true;
-      }
-    } else if (!v1.Equals(v2)) {
-      if (key->is_descending()) {
-        return v2.LessThan(v1);
-      } else {
-        return v1.LessThan(v2);
-      }
+    // 0 for equal, -1 for v1 < v2, 1 for v1 > v2
+    int compare_result = CompareValueWithCollation(
+        v1, v2, collator, nulls_first, key->value_expr()->IsConstant(),
+        compare_floating_point_approximately, has_approximate_comparison,
+        collator_caused_equality);
+
+    if (compare_result != 0) {
+      return key->is_descending() ? (compare_result > 0) : (compare_result < 0);
     }
+    // If equal, continue to the next key.
   }
 
   // Sort by extra sort keys.

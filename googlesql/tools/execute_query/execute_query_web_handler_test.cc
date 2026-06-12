@@ -17,11 +17,13 @@
 #include "googlesql/tools/execute_query/execute_query_web_handler.h"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "googlesql/base/path.h"
+#include "googlesql/common/options_utils.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/resolved_ast/sql_builder.h"
 #include "googlesql/tools/execute_query/execute_query_tool.h"
@@ -29,6 +31,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -37,6 +40,7 @@
 #include "file_based_test_driver/run_test_case_result.h"
 #include "file_based_test_driver/test_case_options.h"
 
+using testing::ContainsRegex;
 using testing::Eq;
 using testing::HasSubstr;
 using testing::StartsWith;
@@ -79,7 +83,7 @@ TEST(ExecuteQueryWebHandlerTest, TestCSS) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({""}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard, "",
-                             "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "none", "MAXIMUM", "", "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("CSS: {{css}}", "some_css", ""), result));
   EXPECT_THAT(result, Eq("CSS: some_css"));
 }
@@ -89,7 +93,7 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryPreserved) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({""}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard, "foo bar",
-                             "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "none", "MAXIMUM", "", "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("{{> body}}", "", "Query: {{query}}"), result));
   EXPECT_THAT(result, Eq("Query: foo bar"));
 }
@@ -99,7 +103,7 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryPreservedForScriptMode) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({""}, ExecuteQueryConfig::SqlMode::kScript,
                              SQLBuilder::TargetSyntaxMode::kStandard, "foo bar",
-                             "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "none", "MAXIMUM", "", "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("{{> body}}", "", "Query: {{query}}"), result));
   EXPECT_THAT(result, Eq("Query: foo bar"));
 }
@@ -125,7 +129,8 @@ TEST(ExecuteQueryWebHandlerTest, TestModesPreserved) {
       EXPECT_TRUE(HandleRequest(
           ExecuteQueryWebRequest(subset, ExecuteQueryConfig::SqlMode::kQuery,
                                  SQLBuilder::TargetSyntaxMode::kStandard,
-                                 "foo bar", "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                                 "foo bar", "none", "MAXIMUM", "",
+                                 "ALL_MINUS_DEV", ""),
           FakeQueryWebTemplates("{{> body}}", "", mode_template), result));
       EXPECT_THAT(result, Eq(expected))
           << "Failed for subset [" << absl::StrJoin(subset, ",") << "]";
@@ -144,10 +149,10 @@ TEST(ExecuteQueryWebHandlerTest, TestSqlModesPreserved) {
   std::string result;
   for (int index = 0; index < sql_modes.size(); ++index) {
     EXPECT_TRUE(HandleRequest(
-        ExecuteQueryWebRequest(/*ToolMode is tested separately*/ {"execute"},
-                               sql_modes[index],
-                               SQLBuilder::TargetSyntaxMode::kStandard,
-                               "foo bar", "none", "MAXIMUM", "ALL_MINUS_DEV"),
+        ExecuteQueryWebRequest(
+            /*ToolMode is tested separately*/ {"execute"}, sql_modes[index],
+            SQLBuilder::TargetSyntaxMode::kStandard, "foo bar", "none",
+            "MAXIMUM", "", "ALL_MINUS_DEV", ""),
         FakeQueryWebTemplates("{{> body}}", "", sql_mode_template), result));
     EXPECT_THAT(result, Eq(expected_results[index]))
         << "Failed for subset [" << expected_results[index] << "]";
@@ -167,7 +172,7 @@ TEST(ExecuteQueryWebHandlerTest, TestTargetSyntaxModesPreserved) {
         ExecuteQueryWebRequest(/*ToolMode is tested separately*/ {"execute"},
                                ExecuteQueryConfig::SqlMode::kQuery,
                                target_syntax_modes[index], "foo bar", "none",
-                               "MAXIMUM", "ALL_MINUS_DEV"),
+                               "MAXIMUM", "", "ALL_MINUS_DEV", ""),
         FakeQueryWebTemplates("{{> body}}", "", target_syntax_mode_template),
         result));
     EXPECT_THAT(result, Eq(expected_results[index]))
@@ -180,8 +185,8 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryEscaped) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({""}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "</select> Exploit!", "none", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
+                             "</select> Exploit!", "none", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("{{> body}}", "", "Query: {{query}}"), result));
   EXPECT_THAT(result, Eq("Query: &lt;&#x2F;select&gt; Exploit!"));
 }
@@ -191,7 +196,8 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryResultPresent) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "SELECT 1", "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "SELECT 1", "none", "MAXIMUM", "", "ALL_MINUS_DEV",
+                             ""),
       FakeQueryWebTemplates("{{> body}}", "",
                             "{{#statements}}"
                             "{{result}}-{{error}}"
@@ -205,8 +211,8 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryExecutedSimpleResult) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "DESCRIBE RAND", "none", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
+                             "DESCRIBE RAND", "none", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("{{> body}}", "",
                             "{{#statements}}"
                             "{{#result_executed_tables}}\n"
@@ -231,7 +237,8 @@ TEST(ExecuteQueryWebHandlerTest, TestQueryErrorPresent) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "bad request", "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "bad request", "none", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       FakeQueryWebTemplates("{{> body}}", "",
                             "{{#statements}}"
                             "{{result}}-{{error}}"
@@ -256,16 +263,16 @@ TEST(ExecuteQueryWebHandlerTest, TestCatalogUsed) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "DESCRIBE Value", "none", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
+                             "DESCRIBE Value", "none", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       web_template, result));
   EXPECT_THAT(result, Eq("INVALID_ARGUMENT: Object not found"));
 
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "DESCRIBE Value", "sample", "MAXIMUM",
-                             "ALL_MINUS_DEV"),
+                             "DESCRIBE Value", "sample", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       web_template, result));
   EXPECT_THAT(result, Eq("(table)"));
 }
@@ -284,7 +291,8 @@ TEST(ExecuteQueryWebHandlerTest, TestEchoStatement) {
   EXPECT_TRUE(HandleRequest(
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
-                             "SELECT 1;", "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "SELECT 1;", "none", "MAXIMUM", "",
+                             "ALL_MINUS_DEV", ""),
       web_template, result));
   EXPECT_THAT(result, Eq("\n---\n"));
 
@@ -294,7 +302,7 @@ TEST(ExecuteQueryWebHandlerTest, TestEchoStatement) {
       ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard,
                              "\n\n\r\nSELECT 1;\n\r\nSELECT\n  2;\n\r\n",
-                             "none", "MAXIMUM", "ALL_MINUS_DEV"),
+                             "none", "MAXIMUM", "", "ALL_MINUS_DEV", ""),
       web_template, result));
   EXPECT_THAT(result, Eq("SELECT 1;\n---\nSELECT\n  2;\n---\n"));
 }
@@ -302,6 +310,7 @@ TEST(ExecuteQueryWebHandlerTest, TestEchoStatement) {
 static void RunFileBasedTest(
     absl::string_view test_case_input,
     file_based_test_driver::RunTestCaseResult* test_result) {
+  absl::SetFlag(&FLAGS_parse_location_record_type, "FULL_NODE_SCOPE");
   file_based_test_driver::TestCaseOptions test_case_options;
   test_case_options.RegisterString("mode", "execute");
   test_case_options.RegisterString("sql_mode", "query");
@@ -311,7 +320,6 @@ static void RunFileBasedTest(
   test_case_options.RegisterString("enabled_ast_rewrites", "ALL_MINUS_DEV");
   std::string input_sql = std::string(test_case_input);
   GOOGLESQL_ASSERT_OK(test_case_options.ParseTestCaseOptions(&input_sql));
-  ExecuteQueryConfig config;
   std::string result;
   std::vector<std::string> modes =
       absl::StrSplit(test_case_options.GetString("mode"), ' ');
@@ -383,8 +391,8 @@ static void RunFileBasedTest(
           ExecuteQueryConfig::parse_target_syntax_mode(
               test_case_options.GetString("target_syntax_mode")),
           input_sql, test_case_options.GetString("catalog"),
-          test_case_options.GetString("enabled_language_features"),
-          test_case_options.GetString("enabled_ast_rewrites")),
+          test_case_options.GetString("enabled_language_features"), "",
+          test_case_options.GetString("enabled_ast_rewrites"), ""),
       web_template, result));
 
   test_result->AddTestOutput(result);
@@ -398,6 +406,280 @@ TEST(ExecuteQueryWebHandlerTest, FileBasedTest) {
 
   EXPECT_TRUE(file_based_test_driver::RunTestCasesFromFiles(pattern,
                                                             &RunFileBasedTest));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestFlagDefaults) {
+  // Tests that the default values for catalog, enabled_language_features, and
+  // enabled_ast_rewrites are loaded from flags when no query parameters are
+  // provided.
+  absl::SetFlag(&FLAGS_catalog, "sample");
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(internal::EnumOptionsEntry<LanguageFeature> dev_features,
+                       internal::ParseEnabledLanguageFeatures("DEV"));
+  internal::EnabledLanguageFeatures enabled_language_features = {
+      .enabled_language_features = dev_features.options};
+  absl::SetFlag(&FLAGS_enabled_language_features,
+                std::make_optional(enabled_language_features));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      internal::EnumOptionsEntry<ResolvedASTRewrite> none_rewrites,
+      internal::ParseEnabledAstRewrites("NONE"));
+  internal::EnabledAstRewrites enabled_ast_rewrites = {
+      .enabled_ast_rewrites = none_rewrites.options};
+  absl::SetFlag(&FLAGS_enabled_ast_rewrites, enabled_ast_rewrites);
+
+  std::string result;
+  EXPECT_TRUE(
+      HandleRequest(ExecuteQueryWebRequest(
+                        /*str_modes=*/{""}, ExecuteQueryConfig::SqlMode::kQuery,
+                        SQLBuilder::TargetSyntaxMode::kStandard, /*query=*/"",
+                        /*catalog=*/"", /*enabled_language_features=*/"",
+                        /*enabled_language_features_text=*/"",
+                        /*enabled_ast_rewrites=*/"",
+                        /*enabled_ast_rewrites_text=*/""),
+                    FakeQueryWebTemplates("{{> body}}", "",
+                                          "Catalog: "
+                                          "{{#catalogs}}"
+                                          "{{name}}-{{selected}} "
+                                          "{{/catalogs}}\n"
+                                          "Features: "
+                                          "{{#language_features}}"
+                                          "{{name}}-{{selected}} "
+                                          "{{/language_features}}\n"
+                                          "Rewrites: "
+                                          "{{#ast_rewrites}}"
+                                          "{{name}}-{{selected}} "
+                                          "{{/ast_rewrites}}"),
+                    result));
+  EXPECT_THAT(result, ContainsRegex("Catalog:.* sample-selected"));
+  EXPECT_THAT(result, ContainsRegex("Features:.* DEV-selected "));
+  EXPECT_THAT(result, ContainsRegex("Rewrites:.* NONE-selected "));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestRequestOverrides) {
+  // Tests that query parameters override the flag defaults.
+  absl::SetFlag(&FLAGS_catalog, "sample");
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(internal::EnumOptionsEntry<LanguageFeature> dev_features,
+                       internal::ParseEnabledLanguageFeatures("DEV"));
+  internal::EnabledLanguageFeatures enabled_language_features = {
+      .enabled_language_features = dev_features.options};
+  absl::SetFlag(&FLAGS_enabled_language_features,
+                std::make_optional(enabled_language_features));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      internal::EnumOptionsEntry<ResolvedASTRewrite> all_minus_dev_rewrites,
+      internal::ParseEnabledAstRewrites("ALL_MINUS_DEV"));
+  internal::EnabledAstRewrites enabled_ast_rewrites = {
+      .enabled_ast_rewrites = all_minus_dev_rewrites.options};
+  absl::SetFlag(&FLAGS_enabled_ast_rewrites, enabled_ast_rewrites);
+
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest(
+          /*str_modes=*/{""}, ExecuteQueryConfig::SqlMode::kQuery,
+          SQLBuilder::TargetSyntaxMode::kStandard, /*query=*/"",
+          /*catalog=*/"none", /*enabled_language_features=*/"MAXIMUM", "",
+          /*enabled_ast_rewrites=*/"ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "Catalog: "
+                            "{{#catalogs}}"
+                            "{{name}}-{{selected}} "
+                            "{{/catalogs}}\n"
+                            "Features: "
+                            "{{#language_features}}"
+                            "{{name}}-{{selected}} "
+                            "{{/language_features}}\n"
+                            "Rewrites: "
+                            "{{#ast_rewrites}}"
+                            "{{name}}-{{selected}} "
+                            "{{/ast_rewrites}}"),
+      result));
+  EXPECT_THAT(result, ContainsRegex("Catalog:.* none-selected .*"));
+  EXPECT_THAT(result, ContainsRegex("Features:.* MAXIMUM-selected .*"));
+  EXPECT_THAT(result, ContainsRegex("Rewrites:.* ALL_MINUS_DEV-selected "));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledLanguageFeaturesTextAddsFeature) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "FROM (SELECT 1)", "none", "NONE", "+PIPES",
+                             "ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}error:{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  // Adding PIPES enables the piped query syntax.
+  EXPECT_THAT(result, Not(HasSubstr("error:")));
+}
+
+TEST(ExecuteQueryWebHandlerTest,
+     TestEnabledLanguageFeaturesTextRemovesFeature) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "FROM (SELECT 1)", "none", "MAXIMUM", "-PIPES",
+                             "ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}error:{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  // Removing PIPES disables the piped query syntax.
+  EXPECT_THAT(result, HasSubstr("error:INVALID_ARGUMENT: Syntax error"));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledLanguageFeaturesTextError) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM", "+INVALID",
+                             "ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(
+      result,
+      AllOf(HasSubstr("Error parsing enabled language features:"),
+            HasSubstr("Invalid Feature entry: INVALID. Enum value not found")));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledLanguageFeaturesTextPrefixError) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM",
+                             "+FEATURE_TABLESAMPLE", "ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(
+      result,
+      AllOf(HasSubstr("Error parsing enabled language features:"),
+            HasSubstr("Invalid Feature entry: FEATURE_TABLESAMPLE. For "
+                      "consistency, do not include the FEATURE_ prefix")));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledLanguageFeaturesTextPrefixError2) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"execute"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM", "TABLESAMPLE",
+                             "ALL_MINUS_DEV", ""),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(result,
+              AllOf(HasSubstr("Error parsing enabled language features:"),
+                    HasSubstr("Invalid Feature entry: TABLESAMPLE. Entries "
+                              "should be prefixed with")));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextAddSubtract) {
+  std::string result;
+  std::string query =
+      "SELECT FLATTEN(a1.a2) FROM (SELECT ARRAY<STRUCT<a2 "
+      "ARRAY<INT64>>>[STRUCT([1]), STRUCT([1])] AS a1)";
+  std::string expected_text_without_rewrite =
+      ("<span class=\"ast-node\">Flatten</span>");
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard, query,
+                             "none", "MAXIMUM", "", "NONE", "+FLATTEN"),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#result_analyzed_post_rewrite}}"
+                            "rewrites applied: "
+                            "{{{result_analyzed_post_rewrite}}}"
+                            "{{/result_analyzed_post_rewrite}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(result, HasSubstr("rewrites applied:"));
+  EXPECT_THAT(result, Not(HasSubstr(expected_text_without_rewrite)));
+
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard, query,
+                             "none", "MAXIMUM", "", "DEFAULTS", "-FLATTEN"),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#result_analyzed}}"
+                            "{{{result_analyzed}}}"
+                            "{{/result_analyzed}}"
+                            "{{#result_analyzed_post_rewrite}}"
+                            "rewrites applied!"
+                            "{{/result_analyzed_post_rewrite}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(result, Not(HasSubstr("rewrites applied!")));
+  EXPECT_THAT(result, HasSubstr(expected_text_without_rewrite));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextError) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM", "", "ALL",
+                             "+INVALID"),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(
+      result,
+      AllOf(HasSubstr("Error parsing enabled AST rewrites:"),
+            HasSubstr("Invalid Rewrite entry: INVALID. Enum value not found")));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextPrefixError) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM", "", "ALL",
+                             "+REWRITE_FLATTEN"),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(
+      result,
+      AllOf(HasSubstr("Error parsing enabled AST rewrites:"),
+            HasSubstr("Invalid Rewrite entry: REWRITE_FLATTEN. For "
+                      "consistency, do not include the REWRITE_ prefix")));
+}
+
+TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextPrefixError2) {
+  std::string result;
+  EXPECT_TRUE(HandleRequest(
+      ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
+                             SQLBuilder::TargetSyntaxMode::kStandard,
+                             "SELECT 1", "none", "MAXIMUM", "", "ALL",
+                             "FLATTEN"),
+      FakeQueryWebTemplates("{{> body}}", "",
+                            "{{#statements}}"
+                            "{{#error}}{{{error}}}{{/error}}"
+                            "{{/statements}}"),
+      result));
+  EXPECT_THAT(result, AllOf(HasSubstr("Error parsing enabled AST rewrites:"),
+                            HasSubstr("Invalid Rewrite entry: FLATTEN. Entries "
+                                      "should be prefixed with")));
 }
 
 }  // namespace googlesql

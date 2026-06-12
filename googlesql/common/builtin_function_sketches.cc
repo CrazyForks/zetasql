@@ -42,6 +42,8 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"

@@ -162,8 +162,8 @@ TEST(Convert, Int32) {
   TestMonotonicity<int32_t, uint32_t>(kInt32Max);
   TestMonotonicity<int32_t, uint64_t>(kInt32Max);
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<int32_t, float>(kInt32Max / 2);
-  TestMonotonicity<int32_t, float>(kInt32Min);
+  TestMonotonicity<int32_t, float>(static_cast<float>(kInt32Max / 2));
+  TestMonotonicity<int32_t, float>(static_cast<float>(kInt32Min));
   TestMonotonicity<int32_t, double>(kInt32Max);
   TestMonotonicity<int32_t, double>(kInt32Min);
 }
@@ -176,11 +176,11 @@ TEST(Convert, Int64) {
   TestMonotonicity<int64_t, uint32_t>(kUInt32Max);
   TestMonotonicity<int64_t, uint64_t>(kInt64Max);
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<int64_t, float>(kInt64Max / 2);
-  TestMonotonicity<int64_t, float>(kInt64Min);
+  TestMonotonicity<int64_t, float>(static_cast<float>(kInt64Max / 2));
+  TestMonotonicity<int64_t, float>(static_cast<float>(kInt64Min));
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<int64_t, double>(kInt64Max / 2);
-  TestMonotonicity<int64_t, double>(kInt64Min);
+  TestMonotonicity<int64_t, double>(static_cast<double>(kInt64Max / 2));
+  TestMonotonicity<int64_t, double>(static_cast<double>(kInt64Min));
 }
 
 TEST(Convert, Uint32) {
@@ -189,7 +189,7 @@ TEST(Convert, Uint32) {
   TestMonotonicity<uint32_t, uint32_t>(kUInt32Max);
   TestMonotonicity<uint32_t, uint64_t>(kUInt32Max);
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<uint32_t, float>(kUInt32Max / 2);
+  TestMonotonicity<uint32_t, float>(static_cast<float>(kUInt32Max / 2));
   TestMonotonicity<uint32_t, double>(kUInt32Max);
 }
 
@@ -199,9 +199,9 @@ TEST(Convert, Uint64) {
   TestMonotonicity<uint64_t, uint32_t>(kUInt32Max);
   TestMonotonicity<uint64_t, uint64_t>(kUInt64Max);
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<uint64_t, float>(kUInt64Max / 2);
+  TestMonotonicity<uint64_t, float>(static_cast<float>(kUInt64Max / 2));
   // Divide max by 2 to avoid overflow in static_cast().
-  TestMonotonicity<uint64_t, double>(kUInt64Max / 2);
+  TestMonotonicity<uint64_t, double>(static_cast<double>(kUInt64Max / 2));
 }
 
 TEST(Convert, Float) {

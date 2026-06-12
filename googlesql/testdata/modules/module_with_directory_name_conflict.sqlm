@@ -1,0 +1,10 @@
+# This module takes part in a test where this module file name conflicts
+# with a directory with the same name, that has a module inside with the
+# same name.  Specifically, this file is intended to test a scenario
+# where the import statement is of the form "IMPORT a.b.c", which should
+# look up the module file at "a/b/c.sqlm" even though there is another
+# module file at "a/b/c/c.sqlm".
+
+MODULE module_with_directory_name_conflict_good;
+
+CREATE PUBLIC FUNCTION function_good(a INT32) AS (a);

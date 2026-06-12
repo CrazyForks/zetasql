@@ -5712,7 +5712,7 @@ class ParseTimestampTest {
         nano_expected_result_(nano_expected_result),
         pico_expected_result_(pico_expected_result) {}
 
-  ~ParseTimestampTest() {}
+  ~ParseTimestampTest() = default;
 
   const std::string& format() const { return format_; }
   const std::string& timestamp_string() const { return timestamp_string_; }
@@ -7270,7 +7270,7 @@ class CastStringToTimestampTest : public ParseTimestampTest {
                            pico_expected_result),
         current_timestamp_(current_timestamp) {}
 
-  ~CastStringToTimestampTest() {}
+  ~CastStringToTimestampTest() = default;
 
   absl::Time current_timestamp() const { return current_timestamp_; }
 

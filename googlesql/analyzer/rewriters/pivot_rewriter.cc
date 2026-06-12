@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "googlesql/analyzer/expr_resolver_helper.h"
+#include "googlesql/analyzer/query_resolver_helper.h"
 #include "googlesql/analyzer/substitute.h"
 #include "googlesql/common/aggregate_null_handling.h"
 #include "googlesql/public/analyzer_options.h"
@@ -48,12 +49,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -355,6 +356,9 @@ absl::Status PivotRewriterVisitor::VisitResolvedPivotScan(
           /*rollup_column_list=*/{},
           /*grouping_call_list=*/{});
 
+  GOOGLESQL_RETURN_IF_ERROR(
+      SetCollationList(analyzer_options_.language(), *aggregate_result));
+
   std::unique_ptr<ResolvedScan> result;
   if (!output_computed_columns_to_aggregate_column.empty()) {
     GOOGLESQL_ASSIGN_OR_RETURN(result,
@@ -393,10 +397,9 @@ PivotRewriterVisitor::AddPostAggregationLogicForAnyValue(
         AnalyzeSubstitute(
             analyzer_options_, *catalog_, *type_factory_,
             "agg_result[OFFSET(0)]",
-            {{"agg_result",
-              MakeResolvedColumnRef(aggregate_column.type(), aggregate_column,
-                                    /*is_correlated=*/false)
-                  .get()}}));
+            {{"agg_result", MakeResolvedColumnRef(aggregate_column,
+                                                  /*is_correlated=*/false)
+                                .get()}}));
     if (column.type()->IsArray()) {
       // To avoid arrays of arrays, the input to ANY_VALUE() is wrapped in
       // a struct, pre-aggregation, so we need to extract out the field, here,
@@ -523,8 +526,10 @@ PivotRewriterVisitor::RewriteAnyValuePivotExpr(
                                       analyzer_options_.find_options()));
   GOOGLESQL_RET_CHECK(array_agg_fn->IsGoogleSQLBuiltin());
   const ArrayType* array_type;
-  std::vector<std::unique_ptr<const ResolvedExpr>> array_agg_args;
-  if (arg->type()->IsArray()) {
+  std::unique_ptr<const ResolvedExpr> array_agg_arg;
+  if (arg->type()->IsArray() &&
+      !analyzer_options_.language().LanguageFeatureEnabled(
+          FEATURE_ARRAY_OF_ARRAY)) {
     // Need to wrap the ANY_VALUE() argument in a struct before passing it to
     // ARRAY_AGG(), to work around no GoogleSQL support for arrays of arrays.
     // The struct will be unpacked post-aggregation.
@@ -534,29 +539,29 @@ PivotRewriterVisitor::RewriteAnyValuePivotExpr(
     GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeArrayType(struct_type, &array_type));
 
     GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<const ResolvedExpr> array_agg_arg,
+        array_agg_arg,
         AnalyzeSubstitute(analyzer_options_, *catalog_, *type_factory_,
                           "IF(arg IS NULL, NULL, STRUCT(arg))", {{"arg", arg}}),
         _.With(ExpectAnalyzeSubstituteSuccess));
-    array_agg_args.push_back(std::move(array_agg_arg));
   } else {
     GOOGLESQL_RETURN_IF_ERROR(type_factory_->MakeArrayType(arg->type(), &array_type));
-    array_agg_args = std::move(agg_fn_args);
+    array_agg_arg = std::move(agg_fn_args[0]);
   }
-  FunctionSignature array_agg_sig(
-      {array_type, 1}, {{array_type->element_type(), 1}}, FN_ARRAY_AGG);
 
-  return MakeResolvedAggregateFunctionCall(
-      array_type, array_agg_fn, array_agg_sig, std::move(array_agg_args), {},
-      call->error_mode(), call->distinct(),
-      ResolvedNonScalarFunctionCallBaseEnums::IGNORE_NULLS,
-      /*where_expr=*/nullptr, call->release_having_modifier(),
-      call->release_order_by_item_list(),
-      /*limit=*/MakeResolvedLiteral(Value::Int64(1)),
-      call->function_call_info(),
-      /*group_by_list=*/{},
-      /*group_by_aggregate_list=*/{},
-      /*having_expr=*/nullptr);
+  // Build a base aggregate function call then add the modifiers.
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto array_agg_call,
+      fn_builder_.ArrayAgg(std::move(array_agg_arg), /*having_expr=*/nullptr));
+  GOOGLESQL_RET_CHECK(array_agg_call->collation_list().empty());
+
+  return ToBuilder(std::move(array_agg_call))
+      .set_error_mode(call->error_mode())
+      .set_distinct(call->distinct())
+      .set_null_handling_modifier(ResolvedAggregateFunctionCall::IGNORE_NULLS)
+      .set_order_by_item_list(call->release_order_by_item_list())
+      .set_limit(MakeResolvedLiteral(Value::Int64(1)))
+      .set_function_call_info(call->function_call_info())
+      .Build();
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
@@ -569,8 +574,8 @@ PivotRewriterVisitor::RewriteCountStarPivotExpr(
   // with
   //  COUNTIF(<pivot_column> IS NOT DISTINCT FROM <pivot value expr>)
   //
-  std::unique_ptr<ResolvedColumnRef> pivot_column_ref = MakeResolvedColumnRef(
-      pivot_column.type(), pivot_column, /*is_correlated=*/false);
+  auto pivot_column_ref =
+      MakeResolvedColumnRef(pivot_column, /*is_correlated=*/false);
   std::unique_ptr<const ResolvedExpr> countif_arg;
   if (analyzer_options_.language().LanguageFeatureEnabled(
           FEATURE_IS_DISTINCT) &&
@@ -598,10 +603,13 @@ PivotRewriterVisitor::RewriteCountStarPivotExpr(
                                       analyzer_options_.find_options()));
   GOOGLESQL_RET_CHECK(countif_fn->IsGoogleSQLBuiltin());
   FunctionArgumentType int64_arg = FunctionArgumentType(types::Int64Type(), 1);
+  int64_arg.set_original_kind(ARG_TYPE_FIXED);
   FunctionArgumentType bool_arg = FunctionArgumentType(types::BoolType(), 1);
+  bool_arg.set_original_kind(ARG_TYPE_FIXED);
+
   FunctionSignature countif_sig(int64_arg, {bool_arg}, FN_COUNTIF);
 
-  return MakeResolvedAggregateFunctionCall(
+  auto countif_call = MakeResolvedAggregateFunctionCall(
       types::Int64Type(), countif_fn, countif_sig, std::move(countif_args), {},
       call->error_mode(), call->distinct(), call->null_handling_modifier(),
       /*where_expr=*/nullptr, call->release_having_modifier(),
@@ -610,6 +618,10 @@ PivotRewriterVisitor::RewriteCountStarPivotExpr(
       /*group_by_list=*/{},
       /*group_by_aggregate_list=*/{},
       /*having_expr=*/nullptr);
+  GOOGLESQL_RETURN_IF_ERROR(fn_builder_.PropagateAnnotationsAndProcessCollationList(
+      countif_call.get()));
+  GOOGLESQL_RET_CHECK(countif_call->collation_list().empty());
+  return countif_call;
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
@@ -649,8 +661,8 @@ PivotRewriterVisitor::MakeAggregateExpr(
   }
 
   // General case for remaining aggregate functions.
-  std::unique_ptr<ResolvedColumnRef> pivot_column_ref = MakeResolvedColumnRef(
-      pivot_column.type(), pivot_column, /*is_correlated=*/false);
+  auto pivot_column_ref =
+      MakeResolvedColumnRef(pivot_column, /*is_correlated=*/false);
   std::vector<std::unique_ptr<const ResolvedExpr>> agg_fn_args;
 
   // Because "ignores nulls" behavior means skipping rows when *any* input
@@ -662,8 +674,7 @@ PivotRewriterVisitor::MakeAggregateExpr(
   if (!agg_fn_arg_columns.empty()) {
     std::unique_ptr<ResolvedExpr> orig_arg;
     if (agg_fn_arg_columns[0].IsInitialized()) {
-      orig_arg = MakeResolvedColumnRef(agg_fn_arg_columns[0].type(),
-                                       agg_fn_arg_columns[0],
+      orig_arg = MakeResolvedColumnRef(agg_fn_arg_columns[0],
                                        /*is_correlated=*/false);
     } else {
       GOOGLESQL_ASSIGN_OR_RETURN(orig_arg, ProcessNode(call->argument_list(0)));
@@ -677,11 +688,10 @@ PivotRewriterVisitor::MakeAggregateExpr(
       // Build the expression
       //   IF(pivot_column IS NOT DISTINCT FROM pivot_value, orig_arg, NULL)
       GOOGLESQL_ASSIGN_OR_RETURN(
-          std::unique_ptr<const ResolvedExpr> pivot_column_not_distinct_expr,
+          auto pivot_column_not_distinct_expr,
           fn_builder_.IsNotDistinctFrom(std::move(pivot_column_ref),
                                         std::move(pivot_value_expr_copy)));
-      std::unique_ptr<ResolvedLiteral> null_literal =
-          MakeResolvedLiteral(Value::Null(orig_arg->type()));
+      auto null_literal = MakeResolvedLiteral(Value::Null(orig_arg->type()));
       GOOGLESQL_ASSIGN_OR_RETURN(
           agg_fn_arg,
           fn_builder_.If(std::move(pivot_column_not_distinct_expr),
@@ -703,9 +713,8 @@ PivotRewriterVisitor::MakeAggregateExpr(
 
     for (int i = 1; i < agg_fn_arg_columns.size(); ++i) {
       if (agg_fn_arg_columns[i].IsInitialized()) {
-        agg_fn_args.push_back(MakeResolvedColumnRef(
-            agg_fn_arg_columns[i].type(), agg_fn_arg_columns[i],
-            /*is_correlated=*/false));
+        agg_fn_args.push_back(MakeResolvedColumnRef(agg_fn_arg_columns[i],
+                                                    /*is_correlated=*/false));
       } else {
         GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> arg_copy,
                          ProcessNode(call->argument_list(i)));
@@ -719,7 +728,7 @@ PivotRewriterVisitor::MakeAggregateExpr(
                                     pivot_column);
   }
 
-  return MakeResolvedAggregateFunctionCall(
+  auto new_call = MakeResolvedAggregateFunctionCall(
       call->type(), call->function(), call->signature(), std::move(agg_fn_args),
       {}, call->error_mode(), call->distinct(), call->null_handling_modifier(),
       /*where_expr=*/nullptr, call_copy->release_having_modifier(),
@@ -728,6 +737,24 @@ PivotRewriterVisitor::MakeAggregateExpr(
       /*group_by_list=*/{},
       /*group_by_aggregate_list=*/{},
       /*having_expr=*/nullptr);
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      fn_builder_.PropagateAnnotationsAndProcessCollationList(new_call.get()));
+
+  // Output annotations and collation lists should be identical to the original
+  // function call.
+  GOOGLESQL_RET_CHECK(AnnotationMap::Equals(new_call->type_annotation_map(),
+                                  call->type_annotation_map()));
+
+  GOOGLESQL_RET_CHECK_EQ(new_call->collation_list().size(),
+               call->collation_list().size());
+  for (int i = 0; i < new_call->collation_list().size(); ++i) {
+    GOOGLESQL_RET_CHECK(new_call->collation_list(i).Equals(call->collation_list(i)))
+        << "Different collations found at index " << i << ": new is "
+        << new_call->collation_list(i).DebugString() << " vs the old "
+        << call->collation_list(i).DebugString();
+  }
+  return new_call;
 }
 }  // namespace
 

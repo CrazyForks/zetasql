@@ -202,7 +202,7 @@ DEFINE MACRO ``;
 # Macro name is empty
 DEFINE MACRO ;
 --
-ERROR: Syntax error: Expected macro name but got ";" [at 1:14]
+ERROR: Syntax error: Unexpected ";" [at 1:14]
 DEFINE MACRO ;
              ^
 ==
@@ -218,7 +218,7 @@ DEFINE MACRO ``
 # Macro name is empty, no semicolon
 DEFINE MACRO
 --
-ERROR: Syntax error: Expected macro name but got end of statement [at 1:13]
+ERROR: Syntax error: Unexpected end of statement [at 1:13]
 DEFINE MACRO
             ^
 ==

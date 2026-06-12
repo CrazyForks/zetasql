@@ -25,9 +25,9 @@
 #include "googlesql/parser/parse_tree_errors.h"
 #include "googlesql/public/id_string.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

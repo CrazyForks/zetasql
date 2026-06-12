@@ -1606,7 +1606,7 @@ ST_CONTAINS(geography_1, geography_2)
 Returns `TRUE` if no point of `geography_2` is outside `geography_1`, and
 the interiors intersect; returns `FALSE` otherwise.
 
-NOTE: A `GEOGRAPHY` *does not* contain its own
+Note: A `GEOGRAPHY` *does not* contain its own
 boundary. Compare with [`ST_COVERS`][st_covers].
 
 **Return type**
@@ -2538,7 +2538,7 @@ negative west of the Prime Meridian, positive east) and latitude (in degrees,
 positive north of the Equator, negative south) parameters and returns that point
 in a `GEOGRAPHY` value.
 
-NOTE: Some systems present latitude first; take care with argument order.
+Note: Some systems present latitude first; take care with argument order.
 
 **Constraints**
 
@@ -3077,7 +3077,7 @@ ST_ISEMPTY(geography_expression)
 Returns `TRUE` if the given `GEOGRAPHY` is empty; that is, the `GEOGRAPHY`
 doesn't contain any points, lines, or polygons.
 
-NOTE: An empty `GEOGRAPHY` isn't associated with a particular geometry shape.
+Note: An empty `GEOGRAPHY` isn't associated with a particular geometry shape.
 For example, the results of expressions `ST_GEOGFROMTEXT('POINT EMPTY')` and
 `ST_GEOGFROMTEXT('GEOMETRYCOLLECTION EMPTY')` are identical.
 
@@ -3366,7 +3366,7 @@ element in the input `ARRAY` is `NULL`, `ST_MAKELINE` returns `NULL`.
 
 Every edge must span strictly less than 180 degrees.
 
-NOTE: The GoogleSQL snapping process may discard sufficiently short
+Note: The GoogleSQL snapping process may discard sufficiently short
 edges and snap the two endpoints together. For instance, if two input
 `GEOGRAPHY`s each contain a point and the two points are separated by a distance
 less than the snap radius, the points will be snapped together. In such a case
@@ -3374,7 +3374,44 @@ the result will be a `GEOGRAPHY` with exactly one point.
 
 **Return type**
 
-LineString `GEOGRAPHY`
++  LineString `GEOGRAPHY`
++  MultiLineString `GEOGRAPHY` (if the snapped input contains self-overlapping
+   lines)
++  Point `GEOGRAPHY` (if the input contains a single point only)
+
+**Example**
+
+The following example constructs different types of `GEOGRAPHY`s:
+
+```googlesql
+WITH segments AS (
+    SELECT 1 AS id, [ST_GEOGPOINT(1, 2), ST_GEOGPOINT(2, 3)] AS geos
+    UNION ALL
+    SELECT 2, [ST_GEOGPOINT(1, 2), ST_GEOGPOINT(1, 2)]
+    UNION ALL
+    SELECT
+      3, [ ST_MAKELINE(ST_GEOGPOINT(1, 2), ST_GEOGPOINT(2, 3)),
+           ST_MAKELINE(ST_GEOGPOINT(2, 3), ST_GEOGPOINT(3, 4)),
+           ST_MAKELINE(ST_GEOGPOINT(3, 4), ST_GEOGPOINT(4, 5))]
+    UNION ALL
+    SELECT
+      4, [ ST_MAKELINE(ST_GEOGPOINT(1, 0), ST_GEOGPOINT(10, 0)),
+           ST_MAKELINE(ST_GEOGPOINT(10, 0), ST_GEOGPOINT(5, 0)),
+           ST_MAKELINE(ST_GEOGPOINT(5, 0), ST_GEOGPOINT(5, 4))]
+  )
+SELECT
+  id, ST_MAKELINE(geos) AS constructed_line
+FROM segments;
+
+/*----+-------------------------------------------------------+
+ | id | constructed_line                                      |
+ +----+-------------------------------------------------------+
+ | 1  | LINESTRING(1 2, 2 3)                                  |
+ | 2  | POINT(1 2)                                            |
+ | 3  | LINESTRING(1 2, 2 3, 3 4, 4 5)                        |
+ | 4  | MULTILINESTRING((1 0, 5 0, 10 0), (5 0, 5 4))         |
+ +----+-------------------------------------------------------*/
+```
 
 ## `ST_MAKEPOLYGON`
 
@@ -3408,7 +3445,7 @@ For the first variant of `ST_MAKEPOLYGON`, if either input `GEOGRAPHY` is
 input `ARRAY` or any element in the `ARRAY` is `NULL`, `ST_MAKEPOLYGON` returns
 `NULL`.
 
-NOTE: `ST_MAKEPOLYGON` accepts an empty `GEOGRAPHY` as input. `ST_MAKEPOLYGON`
+Note: `ST_MAKEPOLYGON` accepts an empty `GEOGRAPHY` as input. `ST_MAKEPOLYGON`
 interprets an empty `GEOGRAPHY` as having an empty linestring, which will
 create a full loop: that is, a polygon that covers the entire Earth.
 
@@ -3430,7 +3467,7 @@ polygon hole, so the interior of the polygon is already well-defined. In order
 to define a polygon shell such that the interior of the polygon is the larger of
 the two regions, see [`ST_MAKEPOLYGONORIENTED`][st-makepolygonoriented].
 
-NOTE: The GoogleSQL snapping process may discard sufficiently
+Note: The GoogleSQL snapping process may discard sufficiently
 short edges and snap the two endpoints together. Hence, when vertices are
 snapped together, it's possible that a polygon hole that's sufficiently small
 may disappear, or the output `GEOGRAPHY` may contain only a line or a
@@ -3464,7 +3501,7 @@ critical in order to construct the desired polygon.
 If the input `ARRAY` or any element in the `ARRAY` is `NULL`,
 `ST_MAKEPOLYGONORIENTED` returns `NULL`.
 
-NOTE: The input argument for `ST_MAKEPOLYGONORIENTED` may contain an empty
+Note: The input argument for `ST_MAKEPOLYGONORIENTED` may contain an empty
 `GEOGRAPHY`. `ST_MAKEPOLYGONORIENTED` interprets an empty `GEOGRAPHY` as having
 an empty linestring, which will create a full loop: that is, a polygon that
 covers the entire Earth.
@@ -3487,7 +3524,7 @@ polygon holes to have the opposite orientation of the shell. See
 [`ST_MAKEPOLYGON`][st-makepolygon] for an alternate polygon constructor, and
 other constraints on building a valid polygon.
 
-NOTE: Due to the GoogleSQL snapping process, edges with a sufficiently
+Note: Due to the GoogleSQL snapping process, edges with a sufficiently
 short length will be discarded and the two endpoints will be snapped to a single
 point. Therefore, it's possible that vertices in a linestring may be snapped
 together such that one or more edge disappears. Hence, it's possible that a
@@ -3602,7 +3639,7 @@ Returns the number of vertices in the input
 `GEOGRAPHY`. This includes the number of points, the
 number of linestring vertices, and the number of polygon vertices.
 
-NOTE: The first and last vertex of a polygon ring are counted as distinct
+Note: The first and last vertex of a polygon ring are counted as distinct
 vertices.
 
 **Return type**

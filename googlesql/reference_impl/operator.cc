@@ -23,23 +23,31 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/thread_stack.h"
+#include "googlesql/public/collator.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
+#include "googlesql/public/types/type_factory.h"
+#include "googlesql/reference_impl/evaluation.h"
 #include "googlesql/reference_impl/tuple.h"
 #include "googlesql/reference_impl/variable_id.h"
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/stl_util.h"
 #include "googlesql/base/ret_check.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -330,12 +338,58 @@ std::string KeyArg::DebugInternal(const std::string& indent,
       break;
   }
 
-  if (collation() != nullptr) {
-    absl::StrAppend(&sort,
-                    " collation=", collation()->DebugInternal(indent, verbose));
+  if (collation_.collator != nullptr) {
+    absl::StrAppend(&sort, " collator=", collation_.collator->DebugString());
+  } else if (collation_name_ != nullptr) {
+    absl::StrAppend(&sort, " collation_name=",
+                    collation_name()->DebugInternal(indent, verbose));
   }
 
   return absl::StrCat(ExprArg::DebugInternal(indent, verbose), sort);
+}
+
+absl::StatusOr<CollatorPtrInfo> KeyArg::GetCollator(
+    EvaluationContext* context,
+    absl::Span<const TupleData* const> params) const {
+  if (collation_.collator != nullptr) {
+    return {{collation_.collator.get(), collation_.collation_key_type}};
+  }
+  if (collation_name_ == nullptr) {
+    GOOGLESQL_RET_CHECK(collation_.collator == nullptr);
+    return {{nullptr, nullptr}};
+  }
+
+  // Need to evaluate collation_name_
+  TupleSlot collation_slot;
+  absl::Status status;
+  if (!collation_name_->EvalSimple(params, context, &collation_slot, &status)) {
+    return status;
+  }
+
+  const Value& collation_value = collation_slot.value();
+  if (collation_value.is_null()) {
+    return ::googlesql_base::OutOfRangeErrorBuilder()
+           << "COLLATE requires non-NULL collation name";
+  }
+  if (!collation_value.type()->IsString()) {
+    return ::googlesql_base::InternalErrorBuilder()
+           << "Collation name expression must return STRING, but got "
+           << collation_value.type()->DebugString();
+  }
+
+  const std::string& collation_name = collation_value.string_value();
+  if (context != nullptr &&
+      context->GetLanguageOptions().LanguageFeatureEnabled(
+          FEATURE_DISALLOW_LEGACY_UNICODE_COLLATION) &&
+      absl::StartsWith(collation_name, "unicode:")) {
+    return ::googlesql_base::OutOfRangeErrorBuilder()
+           << "COLLATE has invalid collation name '" << collation_name << "'";
+  }
+
+  collation_name_ = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(collation_.collator, MakeSqlCollator(collation_name));
+  collation_.collation_key_type = types::BytesType();
+  return {{collation_.collator.get(), collation_.collation_key_type}};
 }
 
 // -------------------------------------------------------

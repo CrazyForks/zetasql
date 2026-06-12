@@ -22,7 +22,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,6 +66,7 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -82,7 +82,6 @@
 #include "googlesql/base/status.h"
 #include "google/rpc/status.pb.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 using googlesql::values::Bool;
 
@@ -1299,6 +1298,55 @@ ValueExpr* SingleValueExpr::mutable_value() {
 }
 
 // -------------------------------------------------------
+// DiscardResultExpr
+// -------------------------------------------------------
+
+absl::StatusOr<std::unique_ptr<DiscardResultExpr>> DiscardResultExpr::Create(
+    std::unique_ptr<ValueExpr> input) {
+  return absl::WrapUnique(new DiscardResultExpr(std::move(input)));
+}
+
+absl::Status DiscardResultExpr::SetSchemasForEvaluation(
+    absl::Span<const TupleSchema* const> params_schemas) {
+  return mutable_input()->SetSchemasForEvaluation(params_schemas);
+}
+
+bool DiscardResultExpr::Eval(absl::Span<const TupleData* const> params,
+                             EvaluationContext* context,
+                             VirtualTupleSlot* result,
+                             absl::Status* status) const {
+  Value input_value;
+  std::shared_ptr<TupleSlot::SharedProtoState> input_shared_state;
+  VirtualTupleSlot dummy_slot(&input_value, &input_shared_state);
+
+  if (!input()->Eval(params, context, &dummy_slot, status)) {
+    return false;
+  }
+
+  result->SetValue(Value());
+  return true;
+}
+
+std::string DiscardResultExpr::DebugInternal(const std::string& indent,
+                                             bool verbose) const {
+  return absl::StrCat("DiscardResultExpr(",
+                      ArgDebugString({"input"}, {k1}, indent, verbose), ")");
+}
+
+DiscardResultExpr::DiscardResultExpr(std::unique_ptr<ValueExpr> input)
+    : ValueExpr(input->output_type()) {
+  SetArg(kInput, std::make_unique<ExprArg>(std::move(input)));
+}
+
+const ValueExpr* DiscardResultExpr::input() const {
+  return GetArg(kInput)->node()->AsValueExpr();
+}
+
+ValueExpr* DiscardResultExpr::mutable_input() {
+  return GetMutableArg(kInput)->mutable_node()->AsMutableValueExpr();
+}
+
+// -------------------------------------------------------
 // ExistsExpr
 // -------------------------------------------------------
 
@@ -1434,17 +1482,14 @@ bool ScalarFunctionCallExpr::Eval(absl::Span<const TupleData* const> params,
         return false;
       }
       GOOGLESQL_DCHECK_OK(*status);
-
-      const uint64_t arg_memory_usage = call_args.back().physical_byte_size();
-      absl::Status accountant_status;
-      const bool has_enough_memory = memory_reservation.IncreaseUInt64(
-          arg_memory_usage, &accountant_status);
-
       if (!context->options().enable_function_args_memory_accounting) {
         continue;
       }
 
-      if (!has_enough_memory || !accountant_status.ok()) {
+      if (absl::Status accountant_status;
+          !memory_reservation.IncreaseUInt64(
+              call_args.back().physical_byte_size(), &accountant_status) ||
+          !accountant_status.ok()) {
         // Return the bytes that were requested so far.
         *status = std::move(accountant_status);
         return false;
@@ -3128,38 +3173,61 @@ absl::StatusOr<Value> DMLUpdateValueExpr::UpdateNode::GetNewValue(
   }
 }
 
+bool DMLUpdateValueExpr::UpdateNode::HasAnySqlNonNullLeaf() const {
+  if (is_leaf()) {
+    return !leaf_value().is_null();
+  }
+  for (const auto& entry : child_map()) {
+    if (entry.second->HasAnySqlNonNullLeaf()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 absl::Status DMLUpdateValueExpr::UpdateNode::GetNewJsonValueHelper(
     JSONValueRef json_ref, const UpdateNode& update_node,
     EvaluationContext* context) const {
-  for (const auto& entry : update_node.child_map()) {
-    const UpdatePathComponent& component = entry.first;
-    const UpdateNode& update_node = *entry.second;
+  // Reverse iterate through the map to ensure that array element removals
+  // happen from largest index to smallest. This avoids shifting indices
+  // for elements that are yet to be removed.
+  for (auto it = update_node.child_map().rbegin();
+       it != update_node.child_map().rend(); ++it) {
+    const UpdatePathComponent& component = it->first;
+    const UpdateNode& child_update_node = *it->second;
     GOOGLESQL_RET_CHECK(component.kind() == UpdatePathComponent::Kind::JSON_FIELD ||
               component.kind() == UpdatePathComponent::Kind::ARRAY_OFFSET)
         << "Unexpected non-json UpdatePathComponent::Kind in "
         << "GetNewJsonValue(): "
         << UpdatePathComponent::GetKindString(component.kind());
-    // If a JSON is used to update a non-object or a non-null JSON,
-    // an error will be thrown as this is an invalid JSON path update.
+
     if (component.kind() == UpdatePathComponent::Kind::JSON_FIELD) {
+      // If the path component is a JSON field we expect the JSON value to be
+      // an object or null. Return an error if it is neither.
       if (!json_ref.IsObject() && !json_ref.IsNull()) {
         return googlesql_base::OutOfRangeErrorBuilder()
-               << "Cannot SET field of non-object "
-               << "JSON value.";
+               << "Cannot SET field of non-object JSON value.";
       }
       const std::string& json_field_name = component.json_field_name();
-      if (update_node.is_leaf()) {
-        if (update_node.leaf_value().is_null()) {
-          json_ref.GetMember(json_field_name).SetNull();
-        } else {
+      if (child_update_node.is_leaf() &&
+          child_update_node.leaf_value().is_null()) {
+        if (json_ref.HasMember(json_field_name)) {
+          GOOGLESQL_RETURN_IF_ERROR(json_ref.RemoveMember(json_field_name).status());
+        }
+      } else if (json_ref.HasMember(json_field_name) ||
+                 child_update_node.HasAnySqlNonNullLeaf()) {
+        // Only create a new JSON value in the case that some non-SQL NULL
+        // value is being assigned
+        JSONValueRef member_ref = json_ref.GetMember(json_field_name);
+        if (child_update_node.is_leaf()) {
           GOOGLESQL_ASSIGN_OR_RETURN(googlesql::JSONValue new_json_value,
                            googlesql::JSONValue::ParseJSONString(
-                               update_node.leaf_value().json_string()));
-          json_ref.GetMember(json_field_name).Set(std::move(new_json_value));
+                               child_update_node.leaf_value().json_string()));
+          member_ref.Set(std::move(new_json_value));
+        } else {
+          GOOGLESQL_RETURN_IF_ERROR(
+              GetNewJsonValueHelper(member_ref, child_update_node, context));
         }
-      } else {
-        GOOGLESQL_RETURN_IF_ERROR(GetNewJsonValueHelper(
-            json_ref.GetMember(json_field_name), update_node, context));
       }
     } else {
       if (!json_ref.IsArray() && !json_ref.IsNull()) {
@@ -3167,21 +3235,24 @@ absl::Status DMLUpdateValueExpr::UpdateNode::GetNewJsonValueHelper(
                << "Cannot SET array offset of non-array JSON value.";
       }
       const int64_t offset = component.array_offset();
-      // Updates to JSON arrays do not support negative array offsets but will
-      // support out of bound array offsets inserting nulls until the modified
-      // index as this is the behavior of `JSON_SET`.
       if (offset < 0) {
         return googlesql_base::OutOfRangeErrorBuilder()
                << "Cannot SET negative offset of JSON array: " << offset;
       }
-      if (update_node.is_leaf()) {
-        GOOGLESQL_ASSIGN_OR_RETURN(googlesql::JSONValue new_json_value,
-                         googlesql::JSONValue::ParseJSONString(
-                             update_node.leaf_value().json_string()));
-        json_ref.GetArrayElement(offset).Set(std::move(new_json_value));
-      } else {
-        GOOGLESQL_RETURN_IF_ERROR(GetNewJsonValueHelper(json_ref.GetArrayElement(offset),
-                                              update_node, context));
+      if (child_update_node.is_leaf() &&
+          child_update_node.leaf_value().is_null()) {
+        GOOGLESQL_RETURN_IF_ERROR(json_ref.RemoveArrayElement(offset).status());
+      } else if (child_update_node.HasAnySqlNonNullLeaf()) {
+        JSONValueRef element_ref = json_ref.GetArrayElement(offset);
+        if (child_update_node.is_leaf()) {
+          GOOGLESQL_ASSIGN_OR_RETURN(googlesql::JSONValue new_json_value,
+                           googlesql::JSONValue::ParseJSONString(
+                               child_update_node.leaf_value().json_string()));
+          element_ref.Set(std::move(new_json_value));
+        } else {
+          GOOGLESQL_RETURN_IF_ERROR(
+              GetNewJsonValueHelper(element_ref, child_update_node, context));
+        }
       }
     }
   }
@@ -3581,18 +3652,12 @@ absl::Status DMLUpdateValueExpr::AddToUpdateMap(
               ? "subscript"
               : "offset";
 
-      // TODO: ahirschberg - Migrate to use "on type" in all cases. For now,
-      // "of an" is preserved only for the existing ARRAY case.
-      const std::string word_before_typename =
-          update_item->target()->type()->IsArray() ? "of an" : "on type";
-
       return googlesql_base::OutOfRangeErrorBuilder() << absl::Substitute(
-                 "Cannot perform multiple updates to $0 $1 $2 "
-                 "$3",
+                 "Cannot perform multiple updates to $0 $1 on type "
+                 "$2",
                  subscript_or_offset,
                  subscript_value.GetSQLLiteral(
                      context->GetLanguageOptions().product_mode()),
-                 word_before_typename,
                  update_item->target()->type()->TypeName(
                      context->GetLanguageOptions().product_mode()));
     }
@@ -4203,7 +4268,7 @@ absl::StatusOr<Value> DMLInsertValueExpr::Eval(
 
   GOOGLESQL_ASSIGN_OR_RETURN(int64_t num_rows_modified,
                    InsertRows(insert_column_map, rows_to_insert,
-                              dml_returning_rows, context, &row_map));
+                              dml_returning_rows, params, context, &row_map));
 
   GOOGLESQL_RETURN_IF_ERROR(VerifyNumRowsModified(stmt()->assert_rows_modified(), params,
                                         num_rows_modified, context));
@@ -4456,7 +4521,8 @@ absl::StatusOr<int64_t> DMLInsertValueExpr::InsertRows(
     const InsertColumnMap& insert_column_map,
     std::vector<std::vector<Value>>& rows_to_insert,
     std::vector<std::vector<Value>>& dml_returning_rows,
-    EvaluationContext* context, PrimaryKeyRowMap* row_map) const {
+    absl::Span<const TupleData* const> params, EvaluationContext* context,
+    PrimaryKeyRowMap* row_map) const {
   absl::flat_hash_map<Value, int, ValueHasher> modified_primary_keys;
   const int64_t max_original_row_number = row_map->size() - 1;
   bool found_primary_key_collision = false;
@@ -4560,11 +4626,14 @@ absl::StatusOr<int64_t> DMLInsertValueExpr::InsertRows(
               int previous_inserted_row = got->second;
               rows_ignored_indexes.push_back(previous_inserted_row);
             }
+            // Re-evaluate the returning clause based on the updated row.
+            // `old_row` is updated with new values in the INSERT OR UPDATE DML.
+            // It also adds action column if returning clause has `WITH ACTION`.
+            GOOGLESQL_ASSIGN_OR_RETURN(dml_returning_rows[i],
+                             EvalReturningClauseForUpdateAction(
+                                 old_row.values, params, context));
           }
           modified_primary_keys.insert({primary_key, i});
-          if (has_returning_action_column) {
-            dml_returning_rows[i].back() = Value::StringValue("UPDATE");
-          }
           break;
         }
         default:
@@ -4597,6 +4666,45 @@ absl::StatusOr<int64_t> DMLInsertValueExpr::InsertRows(
   }
 
   return modified_primary_keys.size();
+}
+
+absl::StatusOr<std::vector<Value>>
+DMLInsertValueExpr::EvalReturningClauseForUpdateAction(
+    const std::vector<Value>& row, absl::Span<const TupleData* const> params,
+    EvaluationContext* context) const {
+  GOOGLESQL_RET_CHECK_NE(stmt()->returning(), nullptr);
+
+  // Compute generated column expressions for the updated row
+  // as they might be used in the returning expressions.
+  const Table* table = stmt()->table_scan()->table();
+  absl::flat_hash_map<int, size_t> generated_columns_position_map;
+  for (int i = 0; i < column_list_->size(); ++i) {
+    const ResolvedColumn& column = (*column_list_)[i];
+    if (!table->GetColumn(i)->HasGeneratedExpression()) {
+      continue;
+    }
+    generated_columns_position_map[column.column_id()] = i;
+  }
+  std::vector<Value> updated_row = row;
+  GOOGLESQL_RETURN_IF_ERROR(EvalGeneratedColumnsByTopologicalOrder(
+      stmt()->topologically_sorted_generated_column_id_list(),
+      generated_columns_position_map, context, updated_row));
+
+  // Create a tuple from the updated row to use in the returning clause.
+  GOOGLESQL_ASSIGN_OR_RETURN(RelationalOp * scan,
+                   LookupResolvedScan(stmt()->table_scan()));
+  const std::unique_ptr<const TupleSchema> tuple_schema =
+      scan->CreateOutputSchema();
+  TupleData tuple_data = CreateTupleDataFromValues(updated_row);
+  const Tuple tuple(tuple_schema.get(), &tuple_data);
+
+  // Evaluate the returning clause.
+  std::vector<std::vector<Value>> returning_rows;
+  GOOGLESQL_RETURN_IF_ERROR(EvalReturningClause(stmt()->returning(), params, context,
+                                      &tuple_data, Value::StringValue("UPDATE"),
+                                      returning_rows));
+  GOOGLESQL_RET_CHECK_EQ(returning_rows.size(), 1);
+  return std::move(returning_rows[0]);
 }
 
 absl::StatusOr<Value> DMLInsertValueExpr::GetDMLOutputValue(
@@ -4663,6 +4771,32 @@ absl::Status AppendOrderedCode(const googlesql::Value& value,
     case googlesql::TypeKind::TYPE_BYTES:
       absl::StrAppend(&output, "[BYTES]", value.bytes_value());
       break;
+    case googlesql::TypeKind::TYPE_BOOL:
+      absl::StrAppend(&output, "[BOOL]", value.bool_value() ? "true" : "false");
+      break;
+    case googlesql::TypeKind::TYPE_DATE:
+      absl::StrAppend(&output, "[DATE]", std::to_string(value.date_value()));
+      break;
+    case googlesql::TypeKind::TYPE_TIME:
+      absl::StrAppend(&output, "[TIME]",
+                      std::to_string(value.time_value().Packed64TimeNanos()));
+      break;
+    case googlesql::TypeKind::TYPE_DATETIME:
+      absl::StrAppend(
+          &output, "[DATETIME]",
+          std::to_string(value.datetime_value().Packed64DatetimeMicros()));
+      break;
+    case googlesql::TypeKind::TYPE_NUMERIC:
+      absl::StrAppend(&output, "[NUMERIC]", value.numeric_value().ToString());
+      break;
+    case googlesql::TypeKind::TYPE_UUID: {
+      absl::StatusOr<UuidValue> uuid = value.uuid_value();
+      if (!uuid.ok()) {
+        return uuid.status();
+      }
+      absl::StrAppend(&output, "[UUID]", uuid->ToString());
+      break;
+    }
     default:
       return googlesql_base::UnimplementedErrorBuilder()
              << "GoogleSQL type " << value.type()->DebugString()
@@ -4732,8 +4866,7 @@ NewGraphElementExpr::Create(
     std::vector<std::unique_ptr<ValueExpr>> src_node_key,
     std::vector<std::unique_ptr<ValueExpr>> dest_node_key) {
   GOOGLESQL_RETURN_IF_ERROR(ValidateGraphElementExprInputs(
-      graph_element_type, table, key,
-      dynamic_property_expr, dynamic_label_expr,
+      graph_element_type, table, key, dynamic_property_expr, dynamic_label_expr,
       src_node_key, dest_node_key));
   return absl::WrapUnique(new NewGraphElementExpr(
       graph_element_type, table, std::move(key), std::move(static_properties),
@@ -4914,7 +5047,8 @@ bool NewGraphElementExpr::Eval(absl::Span<const TupleData* const> params,
             Value::GraphNodeKeysAndElementTableNames{
                 .identifier = opaque_key,
                 .keys = std::move(keys),
-                .element_table_name = table_->Name()}),
+                .element_table_name = table_->Name()}
+            ),
         _.With(kErrorAdaptor));
     result->SetValue(std::move(element_value));
     return true;
@@ -4972,7 +5106,8 @@ bool NewGraphElementExpr::Eval(absl::Span<const TupleData* const> params,
                          .element_table_name = src_node_table->Name()},
               .dest = {.identifier = dst_node_opaque_key,
                        .keys = {dst_node_keys.begin(), dst_node_keys.end()},
-                       .element_table_name = dst_node_table->Name()}}),
+                       .element_table_name = dst_node_table->Name()}}
+          ),
       _.With(kErrorAdaptor));
   result->SetValue(std::move(element_value));
   return true;

@@ -2139,7 +2139,10 @@ QueryStmt
 select flatten(t.ProtoArray.str_value, ['a', 'b']) as value
 from ArrayTypes t
 --
-ERROR: Number of arguments does not match for function FLATTEN. Supported signature: FLATTEN(ARRAY) [at 1:8]
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<STRING>, ARRAY<STRING>
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Positional argument at 2 is invalid because argument `depth` can only be referred to by name [at 1:8]
 select flatten(t.ProtoArray.str_value, ['a', 'b']) as value
        ^
 ==
@@ -2147,7 +2150,7 @@ select flatten(t.ProtoArray.str_value, ['a', 'b']) as value
 select flatten() as value
 from ArrayTypes t
 --
-ERROR: Number of arguments does not match for function FLATTEN. Supported signature: FLATTEN(ARRAY) [at 1:8]
+ERROR: Number of arguments does not match for function FLATTEN. Supported signature: FLATTEN(ARRAY, [depth => INT64]) [at 1:8]
 select flatten() as value
        ^
 ==
@@ -2169,16 +2172,19 @@ QueryStmt
 
 select [1,2].flatten(5)
 --
-ERROR: Number of arguments does not match for function FLATTEN. Supported signature: FLATTEN(ARRAY) [at 1:8]
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<INT64> (from chained function call input), INT64
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Positional argument at 2 is invalid because argument `depth` can only be referred to by name [at 1:14]
 select [1,2].flatten(5)
-       ^
+             ^
 ==
 
 select "abc".flatten()
 --
 ERROR: No matching signature for function FLATTEN
   Argument types: STRING (from chained function call input)
-  Signature: FLATTEN(ARRAY<T1>)
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
     Argument 1: expected array type but found STRING [at 1:14]
 select "abc".flatten()
              ^
@@ -2189,7 +2195,7 @@ from ArrayTypes t
 --
 ERROR: No matching signature for function FLATTEN
   Argument types: STRUCT<x INT64, y INT64>
-  Signature: FLATTEN(ARRAY<T1>)
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
     Argument 1: expected array type but found STRUCT<x INT64, y INT64> [at 1:8]
 select flatten(struct(3 as x, 4 as y)) as value
        ^
@@ -5810,9 +5816,9 @@ select t.KitchenSink.nested_repeated_value.nested_int64 in unnest(t.KitchenSi...
 SELECT FLATTEN(t.KitchenSink.nested_repeated_value.value, t.KitchenSink.nested_repeated_value.nested_int64)
 FROM TestTable t;
 --
-ERROR: Number of arguments does not match for function FLATTEN. Supported signature: FLATTEN(ARRAY) [at 1:8]
-SELECT FLATTEN(t.KitchenSink.nested_repeated_value.value, t.KitchenSink.neste...
-       ^
+ERROR: Cannot access field nested_int64 on a value with type ARRAY<googlesql_test.KitchenSinkPB.Nested>. You may need an explicit call to FLATTEN, and the flattened argument may only contain 'dot' after the first array [at 1:95]
+...value, t.KitchenSink.nested_repeated_value.nested_int64)
+                                              ^
 
 ==
 

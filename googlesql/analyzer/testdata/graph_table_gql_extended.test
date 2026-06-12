@@ -1670,8 +1670,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2.name AS a_3,
       1 AS a_4,
@@ -1684,8 +1683,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2.name AS a_3,
       1 AS a_4,
@@ -1766,8 +1764,7 @@ FROM
       GRAPH_TABLE(
         aml
         MATCH
-          (a_2
-          IS (% | ! %))
+          (a_2 IS (% | ! %))
         RETURN
           1 AS a_3
       ) AS aml_1
@@ -1779,8 +1776,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       1 AS a_3
   ) AS aml_1
@@ -3406,8 +3402,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     RETURN
@@ -3426,8 +3421,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     RETURN
@@ -3552,8 +3546,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     RETURN
@@ -3567,8 +3560,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     RETURN
@@ -3935,8 +3927,7 @@ FROM
     LET
       a_2 = "UNKNOWN"
     MATCH
-      (a_3
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
     LET
       a_4 = DATE_DIFF(`CURRENT_DATE`(), a_3.birthday, YEAR)
     RETURN
@@ -3953,8 +3944,7 @@ FROM
     LET
       a_2 = "UNKNOWN"
     MATCH
-      (a_3
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
     LET
       a_4 = DATE_DIFF(`CURRENT_DATE`(), a_3.birthday, YEAR)
     RETURN
@@ -4116,8 +4106,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = a_2.name
     RETURN
@@ -4130,8 +4119,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = a_2.name
     RETURN
@@ -4513,8 +4501,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     FILTER
@@ -4531,8 +4518,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     FILTER
@@ -4758,8 +4744,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     FILTER
@@ -4779,8 +4764,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     LET
       a_3 = DATE_DIFF(`CURRENT_DATE`(), a_2.birthday, YEAR)
     FILTER
@@ -6453,8 +6437,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     WITH
       a_2.id AS a_3
     WITH
@@ -6462,8 +6445,7 @@ FROM
       1 AS a_5,
       "foo" AS a_6
     MATCH
-      (a_7
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
     WITH
       a_4 AS a_8,
       a_5 AS a_9,
@@ -6477,6 +6459,7 @@ FROM
       a_11 AS a_17,
       a_12 AS a_18,
       SUM(a_11.id) AS a_13
+    GROUP BY a_14, a_15, a_16, a_17, a_18
     WITH
       a_13,
       a_14,
@@ -6496,8 +6479,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     WITH
       a_2.id AS a_3
     WITH
@@ -6505,8 +6487,7 @@ FROM
       1 AS a_5,
       "foo" AS a_6
     MATCH
-      (a_7
-      IS (% | ! %))
+      (a_7 IS (% | ! %))
     WITH
       a_4 AS a_8,
       a_5 AS a_9,
@@ -6520,6 +6501,7 @@ FROM
       a_11 AS a_17,
       a_12 AS a_18,
       SUM(a_11.id) AS a_13
+    GROUP BY a_14, a_15, a_16, a_17, a_18
     WITH
       a_13,
       a_14,
@@ -6568,20 +6550,14 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Transfer]->
+      (a_4 IS (% | ! %))
     MATCH
       (
-        (a_5
-        IS (% | ! %))
-        -[a_6
-        IS Transfer]->
-        (a_7
-        IS (% | ! %))
+        (a_5 IS (% | ! %))
+        -[a_6 IS Transfer]->
+        (a_7 IS (% | ! %))
         WHERE
           (a_5.id) > (a_7.id)
       )
@@ -6599,20 +6575,14 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Transfer]->
+      (a_4 IS (% | ! %))
     MATCH
       (
-        (a_5
-        IS (% | ! %))
-        -[a_6
-        IS Transfer]->
-        (a_7
-        IS (% | ! %))
+        (a_5 IS (% | ! %))
+        -[a_6 IS Transfer]->
+        (a_7 IS (% | ! %))
         WHERE
           (a_5.id) > (a_7.id)
       )
@@ -6662,20 +6632,14 @@ SELECT
           GRAPH_TABLE(
             aml
             MATCH
-              (a_6
-              IS (% | ! %))
-              -[a_7
-              IS Transfer]->
-              (a_8
-              IS (% | ! %))
+              (a_6 IS (% | ! %))
+              -[a_7 IS Transfer]->
+              (a_8 IS (% | ! %))
             MATCH
               (
-                (a_9
-                IS (% | ! %))
-                -[a_10
-                IS Transfer]->
-                (a_11
-                IS (% | ! %))
+                (a_9 IS (% | ! %))
+                -[a_10 IS Transfer]->
+                (a_11 IS (% | ! %))
                 WHERE
                   (a_9.id) > (a_11.id)
               )
@@ -6705,20 +6669,14 @@ SELECT
          GRAPH_TABLE(
            aml
            MATCH
-             (a_6
-             IS (% | ! %))
-             -[a_7
-             IS Transfer]->
-             (a_8
-             IS (% | ! %))
+             (a_6 IS (% | ! %))
+             -[a_7 IS Transfer]->
+             (a_8 IS (% | ! %))
            MATCH
              (
-               (a_9
-               IS (% | ! %))
-               -[a_10
-               IS Transfer]->
-               (a_11
-               IS (% | ! %))
+               (a_9 IS (% | ! %))
+               -[a_10 IS Transfer]->
+               (a_11 IS (% | ! %))
                WHERE
                  (a_9.id) > (a_11.id)
              )
@@ -6821,12 +6779,9 @@ FROM
       GRAPH_TABLE(
         aml
         MATCH
-          (a_2
-          IS Account)
-          -[a_3
-          IS (% | ! %)]-
-          (a_4
-          IS Syndicate)
+          (a_2 IS Account)
+          -[a_3 IS (% | ! %)]-
+          (a_4 IS Syndicate)
         RETURN
           ARRAY[a_4, a_2] AS a_5
       ) AS aml_1
@@ -6838,12 +6793,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Account)
-      -[a_3
-      IS (% | ! %)]-
-      (a_4
-      IS Syndicate)
+      (a_2 IS Account)
+      -[a_3 IS (% | ! %)]-
+      (a_4 IS Syndicate)
     RETURN
       ARRAY[a_4, a_2] AS a_5
   ) AS aml_1

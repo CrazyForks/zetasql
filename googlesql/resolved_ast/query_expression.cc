@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -39,7 +40,6 @@
 #include "absl/types/span.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -246,6 +246,15 @@ bool QueryExpression::TryAppendMatchRecognizeClause(std::string& sql) const {
   }
 
   absl::StrAppend(&sql, match_recognize_);
+  return true;
+}
+
+bool QueryExpression::TryAppendAlignClause(std::string& sql) const {
+  if (align_.empty()) {
+    return false;
+  }
+
+  absl::StrAppend(&sql, align_);
   return true;
 }
 
@@ -530,6 +539,7 @@ std::string QueryExpression::GetStandardSQLQuery(
   // FROM
   // PIVOT/UNPIVOT
   // MATCH_RECOGNIZE
+  // ALIGN
   // WHERE
   // GROUP BY
   // ORDER BY
@@ -560,6 +570,7 @@ std::string QueryExpression::GetStandardSQLQuery(
   TryAppendPivotClause(sql);
   TryAppendUnpivotClause(sql);
   TryAppendMatchRecognizeClause(sql);
+  TryAppendAlignClause(sql);
   TryAppendWhereClause(sql);
   TryAppendGroupByClause(sql, TargetSyntaxMode::kStandard);
   TryAppendOrderByClause(sql);
@@ -643,6 +654,7 @@ std::string QueryExpression::GetPipeSQLQuery() const {
   // FOR
   // |> PIVOT/UNPIVOT
   // |> MATCH_RECOGNIZE
+  // |> ALIGN
   // |> WHERE
   // |> AGGREGATE GROUP BY
   // |> UNION/INTERSECT/EXCEPT
@@ -661,6 +673,7 @@ std::string QueryExpression::GetPipeSQLQuery() const {
   AppendSeparator(TryAppendPivotClause(sql), sql, kPipe);
   AppendSeparator(TryAppendUnpivotClause(sql), sql, kPipe);
   AppendSeparator(TryAppendMatchRecognizeClause(sql), sql, kPipe);
+  AppendSeparator(TryAppendAlignClause(sql), sql, kPipe);
   AppendSeparator(TryAppendWhereClause(sql), sql, kPipe);
 
   bool group_by_clause_added =
@@ -875,6 +888,14 @@ bool QueryExpression::TrySetMatchRecognizeClause(
   return true;
 }
 
+bool QueryExpression::TrySetAlignClause(absl::string_view align) {
+  if (!CanSetAlignClause()) {
+    return false;
+  }
+  align_ = align;
+  return true;
+}
+
 bool QueryExpression::TrySetLockModeClause(absl::string_view lock_mode) {
   if (!CanSetLockModeClause()) {
     return false;
@@ -914,13 +935,20 @@ bool QueryExpression::CanSetWithAnonymizationClause() const {
   return !HasWithAnonymizationClause();
 }
 bool QueryExpression::CanSetPivotClause() const {
-  return !HasMatchRecognizeClause() && !HasPivotClause() && !HasUnpivotClause();
+  return !HasMatchRecognizeClause() && !HasPivotClause() &&
+         !HasUnpivotClause() && !HasAlignClause();
 }
 bool QueryExpression::CanSetUnpivotClause() const {
-  return !HasMatchRecognizeClause() && !HasPivotClause() && !HasUnpivotClause();
+  return !HasMatchRecognizeClause() && !HasPivotClause() &&
+         !HasUnpivotClause() && !HasAlignClause();
 }
 bool QueryExpression::CanSetMatchRecognizeClause() const {
-  return !HasMatchRecognizeClause() && !HasPivotClause() && !HasUnpivotClause();
+  return !HasMatchRecognizeClause() && !HasPivotClause() &&
+         !HasUnpivotClause() && !HasAlignClause();
+}
+bool QueryExpression::CanSetAlignClause() const {
+  return !HasMatchRecognizeClause() && !HasPivotClause() &&
+         !HasUnpivotClause() && !HasAlignClause();
 }
 bool QueryExpression::CanSetLockModeClause() const {
   return HasFromClause() && !HasLockModeClause();
@@ -1099,6 +1127,7 @@ void QueryExpression::ClearAllClauses() {
   pivot_.clear();
   unpivot_.clear();
   match_recognize_.clear();
+  align_.clear();
   lock_mode_.clear();
 }
 

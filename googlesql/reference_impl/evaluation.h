@@ -27,8 +27,10 @@
 #include <vector>
 
 #include "googlesql/public/civil_time.h"
+#include "googlesql/public/collator.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/public/types/type.h"
 #include "googlesql/public/value.h"
 #include "googlesql/reference_impl/tuple.h"
 #include "googlesql/reference_impl/variable_id.h"
@@ -39,8 +41,10 @@
 #include "absl/flags/declare.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "googlesql/base/ret_check.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/clock.h"
 
@@ -121,7 +125,6 @@ struct EvaluationOptions {
   // If true, the reference implementation will account for the memory used by
   // function arguments and thus limit the cumulative memory used by function
   // arguments to the value of 'max_intermediate_byte_size'.
-  // TODO: Remove this option once the feature is fully rolled out.
   bool enable_function_args_memory_accounting = false;
 };
 
@@ -385,9 +388,36 @@ class EvaluationContext {
   // Deletes the C++ value associated with the given variable Id.
   void ClearCppValue(VariableId variable) { cpp_values_.erase(variable); }
 
+  // TODO: Delete this accessor & field as it's no longer used by
+  // group rows implementation.
   const TupleDataDeque* active_group_rows() const { return active_group_rows_; }
   void set_active_group_rows(const TupleDataDeque* group_rows) {
     active_group_rows_ = group_rows;
+  }
+
+  // Registers accumulated group rows to context.
+  absl::Status RegisterGroupRows(const VariableId& id,
+                                 const TupleDataDeque* rows) {
+    bool inserted = accumulated_group_rows_map_.insert({id, rows}).second;
+    GOOGLESQL_RET_CHECK(inserted) << "Variable id " << id
+                        << " already in accumulated_group_rows_map_";
+    return absl::OkStatus();
+  }
+
+  // Unregisters accumulated group rows to context.
+  absl::Status UnregisterGroupRows(const VariableId& id) {
+    GOOGLESQL_RET_CHECK(accumulated_group_rows_map_.erase(id))
+        << "Variable " << id << " not found in accumulated_group_rows_map_";
+    return absl::OkStatus();
+  }
+
+  // Lookup accumulated group rows from context.
+  const TupleDataDeque* GetGroupRows(const VariableId& id) const {
+    auto it = accumulated_group_rows_map_.find(id);
+    if (it != accumulated_group_rows_map_.end()) {
+      return it->second;
+    }
+    return nullptr;
   }
 
  private:
@@ -457,6 +487,12 @@ class EvaluationContext {
   // Current C++ values associated with variables.
   absl::flat_hash_map<VariableId, std::unique_ptr<CppValueBase>> cpp_values_;
 
+  // Maps variable IDs to their corresponding accumulated group rows. This
+  // registry ensures that nested GROUP ROWS subqueries can independently locate
+  // their own active grouping context.
+  absl::flat_hash_map<VariableId, const TupleDataDeque*>
+      accumulated_group_rows_map_;
+
   // The current user, specified by the engine. Used to evaluate the
   // SESSION_USER function. Defaults to an empty string if not set.
   std::string session_user_ = "";
@@ -478,6 +514,15 @@ bool ShouldSuppressError(const absl::Status& error,
 // Returns ResourceExhausted error when the statement should be aborted.
 absl::Status PeriodicallyVerifyNotAborted(EvaluationContext* context,
                                           uint64_t num_steps);
+
+// Recursively replaces collated strings in the value with their collation keys.
+// The output type is the same as the input type, except that **collated**
+// STRINGs are replaced with BYTESs. Not all strings, e.g.
+//   $CollateKey(STRUCT<a STRING, b STRING COLLATE 'und:ci'>) will return a
+//   key whose type is STRUCT<a STRING, b BYTES>>.
+absl::StatusOr<Value> ReplaceStringsWithCollationKeys(
+    const Value& value, const Type* output_type,
+    const GoogleSqlCollator* collator);
 
 }  // namespace googlesql
 

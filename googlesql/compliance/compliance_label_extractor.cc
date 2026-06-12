@@ -26,6 +26,7 @@
 #include "googlesql/public/builtin_function.h"
 #include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/builtin_function_options.h"
+#include "googlesql/public/table_valued_function.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
@@ -39,11 +40,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -155,6 +156,15 @@ struct FunctionSignatureLabel {
   bool is_operator;
   bool include_safe_error_mode = false;
   bool include_default_error_mode = false;
+};
+
+struct TableValuedFunctionSignatureLabel {
+  TableValuedFunctionSignatureLabel(FunctionSignatureId signature_id,
+                                    std::string& sql_name)
+      : signature_id(signature_id), sql_name(sql_name) {}
+
+  FunctionSignatureId signature_id;
+  std::string sql_name;
 };
 
 struct AggregateFunctionModifierLabel {
@@ -362,6 +372,16 @@ class ComplianceLabelSets {
     return true;
   }
 
+  bool AddTableValuedFunctionSignatureLabel(FunctionSignatureId signature_id,
+                                            const TableValuedFunction* tvf) {
+    std::string sql_name = tvf->SQLName();
+    TableValuedFunctionSignatureLabel signature_label =
+        TableValuedFunctionSignatureLabel(signature_id, sql_name);
+    return table_valued_function_signatures_
+        .try_emplace(signature_id, signature_label)
+        .second;
+  }
+
   void GenerateLabelStrings(absl::btree_set<std::string>& output) {
     // Generate node kind label in a format of
     // "ResolvedNodeKind:<nonleaf_node_group>:<leaf_node_kind_name>"
@@ -506,6 +526,21 @@ class ComplianceLabelSets {
       }
     }
 
+    // Generate table valued function signature label for each signature.
+    // Table valued function label is in the following formats:
+    //  "FunctionSignature::<sql_name>:<signature_id_name>"
+    //  "TableValuedFunctionName::<sql_name>"
+
+    for (const auto& tvf_signature : table_valued_function_signatures_) {
+      const TableValuedFunctionSignatureLabel& signature_label =
+          tvf_signature.second;
+      output.insert(
+          absl::StrCat("FunctionSignature::", signature_label.sql_name, ":",
+                       FunctionSignatureId_Name(signature_label.signature_id)));
+      output.insert(
+          absl::StrCat("TableValuedFunctionName::", signature_label.sql_name));
+    }
+
     // Generate labels for set operations in the following format:
     // "SetOperation:<OperationType>:<MatchMode>:<PropagationMode>"
     for (const auto [op_type, match_mode, propagation_mode] :
@@ -533,6 +568,8 @@ class ComplianceLabelSets {
   absl::flat_hash_set<TypeKind> type_kinds_set_;
   absl::flat_hash_map<FunctionSignatureId, FunctionSignatureLabel>
       function_signatures_;
+  absl::flat_hash_map<FunctionSignatureId, TableValuedFunctionSignatureLabel>
+      table_valued_function_signatures_;
   absl::flat_hash_map<FunctionSignatureId, AggregateFunctionModifierLabel>
       aggregate_function_modifiers_;
   absl::flat_hash_map<FunctionSignatureId, WindowFunctionModifierLabel>
@@ -635,6 +672,18 @@ class ComplianceLabelExtractor : public ResolvedASTVisitor {
               include_order_by);
         }
       }
+    }
+    return DefaultVisit(node);
+  }
+
+  absl::Status VisitResolvedTVFScan(const ResolvedTVFScan* node) override {
+    const TableValuedFunction* tvf = node->tvf();
+    GOOGLESQL_RET_CHECK_NE(tvf, nullptr);
+    if (tvf->IsGoogleSQLBuiltin()) {
+      compliance_labels_.AddTableValuedFunctionSignatureLabel(
+          static_cast<FunctionSignatureId>(
+              node->function_call_signature()->context_id()),
+          tvf);
     }
     return DefaultVisit(node);
   }

@@ -34,7 +34,9 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/types/type_deserializer.h"
 #include "googlesql/resolved_ast/resolved_ast_enums.pb.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -43,7 +45,6 @@
 #include "absl/types/span.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -123,10 +124,9 @@ void FunctionOptions::Serialize(FunctionOptionsProto* proto) const {
 
 FunctionOptions& FunctionOptions::set_evaluator(
     const FunctionEvaluator& function_evaluator) {
-  set_evaluator_factory(
-      [function_evaluator](const FunctionSignature&) {
-        return function_evaluator;
-      });
+  set_evaluator_factory([function_evaluator](const FunctionSignature&) {
+    return function_evaluator;
+  });
   return *this;
 }
 
@@ -253,11 +253,12 @@ absl::Status Function::Serialize(
 }
 
 // static
-void Function::RegisterDeserializer(const std::string& group_name,
+void Function::RegisterDeserializer(std::string group_name,
                                     FunctionDeserializer deserializer) {
   // ABSL_CHECK validated -- This is used at initialization time only.
-  ABSL_CHECK(googlesql_base::InsertIfNotPresent(FunctionDeserializers(), group_name,
-                                deserializer));
+  ABSL_CHECK(FunctionDeserializers()
+            ->try_emplace(std::move(group_name), deserializer)
+            .second);
 }
 
 std::string Function::FullName(bool include_group) const {
@@ -698,7 +699,7 @@ bool Function::SupportsWindowOrdering() const {
 
 bool Function::RequiresWindowOrdering() const {
   return function_options_.window_ordering_support ==
-             FunctionOptions::ORDER_REQUIRED;
+         FunctionOptions::ORDER_REQUIRED;
 }
 
 bool Function::SupportsWindowFraming() const {

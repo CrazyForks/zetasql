@@ -19,17 +19,16 @@
 #include <set>
 #include <string>
 
-#include "googlesql/base/logging.h"
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/descriptor.h"
 #include "googlesql/parser/keywords.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
-#include "absl/base/macros.h"
 #include "absl/container/btree_set.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "googlesql/base/status.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/status_builder.h"
@@ -39,7 +38,7 @@ namespace googlesql {
 LanguageOptions::LanguageFeatureSet
 LanguageOptions::GetLanguageFeaturesForVersion(LanguageVersion version) {
   if (version == VERSION_CURRENT || version == LANGUAGE_VERSION_UNSPECIFIED) {
-    version = VERSION_1_4;
+    version = VERSION_1_5;
   }
 
   LanguageFeatureSet features;
@@ -182,8 +181,8 @@ void LanguageOptions::EnableMaximumLanguageFeatures(bool for_development) {
 }
 
 const LanguageOptions::KeywordSet& LanguageOptions::GetReservableKeywords() {
-  static auto* reservable_keywords =
-      new KeywordSet{"QUALIFY", "MATCH_RECOGNIZE", "GRAPH_TABLE", "PER"};
+  static auto* reservable_keywords = new KeywordSet{
+      "ALIGN", "QUALIFY", "MATCH_RECOGNIZE", "GRAPH_TABLE", "PER"};
   return *reservable_keywords;
 }
 

@@ -1,0 +1,11 @@
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referenced_by_uda;
+--
+Lazy_resolution_function:uda
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:uda_templated
+  (ANY TYPE a) -> ANY TYPE
+
+PRIVATE CONSTANT bar=Int64(1) (INT64)

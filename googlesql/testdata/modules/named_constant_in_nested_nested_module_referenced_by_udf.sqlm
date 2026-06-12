@@ -1,0 +1,3 @@
+MODULE named_constant_in_nested_nested_module_referenced_by_udf;
+
+CREATE PUBLIC CONSTANT bat = 3;

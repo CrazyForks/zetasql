@@ -19,15 +19,16 @@
 #include <string>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "googlesql/base/source_location.h"
+#include "googlesql/base/status_payload.h"
 #include "googlesql/base/test_payload.pb.h"
 #include "googlesql/base/testing/status_matchers.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql_base {
 namespace {

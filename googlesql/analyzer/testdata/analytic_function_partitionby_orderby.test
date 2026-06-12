@@ -164,7 +164,7 @@ QueryStmt
 ==
 
 # All the types that support ordering for the query ORDER BY are allowed in the
-# window ORDER BY if DISALLOW_GROUP_BY_FLOAT is not enabled.
+# window ORDER BY.
 Select 1
 FROM SimpleTypes cross join ComplexTypes
 order by afn_agg() over (order by `bool`,
@@ -317,34 +317,112 @@ select afn_agg() over (order by [KitchenSink])
                                 ^
 ==
 
-# Implicit range window.
-[language_features=NONE,+ANALYTIC_FUNCTIONS,+DISALLOW_GROUP_BY_FLOAT]
+# Implicit range window, order by floating point.
+[language_features=NONE,+ANALYTIC_FUNCTIONS]
 select afn_agg() over (order by double)
 FROM SimpleTypes
 --
-ERROR: Ordering by expressions of type DOUBLE is not allowed in a RANGE-based window [at 1:33]
-select afn_agg() over (order by double)
-                                ^
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#21 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#21]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[SimpleTypes.double#9, $analytic.$analytic1#21]
+        +-input_scan=
+        | +-TableScan(column_list=[SimpleTypes.double#9], table=SimpleTypes, column_index_list=[8])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-order_by=
+            | +-WindowOrdering
+            |   +-order_by_item_list=
+            |     +-OrderByItem
+            |       +-column_ref=
+            |         +-ColumnRef(type=DOUBLE, column=SimpleTypes.double#9)
+            +-analytic_function_list=
+              +-$analytic1#21 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=RANGE)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
 ==
 
-[language_features=NONE,+ANALYTIC_FUNCTIONS,+DISALLOW_GROUP_BY_FLOAT]
+# Order by floating point.
+[language_features=NONE,+ANALYTIC_FUNCTIONS]
 select afn_agg() over (order by float range 2.0 preceding)
 FROM SimpleTypes
 --
-ERROR: Ordering by expressions of type FLOAT is not allowed in a RANGE-based window [at 1:33]
-select afn_agg() over (order by float range 2.0 preceding)
-                                ^
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#21 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#21]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[SimpleTypes.float#8, $analytic.$analytic1#21]
+        +-input_scan=
+        | +-TableScan(column_list=[SimpleTypes.float#8], table=SimpleTypes, column_index_list=[7])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-order_by=
+            | +-WindowOrdering
+            |   +-order_by_item_list=
+            |     +-OrderByItem
+            |       +-column_ref=
+            |         +-ColumnRef(type=FLOAT, column=SimpleTypes.float#8)
+            +-analytic_function_list=
+              +-$analytic1#21 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=RANGE)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=OFFSET PRECEDING)
+                      |   +-Literal(type=FLOAT, value=2)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
 ==
 
-[language_features=NONE,+ANALYTIC_FUNCTIONS,+DISALLOW_GROUP_BY_FLOAT]
+# Order by floating point.
+[language_features=NONE,+ANALYTIC_FUNCTIONS]
 select
   afn_agg() over (order by double
                   range between unbounded preceding and unbounded following)
 FROM SimpleTypes
 --
-ERROR: Ordering by expressions of type DOUBLE is not allowed in a RANGE-based window [at 2:28]
-  afn_agg() over (order by double
-                           ^
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#21 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#21]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[SimpleTypes.double#9, $analytic.$analytic1#21]
+        +-input_scan=
+        | +-TableScan(column_list=[SimpleTypes.double#9], table=SimpleTypes, column_index_list=[8])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-order_by=
+            | +-WindowOrdering
+            |   +-order_by_item_list=
+            |     +-OrderByItem
+            |       +-column_ref=
+            |         +-ColumnRef(type=DOUBLE, column=SimpleTypes.double#9)
+            +-analytic_function_list=
+              +-$analytic1#21 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=RANGE)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=UNBOUNDED FOLLOWING)
 ==
 
 # Unsupported type of ordering expression.

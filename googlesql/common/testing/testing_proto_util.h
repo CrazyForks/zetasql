@@ -20,25 +20,25 @@
 #include <memory>
 
 #include "googlesql/base/path.h"
-#include "google/protobuf/compiler/importer.h"
-#include "google/protobuf/message.h"
 #include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/strings/cord.h"
+#include "google/protobuf/compiler/importer.h"
+#include "google/protobuf/message.h"
 
 namespace googlesql {
 
 ABSL_DEPRECATED("Inline me!")
 inline absl::Cord SerializeToCord(const google::protobuf::Message& pb) {
   absl::Cord bytes;
-  ABSL_CHECK(pb.SerializeToCord(&bytes));
+  ABSL_CHECK(pb.SerializeToString(&bytes));
   return bytes;
 }
 
 ABSL_DEPRECATED("Inline me!")
 inline absl::Cord SerializePartialToCord(const google::protobuf::Message& pb) {
   absl::Cord bytes;
-  ABSL_CHECK(pb.SerializePartialToCord(&bytes));
+  ABSL_CHECK(pb.SerializePartialToString(&bytes));
   return bytes;
 }
 

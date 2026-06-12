@@ -26,8 +26,8 @@
 #include "googlesql/testdata/test_schema.pb.h"
 #include "googlesql/testing/test_value.h"
 #include "absl/status/status.h"
-#include "absl/time/civil_time.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/time/civil_time.h"
 
 namespace googlesql {
 

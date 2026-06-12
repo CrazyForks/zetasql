@@ -48,8 +48,11 @@ SimpleValue SimpleValue::Bytes(std::string v) {
 }
 
 SimpleValue::SimpleValue(SimpleValue&& that) {
-  // NOLINTNEXTLINE - suppress clang-tidy warning on not TriviallyCopyable.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+  // NOLINTNEXTLINE - Suppress clang-tidy warning on not TriviallyCopyable.
   memcpy(this, &that, sizeof(SimpleValue));
+#pragma clang diagnostic pop
   // Invalidate 'that' to disable its destructor.
   that.type_ = TYPE_INVALID;
 }
@@ -66,8 +69,11 @@ SimpleValue& SimpleValue::operator=(const SimpleValue& that) {
 
 SimpleValue& SimpleValue::operator=(SimpleValue&& that) {
   Clear();
-  // NOLINTNEXTLINE - suppress clang-tidy warning on not TriviallyCopyable.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+  // NOLINTNEXTLINE - Suppress clang-tidy warning on not TriviallyCopyable.
   memcpy(this, &that, sizeof(SimpleValue));
+#pragma clang diagnostic pop
   // Invalidate 'that' to disable its destructor.
   that.type_ = TYPE_INVALID;
   return *this;
@@ -109,8 +115,11 @@ int64_t SimpleValue::GetEstimatedOwnedMemoryBytesSize() const {
 void SimpleValue::CopyFrom(const SimpleValue& that) {
   // Self-copy check is done in the copy constructor. Here we just ABSL_DCHECK that.
   ABSL_DCHECK_NE(this, &that);
-  // NOLINTNEXTLINE - suppress clang-tidy warning on not TriviallyCopyable.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+  // NOLINTNEXTLINE - Suppress clang-tidy warning on not TriviallyCopyable.
   memcpy(this, &that, sizeof(SimpleValue));
+#pragma clang diagnostic pop
   if (!IsValid()) {
     return;
   }

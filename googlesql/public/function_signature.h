@@ -36,6 +36,7 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/type_deserializer.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/value.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
@@ -135,6 +136,12 @@ class FunctionArgumentTypeOptions {
   bool must_be_immutable_constant() const {
     return data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST;
   }
+  bool must_be_stable_constant() const {
+    return data_->constness_level == ConstnessLevelProto::STABLE_CONST;
+  }
+  bool must_be_query_constant() const {
+    return data_->constness_level == ConstnessLevelProto::QUERY_CONST;
+  }
   bool must_be_constant_expression() const {
     return data_->constness_level ==
            ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION;
@@ -201,56 +208,38 @@ class FunctionArgumentTypeOptions {
     data_->cardinality = c;
     return *this;
   }
+  ABSL_DEPRECATED(
+      "Use setter of a specific constness level instead (e.g. "
+      "set_must_be_analysis_constant)")
   FunctionArgumentTypeOptions& set_must_be_constant(bool v = true) {
     if (v) {
-      ABSL_DCHECK(data_->constness_level ==
-                 ConstnessLevelProto::CONSTNESS_UNSPECIFIED ||
-             data_->constness_level ==
-                 ConstnessLevelProto::LEGACY_LITERAL_OR_PARAMETER)
-          << "Cannot set must_be_constant when another constness "
-             "level is already set.";
-      ;
       data_->constness_level = ConstnessLevelProto::LEGACY_LITERAL_OR_PARAMETER;
       return *this;
     }
     data_->constness_level = ConstnessLevelProto::CONSTNESS_UNSPECIFIED;
     return *this;
   }
-  FunctionArgumentTypeOptions& set_must_be_analysis_constant(bool v = true) {
-    if (v) {
-      ABSL_DCHECK(data_->constness_level ==
-                 ConstnessLevelProto::CONSTNESS_UNSPECIFIED ||
-             data_->constness_level == ConstnessLevelProto::ANALYSIS_CONST)
-          << "Cannot set must_be_analysis_constant when another constness "
-             "level is already set.";
-      data_->constness_level = ConstnessLevelProto::ANALYSIS_CONST;
-      return *this;
-    }
-    data_->constness_level = ConstnessLevelProto::CONSTNESS_UNSPECIFIED;
+  FunctionArgumentTypeOptions& set_must_be_analysis_constant() {
+    data_->constness_level = ConstnessLevelProto::ANALYSIS_CONST;
     return *this;
   }
-  FunctionArgumentTypeOptions& set_must_be_immutable_constant(bool v = true) {
-    if (v) {
-      ABSL_DCHECK(data_->constness_level ==
-                 ConstnessLevelProto::CONSTNESS_UNSPECIFIED ||
-             data_->constness_level == ConstnessLevelProto::IMMUTABLE_CONST)
-          << "Cannot set must_be_immutable_constant when another constness "
-             "level is already set.";
-      data_->constness_level = ConstnessLevelProto::IMMUTABLE_CONST;
-      return *this;
-    }
-    data_->constness_level = ConstnessLevelProto::CONSTNESS_UNSPECIFIED;
+  FunctionArgumentTypeOptions& set_must_be_immutable_constant() {
+    data_->constness_level = ConstnessLevelProto::IMMUTABLE_CONST;
     return *this;
   }
+  FunctionArgumentTypeOptions& set_must_be_stable_constant() {
+    data_->constness_level = ConstnessLevelProto::STABLE_CONST;
+    return *this;
+  }
+  FunctionArgumentTypeOptions& set_must_be_query_constant() {
+    data_->constness_level = ConstnessLevelProto::QUERY_CONST;
+    return *this;
+  }
+  ABSL_DEPRECATED(
+      "Use setter of a specific constness level instead (e.g. "
+      "set_must_be_analysis_constant)")
   FunctionArgumentTypeOptions& set_must_be_constant_expression(bool v = true) {
     if (v) {
-      ABSL_DCHECK(data_->constness_level ==
-                 ConstnessLevelProto::CONSTNESS_UNSPECIFIED ||
-             data_->constness_level ==
-                 ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION)
-          << "Cannot set must_be_constant_expression when another constness "
-             "level is already set.";
-      ;
       data_->constness_level = ConstnessLevelProto::LEGACY_CONSTANT_EXPRESSION;
       return *this;
     }
@@ -622,7 +611,8 @@ class FunctionArgumentType {
                        int num_occurrences = -1);
   FunctionArgumentType(SignatureArgumentKind kind,
                        FunctionArgumentTypeOptions options,
-                       int num_occurrences = -1);
+                       int num_occurrences = -1,
+                       TypeModifiers type_modifiers = TypeModifiers());
   FunctionArgumentType(SignatureArgumentKind kind,  // implicit; NOLINT
                        int num_occurrences = -1);
   // Construct a non-templated argument kind fixed type <type>.
@@ -630,7 +620,8 @@ class FunctionArgumentType {
   FunctionArgumentType(const Type* type, ArgumentCardinality cardinality,
                        int num_occurrences = -1);
   FunctionArgumentType(const Type* type, FunctionArgumentTypeOptions options,
-                       int num_occurrences = -1);
+                       int num_occurrences = -1,
+                       TypeModifiers type_modifiers = TypeModifiers());
   FunctionArgumentType(const Type* type,  // implicit; NOLINT
                        int num_occurrences = -1);
   // For convenience when manually crafting concrete signatures.
@@ -753,6 +744,12 @@ class FunctionArgumentType {
   bool must_be_immutable_constant() const {
     return options_->must_be_immutable_constant();
   }
+  bool must_be_stable_constant() const {
+    return options_->must_be_stable_constant();
+  }
+  bool must_be_query_constant() const {
+    return options_->must_be_query_constant();
+  }
   bool must_be_constant_expression() const {
     return options_->must_be_constant_expression();
   }
@@ -769,6 +766,8 @@ class FunctionArgumentType {
   const Type* type() const { return type_; }
 
   SignatureArgumentKind kind() const { return kind_; }
+
+  const TypeModifiers& type_modifiers() const { return type_modifiers_; }
 
   SignatureArgumentKind original_kind() const {
     ABSL_DCHECK_NE(original_kind_,
@@ -896,7 +895,7 @@ class FunctionArgumentType {
   FunctionArgumentType(
       SignatureArgumentKind kind, const Type* type,
       std::shared_ptr<const FunctionArgumentTypeOptions> options,
-      int num_occurrences);
+      int num_occurrences, TypeModifiers type_modifiers);
 
   // Checks that 'arg_type' could be used as lambda argument type and body type.
   static absl::Status CheckLambdaArgType(const FunctionArgumentType& arg_type);
@@ -925,6 +924,14 @@ class FunctionArgumentType {
   // This holds the argument type options. It is a shared pointer to reduce
   // stack frame sizes when the function signatures are kept on the stack.
   std::shared_ptr<const FunctionArgumentTypeOptions> options_;
+
+  // The type modifiers of the argument as declared in the function
+  // definition. This is independent of any invocation or what the input is.
+  // When it's not empty, the `kind_` must be ARG_TYPE_FIXED, and it must have a
+  // compatible structure with `type_`.
+  //
+  // It's only used in user defined functions for now.
+  TypeModifiers type_modifiers_;
 
   // This holds lambda type specifications.
   // It is a shared pointer to

@@ -18,11 +18,15 @@
 
 #include <string>
 
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/logging.h"
+#include "unicode/bytestream.h"
 #include "unicode/errorcode.h"
 #include "unicode/idna.h"
+#include "unicode/uidna.h"
 
 namespace googlesql::internal {
 namespace {

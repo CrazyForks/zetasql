@@ -39,18 +39,19 @@ QueryStatement [29-157] [select * from...AS val) )]
                     PathExpression [111-119] [e.amount]
                       Identifier(e) [111-112] [e]
                       Identifier(amount) [113-119] [amount]
-          SelectList [133-154] [(a.array[0]-3) AS val]
-            SelectColumn [133-154] [(a.array[0]-3) AS val]
-              BinaryExpression(-) [134-146] [a.array[0]-3]
-                ArrayElement [134-144] [a.array[0]]
-                  PathExpression [134-141] [a.array]
-                    Identifier(a) [134-135] [a]
-                    Identifier(`array`) [136-141] [array]
-                  Location [141-142] [[]
-                  IntLiteral(0) [142-143] [0]
-                IntLiteral(3) [145-146] [3]
-              Alias [148-154] [AS val]
-                Identifier(val) [151-154] [val]
+          Select [125-155] [COLUMNS((a.array[0]-3) AS val)]
+            SelectList [133-154] [(a.array[0]-3) AS val]
+              SelectColumn [133-154] [(a.array[0]-3) AS val]
+                BinaryExpression(-) [134-146] [a.array[0]-3]
+                  ArrayElement [134-144] [a.array[0]]
+                    PathExpression [134-141] [a.array]
+                      Identifier(a) [134-135] [a]
+                      Identifier(`array`) [136-141] [array]
+                    Location [141-142] [[]
+                    IntLiteral(0) [142-143] [0]
+                  IntLiteral(3) [145-146] [3]
+                Alias [148-154] [AS val]
+                  Identifier(val) [151-154] [val]
 --
 SELECT
   *
@@ -58,8 +59,7 @@ FROM
   GRAPH_TABLE(
     my.graph.name
     MATCH
-      -[a
-      IS A
+      -[a IS A
       WHERE
         a.prop < -3 COST e.amount]->
     COLUMNS(
@@ -96,18 +96,19 @@ QueryStatement [0-105] [select * from...AS val) )]
                 GraphEdgePattern [64-70] [-[a]->]
                   GraphElementPatternFiller [66-67] [a]
                     Identifier(a) [66-67] [a]
-          SelectList [81-102] [(a.array[0]-3) AS val]
-            SelectColumn [81-102] [(a.array[0]-3) AS val]
-              BinaryExpression(-) [82-94] [a.array[0]-3]
-                ArrayElement [82-92] [a.array[0]]
-                  PathExpression [82-89] [a.array]
-                    Identifier(a) [82-83] [a]
-                    Identifier(`array`) [84-89] [array]
-                  Location [89-90] [[]
-                  IntLiteral(0) [90-91] [0]
-                IntLiteral(3) [93-94] [3]
-              Alias [96-102] [AS val]
-                Identifier(val) [99-102] [val]
+          Select [73-103] [COLUMNS((a.array[0]-3) AS val)]
+            SelectList [81-102] [(a.array[0]-3) AS val]
+              SelectColumn [81-102] [(a.array[0]-3) AS val]
+                BinaryExpression(-) [82-94] [a.array[0]-3]
+                  ArrayElement [82-92] [a.array[0]]
+                    PathExpression [82-89] [a.array]
+                      Identifier(a) [82-83] [a]
+                      Identifier(`array`) [84-89] [array]
+                    Location [89-90] [[]
+                    IntLiteral(0) [90-91] [0]
+                  IntLiteral(3) [93-94] [3]
+                Alias [96-102] [AS val]
+                  Identifier(val) [99-102] [val]
 --
 SELECT
   *
@@ -144,18 +145,19 @@ QueryStatement [0-103] [select * from...AS val) )]
                 GraphEdgePattern [62-68] [-[a]->]
                   GraphElementPatternFiller [64-65] [a]
                     Identifier(a) [64-65] [a]
-          SelectList [79-100] [(a.array[0]-3) AS val]
-            SelectColumn [79-100] [(a.array[0]-3) AS val]
-              BinaryExpression(-) [80-92] [a.array[0]-3]
-                ArrayElement [80-90] [a.array[0]]
-                  PathExpression [80-87] [a.array]
-                    Identifier(a) [80-81] [a]
-                    Identifier(`array`) [82-87] [array]
-                  Location [87-88] [[]
-                  IntLiteral(0) [88-89] [0]
-                IntLiteral(3) [91-92] [3]
-              Alias [94-100] [AS val]
-                Identifier(val) [97-100] [val]
+          Select [71-101] [COLUMNS((a.array[0]-3) AS val)]
+            SelectList [79-100] [(a.array[0]-3) AS val]
+              SelectColumn [79-100] [(a.array[0]-3) AS val]
+                BinaryExpression(-) [80-92] [a.array[0]-3]
+                  ArrayElement [80-90] [a.array[0]]
+                    PathExpression [80-87] [a.array]
+                      Identifier(a) [80-81] [a]
+                      Identifier(`array`) [82-87] [array]
+                    Location [87-88] [[]
+                    IntLiteral(0) [88-89] [0]
+                  IntLiteral(3) [91-92] [3]
+                Alias [94-100] [AS val]
+                  Identifier(val) [97-100] [val]
 --
 SELECT
   *
@@ -193,18 +195,19 @@ QueryStatement [0-108] [select * from...AS val) )]
                 GraphEdgePattern [67-73] [-[a]->]
                   GraphElementPatternFiller [69-70] [a]
                     Identifier(a) [69-70] [a]
-          SelectList [84-105] [(a.array[0]-3) AS val]
-            SelectColumn [84-105] [(a.array[0]-3) AS val]
-              BinaryExpression(-) [85-97] [a.array[0]-3]
-                ArrayElement [85-95] [a.array[0]]
-                  PathExpression [85-92] [a.array]
-                    Identifier(a) [85-86] [a]
-                    Identifier(`array`) [87-92] [array]
-                  Location [92-93] [[]
-                  IntLiteral(0) [93-94] [0]
-                IntLiteral(3) [96-97] [3]
-              Alias [99-105] [AS val]
-                Identifier(val) [102-105] [val]
+          Select [76-106] [COLUMNS((a.array[0]-3) AS val)]
+            SelectList [84-105] [(a.array[0]-3) AS val]
+              SelectColumn [84-105] [(a.array[0]-3) AS val]
+                BinaryExpression(-) [85-97] [a.array[0]-3]
+                  ArrayElement [85-95] [a.array[0]]
+                    PathExpression [85-92] [a.array]
+                      Identifier(a) [85-86] [a]
+                      Identifier(`array`) [87-92] [array]
+                    Location [92-93] [[]
+                    IntLiteral(0) [93-94] [0]
+                  IntLiteral(3) [96-97] [3]
+                Alias [99-105] [AS val]
+                  Identifier(val) [102-105] [val]
 --
 SELECT
   *
@@ -239,18 +242,19 @@ QueryStatement [0-105] [select * from...AS val) )]
                 GraphEdgePattern [64-70] [-[a]->]
                   GraphElementPatternFiller [66-67] [a]
                     Identifier(a) [66-67] [a]
-          SelectList [81-102] [(a.array[0]-3) AS val]
-            SelectColumn [81-102] [(a.array[0]-3) AS val]
-              BinaryExpression(-) [82-94] [a.array[0]-3]
-                ArrayElement [82-92] [a.array[0]]
-                  PathExpression [82-89] [a.array]
-                    Identifier(a) [82-83] [a]
-                    Identifier(`array`) [84-89] [array]
-                  Location [89-90] [[]
-                  IntLiteral(0) [90-91] [0]
-                IntLiteral(3) [93-94] [3]
-              Alias [96-102] [AS val]
-                Identifier(val) [99-102] [val]
+          Select [73-103] [COLUMNS((a.array[0]-3) AS val)]
+            SelectList [81-102] [(a.array[0]-3) AS val]
+              SelectColumn [81-102] [(a.array[0]-3) AS val]
+                BinaryExpression(-) [82-94] [a.array[0]-3]
+                  ArrayElement [82-92] [a.array[0]]
+                    PathExpression [82-89] [a.array]
+                      Identifier(a) [82-83] [a]
+                      Identifier(`array`) [84-89] [array]
+                    Location [89-90] [[]
+                    IntLiteral(0) [90-91] [0]
+                  IntLiteral(3) [93-94] [3]
+                Alias [96-102] [AS val]
+                  Identifier(val) [99-102] [val]
 --
 SELECT
   *
@@ -309,8 +313,7 @@ QueryStatement [0-84] [GRAPH my.graph...TURN 1 as col]
 --
 GRAPH my.graph.name
 MATCH
-  -[a
-  IS A
+  -[a IS A
   WHERE
     a.prop < -3 COST e.amount]->
 RETURN
@@ -592,12 +595,10 @@ QueryStatement [0-169] [GRAPH my.graph...TURN 1 as col]
 --
 GRAPH my.graph.name
 MATCH
-  p = ANY CHEAPEST -[a
-  IS A
+  p = ANY CHEAPEST -[a IS A
   WHERE
     a.prop < -3 COST e.amount]->,
-  q = CHEAPEST @param  -[b
-  IS B
+  q = CHEAPEST @param  -[b IS B
   WHERE
     b.prop < -4 COST f.amount]->
 RETURN
@@ -658,8 +659,7 @@ QueryStatement [0-108] [GRAPH my.graph...TURN 1 as col]
 GRAPH my.graph.name
 MATCH
   p = ANY CHEAPEST (
-    -[a
-    IS A
+    -[a IS A
     WHERE
       a.prop < -3 COST e.amount]->
   ) { 1, 3 }
@@ -728,8 +728,7 @@ GRAPH my.graph.name
 MATCH
   p = ANY CHEAPEST (
     (a)
-    -[a
-    IS A
+    -[a IS A
     WHERE
       a.prop < -3 COST e.amount]->
     (b)
@@ -800,8 +799,7 @@ MATCH
   -
   (
     ANY CHEAPEST (
-      -[a
-      IS A
+      -[a IS A
       WHERE
         a.prop < -3 COST e.amount]->
     ) { 1, 3 }

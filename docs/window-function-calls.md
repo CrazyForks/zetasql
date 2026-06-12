@@ -49,6 +49,11 @@ following syntax to build a window function:
    For example, the numbering function `RANK()` could be used here.
 +  `argument_list`: Arguments that are specific to the function.
    Some functions have them, some don't.
+   Not all clauses are supported
+   when the function is used with the `OVER` clause as a window function. For
+   example, the `DISTINCT` clause can't be used with the `OVER` clause. For
+   more information, see
+   [Aggregate function calls][aggregate-function-calls].
 +  `OVER`: Keyword required in the window function syntax preceding
    the [`OVER` clause][over-clause-def].
 +  [`over_clause`][over-clause-def]: References a window that defines a group
@@ -973,6 +978,8 @@ WINDOW ItemWindow AS (
 [navigation-functions-reference]: https://github.com/google/googlesql/blob/master/docs/navigation_functions.md
 
 [numbering-functions-reference]: https://github.com/google/googlesql/blob/master/docs/numbering_functions.md
+
+[aggregate-function-calls]: https://github.com/google/googlesql/blob/master/docs/aggregate-function-calls.md
 
 <!-- mdlint on -->
 

@@ -20,6 +20,7 @@
 // Helper macros and methods to return and propagate errors with
 // `absl::Status`.
 
+#include <utility>
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "googlesql/base/source_location.h"

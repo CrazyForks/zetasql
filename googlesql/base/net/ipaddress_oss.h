@@ -41,18 +41,24 @@
 #include <string.h>
 
 #include <memory>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/macros.h"
+#include "absl/base/optimization.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/endian.h"
 #include "googlesql/base/logging.h"
+#include "googlesql/base/unaligned_access.h"
 
 #ifdef __APPLE__
 #define s6_addr16 __u6_addr.__u6_addr16

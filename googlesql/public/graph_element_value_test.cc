@@ -31,10 +31,10 @@
 #include "gtest/gtest.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -575,7 +575,8 @@ TEST(GraphElementValueTest, GraphNodeSpecificTest) {
   EXPECT_DEBUG_DEATH(node.GetDestNodeIdentifier(), "Not an edge");
   EXPECT_EQ(node.ShortDebugString(), "{p0:\"v0\", p1:1}");
   EXPECT_EQ(node.FullDebugString(),
-            "GraphNode{$name:\"ElementTable\", $id:b\"id\", "
+            "GRAPH_NODE(graph_name)<p0 STRING, p1 "
+            "INT32>{$name:\"ElementTable\", $id:b\"id\", "
             "$labels:[\"label1\", \"label2\"], "
             "$is_dynamic:0, "
             "p0:String(\"v0\"), "
@@ -600,7 +601,8 @@ TEST(GraphElementValueTest, GraphEdgeSpecificTest) {
   EXPECT_EQ(edge.GetDestNodeIdentifier(), "dst_node_id");
   EXPECT_EQ(edge.ShortDebugString(), "{p0:\"v0\", p1:1}");
   EXPECT_EQ(edge.FullDebugString(),
-            "GraphEdge{$name:\"ElementTable\", $id:b\"id\", "
+            "GRAPH_EDGE(graph_name)<p0 STRING, p1 "
+            "INT32>{$name:\"ElementTable\", $id:b\"id\", "
             "$labels:[\"label1\", \"label2\"], "
             "$source_node_id:b\"src_node_id\", $dest_node_id:b\"dst_node_id\", "
             "$is_dynamic:0, "

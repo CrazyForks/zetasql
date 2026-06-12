@@ -20,12 +20,18 @@ package com.google.googlesql.resolvedast;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
+import com.google.googlesql.AnyResolvedNodeProto;
+import com.google.googlesql.FileDescriptorSetsBuilder;
 import com.google.googlesql.GoogleSQLType.TypeKind;
+import com.google.googlesql.ParseLocationRange;
+import com.google.googlesql.ResolvedNodeProto;
+import com.google.googlesql.SimpleCatalog;
 import com.google.googlesql.SimpleTable;
+import com.google.googlesql.TestAccess;
 import com.google.googlesql.Type;
 import com.google.googlesql.TypeFactory;
 import com.google.googlesql.Value;
@@ -107,17 +113,17 @@ public class ResolvedNodesTest {
     // FloatLiteralId and HasExplicitType are optional constructor arguments and can be omitted.
     ResolvedLiteral unused =
         ResolvedLiteral.builder().setType(INT32_TYPE).setValue(Value.createInt32Value(5)).build();
-    try {
-      // Value is required argument and must be set.
-      ResolvedLiteral.builder()
-          .setType(INT32_TYPE)
-          .setFloatLiteralId(0)
-          .setHasExplicitType(true)
-          // .setValue(Value.createInt32Value(5))  // "forget" to set this.
-          .build();
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    // Value is required argument and must be set.
+    // .setValue(Value.createInt32Value(5))  // "forget" to set this.
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            ResolvedLiteral.builder()
+                .setType(INT32_TYPE)
+                .setFloatLiteralId(0)
+                .setHasExplicitType(true)
+                // .setValue(Value.createInt32Value(5))  // "forget" to set this.
+                .build());
   }
 
   @Test
@@ -173,5 +179,57 @@ public class ResolvedNodesTest {
     assertThat(scan.getColumnList()).isEmpty();
     assertThat(scan.getLimit()).isSameInstanceAs(FIVE);
     assertThat(scan.getOffset()).isSameInstanceAs(TRUE_LITERAL);
+  }
+
+  @Test
+  public void testResolvedNodeParseLocationRange() {
+    FileDescriptorSetsBuilder fileDescriptorSetsBuilder = new FileDescriptorSetsBuilder();
+    AnyResolvedNodeProto protoWithoutLocation =
+        ResolvedNodes.serialize(FIVE, fileDescriptorSetsBuilder);
+
+    SimpleCatalog catalog = new SimpleCatalog("foo", TypeFactory.nonUniqueNames());
+    DeserializationHelper helper =
+        new DeserializationHelper(
+            catalog.getTypeFactory(),
+            TestAccess.getDescriptorPools(fileDescriptorSetsBuilder),
+            catalog);
+
+    ResolvedNode nodeWithoutLocation = ResolvedNodes.deserialize(protoWithoutLocation, helper);
+    assertThat(nodeWithoutLocation.getParseLocationRange()).isNull();
+
+    ParseLocationRange expectedRange = ParseLocationRange.create("test_file.sql", 10, 20);
+    ResolvedNodeProto nodeProtoWithLocation =
+        protoWithoutLocation
+            .getResolvedExprNode()
+            .getResolvedLiteralNode()
+            .getParent()
+            .getParent()
+            .toBuilder()
+            .setParseLocationRange(expectedRange.serialize())
+            .build();
+
+    AnyResolvedNodeProto protoWithLocation =
+        protoWithoutLocation.toBuilder()
+            .setResolvedExprNode(
+                protoWithoutLocation.getResolvedExprNode().toBuilder()
+                    .setResolvedLiteralNode(
+                        protoWithoutLocation
+                            .getResolvedExprNode()
+                            .getResolvedLiteralNode()
+                            .toBuilder()
+                            .setParent(
+                                protoWithoutLocation
+                                    .getResolvedExprNode()
+                                    .getResolvedLiteralNode()
+                                    .getParent()
+                                    .toBuilder()
+                                    .setParent(nodeProtoWithLocation)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+
+    ResolvedNode nodeWithLocation = ResolvedNodes.deserialize(protoWithLocation, helper);
+    assertThat(nodeWithLocation.getParseLocationRange()).isEqualTo(expectedRange);
   }
 }

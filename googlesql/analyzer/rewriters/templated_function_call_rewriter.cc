@@ -34,9 +34,9 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/container/btree_set.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

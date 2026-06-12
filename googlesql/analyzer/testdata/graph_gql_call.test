@@ -3131,7 +3131,7 @@ ALTERNATION GROUP: OPTIONAL
 --
 ERROR: No matching signature for tvf_one_relation_arg_with_fixed_output with no arguments
   Signature: TVF_ONE_RELATION_ARG_WITH_FIXED_OUTPUT(TABLE)
-    Signature requires at least 1 argument, found 0 arguments [at 4:17]
+    Signature requires at least 1 argument, found 0 arguments; Did you mean to use CALL PER () tvf_one_relation_arg_with_fixed_output(...) instead? [at 4:17]
   OPTIONAL CALL tvf_one_relation_arg_with_fixed_output() YIELD column_bool
                 ^
 --
@@ -3139,7 +3139,7 @@ ALTERNATION GROUP: <empty>
 --
 ERROR: No matching signature for tvf_one_relation_arg_with_fixed_output with no arguments
   Signature: TVF_ONE_RELATION_ARG_WITH_FIXED_OUTPUT(TABLE)
-    Signature requires at least 1 argument, found 0 arguments [at 4:9]
+    Signature requires at least 1 argument, found 0 arguments; Did you mean to use CALL PER () tvf_one_relation_arg_with_fixed_output(...) instead? [at 4:9]
    CALL tvf_one_relation_arg_with_fixed_output() YIELD column_bool
         ^
 ==
@@ -5464,3 +5464,19 @@ QueryStmt
                 | +-x#3 := ColumnRef(type=INT64, column=$graph_table.x#2)
                 +-input_scan=
                   +-GraphRefScan(column_list=[$graph_table.x#2])
+
+==
+
+# Mistaken CALL on a non-graph TVF
+select gt.* from
+graph_table(aml
+  match (n) -[e]->{1, 3} (m)
+  CALL tvf_one_relation_arg_output_schema_is_input_schema()
+  RETURN 1 as x
+) gt
+--
+ERROR: No matching signature for tvf_one_relation_arg_output_schema_is_input_schema with no arguments
+  Signature: TVF_ONE_RELATION_ARG_OUTPUT_SCHEMA_IS_INPUT_SCHEMA(TABLE)
+    Signature requires at least 1 argument, found 0 arguments; Did you mean to use CALL PER () tvf_one_relation_arg_output_schema_is_input_schema(...) instead? [at 4:8]
+  CALL tvf_one_relation_arg_output_schema_is_input_schema()
+       ^

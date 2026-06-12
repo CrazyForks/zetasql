@@ -257,7 +257,6 @@ struct EvaluatorOptions {
   // If true, the reference implementation will account for the memory used by
   // function arguments and thus limit the cumulative memory used by function
   // arguments to the value of 'max_intermediate_byte_size'.
-  // TODO: Remove this option once the feature is fully rolled out.
   bool enable_function_args_memory_accounting = false;
 };
 
@@ -855,7 +854,8 @@ struct EvaluatorModifyResult {
 };
 
 // Prepares and executes a SQL statement.  This API supports queries, DML, DDL,
-// and multi-statements (see (broken link)).
+// multi-statements (see (broken link)),
+// and ResolvedTerminalQueryStmts (producing no output after `|> FINISH`).
 //
 // The Execute* methods return a vector of StmtResult, where each result
 // is an error if the statement (or sub-statement in the multi-statement) fails,
@@ -924,7 +924,7 @@ struct EvaluatorModifyResult {
 //   }
 // ```
 //
-// **Execution Semantics for Multi-statements:**
+// **Execution semantics for multi-statements and terminal queries:**
 // - All statements in a multi-statement query operate on the same initial
 // snapshot of the database.
 // - The side effects of one statement (e.g., from DML or DDL) are NOT visible
@@ -943,6 +943,8 @@ class PreparedStatementBase {
     kCTAS,
     // A DML statement, e.g. INSERT, UPDATE, DELETE.
     kDML,
+    // A no-output query statement (e.g. ending with |> FINISH).
+    kTerminalQuery,
   };
 
   struct StmtResult {
@@ -958,6 +960,9 @@ class PreparedStatementBase {
     //   description of the row modifications. If the DML statement also has a
     //   `THEN RETURN` clause, `table_iterator` will be populated with the
     //   returned rows.
+    // 4. `kTerminalQuery`: A no-output query statement. `table_iterator` is
+    //   not populated. There could still be an error for this result in the
+    //   containing StatusOr if the no-output query failed.
     StmtKind kind;
 
     // Populated if the statement returns a table, for example a

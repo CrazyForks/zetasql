@@ -1,0 +1,23 @@
+MODULE named_constant_struct;
+
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_in_nested_module_struct
+    AS nested_module;
+
+CREATE PRIVATE CONSTANT bar_struct = STRUCT<x INT64, y INT64>(1, 1);
+
+CREATE PUBLIC CONSTANT bar_reference_struct =
+    STRUCT<x INT64, STRUCT<x INT64, y INT64>>(2, bar_struct);
+
+CREATE PUBLIC FUNCTION udf_using_struct(a INT32) AS (a * bar_struct.x);
+CREATE PUBLIC FUNCTION udf_using_struct_templated(a ANY TYPE) AS (a * bar_struct.y);
+
+CREATE PUBLIC FUNCTION udf_using_nested_struct(a INT32) AS
+    (a * nested_module.baz_struct.x);
+CREATE PUBLIC FUNCTION udf_using_nested_struct_templated(a ANY TYPE) AS
+    (a * nested_module.baz_struct.y);
+
+CREATE PUBLIC FUNCTION udf_using_nested_struct_struct(a INT32) AS
+    (a * nested_module.baz_struct_struct.z.x);
+CREATE PUBLIC FUNCTION udf_using_nested_struct_struct_templated(a ANY TYPE) AS
+    (a * nested_module.baz_struct_struct.z.y);

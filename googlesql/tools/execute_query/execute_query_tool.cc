@@ -54,6 +54,7 @@
 #include "googlesql/public/parse_location.h"
 #include "googlesql/public/parse_resume_location.h"
 #include "googlesql/public/parse_tokens.h"
+#include "googlesql/public/prepared_expression_constant_evaluator.h"
 #include "googlesql/public/procedure.h"
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/simple_catalog_util.h"
@@ -84,6 +85,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -99,7 +101,7 @@
 #include "google/protobuf/message.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 ABSL_FLAG(std::string, product_mode, "internal",
           "The product_mode to use in language options. Note, language_features"
@@ -140,11 +142,11 @@ ABSL_FLAG(googlesql::internal::EnabledAstRewrites, enabled_ast_rewrites,
           "incorrect results"
           "\n   'ALL_MINUS_DEV': (Default) All rewrites except those in "
           "development"
-          "\n   'DEFAULTS': All ResolvedASTRewrite's with 'default_enabled' "
-          "set. Not recommended, in-development rewrites may produce incorrect "
+          "\n   'DEFAULTS': All rewrites with default_enabled=true and without "
+          "in_development=true"
+          "\n   'DEFAULTS_PLUS_DEV': All rewrites with default_enabled=true. "
+          "Not recommended, in-development rewrites may produce incorrect "
           "results"
-          "\n   'DEFAULTS_MINUS_DEV': All rewrites with 'default_enabled' set, "
-          "except those in development"
           "\n"
           "\n Enum values must be listed with 'REWRITE_' stripped"
           "\n Example:"
@@ -222,8 +224,8 @@ ABSL_FLAG(std::string, target_syntax, "standard",
 
 ABSL_FLAG(
     int64_t, evaluator_max_value_byte_size, -1 /* sentinel for unset*/,
-    R"(Limit on the maximum number of in-memory bytes used by an individual Value
-  that is constructed during evaluation. This bound applies to all Value
+    R"(Limit on the maximum number of in-memory bytes used by an individual
+  Value that is constructed during evaluation. This bound applies to all Value
   types, including variable-sized types like STRING, BYTES, ARRAY, and
   STRUCT. Exceeding this limit results in an error. See the implementation of
   Value::physical_byte_size for more details.)");
@@ -388,10 +390,12 @@ class EvaluatorCallback : public StatementEvaluatorCallback {
       // execution is successful.
       GOOGLESQL_RET_CHECK(value.has_content());
 
-      // DML and DDL statements return a struct value instead of an array. Wrap
-      // it inside an array of struct so that we can use the ValueAsTableAdapter
+      // DML and DDL statements return a struct value instead of an array.
+      // Other statements might return a single value if they are value tables
+      // or expressions.
+      // Wrap it inside an array so that we can use the ValueAsTableAdapter
       // to convert it to an iterator.
-      if (value.type()->IsStruct()) {
+      if (!value.type()->IsArray()) {
         const ArrayType* array_type;
         GOOGLESQL_RET_CHECK_OK(
             config_.type_factory()->MakeArrayType(value.type(), &array_type));
@@ -401,8 +405,18 @@ class EvaluatorCallback : public StatementEvaluatorCallback {
         value = *array_value;
       }
 
+      bool is_value_table = false;
+      if (resolved_stmt->node_kind() == RESOLVED_QUERY_STMT) {
+        is_value_table =
+            resolved_stmt->GetAs<ResolvedQueryStmt>()->is_value_table();
+      } else if (resolved_stmt->node_kind() ==
+                 RESOLVED_CREATE_TABLE_AS_SELECT_STMT) {
+        is_value_table = resolved_stmt->GetAs<ResolvedCreateTableStmtBase>()
+                             ->is_value_table();
+      }
+
       absl::StatusOr<std::unique_ptr<ValueAsTableAdapter>> adapter_or =
-          ValueAsTableAdapter::Create(value);
+          ValueAsTableAdapter::Create(value, is_value_table);
       if (!adapter_or.ok()) {
         iters.push_back(adapter_or.status());
         continue;
@@ -453,8 +467,19 @@ class EvaluatorCallback : public StatementEvaluatorCallback {
       if (!value.has_content()) {
         return absl::OkStatus();
       }
+
+      bool is_value_table = false;
+      if (resolved_stmt->node_kind() == RESOLVED_QUERY_STMT) {
+        is_value_table =
+            resolved_stmt->GetAs<ResolvedQueryStmt>()->is_value_table();
+      } else if (resolved_stmt->node_kind() ==
+                 RESOLVED_CREATE_TABLE_AS_SELECT_STMT) {
+        is_value_table = resolved_stmt->GetAs<ResolvedCreateTableStmtBase>()
+                             ->is_value_table();
+      }
+
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueAsTableAdapter> adapter,
-                       ValueAsTableAdapter::Create(value));
+                       ValueAsTableAdapter::Create(value, is_value_table));
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<EvaluatorTableIterator> iter,
                        adapter->CreateEvaluatorTableIterator());
       GOOGLESQL_RETURN_IF_ERROR(writer_.executed(*resolved_stmt, std::move(iter)));
@@ -923,6 +948,10 @@ absl::Status InitializeExecuteQueryConfig(ExecuteQueryConfig& config) {
       BuiltinFunctionOptions(config.analyzer_options().language())));
   GOOGLESQL_RETURN_IF_ERROR(SetQueryParametersFromFlags(config));
 
+  config.set_constant_evaluator(
+      std::make_unique<PreparedExpressionConstantEvaluator>(
+          config.evaluator_options()));
+
   return absl::OkStatus();
 }
 
@@ -1281,6 +1310,8 @@ static absl::Status ApplyCreateTableStmt(
   stmt->create_mode();
   // Mark accessed so that OPTIONS can be ignored.
   stmt->option_list();
+  // Mark accessed so that value tables can be analyzed.
+  stmt->is_value_table();
 
   if (is_ctas && !stmt_result.has_value()) {
     // No CTAS results provided, mark query as accessed without populating
@@ -1669,13 +1700,18 @@ static absl::Status ExecuteAndOrExplainStatement(
   GOOGLESQL_ASSIGN_OR_RETURN(PreparedStatement::StmtResults multi_stmt_result,
                    prepared_stmt->ExecuteAfterPrepare(query_options));
 
-  if (resolved_node->Is<ResolvedQueryStmt>()) {
+  if (resolved_node->Is<ResolvedQueryStmt>() ||
+      resolved_node->Is<ResolvedTerminalQueryStmt>()) {
     GOOGLESQL_RET_CHECK_EQ(multi_stmt_result.size(), 1);
     auto& result = multi_stmt_result[0];
     if (!result.ok()) {
       return result.status();
     }
-    GOOGLESQL_RET_CHECK(result->table_iterator != nullptr);
+    if (result->kind == PreparedStatementBase::StmtKind::kTerminalQuery) {
+      GOOGLESQL_RET_CHECK(result->table_iterator == nullptr);
+    } else {
+      GOOGLESQL_RET_CHECK(result->table_iterator != nullptr);
+    }
     GOOGLESQL_RETURN_IF_ERROR(
         writer.executed(*resolved_node, std::move(result->table_iterator)));
     return absl::OkStatus();
@@ -1698,6 +1734,10 @@ static absl::Status ExecuteAndOrExplainStatement(
       case PreparedStatementBase::StmtKind::kQuery:
         GOOGLESQL_RET_CHECK(stmt_result.table_iterator != nullptr);
         iters.push_back(std::move(stmt_result.table_iterator));
+        break;
+      case PreparedStatementBase::StmtKind::kTerminalQuery:
+        GOOGLESQL_RET_CHECK(stmt_result.table_iterator == nullptr);
+        iters.push_back(nullptr);
         break;
       case PreparedStatementBase::StmtKind::kDML: {
         absl::StatusOr<std::unique_ptr<ValueAsTableAdapter>> adapter =
@@ -1742,6 +1782,7 @@ static absl::Status ExplainAndOrExecuteSql(const ResolvedNode* resolved_node,
     case SqlMode::kQuery: {
       GOOGLESQL_RET_CHECK(resolved_node->node_kind() == RESOLVED_MULTI_STMT ||
                 resolved_node->node_kind() == RESOLVED_QUERY_STMT ||
+                resolved_node->node_kind() == RESOLVED_TERMINAL_QUERY_STMT ||
                 IsDdlStatement(resolved_node) || IsDmlStatement(resolved_node));
       return ExecuteAndOrExplainStatement(
           resolved_node->GetAs<ResolvedStatement>(), config, writer);
@@ -2334,6 +2375,7 @@ static absl::Status ExecuteOneQuery(absl::string_view script,
 
     if (resolved_node->node_kind() == RESOLVED_QUERY_STMT ||
         resolved_node->node_kind() == RESOLVED_MULTI_STMT ||
+        resolved_node->node_kind() == RESOLVED_TERMINAL_QUERY_STMT ||
         resolved_node->IsExpression() || IsDdlStatement(resolved_node) ||
         IsDmlStatement(resolved_node)) {
       GOOGLESQL_RETURN_IF_ERROR(

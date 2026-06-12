@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "googlesql/base/logging.h"
+#include "googlesql/common/errors.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
@@ -45,13 +46,15 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 namespace {
@@ -164,7 +167,7 @@ const GraphElementType::PropertyType* GraphElementType::FindPropertyTypeImpl(
   int property_type_index;
   {
     // Lazily builds property name to index map.
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (ABSL_PREDICT_FALSE(property_name_to_index_map_.empty())) {
       for (int i = 0; i < property_types_.size(); ++i) {
         property_name_to_index_map_.emplace(property_types_.at(i).name, i);
@@ -356,7 +359,7 @@ absl::StatusOr<std::string> GraphElementType::TypeNameWithModifiers(
     bool use_external_float32) const {
   const TypeParameters& type_params = type_modifiers.type_parameters();
   if (!type_params.IsEmpty() &&
-      (type_params.num_children() != property_types_.size())) {
+      type_params.num_children() != property_types_.size()) {
     return MakeSqlError() << "Input type parameter does not correspond to this "
                              "GraphElementType: "
                           << DebugString();
@@ -380,13 +383,22 @@ absl::StatusOr<std::string> GraphElementType::TypeNameWithModifiers(
   return TypeNameImpl(std::numeric_limits<int>::max(), property_type_name_fn);
 }
 
-std::string GraphElementType::CapitalizedName() const {
-  ABSL_CHECK_EQ(kind(), TYPE_GRAPH_ELEMENT);  // Crash OK
-  return AsGraphElement()->IsNode() ? "GraphNode" : "GraphEdge";
+absl::Status GraphElementType::ValidateResolvedTypeParameters(
+    const TypeParameters& type_parameters, ProductMode mode) const {
+  if (type_parameters.IsEmpty()) {
+    return absl::OkStatus();
+  }
+  GOOGLESQL_RET_CHECK_EQ(type_parameters.num_children(), property_types_.size());
+  for (int i = 0; i < property_types_.size(); ++i) {
+    GOOGLESQL_RETURN_IF_ERROR(
+        property_types_[i].value_type->ValidateResolvedTypeParameters(
+            type_parameters.child(i), mode));
+  }
+  return absl::OkStatus();
 }
 
 Type::HasFieldResult GraphElementType::HasFieldImpl(
-    const std::string& name, int* field_id, bool include_pseudo_fields) const {
+    absl::string_view name, int* field_id, bool include_pseudo_fields) const {
   return FindPropertyTypeImpl(name, field_id) == nullptr ? HAS_NO_FIELD
                                                          : HAS_FIELD;
 }

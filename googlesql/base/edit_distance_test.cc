@@ -27,8 +27,11 @@
 #include <ctype.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <functional>
+#include <iterator>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"

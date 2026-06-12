@@ -21,16 +21,16 @@
 #include "googlesql/proto/options.pb.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/types/type_factory.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "googlesql/base/case.h"
-#include "googlesql/base/no_destructor.h"
 
 namespace googlesql {
 const absl::flat_hash_map<std::string, AllowedOptionProperties,
                           googlesql_base::StringViewCaseHash,
                           googlesql_base::StringViewCaseEqual>&
 GetAllowedAggregationThresholdOptions() {
-  static const googlesql_base::NoDestructor<absl::flat_hash_map<
+  static const absl::NoDestructor<absl::flat_hash_map<
       std::string, AllowedOptionProperties, googlesql_base::StringViewCaseHash,
       googlesql_base::StringViewCaseEqual>>
       aggregation_threshold_options(

@@ -167,7 +167,7 @@ std::vector<FunctionTestCall> GetFunctionTestsFormat() {
   // Remove leading 8 spaces (but no more!).
   RE2::GlobalReplace(&proto_value_multiline_str, "[ ]{8}", "");
   // Add trailing newline.
-  proto_value_multiline_str += "\n";
+  proto_value_multiline_str += '\n';
 
   const Value proto_null = Value::Null(KitchenSinkProtoType());
   const std::string civil_time_proto_str = absl::StrCat(

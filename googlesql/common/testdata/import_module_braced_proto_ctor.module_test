@@ -1,0 +1,20 @@
+[no_input_is_module_contents]
+[no_debug_string_include_types]
+IMPORT MODULE googlesql.testdata.modules.braced_proto_ctor AS mod;
+--
+Lazy_resolution_function:foo
+  (INT32 a) -> PROTO<googlesql_test.KitchenSinkPB>
+
+CONSTANT bar=Proto<googlesql_test.KitchenSinkPB>{int64_key_1: 1
+int64_key_2: 2
+nested_repeated_value {
+  nested_int64: 10
+  nested_repeated_int64: 100
+  nested_repeated_int64: 200
+}
+nested_repeated_value {
+  nested_int64: 20
+  nested_repeated_int64: 300
+  nested_repeated_int64: 400
+}
+} (PROTO<googlesql_test.KitchenSinkPB>)

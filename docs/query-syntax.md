@@ -174,6 +174,9 @@ produces one output column for each column or top-level field of `expression`.
 The expression must either be a table alias or evaluate to a single value of a
 data type with fields, such as a STRUCT.
 
+Note: The `*` or `.*` wildcard preserves the order of the fields in the
+data structure on which they're operating.
+
 The following query produces one output column for each column in the table
 `groceries`, aliased as `g`.
 
@@ -244,7 +247,9 @@ FROM orders;
  +-----------+----------*/
 ```
 
-Note: `SELECT * EXCEPT` doesn't exclude columns that don't have names.
+Note: `SELECT * EXCEPT` doesn't exclude columns that don't have names. Also,
+`SELECT * EXCEPT` and the [`EXCEPT`][except] set operator have different use
+cases and rules.
 
 ### `SELECT * REPLACE`
 
@@ -2247,14 +2252,14 @@ the highest points against this school.
 
 SELECT R.SchoolID, OP.LastName AS TopOpPlayer, OP.PointsScored
 FROM Roster AS R,
-     LATERAL (
-      SELECT PS.LastName, PS.PointsScored
-      FROM PlayerStats AS PS
-      WHERE PS.OpponentID = R.SchoolID
-      ORDER BY PointsScored DESC
-      LIMIT 1
-     ) AS OP
-ORDER BY R.SchoolID
+  LATERAL(
+    SELECT PS.LastName, PS.PointsScored
+    FROM PlayerStats AS PS
+    WHERE PS.OpponentID = R.SchoolID
+    ORDER BY PointsScored DESC
+    LIMIT 1
+  ) AS OP
+ORDER BY R.SchoolID;
 
 /*
 Result (using implicit CROSS JOIN with LATERAL):
@@ -2273,9 +2278,15 @@ Using `LEFT JOIN LATERAL`:
 
 ```googlesql
 
-SELECT R.LastName, R.SchoolID, M.Mascot FROM Roster AS R LEFT JOIN LATERAL (
-SELECT Mascot FROM TeamMascot m WHERE m.SchoolID = R.SchoolI ) AS M ORDER BY
-R.LastName;
+SELECT R.LastName, R.SchoolID, M.Mascot
+FROM Roster AS R
+LEFT JOIN
+  LATERAL(
+    SELECT Mascot
+    FROM TeamMascot m
+    WHERE m.SchoolID = R.SchoolID
+  ) AS M
+ORDER BY R.LastName;
 
 /* SchoolID 77 has no mascot listed in the TeamMascot table. Because the join is
 `LEFT OUTER`, players from schoolID 77 still shows up in the output, with `NULL`
@@ -3632,7 +3643,14 @@ Conceptual grouping sets | Actual grouping sets
 
 `GROUP BY GROUPING SETS` can include `ROLLUP` and `CUBE` operations, which
 generate grouping sets. If `ROLLUP` is added, it generates rolled up
-grouping sets. If `CUBE` is added, it generates grouping set permutations.
+grouping sets. If `CUBE` is added, it generates all grouping set combinations.
+
+`ROLLUP` and `CUBE` are expanded into a list of grouping sets using the normal
+rules, and the resulting list is combined with the sets explicitly listed in the
+grouping sets list.
+
+For more details, see [Group rows by `ROLLUP`](#group_by_rollup) and
+[Group rows by `CUBE`](#group_by_cube).
 
 The following grouping sets are generated for
 `GROUP BY GROUPING SETS (a, ROLLUP(b, c), d)`.
@@ -4037,7 +4055,7 @@ GROUP BY CUBE ( <span class="var">grouping_list</span> )
 **Description**
 
 The `GROUP BY CUBE` clause produces aggregated data for all _grouping set_
-permutations. A grouping set is a group of columns by which rows
+combinations. A grouping set is a group of columns by which rows
 can be grouped together. This clause is helpful if you need to create a
 [contingency table][contingency-table]{: .external} to find interrelationships
 between items in a set of data.
@@ -4057,7 +4075,7 @@ between items in a set of data.
 **Details**
 
 `GROUP BY CUBE` is similar to `GROUP BY ROLLUP`, except that it takes a
-grouping list and generates grouping sets from all permutations in this
+grouping list and generates grouping sets from all combinations in this
 list, including an empty grouping set. In the empty grouping set, all rows
 are aggregated down to a single group.
 
@@ -5884,6 +5902,7 @@ Here are some general rules and constraints to consider when working with CTEs:
   same `WITH` clause. You can learn more [here][recursive-keyword].
 + A local CTE overrides an outer CTE or table with the same name.
 + A CTE on a subquery may not reference correlated columns from the outer query.
++ `UNION DISTINCT` isn't allowed inside a `WITH RECURSIVE` clause.
 
 ##### Base term rules 
 <a id="base_term_rules"></a>
@@ -6503,6 +6522,12 @@ GROUP BY item;
  | scissors | 8                |
  +----------+------------------*/
 ```
+
+In this example, `max_groups_contributed` is set to `2` because each professor
+contributes to at most two groups (that is, each has at most two distinct `item`
+values). A value of `2` or greater is needed to avoid dropping contributions
+from any professor. Alternatively, `max_groups_contributed` could be set to
+`NULL` to not limit contributions.
 
 #### Limit the groups in which a privacy unit ID can exist 
 <a id="limit_groups_for_privacy_unit"></a>
@@ -7478,9 +7503,9 @@ Results:
 
 [graph-table-operator]: https://github.com/google/googlesql/blob/master/docs/graph-sql-queries.md#graph_table_operator
 
-[graph-hints-gql]: https://github.com/google/googlesql/blob/master/docs/graph-query-statements.md#graph_hints
-
 [coalesce]: https://github.com/google/googlesql/blob/master/docs/conditional_expressions.md#coalesce
+
+[except]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#except
 
 <!-- mdlint on -->
 

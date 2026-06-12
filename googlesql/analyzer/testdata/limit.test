@@ -179,6 +179,38 @@ QueryStmt
 ==
 
 [language_features=NONE,{{+LIMIT_OFFSET_EXPRESSIONS|}}]
+SELECT 1 LIMIT "string_literal";
+--
+ALTERNATION GROUP: +LIMIT_OFFSET_EXPRESSIONS
+--
+ERROR: LIMIT ... OFFSET ... expects INT64, got STRING [at 1:16]
+SELECT 1 LIMIT "string_literal";
+               ^
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: LIMIT expects an integer literal or parameter [at 1:16]
+SELECT 1 LIMIT "string_literal";
+               ^
+==
+
+[language_features=NONE,{{+LIMIT_OFFSET_EXPRESSIONS|}}]
+SELECT 1 LIMIT @test_param_string;
+--
+ALTERNATION GROUP: +LIMIT_OFFSET_EXPRESSIONS
+--
+ERROR: LIMIT ... OFFSET ... expects INT64, got STRING [at 1:16]
+SELECT 1 LIMIT @test_param_string;
+               ^
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: LIMIT expects an integer literal or parameter [at 1:16]
+SELECT 1 LIMIT @test_param_string;
+               ^
+==
+
+[language_features=NONE,{{+LIMIT_OFFSET_EXPRESSIONS|}}]
 SELECT 1 LIMIT @test_param_int32;
 --
 QueryStmt
@@ -242,14 +274,6 @@ QueryStmt
 
 [language_features=NONE,{{+LIMIT_OFFSET_EXPRESSIONS|}}]
 SELECT 1 LIMIT @test_param_uint64;
---
-ALTERNATION GROUP: +LIMIT_OFFSET_EXPRESSIONS
---
-ERROR: LIMIT ... OFFSET ... expects INT64, got UINT64 [at 1:16]
-SELECT 1 LIMIT @test_param_uint64;
-               ^
---
-ALTERNATION GROUP: <empty>
 --
 QueryStmt
 +-output_column_list=
@@ -339,14 +363,6 @@ QueryStmt
 
 [language_features=NONE,{{+LIMIT_OFFSET_EXPRESSIONS|}}]
 SELECT 1 LIMIT 1 OFFSET @test_param_uint64;
---
-ALTERNATION GROUP: +LIMIT_OFFSET_EXPRESSIONS
---
-ERROR: LIMIT ... OFFSET ... expects INT64, got UINT64 [at 1:25]
-SELECT 1 LIMIT 1 OFFSET @test_param_uint64;
-                        ^
---
-ALTERNATION GROUP: <empty>
 --
 QueryStmt
 +-output_column_list=

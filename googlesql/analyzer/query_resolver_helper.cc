@@ -33,6 +33,7 @@
 #include "googlesql/analyzer/analytic_function_resolver.h"
 #include "googlesql/analyzer/expr_resolver_helper.h"
 #include "googlesql/analyzer/name_scope.h"
+#include "googlesql/parser/ast_node_kind.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parse_tree_errors.h"
 #include "googlesql/parser/parse_tree_visitor.h"
@@ -45,6 +46,7 @@
 #include "googlesql/public/value.h"
 #include "googlesql/public/with_modifier_mode.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
+#include "googlesql/resolved_ast/resolved_collation.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/algorithm/container.h"
@@ -52,6 +54,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -59,7 +62,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -228,7 +230,7 @@ class DeferredResolutionFinder : public NonRecursiveParseTreeVisitor {
   absl::StatusOr<VisitResult> visitASTFunctionCall(
       const ASTFunctionCall* node) override {
     if (node->group_by() != nullptr) {
-      info_.has_outer_group_rows_or_group_by_modifiers = true;
+      info_.has_group_by_modifiers = true;
     }
     return VisitResult::VisitChildren(node);
   };
@@ -246,6 +248,37 @@ class DeferredResolutionFinder : public NonRecursiveParseTreeVisitor {
 
  private:
   DeferredResolutionSelectColumnInfo info_;
+};
+
+class GroupRowsFinder : public NonRecursiveParseTreeVisitor {
+ public:
+  GroupRowsFinder() = default;
+  GroupRowsFinder(const GroupRowsFinder&) = delete;
+  GroupRowsFinder(GroupRowsFinder&&) = delete;
+  GroupRowsFinder& operator=(const GroupRowsFinder&) = delete;
+  GroupRowsFinder& operator=(GroupRowsFinder&&) = delete;
+
+  absl::StatusOr<VisitResult> defaultVisit(const ASTNode* node) override {
+    if (found_group_rows_) {
+      return VisitResult::Empty();
+    }
+    return VisitResult::VisitChildren(node);
+  }
+
+  absl::StatusOr<VisitResult> visitASTQuery(const ASTQuery* node) override {
+    return VisitResult::Empty();
+  }
+
+  absl::StatusOr<VisitResult> visitASTGroupRows(
+      const ASTGroupRows* node) override {
+    found_group_rows_ = true;
+    return VisitResult::Empty();
+  }
+
+  bool found_group_rows() const { return found_group_rows_; }
+
+ private:
+  bool found_group_rows_ = false;
 };
 
 }  // namespace
@@ -416,17 +449,16 @@ absl::Status SelectColumnStateList::ValidateAggregateAndAnalyticSupport(
     const absl::string_view column_description, const ASTNode* ast_location,
     const SelectColumnState* select_column_state,
     const ExprResolutionInfo* expr_resolution_info) {
-  // If `contains_outer_group_rows_or_group_by_modifiers` is true, then
-  // `has_aggregation` should also be true. This condition is just to help
-  // provide a better error message if a user writes something like
-  // 'SCALAR_FUNCTION(...) WITH GROUP ROWS (...)'.
-  if (select_column_state->contains_outer_group_rows_or_group_by_modifiers &&
+  // If `contains_group_by_modifiers` is true, then `has_aggregation` should
+  // also be true. This condition is just to help provide a better error message
+  // if a user writes something like 'SCALAR_FUNCTION(...) WITH GROUP ROWS
+  // (...)'.
+  if (select_column_state->contains_group_by_modifiers &&
       !expr_resolution_info->allows_aggregation) {
     GOOGLESQL_RET_CHECK(select_column_state->expr_findings.has_aggregation);
     return MakeSqlErrorAt(ast_location)
            << "Column " << column_description
-           << " contains a GROUP ROWS subquery or a GROUP BY modifier, which "
-              "is not allowed in "
+           << " contains a GROUP BY modifier, which is not allowed in "
            << expr_resolution_info->clause_name
            << (expr_resolution_info->is_post_distinct()
                    ? " after SELECT DISTINCT"
@@ -983,6 +1015,44 @@ GetDeferredResolutionSelectColumnInfo(const ASTSelectColumn* column) {
   DeferredResolutionFinder deferred_resolution_finder;
   GOOGLESQL_RETURN_IF_ERROR(column->TraverseNonRecursive(&deferred_resolution_finder));
   return deferred_resolution_finder.GetDeferredResolutionSelectColumnInfo();
+}
+
+absl::StatusOr<bool> HasGroupRowsInQuery(const ASTQueryExpression* query_expr) {
+  // Per spec: The FROM GROUP ROWS construct may only appear in a leading pipes
+  // FROM or the FROM clause of the top level SELECT...
+  if (query_expr != nullptr && (query_expr->node_kind() == AST_SELECT ||
+                                query_expr->node_kind() == AST_FROM_QUERY)) {
+    GroupRowsFinder visitor;
+    GOOGLESQL_RETURN_IF_ERROR(query_expr->TraverseNonRecursive(&visitor));
+    return visitor.found_group_rows();
+  }
+  return false;
+}
+
+absl::Status SetCollationList(const LanguageOptions& language_options,
+                              ResolvedAggregateScanBase& aggregate_scan) {
+  // If the feature is not enabled, any collation annotation that might exist on
+  // the grouping expressions is ignored.
+  if (!language_options.LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT)) {
+    return absl::OkStatus();
+  }
+  std::vector<ResolvedCollation> collation_list;
+  bool empty = true;
+  for (const auto& group_by_expr : aggregate_scan.group_by_list()) {
+    ResolvedCollation resolved_collation;
+    if (group_by_expr->expr()->type_annotation_map() != nullptr) {
+      GOOGLESQL_ASSIGN_OR_RETURN(resolved_collation,
+                       ResolvedCollation::MakeResolvedCollation(
+                           *group_by_expr->expr()->type_annotation_map()));
+      empty &= resolved_collation.Empty();
+    }
+    collation_list.push_back(std::move(resolved_collation));
+  }
+  if (!empty) {
+    aggregate_scan.set_collation_list(collation_list);
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace googlesql

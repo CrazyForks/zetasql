@@ -42,13 +42,13 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/status_macros.h"
 
 constexpr int kDefaultMaxNestingLevel = 50;
 ABSL_FLAG(int, googlesql_scripting_max_nesting_level, kDefaultMaxNestingLevel,

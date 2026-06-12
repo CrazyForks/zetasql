@@ -29,6 +29,7 @@
 #include "googlesql/public/types/range_type.h"
 #include "googlesql/public/value.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -36,8 +37,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "googlesql/base/case.h"  
-#include "googlesql/base/status.h"                         
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

@@ -22,9 +22,9 @@
 #include "googlesql/parser/parse_tree_visitor.h"
 #include "googlesql/parser/visit_result.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

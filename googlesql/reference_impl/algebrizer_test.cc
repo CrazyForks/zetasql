@@ -61,6 +61,7 @@
 #include "absl/hash/hash.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -71,7 +72,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/compact_reference_counted.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 using ::testing::HasSubstr;
 using ::testing::MatchesRegex;

@@ -48,7 +48,8 @@ absl::StatusOr<ResolvedColumn> GetInvokedMeasureColumn(
 
 // Returns an error if `input` contains a query shape that is unsupported by
 // the measure type rewriter.
-absl::Status HasUnsupportedQueryShape(const ResolvedNode* input);
+absl::Status HasUnsupportedQueryShape(const ResolvedNode* input,
+                                      const LanguageOptions& language_options);
 
 struct RewriteMeasureExprResult {
   std::unique_ptr<const ResolvedExpr> rewritten_measure_expr;
@@ -73,12 +74,15 @@ struct RewriteMeasureExprResult {
 // constituent aggregate functions. The constituent aggregate functions are
 // themselves rewritten to use multi-level aggregation to grain-lock and avoid
 // overcounting.
+//
+// `closure_struct_ref`: A column ref to the closure struct column corresponding
+// to the measure being rewritten.
 absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
-    const ResolvedExpr* measure_expr, ResolvedColumn struct_column,
+    const ResolvedExpr* measure_expr,
+    const ResolvedColumnRef* closure_struct_ref,
     const absl::btree_set<std::string, googlesql_base::CaseLess>&
         row_identity_column_names,
-    bool struct_column_refs_are_correlated, const Function* any_value_fn,
-    FunctionCallBuilder& function_call_builder,
+    const Function* any_value_fn, FunctionCallBuilder& function_call_builder,
     const LanguageOptions& language_options, ColumnFactory& column_factory,
     TypeFactory& type_factory);
 

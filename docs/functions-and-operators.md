@@ -284,6 +284,15 @@ statement.
       <td>Value is [not] in the set of values specified</td>
       <td>Binary</td>
     </tr>
+
+    <tr>
+      <td>&nbsp;</td>
+      <td><code>IS [NOT] DISTINCT FROM</code></td>
+      <td>All</td>
+      <td>Value is [not] <code>DISTINCT FROM</code></td>
+      <td>Binary</td>
+    </tr>
+
     <tr>
       <td>&nbsp;</td>
       <td><code>IS [NOT] NULL</code></td>
@@ -462,7 +471,7 @@ ambiguity. For example:
   <td><a href="#graph_logical_operators">Graph logical operators</a>
 </td>
   <td>
-    Tests for the truth of a condition in a graph and produces either
+    Tests for the truth of a condition in a graph label and produces either
     <code>TRUE</code> or <code>FALSE</code>.
   </td>
 </tr>
@@ -677,6 +686,10 @@ Input values:
   an error if the index is out of range. To produce `NULL` instead of an error,
   use the `SAFE_OFFSET(index)` or `SAFE_ORDINAL(index)` position keyword.
 
+Tip: To access the first or last element in an array, use the
+[`ARRAY_FIRST`][array-first-function] or [`ARRAY_LAST`][array-last-function]
+function.
+
 **Return type**
 
 `T` where `array_expression` is `ARRAY<T>`.
@@ -716,6 +729,10 @@ SELECT ["coffee", "tea", "milk"][6] AS item_offset
 -- Error. Array index 6 is out of bounds.
 SELECT ["coffee", "tea", "milk"][OFFSET(6)] AS item_offset
 ```
+
+[array-first-function]: #array_first
+
+[array-last-function]: #array_last
 
 ### Struct subscript operator 
 <a id="struct_subscript_operator"></a>
@@ -1379,7 +1396,7 @@ has type `T` unless otherwise indicated in the description below:
   </tbody>
 </table>
 
-NOTE: Divide by zero operations return an error. To return a different result,
+Note: Divide by zero operations return an error. To return a different result,
 consider the `IEEE_DIVIDE` or `SAFE_DIVIDE` functions.
 
 Result types for Addition and Multiplication:
@@ -1958,7 +1975,7 @@ GoogleSQL supports the following logical operators in
 GoogleSQL supports the following graph-specific predicates in
 graph expressions. A predicate can produce `TRUE`, `FALSE`, or `NULL`.
 
-+   [`PROPERTY_EXISTS` predicate][property-exists-predicate]
++ [`PROPERTY_EXISTS` predicate][property-exists-predicate]
 +   [`IS SOURCE` predicate][is-source-predicate]
 +   [`IS DESTINATION` predicate][is-destination-predicate]
 +   [`IS LABELED` predicate][is-labeled-predicate]
@@ -2220,7 +2237,8 @@ Produces an error if `element` is `NULL`.
 
 **Example**
 
-The following query checks to see if `a` and `b` aren't the same person.
+The following query returns the source and destination IDs for transfers
+between different accounts:
 
 ```googlesql
 GRAPH FinGraph
@@ -2344,7 +2362,7 @@ This operator supports specifying <a href="https://github.com/google/googlesql/b
       <td><code>LIKE</code></td>
       <td><code>X [NOT] LIKE Y</code></td>
       <td>
-        See the <a href="#like_operator">`LIKE` operator</a>
+        See the <a href="#like_operator"><code>LIKE</code> operator</a>
 
         for details.
       </td>
@@ -2353,11 +2371,22 @@ This operator supports specifying <a href="https://github.com/google/googlesql/b
       <td><code>IN</code></td>
       <td>Multiple</td>
       <td>
-        See the <a href="#in_operator">`IN` operator</a>
+        See the <a href="#in_operator"><code>IN</code> operator</a>
 
         for details.
       </td>
     </tr>
+
+    <tr>
+      <td><code>IS DISTINCT FROM</code></td>
+      <td><code>x IS [NOT] DISTINCT FROM y</code></td>
+      <td>
+        See the <a href="#is_distinct"><code>IS DISTINCT FROM</code> operator</a>
+
+        for details.
+      </td>
+    </tr>
+
   </tbody>
 </table>
 
@@ -2518,18 +2547,27 @@ This operator supports [collation][collation], but these limitations apply:
 When using the `IN` operator, the following semantics apply in this order:
 
 + Returns `FALSE` if `value_set` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
 + Returns `TRUE` if `value_set` contains a value equal to `search_value`.
-+ Returns `NULL` if `value_set` contains a `NULL`.
++ Returns `NULL` if the equality comparison between `search_value` and
+  any value in `value_set` produces `NULL`.
 + Returns `FALSE`.
 
 When using the `NOT IN` operator, the following semantics apply in this order:
 
 + Returns `TRUE` if `value_set` is empty.
-+ Returns `NULL` if `search_value` is `NULL`.
 + Returns `FALSE` if `value_set` contains a value equal to `search_value`.
-+ Returns `NULL` if `value_set` contains a `NULL`.
++ Returns `NULL` if the equality comparison between `search_value` and
+  any value in `value_set` produces `NULL`.
 + Returns `TRUE`.
+
+For example:
+
++ `1 IN UNNEST([NULL, 1])` returns `TRUE`
++ `1 IN UNNEST([2, 3])` returns `FALSE`
++ `1 [NOT] IN UNNEST([NULL])` returns `NULL`
++ `(NULL, 1) [NOT] IN UNNEST([(NULL, 1)])` returns `NULL`
++ `(NULL, 2) IN UNNEST([(NULL, 1)])` returns `FALSE`
++ `(NULL, 2) NOT IN UNNEST([(NULL, 1)])` returns `TRUE`
 
 The semantics of:
 
@@ -2902,17 +2940,17 @@ SELECT 1 IS NOT DISTINCT FROM NULL
 <a id="like_operator"></a>
 
 ```googlesql
-expression_1 [NOT] LIKE expression_2
+expression [NOT] LIKE pattern
 ```
 
 **Description**
 
-`LIKE` returns `TRUE` if the string in the first operand `expression_1`
-matches a pattern specified by the second operand `expression_2`,
+`LIKE` returns `TRUE` if the string in the first operand `expression`
+matches a pattern specified by the second operand `pattern`,
 otherwise returns `FALSE`.
 
-`NOT LIKE` returns `TRUE` if the string in the first operand `expression_1`
-doesn't match a pattern specified by the second operand `expression_2`,
+`NOT LIKE` returns `TRUE` if the string in the first operand `expression`
+doesn't match a pattern specified by the second operand `pattern`,
 otherwise returns `FALSE`.
 
 Expressions can contain these characters:
@@ -2925,7 +2963,7 @@ Expressions can contain these characters:
 
 This operator supports [collation][collation], but caveats apply:
 
-+   Each `%` character in `expression_2` represents an
++   Each `%` character in `pattern` represents an
     _arbitrary string specifier_. An arbitrary string specifier can represent
     any sequence of `0` or more characters.
 +   A character in the expression represents itself and is considered a
@@ -2937,7 +2975,7 @@ This operator supports [collation][collation], but caveats apply:
 +   These additional rules apply to the underscore (`_`) character:
 
     +   If the collator isn't `und:ci`, an error is produced when an underscore
-        isn't escaped in `expression_2`.
+        isn't escaped in `pattern`.
 
     +   If the collator isn't `und:ci`, the underscore isn't allowed when the
         operands have collation specified.
@@ -5030,6 +5068,15 @@ To learn about the syntax for aggregate function calls, see
   <tbody>
 
 <tr>
+  <td><a href="#agg"><code>AGG</code></a>
+</td>
+  <td>
+    Aggregates a measure type.
+    
+  </td>
+</tr>
+
+<tr>
   <td><a href="#any_value"><code>ANY_VALUE</code></a>
 </td>
   <td>
@@ -5252,6 +5299,17 @@ To learn about the syntax for aggregate function calls, see
 </tr>
 
 <tr>
+  <td><a href="#percentile_cont"><code>PERCENTILE_CONT</code></a>
+</td>
+  <td>
+    Computes the specified percentile for a value, using
+    linear interpolation.
+    <br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md">Navigation functions</a>.
+
+  </td>
+</tr>
+
+<tr>
   <td><a href="#dp_percentile_cont"><code>PERCENTILE_CONT</code> (Differential Privacy)</a>
 </td>
   <td>
@@ -5259,6 +5317,16 @@ To learn about the syntax for aggregate function calls, see
     Computes a differentially-private percentile across privacy unit columns
     in a query with a <code>DIFFERENTIAL_PRIVACY</code> clause.
     <br><br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/aggregate-dp-functions.md">Differential privacy functions</a>.
+
+  </td>
+</tr>
+
+<tr>
+  <td><a href="#percentile_disc"><code>PERCENTILE_DISC</code></a>
+</td>
+  <td>
+    Computes the specified percentile for a discrete value.
+    <br>For more information, see <a href="https://github.com/google/googlesql/blob/master/docs/navigation_functions.md">Navigation functions</a>.
 
   </td>
 </tr>
@@ -5390,6 +5458,85 @@ To learn about the syntax for aggregate function calls, see
 
   </tbody>
 </table>
+
+### `AGG`
+
+```googlesql
+AGG(measure_expression)
+```
+
+**Description**
+
+Aggregates a [measure type][measure-type]. A measure type encapsulates an
+aggregate calculation to perform, locked to a specific granularity defined by
+a key. The `AGG` function invokes the calculation exactly once per key
+with the guarantee of avoiding overcounting. Measures are useful for defining
+business metrics. You can perform aggregation using the `AGG`
+function instead of complex aggregation queries.
+
+**Supported Argument Types**
+
+A single `MEASURE` type
+
+**Returned Data Types**
+
+The type returned by the expression associated with the measure.
+
+**Examples**
+
+The following example shows how to use a measure to avoid overcounting. The
+example calculates shipping costs when joining an `Orders` table with an
+`OrderItems` table, where orders can have multiple items.
+
+```
+WITH
+  Orders AS (
+    SELECT
+      key AS order_id,
+      country AS customer_id,
+      price AS shipping_cost,
+      measure_sum_price AS m_total_shipping_cost
+    FROM MeasureTable_SingleKey
+  ),
+  OrderItems AS (
+    -- Simulate OrderItems with fanout: orders with even keys have 2 items
+    SELECT key AS order_id, 1 AS item_id FROM MeasureTable_SingleKey
+    UNION ALL
+    SELECT key AS order_id, 2 AS item_id FROM MeasureTable_SingleKey WHERE MOD(key, 2) = 0
+  )
+-- Compare AGG vs. SUM behavior.
+SELECT
+  o.customer_id,
+  AGG(o.m_total_shipping_cost) AS true_shipping_paid,
+  SUM(o.shipping_cost) AS overcounted_shipping_paid,
+  COUNT(*) AS total_item_count
+FROM Orders AS o
+INNER JOIN OrderItems AS oi
+  USING (order_id)
+GROUP BY o.customer_id;
+
+/*----------------+--------------------+---------------------------+------------------+
+ | customer_id    | true_shipping_paid | overcounted_shipping_paid | total_item_count |
+ +----------------+--------------------+---------------------------+------------------+
+ | Australia      | 156                | 261                       | 5                |
+ | Canada         | 230                | 337                       | 10               |
+ | Japan          | 25                 | 25                        | 1                |
+ | United Kingdom | 142                | 194                       | 6                |
+ | United States  | 193                | 291                       | 15               |
+ +----------------+--------------------+---------------------------+------------------*/
+```
+
+When you join these tables, order rows are duplicated for every item in that
+order. Standard `SUM(o.shipping_cost)` overcounts because it adds the shipping
+cost for every item (row) in the joined result, effectively multiplying the
+shipping cost of an order by its item count.
+
+By contrast, `AGG(o.m_total_shipping_cost)` prevents overcounting because the
+measure is aware of the original rows in the `Orders` table. The `AGG` function
+aggregates the shipping cost exactly once per order, regardless of how many
+items are in that order.
+
+[measure-type]: https://github.com/google/googlesql/blob/master/docs/data-types.md#measure_type
 
 ### `ANY_VALUE`
 
@@ -6131,18 +6278,9 @@ distinct counts. For more information, see
   evaluate. If `DISTINCT` is present,
   `expression` can only be a data type that is
   [groupable][groupable-data-types].
-+   `DISTINCT`: To learn more, see
++   Optional aggregate clauses: To learn more about the optional aggregate
+    clauses that you can pass into this function, see
     [Aggregate function calls][aggregate-function-calls].
-+   `WHERE`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `HAVING { MAX | MIN }`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `OVER`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `over_clause`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `window_specification`: To learn more, see
-    [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -6150,9 +6288,10 @@ distinct counts. For more information, see
 
 [agg-threshold-clause]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#agg_threshold_clause
 
-[window-function-calls]: https://github.com/google/googlesql/blob/master/docs/window-function-calls.md
-
 <!-- mdlint on -->
+
++  `OVER`: To learn more about the `OVER` clause and how to use it, see
+   [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -6347,18 +6486,9 @@ Gets the number of `TRUE` values for an expression.
 **Definitions**
 
 + `expression`: A `BOOL` value that represents the expression to evaluate.
-+   `DISTINCT`: To learn more, see
++   Optional aggregate clauses: To learn more about the optional aggregate
+    clauses that you can pass into this function, see
     [Aggregate function calls][aggregate-function-calls].
-+   `WHERE`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `HAVING { MAX | MIN }`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `OVER`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `over_clause`: To learn more, see
-    [Aggregate function calls][aggregate-function-calls].
-+   `window_specification`: To learn more, see
-    [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -6366,9 +6496,10 @@ Gets the number of `TRUE` values for an expression.
 
 [agg-threshold-clause]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#agg_threshold_clause
 
-[window-function-calls]: https://github.com/google/googlesql/blob/master/docs/window-function-calls.md
-
 <!-- mdlint on -->
+
++  `OVER`: To learn more about the `OVER` clause and how to use it, see
+   [Window function calls][window-function-calls].
 
 <!-- mdlint off(WHITESPACE_LINE_LENGTH) -->
 
@@ -7045,6 +7176,8 @@ window_specification:
 **Description**
 
 Returns the sum of non-`NULL` values in an aggregated group.
+Supports the `SAFE.` prefix when used
+with the `OVER` clause as a window function.
 
 To learn more about the optional aggregate clauses that you can pass
 into this function, see
@@ -11393,6 +11526,107 @@ SELECT '-0x123' as hex_value, CAST('-0x123' as INT64) as hex_to_int;
  +-----------+------------*/
 ```
 
+### CAST AS JSON
+
+```googlesql
+CAST(expression AS JSON)
+```
+
+**Description**
+
+GoogleSQL supports [casting][con-func-cast] to `JSON`. The
+`expression` parameter can represent an expression for these data types:
+
++ `INT32`
++ `UINT32`
++ `INT64`
++ `UINT64`
++ `FLOAT`
++ `DOUBLE`
++ `NUMERIC`
++ `BIGNUMERIC`
++ `BOOL`
++ `STRING`
++ `BYTES`
++ `DATE`
++ `DATETIME`
++ `TIME`
++ `TIMESTAMP`
++ `INTERVAL`
++ `ARRAY`
++ `STRUCT`
++ `PROTO`
++ `ENUM`
++ `UUID`
++ `JSON`
++ `RANGE`
++ `GRAPH_ELEMENT`
+
+**Conversion rules**
+
+<table>
+  <tr>
+    <th>From</th>
+    <th>To</th>
+    <th>Rule(s) when casting <code>x</code></th>
+  </tr>
+  <tr>
+    <td>Any supported type</td>
+    <td><code>JSON</code></td>
+    <td>
+      Casting to <code>JSON</code> generally follows the same rules as the
+      <a href="#to_json"><code>TO_JSON</code></a>
+
+      function, with the following differences:
+      <ul>
+        <li>Casting a SQL <code>NULL</code> to <code>JSON</code> returns a SQL <code>NULL</code>, not a JSON <code>null</code>. This distinction doesn't extend to SQL <code>NULL</code> values nested with a <code>STRUCT</code> or an <code>ARRAY</code>, which still convert to JSON <code>null</code>.</li>
+        <li>Casting <code>+/-inf</code> or <code>NaN</code> floating point values to <code>JSON</code> returns an error.</li>
+        <li><code>CAST</code> doesn't support the <code>stringify_wide_numbers</code> optional parameter and always behaves as if <code>stringify_wide_numbers</code> is disabled.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+**Examples**
+
+The following example casts various SQL types to `JSON`, representing the
+different JSON types (number, string, boolean, array, and object):
+
+```googlesql
+SELECT
+  CAST(1 AS JSON) AS json_number,
+  CAST('foo' AS JSON) AS json_string,
+  CAST(TRUE AS JSON) AS json_boolean,
+  CAST([1, 2, 3] AS JSON) AS json_array,
+  CAST(STRUCT('foo' AS a, TRUE AS b) AS JSON) AS json_object;
+
+/*-------------+-------------+--------------+------------+----------------------+
+ | json_number | json_string | json_boolean | json_array | json_object          |
+ +-------------+-------------+--------------+------------+----------------------+
+ | 1           | "foo"       | true         | [1,2,3]    | {"a":"foo","b":true} |
+ +-------------+-------------+--------------+------------+----------------------*/
+```
+
+The following example demonstrates how `NULL` values are handled:
+
++ Casting a SQL `NULL` to `JSON` returns a SQL `NULL` instead of a JSON
+  `null`.
++ Casting a struct with a `NULL` field or an array with a `NULL` element
+  to `JSON` converts the `NULL` to a JSON `null`.
+
+```googlesql
+SELECT
+  CAST(NULL AS JSON) AS json_null,
+  CAST(STRUCT(1 AS a, NULL AS b) AS JSON) AS json_object_with_null,
+  CAST([1, NULL, 3] AS JSON) AS json_array_with_null;
+
+/*-----------+-----------------------+----------------------+
+ | json_null | json_object_with_null | json_array_with_null |
+ +-----------+-----------------------+----------------------+
+ | NULL      | {"a":1,"b":null}      | [1,null,3]           |
+ +-----------+-----------------------+----------------------*/
+```
+
 ### CAST AS INTERVAL
 
 ```googlesql
@@ -12693,6 +12927,12 @@ GoogleSQL supports the following date functions.
   <tbody>
 
 <tr>
+  <td><a href="#add_months"><code>ADD_MONTHS</code></a>
+</td>
+  <td>Adds a specified number of months to a <code>DATE</code> value.</td>
+</tr>
+
+<tr>
   <td><a href="#current_date"><code>CURRENT_DATE</code></a>
 </td>
   <td>
@@ -12791,6 +13031,21 @@ GoogleSQL supports the following date functions.
 </tr>
 
 <tr>
+  <td><a href="#months_between"><code>MONTHS_BETWEEN</code></a>
+</td>
+  <td>Returns the number of months between two <code>DATE</code> values.</td>
+</tr>
+
+<tr>
+  <td><a href="#next_day"><code>NEXT_DAY</code></a>
+</td>
+  <td>
+    Returns the <code>DATE</code> of the first specified weekday that is later than the
+    input <code>DATE</code>.
+  </td>
+</tr>
+
+<tr>
   <td><a href="#parse_date"><code>PARSE_DATE</code></a>
 </td>
   <td>
@@ -12810,6 +13065,73 @@ GoogleSQL supports the following date functions.
 
   </tbody>
 </table>
+
+### `ADD_MONTHS`
+
+```googlesql
+ADD_MONTHS(date, count)
+```
+
+**Description**
+
+Adds a specified number of months to a `DATE` value.
+
+**Definitions**
+
++   `date`: A `DATE` value.
++   `count`: An `INT64` value representing the number of months to add, or to
+    subtract if negative.
+
+**Details**
+
+If the input is the last day of the month, or if the resulting month has fewer
+days than the input day component, then the result is last day of the new month.
+Otherwise the result has the same day as the input.
+
+If either parameter is `NULL`, the result is `NULL`.
+
+**Return Data Type**
+
+`DATE`
+
+**Examples**
+
+Target month has fewer days than the input day component, returns end of target
+month:
+
+```googlesql
+SELECT ADD_MONTHS(DATE '2026-01-30', 1) AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-02-28 |
+ +------------*/
+```
+
+Input is the end of its month, returns end of target month:
+
+```googlesql
+SELECT ADD_MONTHS(DATE '2026-02-28', -1) AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-01-31 |
+ +------------*/
+```
+
+No special end-of-month handling:
+
+```googlesql
+SELECT ADD_MONTHS(DATE '2026-02-15', 2) AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-04-15 |
+ +------------*/
+```
 
 ### `CURRENT_DATE`
 
@@ -13616,6 +13938,158 @@ SELECT LAST_DAY(DATE '2008-11-10', WEEK(MONDAY)) AS last_day
 
 [ISO-8601-week]: https://en.wikipedia.org/wiki/ISO_week_date
 
+### `MONTHS_BETWEEN`
+
+```googlesql
+MONTHS_BETWEEN(date_end, date_start)
+```
+
+**Description**
+
+Returns the number of whole and partial months between `date_end` and
+`date_start`, represented as a floating-point number.
+
+**Definitions**
+
++   `date_end`: A `DATE` value.
++   `date_start`: A `DATE` value.
+
+**Details**
+
+At a high level this computes `date_end - date_start` and returns a
+floating-point number with a whole number for the full months and fractional
+portion based on a 31-day month.
+
+If `date_end` is later than `date_start` the result is positive. If `date_end`
+is earlier than `date_start`, the result is negative.
+
+If both dates are the same day of the month or both are the last day of their
+respective months, the result is an integer. Otherwise, the result includes a
+fractional part from the difference in days, based on a 31-day month.
+
+If either parameter is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DOUBLE`
+
+**Examples**
+
+Partial month:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATE '2025-03-14', DATE '2025-02-13') AS results
+
+/*-------------------+
+ | results           |
+ +-------------------+
+ | 1.032258064516129 |    -- calculated as (3-2) + (14-13)/31
+ +-------------------*/
+```
+
+Partial month with negative fraction:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATE '2025-03-01', DATE '2025-02-15') AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 0.54838709677419351 |    -- calculated as (3-2) + (1-15)/31
+ +---------------------*/
+```
+
+Negative if first date is older than second date:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATE '2025-02-15', DATE '2025-03-01') AS results
+
+/*----------------------+
+ | results              |
+ +----------------------+
+ | -0.54838709677419351 |    -- calculated as (2-3) + (15-1)/31
+ +----------------------*/
+```
+
+Same day of month:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATE '2007-12-13', DATE '2007-11-13') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+Both end of month:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATE '2008-03-31', DATE '2008-02-29') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+### `NEXT_DAY`
+
+```googlesql
+NEXT_DAY(date, day_of_week)
+```
+
+**Description**
+
+Returns the `DATE` of the first weekday named `day_of_week` that is later than
+`date`.
+
+**Definitions**
+
++   `date`: A `DATE` value.
++   `day_of_week`: A `STRING` value representing the name of the day of the week
+    or its three-letter abbreviation (for example, `'Sunday'`, `'Mon'`, etc.).
+    This argument is case-insensitive.
+
+**Details**
+
+If the input date is already on the specified day of the week, the result is the
+date plus seven days.
+
+If either argument is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DATE`
+
+**Examples**
+
+Friday after a Tuesday:
+
+```googlesql
+SELECT NEXT_DAY(DATE '2026-05-19', 'Friday') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-22 |
+ +------------*/
+```
+
+Friday after a Friday:
+
+```googlesql
+SELECT NEXT_DAY(DATE '2026-05-22', 'fri') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-29 |
+ +------------*/
+```
+
 ### `PARSE_DATE`
 
 ```googlesql
@@ -13755,6 +14229,12 @@ GoogleSQL supports the following datetime functions.
   <tbody>
 
 <tr>
+  <td><a href="#add_months"><code>ADD_MONTHS</code></a>
+</td>
+  <td>Adds a specified number of months to a <code>DATETIME</code> value.</td>
+</tr>
+
+<tr>
   <td><a href="#current_datetime"><code>CURRENT_DATETIME</code></a>
 </td>
   <td>
@@ -13834,6 +14314,21 @@ GoogleSQL supports the following datetime functions.
 </tr>
 
 <tr>
+  <td><a href="#months_between"><code>MONTHS_BETWEEN</code></a>
+</td>
+  <td>Returns the number of months between two <code>DATETIME</code> values.</td>
+</tr>
+
+<tr>
+  <td><a href="#next_day"><code>NEXT_DAY</code></a>
+</td>
+  <td>
+    Returns the <code>DATE</code> of the first specified weekday that is later than the
+    input <code>DATETIME</code>.
+  </td>
+</tr>
+
+<tr>
   <td><a href="#parse_datetime"><code>PARSE_DATETIME</code></a>
 </td>
   <td>
@@ -13844,6 +14339,75 @@ GoogleSQL supports the following datetime functions.
 
   </tbody>
 </table>
+
+### `ADD_MONTHS`
+
+```googlesql
+ADD_MONTHS(datetime, count)
+```
+
+**Description**
+
+Adds a specified number of months to a `DATETIME` value.
+
+**Definitions**
+
++   `datetime`: A `DATETIME` value.
++   `count`: An `INT64` value representing the number of months to add, or to
+    subtract if negative.
+
+**Details**
+
+If the input is the last day of the month, or if the resulting month has fewer
+days than the input day component, then the result is last day of the new month.
+Otherwise the result has the same day as the input.
+
+The time part remains unchanged.
+
+If either parameter is `NULL`, the result is `NULL`.
+
+**Return Data Type**
+
+`DATETIME`
+
+**Examples**
+
+Target month has fewer days than the input day component, returns end of target
+month:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-01-30 09:30:00', 1) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-02-28 09:30:00 |
+ +---------------------*/
+```
+
+Input is the end of its month, returns end of target month:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-02-28 10:00:05', -1) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-01-31 10:00:05 |
+ +---------------------*/
+```
+
+No special end-of-month handling:
+
+```googlesql
+SELECT ADD_MONTHS(DATETIME '2026-02-15', 2) AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 2026-04-15 00:00:00 |
+ +---------------------*/
+```
 
 ### `CURRENT_DATETIME`
 
@@ -14617,6 +15181,174 @@ SELECT LAST_DAY(DATETIME '2008-11-10 15:30:00', WEEK(MONDAY)) AS last_day
 [ISO-8601]: https://en.wikipedia.org/wiki/ISO_8601
 
 [ISO-8601-week]: https://en.wikipedia.org/wiki/ISO_week_date
+
+### `MONTHS_BETWEEN`
+
+```googlesql
+MONTHS_BETWEEN(datetime_end, datetime_start)
+```
+
+**Description**
+
+Returns the number of whole and partial months between `datetime_end` and
+`datetime_start`, represented as a floating-point number.
+
+**Definitions**
+
++   `datetime_end`: A `DATETIME` value.
++   `datetime_start`: A `DATETIME` value.
+
+**Details**
+
+At a high level this computes `datetime_end - datetime_start` and returns a
+floating-point number with a whole number for the full months and fractional
+portion based on a 31-day month.
+
+If `datetime_end` is later than `datetime_start` the result is positive. If
+`datetime_end` is earlier than `datetime_start`, the result is negative.
+
+If both dates are the same day of the month or both are the last day of their
+respective months, the result is an integer, regardless of the time portion.
+Otherwise, the result includes a fractional part from the difference in days,
+based on a 31-day month, taking into account the partial-day time difference.
+
+If either parameter is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DOUBLE`
+
+**Examples**
+
+Partial month:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-03-14', DATETIME '2025-02-13') AS results
+
+/*-------------------+
+ | results           |
+ +-------------------+
+ | 1.032258064516129 |    -- calculated as (3-2) + (14-13)/31
+ +-------------------*/
+```
+
+Partial month with negative fraction:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-03-01', DATETIME '2025-02-15') AS results
+
+/*---------------------+
+ | results             |
+ +---------------------+
+ | 0.54838709677419351 |    -- calculated as (3-2) + (1-15)/31
+ +---------------------*/
+```
+
+Negative if first date is older than second date:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2025-02-15', DATETIME '2025-03-01') AS results
+
+/*----------------------+
+ | results              |
+ +----------------------+
+ | -0.54838709677419351 |    -- calculated as (2-3) + (15-1)/31
+ +----------------------*/
+```
+
+Same day of month, time not used:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2007-12-13 09:40:00',
+                      DATETIME '2007-11-13 08:15:55') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+Both end of month, time not used:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2008-03-31 04:00:00',
+                      DATETIME '2008-02-29 12:30:10') AS results
+
+/*---------+
+ | results |
+ +---------+
+ | 1       |
+ +---------*/
+```
+
+Half a day:
+
+```googlesql
+SELECT MONTHS_BETWEEN(DATETIME '2008-02-29 00:00:00',
+                      DATETIME '2008-02-28 12:00:00') AS results
+
+/*----------------------+
+ | results              |
+ +----------------------+
+ | 0.016129032258064516 |    -- 0.5/31
+ +----------------------*/
+```
+
+### `NEXT_DAY`
+
+```googlesql
+NEXT_DAY(datetime, day_of_week)
+```
+
+**Description**
+
+Returns the `DATE` of the first weekday named `day_of_week` that is later than
+`datetime`. The time part is ignored.
+
+**Definitions**
+
++   `datetime`: A `DATETIME` value.
++   `day_of_week`: A `STRING` value representing the name of the day of the week
+    or its three-letter abbreviation (for example, `'Sunday'`, `'Mon'`, etc.).
+    This argument is case-insensitive.
+
+**Details**
+
+If the input datetime is already on the specified day of the week, the result is
+the date plus seven days.
+
+If either argument is NULL, the result is NULL.
+
+**Return Data Type**
+
+`DATE`
+
+**Examples**
+
+Friday after a Tuesday:
+
+```googlesql
+SELECT NEXT_DAY(DATETIME '2026-05-19 12:30', 'Friday') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-22 |
+ +------------*/
+```
+
+Friday after a Friday:
+
+```googlesql
+SELECT NEXT_DAY(DATETIME '2026-05-22 16:59', 'fri') AS results
+
+/*------------+
+ | results    |
+ +------------+
+ | 2026-05-29 |
+ +------------*/
+```
 
 ### `PARSE_DATETIME`
 
@@ -17205,7 +17937,7 @@ DESTINATION_NODE_ID(edge_element)
 
 Gets a unique identifier of a graph edge's destination node. The unique identifier is only valid for the scope of the query where it's obtained.
 
-**Arguments**
+**Definitions**
 
 +   `edge_element`: A `GRAPH_ELEMENT` value that represents an edge.
 
@@ -17285,6 +18017,13 @@ RETURN ARRAY_CONCAT(ARRAY_TRANSFORM(es, e -> e.Id), [dst.Id]) as ids_in_path
  +-------------*/
 ```
 
+```googlesql
+GRAPH FinGraph
+MATCH p=(src:Account)-[t1:Transfers]->(mid:Account)-[t2:Transfers]->(dst:Account)
+LET es = EDGES(p)
+RETURN TO_JSON(es) AS edges
+```
+
 ### `ELEMENT_DEFINITION_NAME`
 
 ```googlesql
@@ -17338,7 +18077,7 @@ ELEMENT_ID(element)
 
 Gets a graph element's unique identifier. The unique identifier is only valid for the scope of the query where it's obtained.
 
-**Arguments**
+**Definitions**
 
 +   `element`: A `GRAPH_ELEMENT` value.
 
@@ -17512,7 +18251,7 @@ LABELS(element)
 Gets the labels associated with a graph element and preserves the original case
 of each label.
 
-**Arguments**
+**Definitions**
 
 +   `element`: A `GRAPH_ELEMENT` value that represents the graph element to
     extract labels from.
@@ -17850,7 +18589,7 @@ SOURCE_NODE_ID(edge_element)
 
 Gets a unique identifier of a graph edge's source node. The unique identifier is only valid for the scope of the query where it's obtained.
 
-**Arguments**
+**Definitions**
 
 +   `edge_element`: A `GRAPH_ELEMENT` value that represents an edge.
 
@@ -19486,7 +20225,7 @@ ST_CONTAINS(geography_1, geography_2)
 Returns `TRUE` if no point of `geography_2` is outside `geography_1`, and
 the interiors intersect; returns `FALSE` otherwise.
 
-NOTE: A `GEOGRAPHY` *does not* contain its own
+Note: A `GEOGRAPHY` *does not* contain its own
 boundary. Compare with [`ST_COVERS`][st_covers].
 
 **Return type**
@@ -20418,7 +21157,7 @@ negative west of the Prime Meridian, positive east) and latitude (in degrees,
 positive north of the Equator, negative south) parameters and returns that point
 in a `GEOGRAPHY` value.
 
-NOTE: Some systems present latitude first; take care with argument order.
+Note: Some systems present latitude first; take care with argument order.
 
 **Constraints**
 
@@ -20957,7 +21696,7 @@ ST_ISEMPTY(geography_expression)
 Returns `TRUE` if the given `GEOGRAPHY` is empty; that is, the `GEOGRAPHY`
 doesn't contain any points, lines, or polygons.
 
-NOTE: An empty `GEOGRAPHY` isn't associated with a particular geometry shape.
+Note: An empty `GEOGRAPHY` isn't associated with a particular geometry shape.
 For example, the results of expressions `ST_GEOGFROMTEXT('POINT EMPTY')` and
 `ST_GEOGFROMTEXT('GEOMETRYCOLLECTION EMPTY')` are identical.
 
@@ -21246,7 +21985,7 @@ element in the input `ARRAY` is `NULL`, `ST_MAKELINE` returns `NULL`.
 
 Every edge must span strictly less than 180 degrees.
 
-NOTE: The GoogleSQL snapping process may discard sufficiently short
+Note: The GoogleSQL snapping process may discard sufficiently short
 edges and snap the two endpoints together. For instance, if two input
 `GEOGRAPHY`s each contain a point and the two points are separated by a distance
 less than the snap radius, the points will be snapped together. In such a case
@@ -21254,7 +21993,44 @@ the result will be a `GEOGRAPHY` with exactly one point.
 
 **Return type**
 
-LineString `GEOGRAPHY`
++  LineString `GEOGRAPHY`
++  MultiLineString `GEOGRAPHY` (if the snapped input contains self-overlapping
+   lines)
++  Point `GEOGRAPHY` (if the input contains a single point only)
+
+**Example**
+
+The following example constructs different types of `GEOGRAPHY`s:
+
+```googlesql
+WITH segments AS (
+    SELECT 1 AS id, [ST_GEOGPOINT(1, 2), ST_GEOGPOINT(2, 3)] AS geos
+    UNION ALL
+    SELECT 2, [ST_GEOGPOINT(1, 2), ST_GEOGPOINT(1, 2)]
+    UNION ALL
+    SELECT
+      3, [ ST_MAKELINE(ST_GEOGPOINT(1, 2), ST_GEOGPOINT(2, 3)),
+           ST_MAKELINE(ST_GEOGPOINT(2, 3), ST_GEOGPOINT(3, 4)),
+           ST_MAKELINE(ST_GEOGPOINT(3, 4), ST_GEOGPOINT(4, 5))]
+    UNION ALL
+    SELECT
+      4, [ ST_MAKELINE(ST_GEOGPOINT(1, 0), ST_GEOGPOINT(10, 0)),
+           ST_MAKELINE(ST_GEOGPOINT(10, 0), ST_GEOGPOINT(5, 0)),
+           ST_MAKELINE(ST_GEOGPOINT(5, 0), ST_GEOGPOINT(5, 4))]
+  )
+SELECT
+  id, ST_MAKELINE(geos) AS constructed_line
+FROM segments;
+
+/*----+-------------------------------------------------------+
+ | id | constructed_line                                      |
+ +----+-------------------------------------------------------+
+ | 1  | LINESTRING(1 2, 2 3)                                  |
+ | 2  | POINT(1 2)                                            |
+ | 3  | LINESTRING(1 2, 2 3, 3 4, 4 5)                        |
+ | 4  | MULTILINESTRING((1 0, 5 0, 10 0), (5 0, 5 4))         |
+ +----+-------------------------------------------------------*/
+```
 
 ### `ST_MAKEPOLYGON`
 
@@ -21288,7 +22064,7 @@ For the first variant of `ST_MAKEPOLYGON`, if either input `GEOGRAPHY` is
 input `ARRAY` or any element in the `ARRAY` is `NULL`, `ST_MAKEPOLYGON` returns
 `NULL`.
 
-NOTE: `ST_MAKEPOLYGON` accepts an empty `GEOGRAPHY` as input. `ST_MAKEPOLYGON`
+Note: `ST_MAKEPOLYGON` accepts an empty `GEOGRAPHY` as input. `ST_MAKEPOLYGON`
 interprets an empty `GEOGRAPHY` as having an empty linestring, which will
 create a full loop: that is, a polygon that covers the entire Earth.
 
@@ -21310,7 +22086,7 @@ polygon hole, so the interior of the polygon is already well-defined. In order
 to define a polygon shell such that the interior of the polygon is the larger of
 the two regions, see [`ST_MAKEPOLYGONORIENTED`][st-makepolygonoriented].
 
-NOTE: The GoogleSQL snapping process may discard sufficiently
+Note: The GoogleSQL snapping process may discard sufficiently
 short edges and snap the two endpoints together. Hence, when vertices are
 snapped together, it's possible that a polygon hole that's sufficiently small
 may disappear, or the output `GEOGRAPHY` may contain only a line or a
@@ -21344,7 +22120,7 @@ critical in order to construct the desired polygon.
 If the input `ARRAY` or any element in the `ARRAY` is `NULL`,
 `ST_MAKEPOLYGONORIENTED` returns `NULL`.
 
-NOTE: The input argument for `ST_MAKEPOLYGONORIENTED` may contain an empty
+Note: The input argument for `ST_MAKEPOLYGONORIENTED` may contain an empty
 `GEOGRAPHY`. `ST_MAKEPOLYGONORIENTED` interprets an empty `GEOGRAPHY` as having
 an empty linestring, which will create a full loop: that is, a polygon that
 covers the entire Earth.
@@ -21367,7 +22143,7 @@ polygon holes to have the opposite orientation of the shell. See
 [`ST_MAKEPOLYGON`][st-makepolygon] for an alternate polygon constructor, and
 other constraints on building a valid polygon.
 
-NOTE: Due to the GoogleSQL snapping process, edges with a sufficiently
+Note: Due to the GoogleSQL snapping process, edges with a sufficiently
 short length will be discarded and the two endpoints will be snapped to a single
 point. Therefore, it's possible that vertices in a linestring may be snapped
 together such that one or more edge disappears. Hence, it's possible that a
@@ -21482,7 +22258,7 @@ Returns the number of vertices in the input
 `GEOGRAPHY`. This includes the number of points, the
 number of linestring vertices, and the number of polygon vertices.
 
-NOTE: The first and last vertex of a polygon ring are counted as distinct
+Note: The first and last vertex of a polygon ring are counted as distinct
 vertices.
 
 **Return type**
@@ -30623,6 +31399,12 @@ SELECT SAFE_TO_JSON([
  +------------*/
 ```
 
+**Caveats**
+
+The output of `SAFE_TO_JSON` may change over time: If JSON support is added to a
+formerly unsupported type, then `SAFE_TO_JSON` starts producing the type's JSON
+representation instead of `null`.
+
 [json-encodings]: #json_encodings
 
 ### `STRING` 
@@ -30858,6 +31640,42 @@ FROM T1 AS t;
  +------------------------------*/
 ```
 
+In the following example, each graph node called `src` is converted into a
+JSON object:
+
+```googlesql
+GRAPH FinGraph
+MATCH (src:Account {id: 7})-[t1:Transfers]->(dst:Account)
+RETURN TO_JSON(src) AS json_array
+
+/*--------------------------------------------------------------------+
+ | json_array                                                         |
+ +--------------------------------------------------------------------+
+ | {                                                                  |
+ |   "identifier":"rhYAAAANAAAApgAAAAAAAAAApgcAAAAAAAAA",             |
+ |   "kind":"node",                                                   |
+ |   "labels":["Account"],                                            |
+ |   "properties":{                                                   |
+ |     "create_time":"2020-01-10T06:22:20.222Z",                      |
+ |     "id":7,                                                        |
+ |     "is_blocked":false,                                            |
+ |     "nick_name":"Vacation Fund"                                    |
+ |   }                                                                |
+ | }                                                                  |
+ | {                                                                  |
+ |   "identifier":"rhYAAAANAAAApgAAAAAAAAAApgcAAAAAAAAA",             |
+ |   "kind":"node",                                                   |
+ |   "labels":["Account"],                                            |
+ |   "properties":{                                                   |
+ |     "create_time":"2020-01-10T06:22:20.222Z",                      |
+ |     "id":7,                                                        |
+ |     "is_blocked":false,                                            |
+ |     "nick_name":"Vacation Fund"                                    |
+ |   }                                                                |
+ | }                                                                  |
+ +--------------------------------------------------------------------*/
+```
+
 [json-encodings]: #json_encodings
 
 ### `TO_JSON_STRING`
@@ -30873,7 +31691,9 @@ Converts a SQL value to a JSON-formatted `STRING` value.
 Arguments:
 
 +   `value`: A SQL value. You can review the GoogleSQL data types that
-    this function supports and their JSON encodings [here][json-encodings].
+    this function supports and their JSON encodings in the
+    [JSON encodings][json-encodings] section. If the value is `NULL`, a `null`
+    string is returned.
 +   `pretty_print`: Optional boolean parameter. If `pretty_print` is `true`, the
     returned value is formatted for easy readability. If `pretty_print` is
     `NULL`, the function returns `NULL`, regardless of the `value` argument.
@@ -31772,6 +32592,7 @@ The following SQL to JSON encodings are supported:
     <tr>
       <td>GRAPH_ELEMENT</td>
       <td>
+        <p>(<code>TO_JSON</code> only)</p>
         <p>object</p>
         <p>
           The object can contain zero or more key-value pairs.
@@ -38413,8 +39234,11 @@ You can choose the type of information to get with `EXTRACT`. Your choices are:
     protocol buffer field. Raw values
     ignore any GoogleSQL type annotations.
 +  `HAS`: Returns `TRUE` if a protocol buffer field is set in a proto message;
-   otherwise, `FALSE`. Alternatively, use [`has_x`][has-value] to perform this
-   task.
+    otherwise, `FALSE`. Alternatively, use [`has_x`][has-value] to perform this
+    task. Some scalar proto fields are defined to have implicit presence, so you
+    can't distinguish whether the field is unset or set-to-default. To reliably
+    distinguish when a proto field is unset or set-to-default, enable explicit
+    presence on the field.
 +  `ONEOF_CASE`: Returns the name of the set protocol buffer field in a Oneof.
    If no field is set, returns an empty string.
 
@@ -44237,9 +45061,9 @@ SELECT
  +-----------------+----------+
  | foo@example.com | TRUE     |
  +-----------------+----------*/
- ```
+```
 
- ```googlesql
+```googlesql
 SELECT
   'www.example.net' AS email,
   REGEXP_CONTAINS('www.example.net', r'@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+') AS is_valid
@@ -44249,7 +45073,7 @@ SELECT
  +-----------------+----------+
  | www.example.net | FALSE    |
  +-----------------+----------*/
- ```
+```
 
 The following queries check to see if an email is valid. They
 perform a full match, using `^` and `$`. Due to regular expression operator
@@ -44719,12 +45543,19 @@ Returns an array of all substrings of `value` that match the
 [re2 regular expression][string-link-to-re2], `regexp`. Returns an empty array
 if there is no match.
 
-If the regular expression contains a capturing group (`(...)`), and there is a
-match for that capturing group, that match is added to the results.
+If the regular expression contains a capturing group (`(...)`), the function
+returns an array of substrings that are matched by the capturing group.
 
 The `REGEXP_EXTRACT_ALL` function only returns non-overlapping matches. For
 example, using this function to extract `ana` from `banana` returns only one
 substring, not two.
+
+When a capturing group is present, this non-overlapping rule applies to the
+*entire substring* matched by the whole regular expression, not just the part
+within the capturing group. The search for any subsequent match begins
+*after* the end of the entire substring that satisfied the previous match. In
+the examples that follow, the second example illustrates this behavior with the
+pattern `r'\d(\d)\d'`.
 
 Returns an error if:
 
@@ -44746,6 +45577,22 @@ SELECT REGEXP_EXTRACT_ALL('Try `func(x)` or `func(y)`', '`(.+?)`') AS example
  | [func(x), func(y)] |
  +--------------------*/
 ```
+
+The following example demonstrates non-overlapping matches with a capturing
+group:
+
+```googlesql
+SELECT REGEXP_EXTRACT_ALL('123456', r'\d(\d)\d') AS example;
+
+/*-----------+
+ | example   |
+ +-----------+
+ | ['2', '5'] |
+ +-----------*/
+```
+
+The pattern `r'\d(\d)\d'` matches `'123'` and captures `'2'`. The next
+search starts after `'3'`, and then it matches `'456'` and captures `'5'`.
 
 [string-link-to-re2]: https://github.com/google/re2/wiki/Syntax
 
@@ -47162,13 +48009,13 @@ FROM some_timestamps;
 
 GoogleSQL supports the following timestamp functions.
 
-IMPORTANT: Before working with these functions, you need to understand
+Important: Before working with these functions, you need to understand
 the difference between the formats in which timestamps are stored and displayed,
 and how time zones are used for the conversion between these formats.
 To learn more, see
 [How time zones work with timestamp functions][timestamp-link-to-timezone-definitions].
 
-NOTE: These functions return a runtime error if overflow occurs; result
+Note: These functions return a runtime error if overflow occurs; result
 values are bounded by the defined [`DATE` range][data-types-link-to-date_type]
 and [`TIMESTAMP` range][data-types-link-to-timestamp_type].
 

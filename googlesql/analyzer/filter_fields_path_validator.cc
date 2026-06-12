@@ -23,13 +23,13 @@
 #include "googlesql/base/logging.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {

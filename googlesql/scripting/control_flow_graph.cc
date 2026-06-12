@@ -38,6 +38,7 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -46,7 +47,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -555,7 +555,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
       try_block = true;
     }
 
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       if (try_block) {
         GOOGLESQL_RET_CHECK(node->parent()
                       ->GetAsOrDie<ASTBeginEndBlock>()
@@ -600,7 +600,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
   absl::StatusOr<VisitResult> visitASTScript(const ASTScript* node) override {
     graph_->end_node_ = absl::WrapUnique(
         new ControlFlowNode(nullptr, ControlFlowNode::Kind::kDefault, graph_));
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const NodeData> stmt_list_data,
                        TakeNodeData(node->statement_list_node()));
       if (stmt_list_data->empty()) {
@@ -617,7 +617,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
 
   absl::StatusOr<VisitResult> visitASTIfStatement(
       const ASTIfStatement* node) override {
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(NodeData * if_stmt_node_data, CreateNodeData(node));
       GOOGLESQL_ASSIGN_OR_RETURN(ControlFlowNode * condition, AddGraphNode(node));
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<NodeData> then_list_data,
@@ -677,7 +677,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
 
   absl::StatusOr<VisitResult> visitASTCaseStatement(
       const ASTCaseStatement* node) override {
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(NodeData * case_stmt_node_data, CreateNodeData(node));
       GOOGLESQL_ASSIGN_OR_RETURN(ControlFlowNode * case_stmt_cfg_node,
                        AddGraphNode(node, node->expression() == nullptr
@@ -737,7 +737,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
   absl::StatusOr<VisitResult> visitASTWhileStatement(
       const ASTWhileStatement* node) override {
     GOOGLESQL_ASSIGN_OR_RETURN(LoopData * loop_data, loop_tracker_.EnterLoop(node));
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       ControlFlowNode* loop_cfg_node = nullptr;
       GOOGLESQL_ASSIGN_OR_RETURN(loop_cfg_node, AddGraphNode(node));
       GOOGLESQL_ASSIGN_OR_RETURN(NodeData * while_stmt_node_data, CreateNodeData(node));
@@ -779,7 +779,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
   absl::StatusOr<VisitResult> visitASTRepeatStatement(
       const ASTRepeatStatement* node) override {
     GOOGLESQL_ASSIGN_OR_RETURN(LoopData * loop_data, loop_tracker_.EnterLoop(node));
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(ControlFlowNode * repeat_cfg_node,
                        AddGraphNode(node, ThrowSemantics::kNoThrow));
       GOOGLESQL_ASSIGN_OR_RETURN(ControlFlowNode * until_cfg_node,
@@ -818,7 +818,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
   absl::StatusOr<VisitResult> visitASTForInStatement(
       const ASTForInStatement* node) override {
     GOOGLESQL_ASSIGN_OR_RETURN(LoopData * loop_data, loop_tracker_.EnterLoop(node));
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(ControlFlowNode * initial_cfg_node,
                        AddGraphNode(node, ControlFlowNode::Kind::kForInitial));
       GOOGLESQL_ASSIGN_OR_RETURN(NodeData * for_in_stmt_node_data, CreateNodeData(node));
@@ -867,7 +867,7 @@ class ControlFlowGraphBuilder : public NonRecursiveParseTreeVisitor {
           std::make_unique<BlockWithExceptionHandlerData>();
     }
     GOOGLESQL_ASSIGN_OR_RETURN(BlockData * block_data, block_tracker_.EnterBlock(node));
-    return VisitResult::VisitChildren(node, [=]() -> absl::Status {
+    return VisitResult::VisitChildren(node, [=, this]() -> absl::Status {
       GOOGLESQL_ASSIGN_OR_RETURN(NodeData * node_data, CreateNodeData(node));
 
       // Create a node for entering the block.

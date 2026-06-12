@@ -21,15 +21,16 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/common/multiprecision_int.h"
 #include "googlesql/public/numeric_value.h"
 #include "absl/base/optimization.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/mathutil.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 template <typename T>

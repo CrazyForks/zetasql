@@ -1,0 +1,1026 @@
+# Test cast from NULL to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(NULL as json)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(JSON '1' as json);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Test cast from BOOL to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(false as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=false, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from BOOL to JSON [at 1:13]
+select cast(false as json);
+            ^
+==
+
+# Test cast from INT64 to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(1 as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from INT64 to JSON [at 1:13]
+select cast(1 as json);
+            ^
+==
+
+# Test cast from UINT64 to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(1 as uint64) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from UINT64 to JSON [at 1:13]
+select cast(cast(1 as uint64) as json);
+            ^
+==
+
+# Test cast from INT32 to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(1 as int32) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from INT32 to JSON [at 1:13]
+select cast(cast(1 as int32) as json);
+            ^
+==
+
+# Test cast from UINT32 to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(1 as uint32) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from UINT32 to JSON [at 1:13]
+select cast(cast(1 as uint32) as json);
+            ^
+==
+
+# Test cast from DOUBLE to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(1.0 as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from DOUBLE to JSON [at 1:13]
+select cast(1.0 as json);
+            ^
+==
+
+# Test cast from FLOAT to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(1.23 as float) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1.2300000190734863, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from FLOAT to JSON [at 1:13]
+select cast(cast(1.23 as float) as json);
+            ^
+==
+
+# Test cast from TIMESTAMP to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(TIMESTAMP '2012-02-29 01:23:45' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="2012-02-29T09:23:45Z", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from TIMESTAMP to JSON [at 1:13]
+select cast(TIMESTAMP '2012-02-29 01:23:45' as json);
+            ^
+==
+
+# Test cast from DATE to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(date '2014-01-01' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="2014-01-01", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from DATE to JSON [at 1:13]
+select cast(date '2014-01-01' as json);
+            ^
+==
+
+# Test cast from NUMERIC to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(numeric '1.0' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from NUMERIC to JSON [at 1:13]
+select cast(numeric '1.0' as json);
+            ^
+==
+
+# Test cast from BIGNUMERIC to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(bignumeric '1.0' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from BIGNUMERIC to JSON [at 1:13]
+select cast(bignumeric '1.0' as json);
+            ^
+==
+
+# Test cast from DATETIME to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(datetime '2014-01-01 01:02:03' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="2014-01-01T01:02:03", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from DATETIME to JSON [at 1:13]
+select cast(datetime '2014-01-01 01:02:03' as json);
+            ^
+==
+
+# Test cast from TIME to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(time '01:02:03' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="01:02:03", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from TIME to JSON [at 1:13]
+select cast(time '01:02:03' as json);
+            ^
+==
+
+# Test cast from UUID to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast("00000000-0000-0000-0000-000000000000" as uuid) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="00000000-0000-0000-0000-000000000000", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from UUID to JSON [at 1:13]
+select cast(cast("00000000-0000-0000-0000-000000000000" as uuid) as json);
+            ^
+==
+
+# Test cast from ARRAY to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast([1,2] as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=[1,2], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from ARRAY<INT64> to JSON [at 1:13]
+select cast([1,2] as json);
+            ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast([1,null,null] as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=[1,null,null], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from ARRAY<INT64> to JSON [at 1:13]
+select cast([1,null,null] as json);
+            ^
+==
+
+# Test cast from array to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(array<int32>[3,4] as json)
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=[3,4], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from ARRAY<INT32> to JSON [at 1:13]
+select cast(array<int32>[3,4] as json)
+            ^
+==
+
+# Test cast from ARRAY<INT64> to ARRAY<JSON>.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast([1,2] as ARRAY<JSON>);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<JSON>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<JSON>, value=[1, 2], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Casting between arrays with incompatible element types is not supported: Invalid cast from ARRAY<INT64> to ARRAY<JSON> [at 1:13]
+select cast([1,2] as ARRAY<JSON>);
+            ^
+==
+
+[language_features=MAXIMUM,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+[no_java]
+SELECT CAST([collate('a', 'und:ci')] AS JSON);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Cast(ARRAY<STRING> -> JSON)
+    |     +-FunctionCall(GoogleSQL:$make_array(repeated(1) STRING) -> ARRAY<STRING>)
+    |       +-type_annotation_map=<{Collation:"und:ci"}>
+    |       +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |         +-type_annotation_map={Collation:"und:ci"}
+    |         +-Literal(type=STRING, value="a")
+    |         +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from ARRAY<STRING> to JSON [at 1:13]
+SELECT CAST([collate('a', 'und:ci')] AS JSON);
+            ^
+==
+
+# Test cast from MAP to JSON.
+[language_features=MAXIMUM,+MAP_TYPE,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(MAP_FROM_ARRAY([STRUCT(1 AS foo, 2 AS bar), STRUCT(2, 4)]) as json);
+
+--
+ERROR: Invalid cast from MAP<INT64, INT64> to JSON [at 1:13]
+select cast(MAP_FROM_ARRAY([STRUCT(1 AS foo, 2 AS bar), STRUCT(2, 4)]) as json);
+            ^
+==
+
+# Test cast from STRUCT to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(struct(1 as a, null as b) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Cast(STRUCT<a INT64, b INT64> -> JSON)
+    |     +-MakeStruct
+    |       +-type=STRUCT<a INT64, b INT64>
+    |       +-field_list=
+    |         +-Literal(type=INT64, value=1)
+    |         +-Literal(type=INT64, value=NULL)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from STRUCT<a INT64, b INT64> to JSON [at 1:13]
+select cast(struct(1 as a, null as b) as json);
+            ^
+==
+
+# Test cast from BYTES to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(b'abc' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="YWJj", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from BYTES to JSON [at 1:13]
+select cast(b'abc' as json);
+            ^
+==
+
+# Test cast from STRING to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast("str" as json)
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="str", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from STRING to JSON [at 1:13]
+select cast("str" as json)
+            ^
+==
+
+# Test cast from ENUM to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(1 as googlesql_test.TestEnum) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value="TESTENUM1", has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from googlesql_test.TestEnum to JSON [at 1:13]
+select cast(cast(1 as googlesql_test.TestEnum) as json);
+            ^
+==
+
+# Test cast from INTERVAL to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(interval 1 hour as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Cast(INTERVAL -> JSON)
+    |     +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+    |       +-Literal(type=INT64, value=1)
+    |       +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from INTERVAL to JSON [at 1:13]
+select cast(interval 1 hour as json);
+            ^
+==
+
+# Test cast from RANGE to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(range<date> '[2020-01-01, 2020-01-02)' as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value={"end":"2020-01-02","start":"2020-01-01"}, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from RANGE<DATE> to JSON [at 1:13]
+select cast(range<date> '[2020-01-01, 2020-01-02)' as json);
+            ^
+==
+
+# Test cast from HLL sketch to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(hll_count.init(1) as json) FROM UNNEST([1]);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#3]
+    +-expr_list=
+    | +-$col1#3 :=
+    |   +-Cast(BYTES -> JSON)
+    |     +-ColumnRef(type=BYTES, column=$aggregate.$agg1#2)
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#2]
+        +-input_scan=
+        | +-ArrayScan
+        |   +-array_expr_list=
+        |   | +-Literal(type=ARRAY<INT64>, value=[1])
+        |   +-element_column_list=[$array.$unnest1#1]
+        +-aggregate_list=
+          +-$agg1#2 :=
+            +-AggregateFunctionCall(GoogleSQL:hll_count.init(INT64, optional(0) INT64) -> BYTES)
+              +-Literal(type=INT64, value=1)
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from BYTES to JSON [at 1:13]
+select cast(hll_count.init(1) as json) FROM UNNEST([1]);
+            ^
+==
+
+# Test cast from GEOGRAPHY to JSON.
+# TODO: Add GEOGRAPHY to JSON cast once TO_JSON supports it.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(st_geogpoint(0, 0) as json);
+--
+ERROR: Invalid cast from GEOGRAPHY to JSON [at 1:13]
+select cast(st_geogpoint(0, 0) as json);
+            ^
+==
+
+# Test cast from STRUCT<GEOGRAPHY> to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(struct(st_geogpoint(0, 0) as geo) as json);
+--
+ERROR: Invalid cast from STRUCT<geo GEOGRAPHY> to JSON [at 1:13]
+select cast(struct(st_geogpoint(0, 0) as geo) as json);
+            ^
+==
+
+# Test cast from ARRAY<GEOGRAPHY> to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast([st_geogpoint(0, 0)] as json);
+--
+ERROR: Invalid cast from ARRAY<GEOGRAPHY> to JSON [at 1:13]
+select cast([st_geogpoint(0, 0)] as json);
+            ^
+==
+
+# Test cast from MEASURE to JSON.
+[language_features=MAXIMUM,+ENABLE_MEASURES,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+[no_java]
+select cast(measure_sum_quantity as json) from MeasureTable_SingleKey;
+--
+ERROR: Invalid cast from MEASURE<INT64> to JSON [at 1:13]
+select cast(measure_sum_quantity as json) from MeasureTable_SingleKey;
+            ^
+==
+
+# Test cast from PROTO to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(cast(null as googlesql_test.KitchenSinkPB) as json);
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=JSON, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from googlesql_test.KitchenSinkPB to JSON [at 1:13]
+select cast(cast(null as googlesql_test.KitchenSinkPB) as json);
+            ^
+==
+
+# Test cast from struct to JSON.
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(struct(1 as a) as JSON)
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Cast(STRUCT<a INT64> -> JSON)
+    |     +-Literal(type=STRUCT<a INT64>, value={a:1})
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: Invalid cast from STRUCT<a INT64> to JSON [at 1:13]
+select cast(struct(1 as a) as JSON)
+            ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+select cast(JSON '1' as STRING)
+--
+ERROR: Invalid cast from JSON to STRING [at 1:13]
+select cast(JSON '1' as STRING)
+            ^
+==
+
+[language_features=MAXIMUM]
+select cast(json_col as JSON)
+from JSONTable
+--
+QueryStmt
++-output_column_list=
+| +-JSONTable.json_col#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[JSONTable.json_col#1]
+    +-input_scan=
+      +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+
+==
+
+# Negative cases for CAST to JSON
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(true)
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: BOOL
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type BOOL to expected type JSON [at 1:8]
+SELECT LAX_BOOL(true)
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(1)
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: INT64
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type INT64 to expected type JSON [at 1:8]
+SELECT LAX_BOOL(1)
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(CAST(1 AS UINT64))
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: UINT64
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type UINT64 to expected type JSON [at 1:8]
+SELECT LAX_BOOL(CAST(1 AS UINT64))
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(1.5)
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: DOUBLE
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type DOUBLE to expected type JSON [at 1:8]
+SELECT LAX_BOOL(1.5)
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL('a')
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: STRING
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type STRING to expected type JSON [at 1:8]
+SELECT LAX_BOOL('a')
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(b'a')
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: BYTES
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type BYTES to expected type JSON [at 1:8]
+SELECT LAX_BOOL(b'a')
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(DATE '2020-01-01')
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: DATE
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type DATE to expected type JSON [at 1:8]
+SELECT LAX_BOOL(DATE '2020-01-01')
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(TIMESTAMP '2020-01-01 00:00:00 UTC')
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: TIMESTAMP
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type TIMESTAMP to expected type JSON [at 1:8]
+SELECT LAX_BOOL(TIMESTAMP '2020-01-01 00:00:00 UTC')
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(['a'])
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: ARRAY<STRING>
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type ARRAY<STRING> to expected type JSON [at 1:8]
+SELECT LAX_BOOL(['a'])
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(STRUCT(1 as a))
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: STRUCT<a INT64>
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type STRUCT<a INT64> to expected type JSON [at 1:8]
+SELECT LAX_BOOL(STRUCT(1 as a))
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(CAST(1 AS googlesql_test.TestEnum))
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: googlesql_test.TestEnum
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type googlesql_test.TestEnum to expected type JSON [at 1:8]
+SELECT LAX_BOOL(CAST(1 AS googlesql_test.TestEnum))
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(NEW googlesql_test.KitchenSinkPB(1 AS int64_key_1, 2 AS int64_key_2))
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: googlesql_test.KitchenSinkPB
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type googlesql_test.KitchenSinkPB to expected type JSON [at 1:8]
+SELECT LAX_BOOL(NEW googlesql_test.KitchenSinkPB(1 AS int64_key_1, 2 AS int64...
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(CAST('00000000-0000-0000-0000-000000000000' AS UUID))
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: UUID
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type UUID to expected type JSON [at 1:8]
+SELECT LAX_BOOL(CAST('00000000-0000-0000-0000-000000000000' AS UUID))
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(INTERVAL 1 MONTH)
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: INTERVAL
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type INTERVAL to expected type JSON [at 1:8]
+SELECT LAX_BOOL(INTERVAL 1 MONTH)
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT LAX_BOOL(RANGE<DATE> '[2020-01-01, 2020-01-11)')
+--
+ERROR: No matching signature for function LAX_BOOL
+  Argument types: RANGE<DATE>
+  Signature: LAX_BOOL(JSON)
+    Argument 1: Unable to coerce type RANGE<DATE> to expected type JSON [at 1:8]
+SELECT LAX_BOOL(RANGE<DATE> '[2020-01-01, 2020-01-11)')
+       ^
+==
+
+[language_features=MAXIMUM,{{+CAST_TO_JSON_TYPE|-CAST_TO_JSON_TYPE}}]
+SELECT JSON '1' = 1, JSON '1' != 1, JSON '1' > 0, JSON '1' >= 0, JSON '1' < 0, JSON '1' <= 0;
+--
+ALTERNATION GROUP: +CAST_TO_JSON_TYPE
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
+| +-$query.$col5#5 AS `$col5` [BOOL]
+| +-$query.$col6#6 AS `$col6` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4, $col5#5, $col6#6]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$not_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$greater(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=0)
+    | +-$col4#4 :=
+    | | +-FunctionCall(GoogleSQL:$greater_or_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=0)
+    | +-$col5#5 :=
+    | | +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=0)
+    | +-$col6#6 :=
+    |   +-FunctionCall(GoogleSQL:$less_or_equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=0)
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -CAST_TO_JSON_TYPE
+--
+ERROR: No matching signature for operator = for argument types: JSON, INT64
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 1:8]
+SELECT JSON '1' = 1, JSON '1' != 1, JSON '1' > 0, JSON '1' >= 0, JSON '1' < 0...
+       ^

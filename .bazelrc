@@ -36,34 +36,29 @@ build:clang --cxxopt=-Wno-reorder-ctor
 build:clang --cxxopt=-Wno-unused-const-variable
 build:clang --cxxopt=-Wno-unused-function
 build:clang --cxxopt=-Wno-macro-redefined
+build:clang --cxxopt=-Wno-unused-command-line-argument
 # Add this line to treat the specific warning as an error
 build:clang --cxxopt=-Werror=undefined-internal
-# By default, we don't suppress any warnings, to get g++-specific warning
-# suppression you can invoke with --config=g++
-build:g++ --action_env=BAZEL_CXXOPTS="-std=c++20"
-build:g++ --cxxopt=-std=c++20
-build:g++ --cxxopt=-Wno-sign-compare
-build:g++ --cxxopt=-Wno-switch
-build:g++ --cxxopt=-Wno-unused-function
-build:g++ --cxxopt=-Wno-unused-but-set-parameter
-build:g++ --cxxopt=-Wno-unused-but-set-variable
-build:g++ --cxxopt=-Wno-char-subscripts
-build:g++ --cxxopt=-Wno-nonnull-compare
-build:g++ --cxxopt=-Wno-return-type
-build:g++ --cxxopt=-Wno-class-memaccess
-build:g++ --cxxopt=-Wno-deprecated-declarations
-# For string_fortified
-build:g++ --cxxopt=-Wno-stringop-truncation
 
-# Specify the minimum supported version of macOS.
+# Specify the minimum supported version of MacOS.
 build:darwin --cxxopt="-mmacosx-version-min=11.0"
+
+# TODO: check if this is still needed after grpc updates.
+#
+# Disable layering check on MacOS.
+# layering_check in Bazel ensures that any #included header is explicitly
+# declared in the 'deps' of the corresponding BUILD target.
+# Clang on macOS (especially with newer LLVM/Xcode) enforces this more
+# strictly via C++ Modules than on Linux. Without this, current gRPC fail with:
+# "error: module grpc~//src/core:cf_event_engine does not depend on a module
+# exporting 'src/core/lib/debug/trace_flags.h'"
+build:macos --features=-layering_check
+common --enable_platform_specific_config
 
 # C++20 is required to build GoogleSQL, hence `-cxxopt=-std=c++20`. On MacOS
 # `--host_cxxopt=-std=c++20` is also needed.
 # "--java_runtime_version=remotejdk_11": to make the build more hermetic.
 build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20 --config=clang --java_runtime_version=remotejdk_11
-run --cxxopt=-std=c++20 --host_cxxopt=-std=c++20 --config=clang --java_runtime_version=remotejdk_11
-test --cxxopt=-std=c++20 --host_cxxopt=-std=c++20 --config=clang --java_runtime_version=remotejdk_11
 
 # Force Go to build in PIE mode to avoid "relocation R_X86_64_64" errors on
 # modern Linux environments where the LLVM toolchain enforces PIE.

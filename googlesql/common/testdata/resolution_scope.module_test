@@ -1,0 +1,457 @@
+# Tests for resolution scope behavior when a global catalog is provided.
+[default no_show_imported_modules]
+
+# No scope on module- or statement-level, default is builtin.
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_valid_noscope()
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_noscope()
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_valid_noscope
+  () -> INT64
+
+TVF:tvf_valid_noscope
+  () -> TABLE<val INT64>
+==
+
+# Statement-level option takes precedence over module-level option.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC FUNCTION function_valid_builtin()
+OPTIONS (allowed_references='builtin')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_builtin()
+OPTIONS (allowed_references='builtin')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_valid_builtin
+  () -> INT64
+
+TVF:tvf_valid_builtin
+  () -> TABLE<val INT64>
+==
+
+# Module-level option defines global scope.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC FUNCTION function_valid_global()
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_valid_global()
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_valid_global
+  () -> INT64
+
+TVF:tvf_valid_global
+  () -> TABLE<val INT64>
+==
+
+MODULE a.b.c OPTIONS (allowed_references='global', allowed_references='global');
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: Duplicate option allowed_references in module a.b.c
+==
+
+# Non-literal module-level option can be resolved if a constant evaluator is
+# provided by the caller.
+MODULE a.b.c OPTIONS (allowed_references=CONCAT('glob', 'al'));
+--
+==
+
+MODULE a.b.c OPTIONS (allowed_references='invalid');
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: Allowed values for the allowed_references module option are [BUILTIN, GLOBAL], but got: invalid
+==
+
+MODULE a.b.c OPTIONS (allowed_references=123);
+--
+ModuleCatalog creation failed with status:
+generic::invalid_argument: Module option allowed_references is expected to have type STRING, but got: INT64
+==
+
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_duplicate()
+OPTIONS (allowed_references = 'global', allowed_references = 'global')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_duplicate()
+OPTIONS (allowed_references = 'global', allowed_references = 'global')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_duplicate
+ERROR: Function function_error_duplicate is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_duplicate()
+                       ^
+Option allowed_references can only occur once [at 4:41]
+OPTIONS (allowed_references = 'global', allowed_references = 'global')
+                                        ^
+
+TVF:tvf_error_duplicate
+ERROR: Table function tvf_error_duplicate is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_duplicate()
+                             ^
+Option allowed_references can only occur once [at 8:41]
+OPTIONS (allowed_references = 'global', allowed_references = 'global')
+                                        ^
+==
+
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_literal()
+OPTIONS (allowed_references = CONCAT('glob', 'al'))
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_literal()
+OPTIONS (allowed_references = CONCAT('glob', 'al'))
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_literal
+ERROR: Function function_error_literal is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_literal()
+                       ^
+Option allowed_references must be a string literal [at 4:10]
+OPTIONS (allowed_references = CONCAT('glob', 'al'))
+         ^
+
+TVF:tvf_error_literal
+ERROR: Table function tvf_error_literal is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_literal()
+                             ^
+Option allowed_references must be a string literal [at 8:10]
+OPTIONS (allowed_references = CONCAT('glob', 'al'))
+         ^
+==
+
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_invalid()
+OPTIONS (allowed_references = 'invalid')
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_invalid()
+OPTIONS (allowed_references = 'invalid')
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_invalid
+ERROR: Function function_error_invalid is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_invalid()
+                       ^
+Option allowed_references must be one of 'builtin' or 'global' [at 4:10]
+OPTIONS (allowed_references = 'invalid')
+         ^
+
+TVF:tvf_error_invalid
+ERROR: Table function tvf_error_invalid is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_invalid()
+                             ^
+Option allowed_references must be one of 'builtin' or 'global' [at 8:10]
+OPTIONS (allowed_references = 'invalid')
+         ^
+==
+
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_wrongtype()
+OPTIONS (allowed_references = 123)
+AS (1);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_wrongtype()
+OPTIONS (allowed_references = 123)
+AS (SELECT 1 AS val);
+--
+Lazy_resolution_function:function_error_wrongtype
+ERROR: Function function_error_wrongtype is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_wrongtype()
+                       ^
+Option allowed_references must be a string literal [at 4:10]
+OPTIONS (allowed_references = 123)
+         ^
+
+TVF:tvf_error_wrongtype
+ERROR: Table function tvf_error_wrongtype is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_wrongtype()
+                             ^
+Option allowed_references must be a string literal [at 8:10]
+OPTIONS (allowed_references = 123)
+         ^
+==
+
+# Builtin-scope objects cannot reference objects in global catalog.
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_table()
+AS ((SELECT Key FROM nested_catalog.KeyValueNested LIMIT 1));
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_table()
+AS (SELECT Key FROM nested_catalog.KeyValueNested LIMIT 1);
+--
+Lazy_resolution_function:function_error_builtin_references_table
+ERROR: Function function_error_builtin_references_table is invalid [at 3:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_table()
+                       ^
+Invalid reference to global-scope table 'nested_catalog.KeyValueNested' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+TVF:tvf_error_builtin_references_table
+ERROR: Table function tvf_error_builtin_references_table is invalid [at 6:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_table()
+                             ^
+Invalid reference to global-scope table 'nested_catalog.KeyValueNested' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+==
+
+# Global-scope objects can reference objects in global catalog.
+MODULE a.b.c OPTIONS (allowed_references='global');
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_table()
+AS ((SELECT Key FROM nested_catalog.KeyValueNested LIMIT 1));
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_table()
+AS (SELECT Key FROM nested_catalog.KeyValueNested LIMIT 1);
+--
+Lazy_resolution_function:function_error_builtin_references_table
+  () -> INT64
+
+TVF:tvf_error_builtin_references_table
+  () -> TABLE<Key INT64>
+==
+
+# Builtin-scope objects cannot refer to global-scope objects in the same module.
+MODULE a.b.c;
+
+CREATE PUBLIC FUNCTION function_public_global()
+OPTIONS (allowed_references='global')
+AS (1);
+
+CREATE PRIVATE FUNCTION function_private_global()
+OPTIONS (allowed_references='global')
+AS (1);
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+AS (function_public_global());
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_private_global()
+AS (function_private_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+AS (SELECT function_public_global() AS val);
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_private_global()
+AS (SELECT function_private_global() AS val);
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+function_public_global();
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_private_global =
+function_private_global();
+--
+Lazy_resolution_function:function_error_builtin_references_private_global
+ERROR: Function function_error_builtin_references_private_global is invalid [at 14:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_private_global()
+                       ^
+Invalid function function_private_global [at 15:5]
+AS (function_private_global());
+    ^
+Invalid reference to global-scope function 'function_private_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+Lazy_resolution_function:function_error_builtin_references_public_global
+ERROR: Function function_error_builtin_references_public_global is invalid [at 11:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+                       ^
+Invalid function function_public_global [at 12:5]
+AS (function_public_global());
+    ^
+Invalid reference to global-scope function 'function_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+PRIVATE Lazy_resolution_function:function_private_global
+  () -> INT64
+
+Lazy_resolution_function:function_public_global
+  () -> INT64
+
+TVF:tvf_error_builtin_references_private_global
+ERROR: Table function tvf_error_builtin_references_private_global is invalid [at 20:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_private_global()
+                             ^
+Invalid function function_private_global [at 21:12]
+AS (SELECT function_private_global() AS val);
+           ^
+Invalid reference to global-scope function 'function_private_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+TVF:tvf_error_builtin_references_public_global
+ERROR: Table function tvf_error_builtin_references_public_global is invalid [at 17:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+                             ^
+Invalid function function_public_global [at 18:12]
+AS (SELECT function_public_global() AS val);
+           ^
+Invalid reference to global-scope function 'function_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+CONSTANT constant_error_builtin_references_private_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_private_global is invalid [at 26:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_private_global =
+                       ^
+Invalid function function_private_global [at 27:1]
+function_private_global();
+^
+Invalid reference to global-scope function 'function_private_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+CONSTANT constant_error_builtin_references_public_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_public_global is invalid [at 23:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+                       ^
+Invalid function function_public_global [at 24:1]
+function_public_global();
+^
+Invalid reference to global-scope function 'function_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+==
+
+# Builtin-scope objects cannot reference global-public module imports.
+MODULE a.b.c;
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+AS (test.function_valid_public_global());
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_private_global()
+AS (test.function_valid_private_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+AS (SELECT * FROM test.tvf_valid_public_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_private_global()
+AS (SELECT * FROM test.tvf_valid_private_global());
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+test.function_valid_public_global();
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_private_global =
+test.function_valid_private_global();
+--
+Lazy_resolution_function:function_error_builtin_references_private_global
+ERROR: Function function_error_builtin_references_private_global is invalid [at 7:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_private_global()
+                       ^
+Function not found: test.function_valid_private_global [at 8:5]
+AS (test.function_valid_private_global());
+    ^
+
+Lazy_resolution_function:function_error_builtin_references_public_global
+ERROR: Function function_error_builtin_references_public_global is invalid [at 4:24]
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+                       ^
+Invalid function test.function_valid_public_global [at 5:5]
+AS (test.function_valid_public_global());
+    ^
+Invalid reference to global-scope function 'test.function_valid_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+TVF:tvf_error_builtin_references_private_global
+ERROR: Table function tvf_error_builtin_references_private_global is invalid [at 13:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_private_global()
+                             ^
+Table-valued function not found: test.tvf_valid_private_global [at 14:19]
+AS (SELECT * FROM test.tvf_valid_private_global());
+                  ^
+
+TVF:tvf_error_builtin_references_public_global
+ERROR: Table function tvf_error_builtin_references_public_global is invalid [at 10:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+                             ^
+Invalid table-valued function test.tvf_valid_public_global [at 11:19]
+AS (SELECT * FROM test.tvf_valid_public_global());
+                  ^
+Invalid reference to global-scope table valued function 'test.tvf_valid_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+
+CONSTANT constant_error_builtin_references_private_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_private_global is invalid [at 19:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_private_global =
+                       ^
+Function not found: test.function_valid_private_global [at 20:1]
+test.function_valid_private_global();
+^
+
+CONSTANT constant_error_builtin_references_public_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_public_global is invalid [at 16:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+                       ^
+Invalid function test.function_valid_public_global [at 17:1]
+test.function_valid_public_global();
+^
+Invalid reference to global-scope function 'test.function_valid_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+==
+
+# Global-scope objects can reference global+public module imports.
+MODULE a.b.c OPTIONS (allowed_references='global');
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC FUNCTION function_error_builtin_references_public_global()
+AS (test.function_valid_public_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_builtin_references_public_global()
+AS (SELECT * FROM test.tvf_valid_public_global());
+--
+Lazy_resolution_function:function_error_builtin_references_public_global
+  () -> INT64
+
+TVF:tvf_error_builtin_references_public_global
+  () -> TABLE<val INT64>
+==
+
+# Constants are always builtin, cannot reference global imports.
+MODULE a.b.c OPTIONS (allowed_references='global');
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+test.function_valid_public_global();
+--
+CONSTANT constant_error_builtin_references_public_global=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_builtin_references_public_global is invalid [at 4:24]
+CREATE PUBLIC CONSTANT constant_error_builtin_references_public_global =
+                       ^
+Invalid function test.function_valid_public_global [at 5:1]
+test.function_valid_public_global();
+^
+Invalid reference to global-scope function 'test.function_valid_public_global' from a context which only allows builtin references. If this is an intended reference from a module function or TVF, the module function or TVF may be missing the option allowed_references='global' to allow global references
+==
+
+# Not possible to reference private objects in the module imports.
+MODULE a.b.c OPTIONS (allowed_references='global');
+IMPORT MODULE googlesql.testdata.modules.resolution_scope AS test;
+
+CREATE PUBLIC FUNCTION function_error_references_private()
+AS (test.function_valid_private_global());
+
+CREATE PUBLIC TABLE FUNCTION tvf_error_references_private()
+AS (SELECT * FROM test.tvf_valid_private_global());
+
+CREATE PUBLIC CONSTANT constant_error_references_private =
+test.function_valid_private_global();
+--
+Lazy_resolution_function:function_error_references_private
+ERROR: Function function_error_references_private is invalid [at 4:24]
+CREATE PUBLIC FUNCTION function_error_references_private()
+                       ^
+Function not found: test.function_valid_private_global [at 5:5]
+AS (test.function_valid_private_global());
+    ^
+
+TVF:tvf_error_references_private
+ERROR: Table function tvf_error_references_private is invalid [at 7:30]
+CREATE PUBLIC TABLE FUNCTION tvf_error_references_private()
+                             ^
+Table-valued function not found: test.tvf_valid_private_global [at 8:19]
+AS (SELECT * FROM test.tvf_valid_private_global());
+                  ^
+
+CONSTANT constant_error_references_private=Uninitialized value (unknown type)
+ERROR during resolution: Constant constant_error_references_private is invalid [at 10:24]
+CREATE PUBLIC CONSTANT constant_error_references_private =
+                       ^
+Function not found: test.function_valid_private_global [at 11:1]
+test.function_valid_private_global();
+^

@@ -1,0 +1,2541 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+select 1 from Foo
+group by {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-34] [select 1 from...by  **cols]
+  Query [0-34] [select 1 from...by  **cols]
+    Select [0-34] [select 1 from...by  **cols]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-34] [group by  **cols]
+        GroupingItem [28-34] [**cols]
+          UnpackExpression [28-34] [**cols]
+            PathExpression [30-34] [cols]
+              Identifier(cols) [30-34] [cols]
+
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-37] [select 1 from...**cols ,y]
+  Query [0-37] [select 1 from...**cols ,y]
+    Select [0-37] [select 1 from...**cols ,y]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-37] [group by  **cols ,y]
+        GroupingItem [28-34] [**cols]
+          UnpackExpression [28-34] [**cols]
+            PathExpression [30-34] [cols]
+              Identifier(cols) [30-34] [cols]
+        GroupingItem [36-37] [y]
+          PathExpression [36-37] [y]
+            Identifier(y) [36-37] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ** (cols), y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-36] [select 1 from...x, **cols]
+  Query [0-36] [select 1 from...x, **cols]
+    Select [0-36] [select 1 from...x, **cols]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-36] [group by x, **cols]
+        GroupingItem [27-28] [x]
+          PathExpression [27-28] [x]
+            Identifier(x) [27-28] [x]
+        GroupingItem [30-36] [**cols]
+          UnpackExpression [30-36] [**cols]
+            PathExpression [32-36] [cols]
+              Identifier(cols) [32-36] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY x, ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-39] [select 1 from...**cols ,y]
+  Query [0-39] [select 1 from...**cols ,y]
+    Select [0-39] [select 1 from...**cols ,y]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-39] [group by x, **cols ,y]
+        GroupingItem [27-28] [x]
+          PathExpression [27-28] [x]
+            Identifier(x) [27-28] [x]
+        GroupingItem [30-36] [**cols]
+          UnpackExpression [30-36] [**cols]
+            PathExpression [32-36] [cols]
+              Identifier(cols) [32-36] [cols]
+        GroupingItem [38-39] [y]
+          PathExpression [38-39] [y]
+            Identifier(y) [38-39] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY x, ** (cols), y
+==
+
+select 1 from Foo
+group by ROLLUP({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-43] [select 1 from...( **cols )]
+  Query [0-43] [select 1 from...( **cols )]
+    Select [0-43] [select 1 from...( **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-43] [group by ROLLUP( **cols )]
+        GroupingItem [27-43] [ROLLUP( **cols )]
+          Rollup [27-43] [ROLLUP( **cols )]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ROLLUP(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-45] [select 1 from...**cols ,y)]
+  Query [0-45] [select 1 from...**cols ,y)]
+    Select [0-45] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-45] [group by ROLLUP( **cols ,y)]
+        GroupingItem [27-45] [ROLLUP( **cols ,y)]
+          Rollup [27-45] [ROLLUP( **cols ,y)]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+            PathExpression [43-44] [y]
+              Identifier(y) [43-44] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ROLLUP(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-45] [select 1 from..., **cols )]
+  Query [0-45] [select 1 from..., **cols )]
+    Select [0-45] [select 1 from..., **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-45] [group by ROLLUP(x, **cols )]
+        GroupingItem [27-45] [ROLLUP(x, **cols )]
+          Rollup [27-45] [ROLLUP(x, **cols )]
+            PathExpression [34-35] [x]
+              Identifier(x) [34-35] [x]
+            UnpackExpression [37-43] [**cols]
+              PathExpression [39-43] [cols]
+                Identifier(cols) [39-43] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ROLLUP(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-47] [select 1 from...**cols ,y)]
+  Query [0-47] [select 1 from...**cols ,y)]
+    Select [0-47] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-47] [group by ROLLUP(x, **cols ,y)]
+        GroupingItem [27-47] [ROLLUP(x, **cols ,y)]
+          Rollup [27-47] [ROLLUP(x, **cols ,y)]
+            PathExpression [34-35] [x]
+              Identifier(x) [34-35] [x]
+            UnpackExpression [37-43] [**cols]
+              PathExpression [39-43] [cols]
+                Identifier(cols) [39-43] [cols]
+            PathExpression [45-46] [y]
+              Identifier(y) [45-46] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY ROLLUP(x, ** (cols), y)
+==
+
+select 1 from Foo
+group by CUBE({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-41] [select 1 from...( **cols )]
+  Query [0-41] [select 1 from...( **cols )]
+    Select [0-41] [select 1 from...( **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-41] [group by CUBE( **cols )]
+        GroupingItem [27-41] [CUBE( **cols )]
+          Cube [27-41] [CUBE( **cols )]
+            UnpackExpression [33-39] [**cols]
+              PathExpression [35-39] [cols]
+                Identifier(cols) [35-39] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY CUBE(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-43] [select 1 from...**cols ,y)]
+  Query [0-43] [select 1 from...**cols ,y)]
+    Select [0-43] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-43] [group by CUBE( **cols ,y)]
+        GroupingItem [27-43] [CUBE( **cols ,y)]
+          Cube [27-43] [CUBE( **cols ,y)]
+            UnpackExpression [33-39] [**cols]
+              PathExpression [35-39] [cols]
+                Identifier(cols) [35-39] [cols]
+            PathExpression [41-42] [y]
+              Identifier(y) [41-42] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY CUBE(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-43] [select 1 from..., **cols )]
+  Query [0-43] [select 1 from..., **cols )]
+    Select [0-43] [select 1 from..., **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-43] [group by CUBE(x, **cols )]
+        GroupingItem [27-43] [CUBE(x, **cols )]
+          Cube [27-43] [CUBE(x, **cols )]
+            PathExpression [32-33] [x]
+              Identifier(x) [32-33] [x]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY CUBE(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-45] [select 1 from...**cols ,y)]
+  Query [0-45] [select 1 from...**cols ,y)]
+    Select [0-45] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-45] [group by CUBE(x, **cols ,y)]
+        GroupingItem [27-45] [CUBE(x, **cols ,y)]
+          Cube [27-45] [CUBE(x, **cols ,y)]
+            PathExpression [32-33] [x]
+              Identifier(x) [32-33] [x]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+            PathExpression [43-44] [y]
+              Identifier(y) [43-44] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY CUBE(x, ** (cols), y)
+==
+
+select 1 from Foo
+group by GROUPING SETS({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-50] [select 1 from...( **cols )]
+  Query [0-50] [select 1 from...( **cols )]
+    Select [0-50] [select 1 from...( **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-50] [group by GROUPING...( **cols )]
+        GroupingItem [27-50] [GROUPING SETS( **cols )]
+          GroupingSetList [27-50] [GROUPING SETS( **cols )]
+            GroupingSet [42-48] [**cols]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-52] [select 1 from...**cols ,y)]
+  Query [0-52] [select 1 from...**cols ,y)]
+    Select [0-52] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-52] [group by GROUPING...**cols ,y)]
+        GroupingItem [27-52] [GROUPING SETS( **cols ,y)]
+          GroupingSetList [27-52] [GROUPING SETS( **cols ,y)]
+            GroupingSet [42-48] [**cols]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+            GroupingSet [50-51] [y]
+              PathExpression [50-51] [y]
+                Identifier(y) [50-51] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-52] [select 1 from..., **cols )]
+  Query [0-52] [select 1 from..., **cols )]
+    Select [0-52] [select 1 from..., **cols )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-52] [group by GROUPING..., **cols )]
+        GroupingItem [27-52] [GROUPING SETS(x, **cols )]
+          GroupingSetList [27-52] [GROUPING SETS(x, **cols )]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-50] [**cols]
+              UnpackExpression [44-50] [**cols]
+                PathExpression [46-50] [cols]
+                  Identifier(cols) [46-50] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-54] [select 1 from...**cols ,y)]
+  Query [0-54] [select 1 from...**cols ,y)]
+    Select [0-54] [select 1 from...**cols ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-54] [group by GROUPING...**cols ,y)]
+        GroupingItem [27-54] [GROUPING SETS(x, **cols ,y)]
+          GroupingSetList [27-54] [GROUPING SETS(x, **cols ,y)]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-50] [**cols]
+              UnpackExpression [44-50] [**cols]
+                PathExpression [46-50] [cols]
+                  Identifier(cols) [46-50] [cols]
+            GroupingSet [52-53] [y]
+              PathExpression [52-53] [y]
+                Identifier(y) [52-53] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, ** (cols), y)
+==
+
+select 1 from Foo
+group by GROUPING SETS(x, ({{|x,}} **cols {{|,y}}));
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-55] [select 1 from...**cols ))]
+  Query [0-55] [select 1 from...**cols ))]
+    Select [0-55] [select 1 from...**cols ))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-55] [group by GROUPING...**cols ))]
+        GroupingItem [27-55] [GROUPING SETS(x, ( **cols ))]
+          GroupingSetList [27-55] [GROUPING SETS(x, ( **cols ))]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-54] [( **cols )]
+              UnpackExpression [46-52] [**cols]
+                PathExpression [48-52] [cols]
+                  Identifier(cols) [48-52] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-57] [select 1 from...*cols ,y))]
+  Query [0-57] [select 1 from...*cols ,y))]
+    Select [0-57] [select 1 from...*cols ,y))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-57] [group by GROUPING...*cols ,y))]
+        GroupingItem [27-57] [GROUPING SETS(x, ( **cols ,y))]
+          GroupingSetList [27-57] [GROUPING SETS(x, ( **cols ,y))]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-56] [( **cols ,y)]
+              StructConstructorWithParens [44-56] [( **cols ,y)]
+                UnpackExpression [46-52] [**cols]
+                  PathExpression [48-52] [cols]
+                    Identifier(cols) [48-52] [cols]
+                PathExpression [54-55] [y]
+                  Identifier(y) [54-55] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, (** (cols), y))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-57] [select 1 from...**cols ))]
+  Query [0-57] [select 1 from...**cols ))]
+    Select [0-57] [select 1 from...**cols ))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-57] [group by GROUPING...**cols ))]
+        GroupingItem [27-57] [GROUPING SETS(x, (x, **cols ))]
+          GroupingSetList [27-57] [GROUPING SETS(x, (x, **cols ))]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-56] [(x, **cols )]
+              StructConstructorWithParens [44-56] [(x, **cols )]
+                PathExpression [45-46] [x]
+                  Identifier(x) [45-46] [x]
+                UnpackExpression [48-54] [**cols]
+                  PathExpression [50-54] [cols]
+                    Identifier(cols) [50-54] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, (x, ** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-59] [select 1 from...*cols ,y))]
+  Query [0-59] [select 1 from...*cols ,y))]
+    Select [0-59] [select 1 from...*cols ,y))]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-59] [group by GROUPING...*cols ,y))]
+        GroupingItem [27-59] [GROUPING SETS...*cols ,y))]
+          GroupingSetList [27-59] [GROUPING SETS...*cols ,y))]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-58] [(x, **cols ,y)]
+              StructConstructorWithParens [44-58] [(x, **cols ,y)]
+                PathExpression [45-46] [x]
+                  Identifier(x) [45-46] [x]
+                UnpackExpression [48-54] [**cols]
+                  PathExpression [50-54] [cols]
+                    Identifier(cols) [50-54] [cols]
+                PathExpression [56-57] [y]
+                  Identifier(y) [56-57] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, (x, ** (cols), y))
+==
+
+select 1 from Foo
+group by GROUPING SETS({{|x,}} CUBE(**cols) {{|,y}});
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-56] [select 1 from...(**cols) )]
+  Query [0-56] [select 1 from...(**cols) )]
+    Select [0-56] [select 1 from...(**cols) )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-56] [group by GROUPING...(**cols) )]
+        GroupingItem [27-56] [GROUPING SETS( CUBE(**cols) )]
+          GroupingSetList [27-56] [GROUPING SETS( CUBE(**cols) )]
+            GroupingSet [42-54] [CUBE(**cols)]
+              Cube [42-54] [CUBE(**cols)]
+                UnpackExpression [47-53] [**cols]
+                  PathExpression [49-53] [cols]
+                    Identifier(cols) [49-53] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(CUBE(** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-58] [select 1 from...*cols) ,y)]
+  Query [0-58] [select 1 from...*cols) ,y)]
+    Select [0-58] [select 1 from...*cols) ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-58] [group by GROUPING...*cols) ,y)]
+        GroupingItem [27-58] [GROUPING SETS...*cols) ,y)]
+          GroupingSetList [27-58] [GROUPING SETS...*cols) ,y)]
+            GroupingSet [42-54] [CUBE(**cols)]
+              Cube [42-54] [CUBE(**cols)]
+                UnpackExpression [47-53] [**cols]
+                  PathExpression [49-53] [cols]
+                    Identifier(cols) [49-53] [cols]
+            GroupingSet [56-57] [y]
+              PathExpression [56-57] [y]
+                Identifier(y) [56-57] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(CUBE(** (cols)), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-58] [select 1 from...(**cols) )]
+  Query [0-58] [select 1 from...(**cols) )]
+    Select [0-58] [select 1 from...(**cols) )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-58] [group by GROUPING...(**cols) )]
+        GroupingItem [27-58] [GROUPING SETS...(**cols) )]
+          GroupingSetList [27-58] [GROUPING SETS...(**cols) )]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-56] [CUBE(**cols)]
+              Cube [44-56] [CUBE(**cols)]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, CUBE(** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-60] [select 1 from...*cols) ,y)]
+  Query [0-60] [select 1 from...*cols) ,y)]
+    Select [0-60] [select 1 from...*cols) ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-60] [group by GROUPING...*cols) ,y)]
+        GroupingItem [27-60] [GROUPING SETS...*cols) ,y)]
+          GroupingSetList [27-60] [GROUPING SETS...*cols) ,y)]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-56] [CUBE(**cols)]
+              Cube [44-56] [CUBE(**cols)]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+            GroupingSet [58-59] [y]
+              PathExpression [58-59] [y]
+                Identifier(y) [58-59] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, CUBE(** (cols)), y)
+==
+
+select 1 from Foo
+group by GROUPING SETS({{|x,}} ROLLUP(**cols) {{|,y}});
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-58] [select 1 from...(**cols) )]
+  Query [0-58] [select 1 from...(**cols) )]
+    Select [0-58] [select 1 from...(**cols) )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-58] [group by GROUPING...(**cols) )]
+        GroupingItem [27-58] [GROUPING SETS...(**cols) )]
+          GroupingSetList [27-58] [GROUPING SETS...(**cols) )]
+            GroupingSet [42-56] [ROLLUP(**cols)]
+              Rollup [42-56] [ROLLUP(**cols)]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-60] [select 1 from...*cols) ,y)]
+  Query [0-60] [select 1 from...*cols) ,y)]
+    Select [0-60] [select 1 from...*cols) ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-60] [group by GROUPING...*cols) ,y)]
+        GroupingItem [27-60] [GROUPING SETS...*cols) ,y)]
+          GroupingSetList [27-60] [GROUPING SETS...*cols) ,y)]
+            GroupingSet [42-56] [ROLLUP(**cols)]
+              Rollup [42-56] [ROLLUP(**cols)]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+            GroupingSet [58-59] [y]
+              PathExpression [58-59] [y]
+                Identifier(y) [58-59] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(ROLLUP(** (cols)), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-60] [select 1 from...(**cols) )]
+  Query [0-60] [select 1 from...(**cols) )]
+    Select [0-60] [select 1 from...(**cols) )]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-60] [group by GROUPING...(**cols) )]
+        GroupingItem [27-60] [GROUPING SETS...(**cols) )]
+          GroupingSetList [27-60] [GROUPING SETS...(**cols) )]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-58] [ROLLUP(**cols)]
+              Rollup [44-58] [ROLLUP(**cols)]
+                UnpackExpression [51-57] [**cols]
+                  PathExpression [53-57] [cols]
+                    Identifier(cols) [53-57] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-62] [select 1 from...*cols) ,y)]
+  Query [0-62] [select 1 from...*cols) ,y)]
+    Select [0-62] [select 1 from...*cols) ,y)]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+      GroupBy [18-62] [group by GROUPING...*cols) ,y)]
+        GroupingItem [27-62] [GROUPING SETS...*cols) ,y)]
+          GroupingSetList [27-62] [GROUPING SETS...*cols) ,y)]
+            GroupingSet [41-42] [x]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+            GroupingSet [44-58] [ROLLUP(**cols)]
+              Rollup [44-58] [ROLLUP(**cols)]
+                UnpackExpression [51-57] [**cols]
+                  PathExpression [53-57] [cols]
+                    Identifier(cols) [53-57] [cols]
+            GroupingSet [60-61] [y]
+              PathExpression [60-61] [y]
+                Identifier(y) [60-61] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+GROUP BY GROUPING SETS(x, ROLLUP(** (cols)), y)
+==
+
+from Foo
+|> AGGREGATE {{|a}} GROUP BY {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-39] [from Foo |...BY  **cols]
+  Query [0-39] [from Foo |...BY  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-39] [|> AGGREGATE  GROUP BY  **cols]
+      Select [12-39] [AGGREGATE  GROUP BY  **cols]
+        SelectList [21-21] []
+        GroupBy [23-39] [GROUP BY  **cols]
+          GroupingItem [33-39] [**cols]
+            UnpackExpression [33-39] [**cols]
+              PathExpression [35-39] [cols]
+                Identifier(cols) [35-39] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-42] [from Foo |...**cols ,y]
+  Query [0-42] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-42] [|> AGGREGATE...**cols ,y]
+      Select [12-42] [AGGREGATE  GROUP BY  **cols ,y]
+        SelectList [21-21] []
+        GroupBy [23-42] [GROUP BY  **cols ,y]
+          GroupingItem [33-39] [**cols]
+            UnpackExpression [33-39] [**cols]
+              PathExpression [35-39] [cols]
+                Identifier(cols) [35-39] [cols]
+          GroupingItem [41-42] [y]
+            PathExpression [41-42] [y]
+              Identifier(y) [41-42] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ** (cols), y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-41] [from Foo |...x, **cols]
+  Query [0-41] [from Foo |...x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-41] [|> AGGREGATE...x, **cols]
+      Select [12-41] [AGGREGATE  GROUP BY x, **cols]
+        SelectList [21-21] []
+        GroupBy [23-41] [GROUP BY x, **cols]
+          GroupingItem [32-33] [x]
+            PathExpression [32-33] [x]
+              Identifier(x) [32-33] [x]
+          GroupingItem [35-41] [**cols]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY x, ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-44] [from Foo |...**cols ,y]
+  Query [0-44] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-44] [|> AGGREGATE...**cols ,y]
+      Select [12-44] [AGGREGATE...**cols ,y]
+        SelectList [21-21] []
+        GroupBy [23-44] [GROUP BY x, **cols ,y]
+          GroupingItem [32-33] [x]
+            PathExpression [32-33] [x]
+              Identifier(x) [32-33] [x]
+          GroupingItem [35-41] [**cols]
+            UnpackExpression [35-41] [**cols]
+              PathExpression [37-41] [cols]
+                Identifier(cols) [37-41] [cols]
+          GroupingItem [43-44] [y]
+            PathExpression [43-44] [y]
+              Identifier(y) [43-44] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY x, ** (cols), y
+--
+ALTERNATION GROUP: a,,
+--
+QueryStatement [0-40] [from Foo |...BY  **cols]
+  Query [0-40] [from Foo |...BY  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-40] [|> AGGREGATE...BY  **cols]
+      Select [12-40] [AGGREGATE a GROUP BY  **cols]
+        SelectList [22-23] [a]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [24-40] [GROUP BY  **cols]
+          GroupingItem [34-40] [**cols]
+            UnpackExpression [34-40] [**cols]
+              PathExpression [36-40] [cols]
+                Identifier(cols) [36-40] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ** (cols)
+--
+ALTERNATION GROUP: a,,,y
+--
+QueryStatement [0-43] [from Foo |...**cols ,y]
+  Query [0-43] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-43] [|> AGGREGATE...**cols ,y]
+      Select [12-43] [AGGREGATE...**cols ,y]
+        SelectList [22-23] [a]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [24-43] [GROUP BY  **cols ,y]
+          GroupingItem [34-40] [**cols]
+            UnpackExpression [34-40] [**cols]
+              PathExpression [36-40] [cols]
+                Identifier(cols) [36-40] [cols]
+          GroupingItem [42-43] [y]
+            PathExpression [42-43] [y]
+              Identifier(y) [42-43] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ** (cols), y
+--
+ALTERNATION GROUP: a,x,,
+--
+QueryStatement [0-42] [from Foo |...x, **cols]
+  Query [0-42] [from Foo |...x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-42] [|> AGGREGATE...x, **cols]
+      Select [12-42] [AGGREGATE a GROUP BY x, **cols]
+        SelectList [22-23] [a]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [24-42] [GROUP BY x, **cols]
+          GroupingItem [33-34] [x]
+            PathExpression [33-34] [x]
+              Identifier(x) [33-34] [x]
+          GroupingItem [36-42] [**cols]
+            UnpackExpression [36-42] [**cols]
+              PathExpression [38-42] [cols]
+                Identifier(cols) [38-42] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY x, ** (cols)
+--
+ALTERNATION GROUP: a,x,,,y
+--
+QueryStatement [0-45] [from Foo |...**cols ,y]
+  Query [0-45] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-45] [|> AGGREGATE...**cols ,y]
+      Select [12-45] [AGGREGATE...**cols ,y]
+        SelectList [22-23] [a]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [24-45] [GROUP BY x, **cols ,y]
+          GroupingItem [33-34] [x]
+            PathExpression [33-34] [x]
+              Identifier(x) [33-34] [x]
+          GroupingItem [36-42] [**cols]
+            UnpackExpression [36-42] [**cols]
+              PathExpression [38-42] [cols]
+                Identifier(cols) [38-42] [cols]
+          GroupingItem [44-45] [y]
+            PathExpression [44-45] [y]
+              Identifier(y) [44-45] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY x, ** (cols), y
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY ROLLUP({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-48] [from Foo |...( **cols )]
+  Query [0-48] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-48] [|> AGGREGATE...( **cols )]
+      Select [12-48] [AGGREGATE...( **cols )]
+        SelectList [21-21] []
+        GroupBy [23-48] [GROUP BY ROLLUP( **cols )]
+          GroupingItem [32-48] [ROLLUP( **cols )]
+            Rollup [32-48] [ROLLUP( **cols )]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ROLLUP(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-50] [from Foo |...**cols ,y)]
+  Query [0-50] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE...**cols ,y)]
+      Select [12-50] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-50] [GROUP BY ROLLUP( **cols ,y)]
+          GroupingItem [32-50] [ROLLUP( **cols ,y)]
+            Rollup [32-50] [ROLLUP( **cols ,y)]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+              PathExpression [48-49] [y]
+                Identifier(y) [48-49] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ROLLUP(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-50] [from Foo |..., **cols )]
+  Query [0-50] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE..., **cols )]
+      Select [12-50] [AGGREGATE..., **cols )]
+        SelectList [21-21] []
+        GroupBy [23-50] [GROUP BY ROLLUP(x, **cols )]
+          GroupingItem [32-50] [ROLLUP(x, **cols )]
+            Rollup [32-50] [ROLLUP(x, **cols )]
+              PathExpression [39-40] [x]
+                Identifier(x) [39-40] [x]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ROLLUP(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-52] [from Foo |...**cols ,y)]
+  Query [0-52] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-52] [|> AGGREGATE...**cols ,y)]
+      Select [12-52] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-52] [GROUP BY ROLLUP(x, **cols ,y)]
+          GroupingItem [32-52] [ROLLUP(x, **cols ,y)]
+            Rollup [32-52] [ROLLUP(x, **cols ,y)]
+              PathExpression [39-40] [x]
+                Identifier(x) [39-40] [x]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+              PathExpression [50-51] [y]
+                Identifier(y) [50-51] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY ROLLUP(x, ** (cols), y)
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-50] [from Foo |...( **cols )]
+  Query [0-50] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE...( **cols )]
+      Select [12-50] [AGGREGATE...( **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-50] [GROUP BY ROLLUP( **cols )]
+          GroupingItem [34-50] [ROLLUP( **cols )]
+            Rollup [34-50] [ROLLUP( **cols )]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ROLLUP(** (cols))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-52] [from Foo |...**cols ,y)]
+  Query [0-52] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-52] [|> AGGREGATE...**cols ,y)]
+      Select [12-52] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-52] [GROUP BY ROLLUP( **cols ,y)]
+          GroupingItem [34-52] [ROLLUP( **cols ,y)]
+            Rollup [34-52] [ROLLUP( **cols ,y)]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+              PathExpression [50-51] [y]
+                Identifier(y) [50-51] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ROLLUP(** (cols), y)
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-52] [from Foo |..., **cols )]
+  Query [0-52] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-52] [|> AGGREGATE..., **cols )]
+      Select [12-52] [AGGREGATE..., **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-52] [GROUP BY ROLLUP(x, **cols )]
+          GroupingItem [34-52] [ROLLUP(x, **cols )]
+            Rollup [34-52] [ROLLUP(x, **cols )]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+              UnpackExpression [44-50] [**cols]
+                PathExpression [46-50] [cols]
+                  Identifier(cols) [46-50] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ROLLUP(x, ** (cols))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-54] [from Foo |...**cols ,y)]
+  Query [0-54] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-54] [|> AGGREGATE...**cols ,y)]
+      Select [12-54] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-54] [GROUP BY ROLLUP(x, **cols ,y)]
+          GroupingItem [34-54] [ROLLUP(x, **cols ,y)]
+            Rollup [34-54] [ROLLUP(x, **cols ,y)]
+              PathExpression [41-42] [x]
+                Identifier(x) [41-42] [x]
+              UnpackExpression [44-50] [**cols]
+                PathExpression [46-50] [cols]
+                  Identifier(cols) [46-50] [cols]
+              PathExpression [52-53] [y]
+                Identifier(y) [52-53] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY ROLLUP(x, ** (cols), y)
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY CUBE({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-46] [from Foo |...( **cols )]
+  Query [0-46] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-46] [|> AGGREGATE...( **cols )]
+      Select [12-46] [AGGREGATE...( **cols )]
+        SelectList [21-21] []
+        GroupBy [23-46] [GROUP BY CUBE( **cols )]
+          GroupingItem [32-46] [CUBE( **cols )]
+            Cube [32-46] [CUBE( **cols )]
+              UnpackExpression [38-44] [**cols]
+                PathExpression [40-44] [cols]
+                  Identifier(cols) [40-44] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY CUBE(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-48] [from Foo |...**cols ,y)]
+  Query [0-48] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-48] [|> AGGREGATE...**cols ,y)]
+      Select [12-48] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-48] [GROUP BY CUBE( **cols ,y)]
+          GroupingItem [32-48] [CUBE( **cols ,y)]
+            Cube [32-48] [CUBE( **cols ,y)]
+              UnpackExpression [38-44] [**cols]
+                PathExpression [40-44] [cols]
+                  Identifier(cols) [40-44] [cols]
+              PathExpression [46-47] [y]
+                Identifier(y) [46-47] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY CUBE(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-48] [from Foo |..., **cols )]
+  Query [0-48] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-48] [|> AGGREGATE..., **cols )]
+      Select [12-48] [AGGREGATE..., **cols )]
+        SelectList [21-21] []
+        GroupBy [23-48] [GROUP BY CUBE(x, **cols )]
+          GroupingItem [32-48] [CUBE(x, **cols )]
+            Cube [32-48] [CUBE(x, **cols )]
+              PathExpression [37-38] [x]
+                Identifier(x) [37-38] [x]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY CUBE(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-50] [from Foo |...**cols ,y)]
+  Query [0-50] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE...**cols ,y)]
+      Select [12-50] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-50] [GROUP BY CUBE(x, **cols ,y)]
+          GroupingItem [32-50] [CUBE(x, **cols ,y)]
+            Cube [32-50] [CUBE(x, **cols ,y)]
+              PathExpression [37-38] [x]
+                Identifier(x) [37-38] [x]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+              PathExpression [48-49] [y]
+                Identifier(y) [48-49] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY CUBE(x, ** (cols), y)
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-48] [from Foo |...( **cols )]
+  Query [0-48] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-48] [|> AGGREGATE...( **cols )]
+      Select [12-48] [AGGREGATE...( **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-48] [GROUP BY CUBE( **cols )]
+          GroupingItem [34-48] [CUBE( **cols )]
+            Cube [34-48] [CUBE( **cols )]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY CUBE(** (cols))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-50] [from Foo |...**cols ,y)]
+  Query [0-50] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE...**cols ,y)]
+      Select [12-50] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-50] [GROUP BY CUBE( **cols ,y)]
+          GroupingItem [34-50] [CUBE( **cols ,y)]
+            Cube [34-50] [CUBE( **cols ,y)]
+              UnpackExpression [40-46] [**cols]
+                PathExpression [42-46] [cols]
+                  Identifier(cols) [42-46] [cols]
+              PathExpression [48-49] [y]
+                Identifier(y) [48-49] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY CUBE(** (cols), y)
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-50] [from Foo |..., **cols )]
+  Query [0-50] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-50] [|> AGGREGATE..., **cols )]
+      Select [12-50] [AGGREGATE..., **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-50] [GROUP BY CUBE(x, **cols )]
+          GroupingItem [34-50] [CUBE(x, **cols )]
+            Cube [34-50] [CUBE(x, **cols )]
+              PathExpression [39-40] [x]
+                Identifier(x) [39-40] [x]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY CUBE(x, ** (cols))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-52] [from Foo |...**cols ,y)]
+  Query [0-52] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-52] [|> AGGREGATE...**cols ,y)]
+      Select [12-52] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-52] [GROUP BY CUBE(x, **cols ,y)]
+          GroupingItem [34-52] [CUBE(x, **cols ,y)]
+            Cube [34-52] [CUBE(x, **cols ,y)]
+              PathExpression [39-40] [x]
+                Identifier(x) [39-40] [x]
+              UnpackExpression [42-48] [**cols]
+                PathExpression [44-48] [cols]
+                  Identifier(cols) [44-48] [cols]
+              PathExpression [50-51] [y]
+                Identifier(y) [50-51] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY CUBE(x, ** (cols), y)
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY GROUPING SETS({{|x,}} **cols {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-55] [from Foo |...( **cols )]
+  Query [0-55] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-55] [|> AGGREGATE...( **cols )]
+      Select [12-55] [AGGREGATE...( **cols )]
+        SelectList [21-21] []
+        GroupBy [23-55] [GROUP BY GROUPING...( **cols )]
+          GroupingItem [32-55] [GROUPING SETS( **cols )]
+            GroupingSetList [32-55] [GROUPING SETS( **cols )]
+              GroupingSet [47-53] [**cols]
+                UnpackExpression [47-53] [**cols]
+                  PathExpression [49-53] [cols]
+                    Identifier(cols) [49-53] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-57] [from Foo |...**cols ,y)]
+  Query [0-57] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-57] [|> AGGREGATE...**cols ,y)]
+      Select [12-57] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-57] [GROUP BY GROUPING...**cols ,y)]
+          GroupingItem [32-57] [GROUPING SETS( **cols ,y)]
+            GroupingSetList [32-57] [GROUPING SETS( **cols ,y)]
+              GroupingSet [47-53] [**cols]
+                UnpackExpression [47-53] [**cols]
+                  PathExpression [49-53] [cols]
+                    Identifier(cols) [49-53] [cols]
+              GroupingSet [55-56] [y]
+                PathExpression [55-56] [y]
+                  Identifier(y) [55-56] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(** (cols), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-57] [from Foo |..., **cols )]
+  Query [0-57] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-57] [|> AGGREGATE..., **cols )]
+      Select [12-57] [AGGREGATE..., **cols )]
+        SelectList [21-21] []
+        GroupBy [23-57] [GROUP BY GROUPING..., **cols )]
+          GroupingItem [32-57] [GROUPING SETS(x, **cols )]
+            GroupingSetList [32-57] [GROUPING SETS(x, **cols )]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-55] [**cols]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-59] [from Foo |...**cols ,y)]
+  Query [0-59] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-59] [|> AGGREGATE...**cols ,y)]
+      Select [12-59] [AGGREGATE...**cols ,y)]
+        SelectList [21-21] []
+        GroupBy [23-59] [GROUP BY GROUPING...**cols ,y)]
+          GroupingItem [32-59] [GROUPING SETS(x, **cols ,y)]
+            GroupingSetList [32-59] [GROUPING SETS(x, **cols ,y)]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-55] [**cols]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+              GroupingSet [57-58] [y]
+                PathExpression [57-58] [y]
+                  Identifier(y) [57-58] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, ** (cols), y)
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-57] [from Foo |...( **cols )]
+  Query [0-57] [from Foo |...( **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-57] [|> AGGREGATE...( **cols )]
+      Select [12-57] [AGGREGATE...( **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-57] [GROUP BY GROUPING...( **cols )]
+          GroupingItem [34-57] [GROUPING SETS( **cols )]
+            GroupingSetList [34-57] [GROUPING SETS( **cols )]
+              GroupingSet [49-55] [**cols]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(** (cols))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-59] [from Foo |...**cols ,y)]
+  Query [0-59] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-59] [|> AGGREGATE...**cols ,y)]
+      Select [12-59] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-59] [GROUP BY GROUPING...**cols ,y)]
+          GroupingItem [34-59] [GROUPING SETS( **cols ,y)]
+            GroupingSetList [34-59] [GROUPING SETS( **cols ,y)]
+              GroupingSet [49-55] [**cols]
+                UnpackExpression [49-55] [**cols]
+                  PathExpression [51-55] [cols]
+                    Identifier(cols) [51-55] [cols]
+              GroupingSet [57-58] [y]
+                PathExpression [57-58] [y]
+                  Identifier(y) [57-58] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(** (cols), y)
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-59] [from Foo |..., **cols )]
+  Query [0-59] [from Foo |..., **cols )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-59] [|> AGGREGATE..., **cols )]
+      Select [12-59] [AGGREGATE..., **cols )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-59] [GROUP BY GROUPING..., **cols )]
+          GroupingItem [34-59] [GROUPING SETS(x, **cols )]
+            GroupingSetList [34-59] [GROUPING SETS(x, **cols )]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-57] [**cols]
+                UnpackExpression [51-57] [**cols]
+                  PathExpression [53-57] [cols]
+                    Identifier(cols) [53-57] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-61] [from Foo |...**cols ,y)]
+  Query [0-61] [from Foo |...**cols ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-61] [|> AGGREGATE...**cols ,y)]
+      Select [12-61] [AGGREGATE...**cols ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-61] [GROUP BY GROUPING...**cols ,y)]
+          GroupingItem [34-61] [GROUPING SETS(x, **cols ,y)]
+            GroupingSetList [34-61] [GROUPING SETS(x, **cols ,y)]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-57] [**cols]
+                UnpackExpression [51-57] [**cols]
+                  PathExpression [53-57] [cols]
+                    Identifier(cols) [53-57] [cols]
+              GroupingSet [59-60] [y]
+                PathExpression [59-60] [y]
+                  Identifier(y) [59-60] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, ** (cols), y)
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY GROUPING SETS(x, ({{|x,}} **cols {{|,y}}));
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-60] [from Foo |...**cols ))]
+  Query [0-60] [from Foo |...**cols ))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-60] [|> AGGREGATE...**cols ))]
+      Select [12-60] [AGGREGATE...**cols ))]
+        SelectList [21-21] []
+        GroupBy [23-60] [GROUP BY GROUPING...**cols ))]
+          GroupingItem [32-60] [GROUPING SETS(x, ( **cols ))]
+            GroupingSetList [32-60] [GROUPING SETS(x, ( **cols ))]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-59] [( **cols )]
+                UnpackExpression [51-57] [**cols]
+                  PathExpression [53-57] [cols]
+                    Identifier(cols) [53-57] [cols]
+
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-62] [from Foo |...*cols ,y))]
+  Query [0-62] [from Foo |...*cols ,y))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-62] [|> AGGREGATE...*cols ,y))]
+      Select [12-62] [AGGREGATE...*cols ,y))]
+        SelectList [21-21] []
+        GroupBy [23-62] [GROUP BY GROUPING...*cols ,y))]
+          GroupingItem [32-62] [GROUPING SETS(x, ( **cols ,y))]
+            GroupingSetList [32-62] [GROUPING SETS(x, ( **cols ,y))]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-61] [( **cols ,y)]
+                StructConstructorWithParens [49-61] [( **cols ,y)]
+                  UnpackExpression [51-57] [**cols]
+                    PathExpression [53-57] [cols]
+                      Identifier(cols) [53-57] [cols]
+                  PathExpression [59-60] [y]
+                    Identifier(y) [59-60] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, (** (cols), y))
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-62] [from Foo |...**cols ))]
+  Query [0-62] [from Foo |...**cols ))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-62] [|> AGGREGATE...**cols ))]
+      Select [12-62] [AGGREGATE...**cols ))]
+        SelectList [21-21] []
+        GroupBy [23-62] [GROUP BY GROUPING...**cols ))]
+          GroupingItem [32-62] [GROUPING SETS(x, (x, **cols ))]
+            GroupingSetList [32-62] [GROUPING SETS(x, (x, **cols ))]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-61] [(x, **cols )]
+                StructConstructorWithParens [49-61] [(x, **cols )]
+                  PathExpression [50-51] [x]
+                    Identifier(x) [50-51] [x]
+                  UnpackExpression [53-59] [**cols]
+                    PathExpression [55-59] [cols]
+                      Identifier(cols) [55-59] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, (x, ** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-64] [from Foo |...*cols ,y))]
+  Query [0-64] [from Foo |...*cols ,y))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-64] [|> AGGREGATE...*cols ,y))]
+      Select [12-64] [AGGREGATE...*cols ,y))]
+        SelectList [21-21] []
+        GroupBy [23-64] [GROUP BY GROUPING...*cols ,y))]
+          GroupingItem [32-64] [GROUPING SETS...*cols ,y))]
+            GroupingSetList [32-64] [GROUPING SETS...*cols ,y))]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-63] [(x, **cols ,y)]
+                StructConstructorWithParens [49-63] [(x, **cols ,y)]
+                  PathExpression [50-51] [x]
+                    Identifier(x) [50-51] [x]
+                  UnpackExpression [53-59] [**cols]
+                    PathExpression [55-59] [cols]
+                      Identifier(cols) [55-59] [cols]
+                  PathExpression [61-62] [y]
+                    Identifier(y) [61-62] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, (x, ** (cols), y))
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-62] [from Foo |...**cols ))]
+  Query [0-62] [from Foo |...**cols ))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-62] [|> AGGREGATE...**cols ))]
+      Select [12-62] [AGGREGATE...**cols ))]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-62] [GROUP BY GROUPING...**cols ))]
+          GroupingItem [34-62] [GROUPING SETS(x, ( **cols ))]
+            GroupingSetList [34-62] [GROUPING SETS(x, ( **cols ))]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-61] [( **cols )]
+                UnpackExpression [53-59] [**cols]
+                  PathExpression [55-59] [cols]
+                    Identifier(cols) [55-59] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, ** (cols))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-64] [from Foo |...*cols ,y))]
+  Query [0-64] [from Foo |...*cols ,y))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-64] [|> AGGREGATE...*cols ,y))]
+      Select [12-64] [AGGREGATE...*cols ,y))]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-64] [GROUP BY GROUPING...*cols ,y))]
+          GroupingItem [34-64] [GROUPING SETS(x, ( **cols ,y))]
+            GroupingSetList [34-64] [GROUPING SETS(x, ( **cols ,y))]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-63] [( **cols ,y)]
+                StructConstructorWithParens [51-63] [( **cols ,y)]
+                  UnpackExpression [53-59] [**cols]
+                    PathExpression [55-59] [cols]
+                      Identifier(cols) [55-59] [cols]
+                  PathExpression [61-62] [y]
+                    Identifier(y) [61-62] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, (** (cols), y))
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-64] [from Foo |...**cols ))]
+  Query [0-64] [from Foo |...**cols ))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-64] [|> AGGREGATE...**cols ))]
+      Select [12-64] [AGGREGATE...**cols ))]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-64] [GROUP BY GROUPING...**cols ))]
+          GroupingItem [34-64] [GROUPING SETS(x, (x, **cols ))]
+            GroupingSetList [34-64] [GROUPING SETS(x, (x, **cols ))]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-63] [(x, **cols )]
+                StructConstructorWithParens [51-63] [(x, **cols )]
+                  PathExpression [52-53] [x]
+                    Identifier(x) [52-53] [x]
+                  UnpackExpression [55-61] [**cols]
+                    PathExpression [57-61] [cols]
+                      Identifier(cols) [57-61] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, (x, ** (cols)))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-66] [from Foo |...*cols ,y))]
+  Query [0-66] [from Foo |...*cols ,y))]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-66] [|> AGGREGATE...*cols ,y))]
+      Select [12-66] [AGGREGATE...*cols ,y))]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-66] [GROUP BY GROUPING...*cols ,y))]
+          GroupingItem [34-66] [GROUPING SETS...*cols ,y))]
+            GroupingSetList [34-66] [GROUPING SETS...*cols ,y))]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-65] [(x, **cols ,y)]
+                StructConstructorWithParens [51-65] [(x, **cols ,y)]
+                  PathExpression [52-53] [x]
+                    Identifier(x) [52-53] [x]
+                  UnpackExpression [55-61] [**cols]
+                    PathExpression [57-61] [cols]
+                      Identifier(cols) [57-61] [cols]
+                  PathExpression [63-64] [y]
+                    Identifier(y) [63-64] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, (x, ** (cols), y))
+# POST-COMMENT FROM MISSING PART
+
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY GROUPING SETS({{|x,}} CUBE(**cols) {{|,y}});
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-61] [from Foo |...(**cols) )]
+  Query [0-61] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-61] [|> AGGREGATE...(**cols) )]
+      Select [12-61] [AGGREGATE...(**cols) )]
+        SelectList [21-21] []
+        GroupBy [23-61] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [32-61] [GROUPING SETS( CUBE(**cols) )]
+            GroupingSetList [32-61] [GROUPING SETS( CUBE(**cols) )]
+              GroupingSet [47-59] [CUBE(**cols)]
+                Cube [47-59] [CUBE(**cols)]
+                  UnpackExpression [52-58] [**cols]
+                    PathExpression [54-58] [cols]
+                      Identifier(cols) [54-58] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(CUBE(** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-63] [from Foo |...*cols) ,y)]
+  Query [0-63] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-63] [|> AGGREGATE...*cols) ,y)]
+      Select [12-63] [AGGREGATE...*cols) ,y)]
+        SelectList [21-21] []
+        GroupBy [23-63] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [32-63] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [32-63] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [47-59] [CUBE(**cols)]
+                Cube [47-59] [CUBE(**cols)]
+                  UnpackExpression [52-58] [**cols]
+                    PathExpression [54-58] [cols]
+                      Identifier(cols) [54-58] [cols]
+              GroupingSet [61-62] [y]
+                PathExpression [61-62] [y]
+                  Identifier(y) [61-62] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(CUBE(** (cols)), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-63] [from Foo |...(**cols) )]
+  Query [0-63] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-63] [|> AGGREGATE...(**cols) )]
+      Select [12-63] [AGGREGATE...(**cols) )]
+        SelectList [21-21] []
+        GroupBy [23-63] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [32-63] [GROUPING SETS...(**cols) )]
+            GroupingSetList [32-63] [GROUPING SETS...(**cols) )]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-61] [CUBE(**cols)]
+                Cube [49-61] [CUBE(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, CUBE(** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-65] [from Foo |...*cols) ,y)]
+  Query [0-65] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...*cols) ,y)]
+      Select [12-65] [AGGREGATE...*cols) ,y)]
+        SelectList [21-21] []
+        GroupBy [23-65] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [32-65] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [32-65] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-61] [CUBE(**cols)]
+                Cube [49-61] [CUBE(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+              GroupingSet [63-64] [y]
+                PathExpression [63-64] [y]
+                  Identifier(y) [63-64] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, CUBE(** (cols)), y)
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-63] [from Foo |...(**cols) )]
+  Query [0-63] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-63] [|> AGGREGATE...(**cols) )]
+      Select [12-63] [AGGREGATE...(**cols) )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-63] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [34-63] [GROUPING SETS( CUBE(**cols) )]
+            GroupingSetList [34-63] [GROUPING SETS( CUBE(**cols) )]
+              GroupingSet [49-61] [CUBE(**cols)]
+                Cube [49-61] [CUBE(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(CUBE(** (cols)))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-65] [from Foo |...*cols) ,y)]
+  Query [0-65] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...*cols) ,y)]
+      Select [12-65] [AGGREGATE...*cols) ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-65] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [34-65] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [34-65] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [49-61] [CUBE(**cols)]
+                Cube [49-61] [CUBE(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+              GroupingSet [63-64] [y]
+                PathExpression [63-64] [y]
+                  Identifier(y) [63-64] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(CUBE(** (cols)), y)
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-65] [from Foo |...(**cols) )]
+  Query [0-65] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...(**cols) )]
+      Select [12-65] [AGGREGATE...(**cols) )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-65] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [34-65] [GROUPING SETS...(**cols) )]
+            GroupingSetList [34-65] [GROUPING SETS...(**cols) )]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-63] [CUBE(**cols)]
+                Cube [51-63] [CUBE(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, CUBE(** (cols)))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-67] [from Foo |...*cols) ,y)]
+  Query [0-67] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-67] [|> AGGREGATE...*cols) ,y)]
+      Select [12-67] [AGGREGATE...*cols) ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-67] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [34-67] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [34-67] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-63] [CUBE(**cols)]
+                Cube [51-63] [CUBE(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+              GroupingSet [65-66] [y]
+                PathExpression [65-66] [y]
+                  Identifier(y) [65-66] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, CUBE(** (cols)), y)
+==
+
+from Foo
+|> AGGREGATE {{|a,}} GROUP BY GROUPING SETS({{|x,}} ROLLUP(**cols) {{|,y}});
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-63] [from Foo |...(**cols) )]
+  Query [0-63] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-63] [|> AGGREGATE...(**cols) )]
+      Select [12-63] [AGGREGATE...(**cols) )]
+        SelectList [21-21] []
+        GroupBy [23-63] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [32-63] [GROUPING SETS...(**cols) )]
+            GroupingSetList [32-63] [GROUPING SETS...(**cols) )]
+              GroupingSet [47-61] [ROLLUP(**cols)]
+                Rollup [47-61] [ROLLUP(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-65] [from Foo |...*cols) ,y)]
+  Query [0-65] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...*cols) ,y)]
+      Select [12-65] [AGGREGATE...*cols) ,y)]
+        SelectList [21-21] []
+        GroupBy [23-65] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [32-65] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [32-65] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [47-61] [ROLLUP(**cols)]
+                Rollup [47-61] [ROLLUP(**cols)]
+                  UnpackExpression [54-60] [**cols]
+                    PathExpression [56-60] [cols]
+                      Identifier(cols) [56-60] [cols]
+              GroupingSet [63-64] [y]
+                PathExpression [63-64] [y]
+                  Identifier(y) [63-64] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(ROLLUP(** (cols)), y)
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-65] [from Foo |...(**cols) )]
+  Query [0-65] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...(**cols) )]
+      Select [12-65] [AGGREGATE...(**cols) )]
+        SelectList [21-21] []
+        GroupBy [23-65] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [32-65] [GROUPING SETS...(**cols) )]
+            GroupingSetList [32-65] [GROUPING SETS...(**cols) )]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-63] [ROLLUP(**cols)]
+                Rollup [49-63] [ROLLUP(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-67] [from Foo |...*cols) ,y)]
+  Query [0-67] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-67] [|> AGGREGATE...*cols) ,y)]
+      Select [12-67] [AGGREGATE...*cols) ,y)]
+        SelectList [21-21] []
+        GroupBy [23-67] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [32-67] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [32-67] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [46-47] [x]
+                PathExpression [46-47] [x]
+                  Identifier(x) [46-47] [x]
+              GroupingSet [49-63] [ROLLUP(**cols)]
+                Rollup [49-63] [ROLLUP(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+              GroupingSet [65-66] [y]
+                PathExpression [65-66] [y]
+                  Identifier(y) [65-66] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+   GROUP BY GROUPING SETS(x, ROLLUP(** (cols)), y)
+--
+ALTERNATION GROUP: a,,,
+--
+QueryStatement [0-65] [from Foo |...(**cols) )]
+  Query [0-65] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-65] [|> AGGREGATE...(**cols) )]
+      Select [12-65] [AGGREGATE...(**cols) )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-65] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [34-65] [GROUPING SETS...(**cols) )]
+            GroupingSetList [34-65] [GROUPING SETS...(**cols) )]
+              GroupingSet [49-63] [ROLLUP(**cols)]
+                Rollup [49-63] [ROLLUP(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: a,,,,y
+--
+QueryStatement [0-67] [from Foo |...*cols) ,y)]
+  Query [0-67] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-67] [|> AGGREGATE...*cols) ,y)]
+      Select [12-67] [AGGREGATE...*cols) ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-67] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [34-67] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [34-67] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [49-63] [ROLLUP(**cols)]
+                Rollup [49-63] [ROLLUP(**cols)]
+                  UnpackExpression [56-62] [**cols]
+                    PathExpression [58-62] [cols]
+                      Identifier(cols) [58-62] [cols]
+              GroupingSet [65-66] [y]
+                PathExpression [65-66] [y]
+                  Identifier(y) [65-66] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(ROLLUP(** (cols)), y)
+--
+ALTERNATION GROUP: a,,x,,
+--
+QueryStatement [0-67] [from Foo |...(**cols) )]
+  Query [0-67] [from Foo |...(**cols) )]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-67] [|> AGGREGATE...(**cols) )]
+      Select [12-67] [AGGREGATE...(**cols) )]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-67] [GROUP BY GROUPING...(**cols) )]
+          GroupingItem [34-67] [GROUPING SETS...(**cols) )]
+            GroupingSetList [34-67] [GROUPING SETS...(**cols) )]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-65] [ROLLUP(**cols)]
+                Rollup [51-65] [ROLLUP(**cols)]
+                  UnpackExpression [58-64] [**cols]
+                    PathExpression [60-64] [cols]
+                      Identifier(cols) [60-64] [cols]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, ROLLUP(** (cols)))
+--
+ALTERNATION GROUP: a,,x,,,y
+--
+QueryStatement [0-69] [from Foo |...*cols) ,y)]
+  Query [0-69] [from Foo |...*cols) ,y)]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeAggregate [9-69] [|> AGGREGATE...*cols) ,y)]
+      Select [12-69] [AGGREGATE...*cols) ,y)]
+        SelectList [22-24] [a,]
+          SelectColumn [22-23] [a]
+            PathExpression [22-23] [a]
+              Identifier(a) [22-23] [a]
+        GroupBy [25-69] [GROUP BY GROUPING...*cols) ,y)]
+          GroupingItem [34-69] [GROUPING SETS...*cols) ,y)]
+            GroupingSetList [34-69] [GROUPING SETS...*cols) ,y)]
+              GroupingSet [48-49] [x]
+                PathExpression [48-49] [x]
+                  Identifier(x) [48-49] [x]
+              GroupingSet [51-65] [ROLLUP(**cols)]
+                Rollup [51-65] [ROLLUP(**cols)]
+                  UnpackExpression [58-64] [**cols]
+                    PathExpression [60-64] [cols]
+                      Identifier(cols) [60-64] [cols]
+              GroupingSet [67-68] [y]
+                PathExpression [67-68] [y]
+                  Identifier(y) [67-68] [y]
+--
+FROM
+  Foo
+|> AGGREGATE
+     a
+   GROUP BY GROUPING SETS(x, ROLLUP(** (cols)), y)

@@ -25,6 +25,7 @@ namespace googlesql {
 // This covers cases:
 //   <input> LIKE {{ANY|SOME|ALL}} UNNEST(<array-expression>)
 //   <input> LIKE {{ANY|SOME|ALL}} (pattern1, ...)
+//   <input> LIKE {{ANY|SOME|ALL}} (<subquery>)
 const Rewriter* GetLikeAnyAllRewriter();
 
 }  // namespace googlesql

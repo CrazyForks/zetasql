@@ -14,6 +14,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -128,6 +129,7 @@ cc_binary(
         ":execute_query_writer",
         ":homedir",
         "//googlesql/base",
+        "//googlesql/base:file_util",
         "//googlesql/base:status",
         "@com_google_absl//absl/flags:config",
         "@com_google_absl//absl/flags:flag",
@@ -408,6 +410,7 @@ cc_library(
         "//googlesql/public:analyzer_output",
         "//googlesql/public:builtin_function_options",
         "//googlesql/public:catalog",
+        "//googlesql/public:constant_evaluator",
         "//googlesql/public:error_helpers",
         "//googlesql/public:evaluator",
         "//googlesql/public:evaluator_table_iterator",
@@ -419,6 +422,7 @@ cc_library(
         "//googlesql/public:parse_helpers",
         "//googlesql/public:parse_location",
         "//googlesql/public:parse_resume_location",
+        "//googlesql/public:prepared_expression_constant_evaluator",
         "//googlesql/public:simple_catalog",
         "//googlesql/public:simple_catalog_util",
         "//googlesql/public:sql_constant",
@@ -552,6 +556,7 @@ cc_library(
         "//googlesql/base:status",
         "//googlesql/common:options_utils",
         "//googlesql/public:evaluator_table_iterator",
+        "//googlesql/public:options_cc_proto",
         "//googlesql/public:value",
         "//googlesql/resolved_ast",
         "//googlesql/resolved_ast:sql_builder",
@@ -582,9 +587,11 @@ cc_test(
         "//googlesql/base:path",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
+        "//googlesql/common:options_utils",
         "//googlesql/resolved_ast:sql_builder",
         "//googlesql/tools/execute_query/web:embedded_resources",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

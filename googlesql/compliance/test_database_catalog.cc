@@ -29,6 +29,7 @@
 #include "googlesql/compliance/test_driver.h"
 #include "googlesql/compliance/test_util.h"
 #include "googlesql/public/builtin_function.h"
+#include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/function.h"
@@ -37,25 +38,45 @@
 #include "googlesql/public/simple_catalog_util.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/struct_type.h"
+#include "googlesql/testdata/test_schema.pb.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "google/protobuf/compiler/importer.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
 TestDatabaseCatalog::BuiltinFunctionCache::~BuiltinFunctionCache() {
   DumpStats();
 }
+
+namespace {
+// Any functions that use engine supplied arguments should have their arguments
+// updated here.
+absl::Status UpdateBuiltinFunctionOptionsWithSuppliedArguments(
+    TypeFactory* type_factory,
+    BuiltinFunctionOptions* builtin_function_options) {
+  const googlesql::Type* options_proto_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeProtoType(
+      googlesql_test::TestApproxDistanceFunctionOptionsProto::GetDescriptor(),
+      &options_proto_type));
+  builtin_function_options->argument_types[{
+      googlesql::FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS, 4}] =
+      options_proto_type;
+  return absl::OkStatus();
+}
+}  // namespace
+
 absl::Status TestDatabaseCatalog::BuiltinFunctionCache::SetLanguageOptions(
     const LanguageOptions& options, SimpleCatalog* catalog) {
   ++total_calls_;
@@ -67,9 +88,13 @@ absl::Status TestDatabaseCatalog::BuiltinFunctionCache::SetLanguageOptions(
     CacheEntry entry;
     // We have to call type_factory() while not holding mutex_.
     TypeFactory* type_factory = catalog->type_factory();
+    GoogleSQLBuiltinFunctionOptions builtin_function_options =
+        BuiltinFunctionOptions(options);
+    GOOGLESQL_RETURN_IF_ERROR(UpdateBuiltinFunctionOptionsWithSuppliedArguments(
+        type_factory, &builtin_function_options));
     GOOGLESQL_RETURN_IF_ERROR(GetBuiltinFunctionsAndTypes(
-        BuiltinFunctionOptions(options), *type_factory, entry.functions,
-        entry.types, entry.table_valued_functions));
+        builtin_function_options, *type_factory, entry.functions, entry.types,
+        entry.table_valued_functions));
     cache_entry =
         &(builtins_cache_.emplace(options, std::move(entry)).first->second);
   }
@@ -179,7 +204,7 @@ absl::Status TestDatabaseCatalog::LoadProtoEnumTypes(
       const ProtoType* proto_type;
       GOOGLESQL_RETURN_IF_ERROR(
           catalog_->type_factory()->MakeProtoType(descriptor, &proto_type));
-      catalog_->AddType(descriptor->full_name(), proto_type);
+      catalog_->AddTypeIfNotPresent(descriptor->full_name(), proto_type);
     }
   }
 
@@ -200,7 +225,7 @@ absl::Status TestDatabaseCatalog::LoadProtoEnumTypes(
       const EnumType* enum_type;
       GOOGLESQL_RETURN_IF_ERROR(
           catalog_->type_factory()->MakeEnumType(enum_descriptor, &enum_type));
-      catalog_->AddType(enum_descriptor->full_name(), enum_type);
+      catalog_->AddTypeIfNotPresent(enum_descriptor->full_name(), enum_type);
     }
   }
   return absl::OkStatus();

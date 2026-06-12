@@ -35,6 +35,7 @@
 #include "googlesql/analyzer/rewriters/pipe_describe_rewriter.h"
 #include "googlesql/analyzer/rewriters/pipe_if_rewriter.h"
 #include "googlesql/analyzer/rewriters/pivot_rewriter.h"
+#include "googlesql/analyzer/rewriters/quantified_comparison_rewriter.h"
 #include "googlesql/analyzer/rewriters/registration.h"
 #include "googlesql/analyzer/rewriters/row_type_rewriter.h"
 #include "googlesql/analyzer/rewriters/sql_function_inliner.h"
@@ -104,6 +105,8 @@ void RegisterBuiltinRewriters() {
                GetBuiltinFunctionInliner());
     r.Register(ResolvedASTRewrite::REWRITE_LIKE_ANY_ALL,
                GetLikeAnyAllRewriter());
+    r.Register(ResolvedASTRewrite::REWRITE_QUANTIFIED_COMPARISONS,
+               GetQuantifiedComparisonRewriter());
     r.Register(ResolvedASTRewrite::REWRITE_IS_FIRST_IS_LAST_FUNCTION,
                GetIsFirstIsLastFunctionRewriter());
     r.Register(ResolvedASTRewrite::REWRITE_MATCH_RECOGNIZE_FUNCTION,

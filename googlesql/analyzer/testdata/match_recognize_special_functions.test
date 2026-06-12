@@ -1164,9 +1164,246 @@ select * from KeyValue MATCH_RECOGNIZE(
     A AS true
 )
 --
-ERROR: MATCH_RECOGNIZE clause cannot be nested inside another MATCH_RECOGNIZE clause [at 5:51]
-      select m1 + m2 + m3 + m4 + m5 from KeyValue MATCH_RECOGNIZE(
-                                                  ^
+QueryStmt
++-output_column_list=
+| +-$match_recognize.m#21 AS m [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$match_recognize.m#21]
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$match_recognize.m#21]
+        +-expr_list=
+        | +-m#21 :=
+        |   +-SubqueryExpr
+        |     +-type=INT64
+        |     +-subquery_type=SCALAR
+        |     +-subquery=
+        |       +-ProjectScan
+        |         +-column_list=[$expr_subquery.$col1#20]
+        |         +-expr_list=
+        |         | +-$col1#20 :=
+        |         |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | | | +-ColumnRef(type=INT64, column=$match_recognize.m1#12)
+        |         |     | | | +-ColumnRef(type=INT64, column=$match_recognize.m2#14)
+        |         |     | | +-ColumnRef(type=INT64, column=$match_recognize.m3#15)
+        |         |     | +-ColumnRef(type=INT64, column=$match_recognize.m4#17)
+        |         |     +-ColumnRef(type=INT64, column=$match_recognize.m5#19)
+        |         +-input_scan=
+        |           +-ProjectScan
+        |             +-column_list=$match_recognize.[m1#12, m2#14, m3#15, m4#17, m5#19]
+        |             +-expr_list=
+        |             | +-m1#12 := ColumnRef(type=INT64, column=$aggregate.$agg1#11)
+        |             | +-m2#14 := ColumnRef(type=INT64, column=$aggregate.$agg2#13)
+        |             | +-m3#15 := ColumnRef(type=INT64, column=$match_recognize.$match_number#8)
+        |             | +-m4#17 := ColumnRef(type=INT64, column=$aggregate.$agg3#16)
+        |             | +-m5#19 := ColumnRef(type=INT64, column=$aggregate.$agg4#18)
+        |             +-input_scan=
+        |               +-MatchRecognizeScan
+        |                 +-column_list=[$aggregate.$agg1#11, $aggregate.$agg2#13, $aggregate.$agg3#16, $aggregate.$agg4#18, $match_recognize.$match_number#8, $match_recognize.$match_row_number#9, $match_recognize.$classifier#10]
+        |                 +-input_scan=
+        |                 | +-TableScan(column_list=[KeyValue.Key#6], table=KeyValue, column_index_list=[0])
+        |                 +-analytic_function_group_list=
+        |                 | +-AnalyticFunctionGroup
+        |                 |   +-order_by=
+        |                 |     +-WindowOrdering
+        |                 |       +-order_by_item_list=
+        |                 |         +-OrderByItem
+        |                 |           +-column_ref=
+        |                 |             +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 +-pattern_variable_definition_list=
+        |                 | +-MatchRecognizeVariableDefinition
+        |                 |   +-name="A"
+        |                 |   +-predicate=
+        |                 |     +-Literal(type=BOOL, value=true)
+        |                 +-pattern=
+        |                 | +-MatchRecognizePatternQuantification
+        |                 |   +-operand=
+        |                 |   | +-MatchRecognizePatternVariableRef(name="A")
+        |                 |   +-lower_bound=
+        |                 |   | +-Literal(type=INT64, value=1)
+        |                 |   +-is_reluctant=FALSE
+        |                 +-after_match_skip_mode=END_OF_MATCH
+        |                 +-measure_group_list=
+        |                 | +-MeasureGroup
+        |                 |   +-aggregate_list=
+        |                 |     +-$agg1#11 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:first(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 |     |   +-order_by_item_list=
+        |                 |     |     +-OrderByItem
+        |                 |     |       +-column_ref=
+        |                 |     |         +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg2#13 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:last(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 |     |   +-order_by_item_list=
+        |                 |     |     +-OrderByItem
+        |                 |     |       +-column_ref=
+        |                 |     |         +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg3#16 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg4#18 :=
+        |                 |       +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |         +-FunctionCall(GoogleSQL:length(STRING) -> INT64)
+        |                 |           +-ColumnRef(type=STRING, column=$match_recognize.$classifier#10)
+        |                 +-match_number_column=$match_recognize.$match_number#8
+        |                 +-match_row_number_column=$match_recognize.$match_row_number#9
+        |                 +-classifier_column=$match_recognize.$classifier#10
+        +-input_scan=
+          +-MatchRecognizeScan
+            +-input_scan=
+            | +-TableScan(column_list=[KeyValue.Key#1], table=KeyValue, column_index_list=[0])
+            +-analytic_function_group_list=
+            | +-AnalyticFunctionGroup
+            |   +-order_by=
+            |     +-WindowOrdering
+            |       +-order_by_item_list=
+            |         +-OrderByItem
+            |           +-column_ref=
+            |             +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+            +-pattern_variable_definition_list=
+            | +-MatchRecognizeVariableDefinition
+            |   +-name="A"
+            |   +-predicate=
+            |     +-Literal(type=BOOL, value=true)
+            +-pattern=
+            | +-MatchRecognizePatternQuantification
+            |   +-operand=
+            |   | +-MatchRecognizePatternVariableRef(name="A")
+            |   +-lower_bound=
+            |   | +-Literal(type=INT64, value=1)
+            |   +-is_reluctant=FALSE
+            +-after_match_skip_mode=END_OF_MATCH
+            +-match_number_column=$match_recognize.$match_number#3
+            +-match_row_number_column=$match_recognize.$match_row_number#4
+            +-classifier_column=$match_recognize.$classifier#5
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$match_recognize.m#21 AS m [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$match_recognize.m#21]
+    +-input_scan=
+      +-ProjectScan
+        +-column_list=[$match_recognize.m#21]
+        +-expr_list=
+        | +-m#21 :=
+        |   +-SubqueryExpr
+        |     +-type=INT64
+        |     +-subquery_type=SCALAR
+        |     +-subquery=
+        |       +-ProjectScan
+        |         +-column_list=[$expr_subquery.$col1#20]
+        |         +-expr_list=
+        |         | +-$col1#20 :=
+        |         |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        |         |     | | | +-ColumnRef(type=INT64, column=$match_recognize.m1#12)
+        |         |     | | | +-ColumnRef(type=INT64, column=$match_recognize.m2#14)
+        |         |     | | +-ColumnRef(type=INT64, column=$match_recognize.m3#15)
+        |         |     | +-ColumnRef(type=INT64, column=$match_recognize.m4#17)
+        |         |     +-ColumnRef(type=INT64, column=$match_recognize.m5#19)
+        |         +-input_scan=
+        |           +-ProjectScan
+        |             +-column_list=$match_recognize.[m1#12, m2#14, m3#15, m4#17, m5#19]
+        |             +-expr_list=
+        |             | +-m1#12 := ColumnRef(type=INT64, column=$aggregate.$agg1#11)
+        |             | +-m2#14 := ColumnRef(type=INT64, column=$aggregate.$agg2#13)
+        |             | +-m3#15 := ColumnRef(type=INT64, column=$match_recognize.$match_number#8)
+        |             | +-m4#17 := ColumnRef(type=INT64, column=$aggregate.$agg3#16)
+        |             | +-m5#19 := ColumnRef(type=INT64, column=$aggregate.$agg4#18)
+        |             +-input_scan=
+        |               +-MatchRecognizeScan
+        |                 +-column_list=[$aggregate.$agg1#11, $aggregate.$agg2#13, $aggregate.$agg3#16, $aggregate.$agg4#18, $match_recognize.$match_number#8, $match_recognize.$match_row_number#9, $match_recognize.$classifier#10]
+        |                 +-input_scan=
+        |                 | +-TableScan(column_list=[KeyValue.Key#6], table=KeyValue, column_index_list=[0])
+        |                 +-analytic_function_group_list=
+        |                 | +-AnalyticFunctionGroup
+        |                 |   +-order_by=
+        |                 |     +-WindowOrdering
+        |                 |       +-order_by_item_list=
+        |                 |         +-OrderByItem
+        |                 |           +-column_ref=
+        |                 |             +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 +-pattern_variable_definition_list=
+        |                 | +-MatchRecognizeVariableDefinition
+        |                 |   +-name="A"
+        |                 |   +-predicate=
+        |                 |     +-Literal(type=BOOL, value=true)
+        |                 +-pattern=
+        |                 | +-MatchRecognizePatternQuantification
+        |                 |   +-operand=
+        |                 |   | +-MatchRecognizePatternVariableRef(name="A")
+        |                 |   +-lower_bound=
+        |                 |   | +-Literal(type=INT64, value=1)
+        |                 |   +-is_reluctant=FALSE
+        |                 +-after_match_skip_mode=END_OF_MATCH
+        |                 +-measure_group_list=
+        |                 | +-MeasureGroup
+        |                 |   +-aggregate_list=
+        |                 |     +-$agg1#11 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 |     |   +-having_modifier=
+        |                 |     |     +-AggregateHavingModifier
+        |                 |     |       +-kind=MIN
+        |                 |     |       +-having_expr=
+        |                 |     |         +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg2#13 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=KeyValue.Key#6)
+        |                 |     |   +-having_modifier=
+        |                 |     |     +-AggregateHavingModifier
+        |                 |     |       +-kind=MAX
+        |                 |     |       +-having_expr=
+        |                 |     |         +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg3#16 :=
+        |                 |     | +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |     |   +-ColumnRef(type=INT64, column=$match_recognize.$match_row_number#9)
+        |                 |     +-$agg4#18 :=
+        |                 |       +-AggregateFunctionCall(GoogleSQL:any_value(INT64) -> INT64)
+        |                 |         +-FunctionCall(GoogleSQL:length(STRING) -> INT64)
+        |                 |           +-ColumnRef(type=STRING, column=$match_recognize.$classifier#10)
+        |                 +-match_number_column=$match_recognize.$match_number#8
+        |                 +-match_row_number_column=$match_recognize.$match_row_number#9
+        |                 +-classifier_column=$match_recognize.$classifier#10
+        +-input_scan=
+          +-MatchRecognizeScan
+            +-input_scan=
+            | +-TableScan(column_list=[KeyValue.Key#1], table=KeyValue, column_index_list=[0])
+            +-analytic_function_group_list=
+            | +-AnalyticFunctionGroup
+            |   +-order_by=
+            |     +-WindowOrdering
+            |       +-order_by_item_list=
+            |         +-OrderByItem
+            |           +-column_ref=
+            |             +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+            +-pattern_variable_definition_list=
+            | +-MatchRecognizeVariableDefinition
+            |   +-name="A"
+            |   +-predicate=
+            |     +-Literal(type=BOOL, value=true)
+            +-pattern=
+            | +-MatchRecognizePatternQuantification
+            |   +-operand=
+            |   | +-MatchRecognizePatternVariableRef(name="A")
+            |   +-lower_bound=
+            |   | +-Literal(type=INT64, value=1)
+            |   +-is_reluctant=FALSE
+            +-after_match_skip_mode=END_OF_MATCH
+            +-match_number_column=$match_recognize.$match_number#3
+            +-match_row_number_column=$match_recognize.$match_row_number#4
+            +-classifier_column=$match_recognize.$classifier#5
 ==
 
 # Nesting inside a function is fine, even if called/inlined from another MR

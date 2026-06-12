@@ -19,10 +19,10 @@
 #include "googlesql/common/options_utils.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/test_case_options.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

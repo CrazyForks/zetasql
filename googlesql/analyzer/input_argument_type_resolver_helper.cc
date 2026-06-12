@@ -32,9 +32,9 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -148,19 +148,21 @@ static absl::StatusOr<InputArgumentType> GetInputArgumentTypeForGenericArgument(
     const AnalyzerOptions& analyzer_options) {
   ABSL_DCHECK(argument_ast_node != nullptr);
 
-  bool expects_null_expr = argument_ast_node->Is<ASTLambda>() ||
-                           argument_ast_node->Is<ASTSequenceArg>();
   if (expr == nullptr) {
-    ABSL_DCHECK(expects_null_expr);
-    if (argument_ast_node->Is<ASTLambda>()) {
+    // Lambda arguments can either be inline or be passed as a function-typed
+    // parameter, hence the check for both ASTLambda and ASTPathExpression.
+    if (argument_ast_node->Is<ASTLambda>() ||
+        argument_ast_node->Is<ASTPathExpression>()) {
       return InputArgumentType::LambdaInputArgumentType();
     } else if (argument_ast_node->Is<ASTSequenceArg>()) {
       return InputArgumentType::SequenceInputArgumentType();
+    } else {
+      GOOGLESQL_RET_CHECK_FAIL() << "A nullptr placeholder can only be used for a lambda,"
+                          " sequence, or function-typed argument";
     }
-    ABSL_DCHECK(false) << "A nullptr placeholder can only be used for a lambda or "
-                     "sequence argument";
   }
-  ABSL_DCHECK(!expects_null_expr);
+
+  GOOGLESQL_RET_CHECK(expr != nullptr);
   return GetInputArgumentTypeForExpr(expr, pick_default_type_for_untyped_expr,
                                      analyzer_options);
 }

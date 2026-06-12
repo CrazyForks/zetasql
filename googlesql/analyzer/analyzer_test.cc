@@ -53,6 +53,7 @@
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/array_type.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/enum_type.h"
 #include "googlesql/public/types/proto_type.h"
 #include "googlesql/public/types/struct_type.h"
@@ -84,7 +85,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_DECLARE_FLAG(bool, googlesql_redact_error_messages_for_tests);
 ABSL_DECLARE_FLAG(googlesql::ErrorMessageStability,
@@ -102,6 +102,7 @@ using testing::IsEmpty;
 using testing::IsNull;
 using testing::MatchesRegex;
 using testing::Not;
+using absl_testing::IsOkAndHolds;
 using absl_testing::StatusIs;
 
 class AnalyzerOptionsTest : public ::testing::Test {
@@ -525,7 +526,7 @@ TEST_F(AnalyzerOptionsTest, AnalyzeStatementWithPreRewriteCallback) {
   TypeFactory type_factory;
   std::unique_ptr<const AnalyzerOutput> output;
 
-  options.SetPreRewriteCallback([](const AnalyzerOutput& output) {
+  options.AddPreRewriteCallback([](const AnalyzerOutput& output) {
     if (absl::Status status = output.resolved_node()->CheckNoFieldsAccessed();
         !status.ok()) {
       return status;
@@ -555,7 +556,7 @@ TEST_F(AnalyzerOptionsTest, AnalyzeExpressionWithPreRewriteCallback) {
   TypeFactory type_factory;
   std::unique_ptr<const AnalyzerOutput> output;
 
-  options.SetPreRewriteCallback([](const AnalyzerOutput& output) {
+  options.AddPreRewriteCallback([](const AnalyzerOutput& output) {
     if (output.resolved_expr() != nullptr) {
       if (!absl::StrContains(output.resolved_expr()->DebugString(),
                              "+-AggregateScan")) {
@@ -571,6 +572,109 @@ TEST_F(AnalyzerOptionsTest, AnalyzeExpressionWithPreRewriteCallback) {
       AnalyzeExpression("5 IN (SELECT ANON_COUNT(*) FROM KeyValue)", options,
                         catalog.catalog(), &type_factory, &output),
       StatusIs(_, HasSubstr("Pre-rewrite callback called before rewrite")));
+}
+
+TEST_F(AnalyzerOptionsTest, AddPreRewriteCallbacksRunInRegistrationOrder) {
+  AnalyzerOptions options;
+  SampleCatalog catalog(options.language());
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> output;
+
+  std::vector<int> order;
+  for (int i : {1, 2, 3}) {
+    options.AddPreRewriteCallback([&order, i](const AnalyzerOutput&) {
+      order.push_back(i);
+      return absl::OkStatus();
+    });
+  }
+
+  GOOGLESQL_EXPECT_OK(AnalyzeStatement("SELECT 1", options, catalog.catalog(),
+                             &type_factory, &output));
+  EXPECT_THAT(order, ElementsAre(1, 2, 3));
+}
+
+TEST_F(AnalyzerOptionsTest, PrependPreRewriteCallbackRunsBeforeAddedCallbacks) {
+  AnalyzerOptions options;
+  SampleCatalog catalog(options.language());
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> output;
+
+  std::vector<int> order;
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(1);
+    return absl::OkStatus();
+  });
+  options.PrependPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(2);
+    return absl::OkStatus();
+  });
+
+  GOOGLESQL_EXPECT_OK(AnalyzeStatement("SELECT 1", options, catalog.catalog(),
+                             &type_factory, &output));
+  EXPECT_THAT(order, ElementsAre(2, 1));
+}
+
+TEST_F(AnalyzerOptionsTest, MixedAddAndPrependPreRewriteCallbacks) {
+  AnalyzerOptions options;
+  SampleCatalog catalog(options.language());
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> output;
+
+  // After: Add(1), Prepend(2), Add(3), Prepend(4) the vector is [4, 2, 1, 3].
+  std::vector<int> order;
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(1);
+    return absl::OkStatus();
+  });
+  options.PrependPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(2);
+    return absl::OkStatus();
+  });
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(3);
+    return absl::OkStatus();
+  });
+  options.PrependPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(4);
+    return absl::OkStatus();
+  });
+
+  GOOGLESQL_EXPECT_OK(AnalyzeStatement("SELECT 1", options, catalog.catalog(),
+                             &type_factory, &output));
+  EXPECT_THAT(order, ElementsAre(4, 2, 1, 3));
+}
+
+TEST_F(AnalyzerOptionsTest, PreRewriteCallbackChainShortCircuitsOnError) {
+  AnalyzerOptions options;
+  SampleCatalog catalog(options.language());
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> output;
+
+  std::vector<int> order;
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(1);
+    return absl::OkStatus();
+  });
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(2);
+    return absl::InternalError("second callback failed");
+  });
+  options.AddPreRewriteCallback([&order](const AnalyzerOutput&) {
+    order.push_back(3);
+    return absl::OkStatus();
+  });
+
+  EXPECT_THAT(AnalyzeStatement("SELECT 1", options, catalog.catalog(),
+                               &type_factory, &output),
+              StatusIs(_, HasSubstr("second callback failed")));
+  EXPECT_THAT(order, ElementsAre(1, 2));
+}
+
+TEST_F(AnalyzerOptionsTest, NullPreRewriteCallbackIsIgnored) {
+  AnalyzerOptions options;
+  options.AddPreRewriteCallback(nullptr);
+  options.PrependPreRewriteCallback(nullptr);
+  EXPECT_THAT(options.pre_rewrite_callbacks(), IsEmpty());
 }
 
 class ErrorRewriter : public Rewriter {
@@ -934,14 +1038,48 @@ TEST_F(AnalyzerOptionsTest, LiteralReplacement) {
     } else if (pair.second == "_p1_STRING") {
       EXPECT_EQ(pair.first->value(), Value::String("Yes"));
     } else {
-      EXPECT_THAT(pair.second,
-                  testing::AnyOf("_p0_INT64", "_p1_STRING", "_p2_STRING",
-                                 "_p3_STRING", "_p4_STRING", "_p5_STRING"));
+      EXPECT_THAT(pair.second, testing::AnyOf("_p2_STRING", "_p3_STRING",
+                                              "_p4_STRING", "_p5_STRING"));
     }
   }
   ASSERT_EQ(6, generated_parameters.size());
   EXPECT_EQ(generated_parameters["_p0_INT64"], Value::Int64(1));
   EXPECT_EQ(generated_parameters["_p1_STRING"], Value::String("Yes"));
+}
+
+// Test that types are not added to parameter name if specified.
+TEST_F(AnalyzerOptionsTest, LiteralReplacementNoTypeInName) {
+  std::unique_ptr<const AnalyzerOutput> output;
+  options_.set_record_parse_locations(true);
+
+  std::string sql = "   \tSELECT 1, 'Yes', 'a'='a' AND 'b'='b'";
+  GOOGLESQL_EXPECT_OK(
+      AnalyzeStatement(sql, options_, catalog(), &type_factory_, &output));
+
+  std::string new_sql;
+  LiteralReplacementMap literal_map;
+  GeneratedParameterMap generated_parameters;
+  LiteralReplacementOptions options;
+  options.include_type_in_parameter_name = false;
+  GOOGLESQL_ASSERT_OK(ReplaceLiteralsByParameters(
+      sql, options, options_, output->resolved_statement(), &literal_map,
+      &generated_parameters, &new_sql));
+  EXPECT_EQ("   \tSELECT @_p0, @_p1, @_p2=@_p3 AND @_p4=@_p5", new_sql);
+  ASSERT_EQ(6, literal_map.size());
+  for (const auto& pair : literal_map) {
+    if (pair.second == "_p0") {
+      EXPECT_EQ(pair.first->value(), Value::Int64(1));
+    } else if (pair.second == "_p1") {
+      EXPECT_EQ(pair.first->value(), Value::String("Yes"));
+    } else {
+      EXPECT_THAT(pair.second, testing::AnyOf("_p2", "_p3", "_p4", "_p5"));
+    }
+  }
+  ASSERT_EQ(6, generated_parameters.size());
+  EXPECT_EQ(generated_parameters["_p0"], Value::Int64(1));
+  EXPECT_EQ(generated_parameters["_p1"], Value::String("Yes"));
+  EXPECT_EQ(generated_parameters["_p2"], generated_parameters["_p3"]);
+  EXPECT_EQ(generated_parameters["_p4"], generated_parameters["_p5"]);
 }
 
 // Test 'option_names_to_ignore' which is a set of option names to ignore during
@@ -981,6 +1119,40 @@ TEST_F(AnalyzerOptionsTest, LiteralReplacementIgnoreAllowlistedOptions) {
   EXPECT_EQ(generated_parameters["_p0_BOOL"], Value::Bool(true));
   EXPECT_EQ(generated_parameters["_p1_INT64"], Value::Int64(1));
   EXPECT_EQ(generated_parameters["_p2_STRING"], Value::String("Yes"));
+}
+
+// Test 'ignore_all_options' which ignores all options during literal removal.
+TEST_F(AnalyzerOptionsTest, LiteralReplacementIgnoreAllOptions) {
+  std::unique_ptr<const AnalyzerOutput> output;
+  options_.set_record_parse_locations(true);
+
+  std::string sql = "   \t@{ hint1=1, hint2=true, hint3='foo' }SELECT 1, 'Yes'";
+  GOOGLESQL_EXPECT_OK(
+      AnalyzeStatement(sql, options_, catalog(), &type_factory_, &output));
+
+  std::string new_sql;
+  LiteralReplacementMap literal_map;
+  GeneratedParameterMap generated_parameters;
+  // Ignore all options
+  GOOGLESQL_ASSERT_OK(ReplaceLiteralsByParameters(
+      sql, LiteralReplacementOptions{.ignore_all_options = true}, options_,
+      output->resolved_statement(), &literal_map, &generated_parameters,
+      &new_sql));
+  EXPECT_EQ(
+      "   \t@{ hint1=1, hint2=true, hint3='foo' }SELECT @_p0_INT64, "
+      "@_p1_STRING",
+      new_sql);
+  ASSERT_EQ(2, literal_map.size());
+  for (const auto& pair : literal_map) {
+    if (pair.second == "_p0_INT64") {
+      EXPECT_EQ(pair.first->value(), Value::Int64(1));
+    } else if (pair.second == "_p1_STRING") {
+      EXPECT_EQ(pair.first->value(), Value::String("Yes"));
+    }
+  }
+  ASSERT_EQ(2, generated_parameters.size());
+  EXPECT_EQ(generated_parameters["_p0_INT64"], Value::Int64(1));
+  EXPECT_EQ(generated_parameters["_p1_STRING"], Value::String("Yes"));
 }
 
 // Example of using a callback to override parameter name generation for a given
@@ -1899,8 +2071,8 @@ TEST(AnalyzerTest, ExternalExtension) {
   // (Modifying the SampleCatalog is a hack to save code.)
   const ProtoType* extension_type;
   GOOGLESQL_ASSERT_OK(type_factory.MakeProtoType(external_extension, &extension_type));
-  static_cast<SimpleCatalog*>(catalog)->AddType(
-      external_extension_name, extension_type);
+  static_cast<SimpleCatalog*>(catalog)->AddType(external_extension_name,
+                                                    extension_type);
 
   GOOGLESQL_EXPECT_OK(catalog->FindType({external_extension_name}, &found_type));
 
@@ -2783,6 +2955,36 @@ SELECT
 FROM
   source AS withrefscan_3;)sql",
             formatted_sql);
+}
+
+TEST(AnalyzerTest, AnalyzeExpressionForAssignmentToTypeWithModifiers) {
+  AnalyzerOptions options;
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> output;
+  options.mutable_language()->EnableMaximumLanguageFeaturesForDevelopment();
+  SampleCatalog catalog(options.language());
+
+  // STRING COLLATE 'und:ci'
+  const Type* type = types::StringType();
+  Collation collation = Collation::MakeScalar("und:ci");
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<AnnotationMap> type_annotations,
+                       collation.ToAnnotationMap(type));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeModifiers type_modifiers,
+      TypeModifiers::MakeTypeModifiers(type_annotations.get()));
+  const std::string expression = R"sql(
+  'abc'
+  )sql";
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpressionForAssignmentToType(
+      expression, options, catalog.catalog(), &type_factory, type,
+      type_modifiers, &output));
+  ASSERT_NE(output->resolved_expr()->type_annotation_map(), nullptr);
+  EXPECT_THAT(collation.EqualsCollationAnnotation(
+                  output->resolved_expr()->type_annotation_map()),
+              IsOkAndHolds(true))
+      << "Annotation map: "
+      << output->resolved_expr()->type_annotation_map()->DebugString();
 }
 
 }  // namespace googlesql

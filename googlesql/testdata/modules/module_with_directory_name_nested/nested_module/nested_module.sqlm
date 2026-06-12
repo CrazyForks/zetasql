@@ -1,0 +1,9 @@
+# This module takes part in a test where we import a module with an import
+# path of the form "a.b", and the module file is looked up at "a/b/b.sqlm".
+
+MODULE nested_module;
+
+CREATE PUBLIC FUNCTION fun1(a INT64)
+AS (
+  a
+);

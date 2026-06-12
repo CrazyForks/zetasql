@@ -52,6 +52,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -63,7 +64,7 @@
 #include "google/protobuf/wire_format_lite.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 // This flag is only for testing the non-optimized path when reading one proto
 // field.

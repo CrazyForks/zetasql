@@ -4,9 +4,9 @@
 
 module main_module;
 
-import MODULE googlesql.testdata.modules.a1_imports_b1 as a1;
-import MODULE googlesql.testdata.modules.a2_imports_b1_b2 as a2;
-import MODULE googlesql.testdata.modules.a3_imports_b2 as a3;
+import module googlesql.testdata.modules.a1_imports_b1 as a1;
+import module googlesql.testdata.modules.a2_imports_b1_b2 as a2;
+import module googlesql.testdata.modules.a3_imports_b2 as a3;
 
 create public function func(a string) as
 (concat(a1.a1(a), "-", a2.a2(a), "-", a3.a3(a)));

@@ -34,10 +34,10 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

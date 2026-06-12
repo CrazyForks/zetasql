@@ -15,6 +15,7 @@
 #
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
@@ -221,69 +222,146 @@ cc_library(
 cc_library(
     name = "tm_parser",
     srcs = [
-        "textmapper_lexer_adapter.cc",
         "tm_parser.cc",
+        "tm_parser_util.cc",
     ],
     hdrs = [
-        "join_processor.h",
-        "parse_tree.h",
-        "parse_tree_decls.h",
-        "parse_tree_generated.h",
-        "parser_internal.h",
-        "parser_runtime_info.h",
         "statement_properties.h",
-        "textmapper_lexer_adapter.h",
-        "tm_parser.cc",
         "tm_parser.h",
+        "tm_parser_util.h",
     ],
     copts = [
         "-fno-sanitize=object-size",  # can timeout: TODO
         "-g0",  # can timeout: TODO
     ],
     deps = [
-        ":ast_enums_cc_proto",
         ":ast_node_factory",
-        ":bison_parser_generated_lib",
-        ":keywords",
-        ":lookahead_transformer",
+        ":join_processor",
         ":parse_tree",
         ":parser_mode",
+        ":parser_runtime_info",
+        ":textmapper_lexer_adapter",
         ":token",
-        ":token_with_location",
-        "//googlesql/base",
-        "//googlesql/base:arena",
-        "//googlesql/base:arena_allocator",
+        ":token_stream",
         "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/base:strings",
         "//googlesql/common:errors",
         "//googlesql/common:status_payload_utils",
-        "//googlesql/common:timer_util",
         "//googlesql/common:warning_sink",
         "//googlesql/parser/macros:macro_catalog",
-        "//googlesql/parser/macros:macro_expander",
+        "//googlesql/public:deprecation_warning_cc_proto",
         "//googlesql/public:id_string",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:parse_location",
         "//googlesql/public:strings",
-        "//googlesql/public:type_cc_proto",
-        "//googlesql/public/proto:logging_cc_proto",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "textmapper_lexer_adapter",
+    srcs = [
+        "textmapper_lexer_adapter.cc",
+    ],
+    hdrs = [
+        "textmapper_lexer_adapter.h",
+    ],
+    deps = [
+        ":token",
+        ":token_stream",
+        ":token_with_location",
+        "//googlesql/public:parse_location",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "parser_internal",
+    srcs = [
+        "parser_internal.cc",
+    ],
+    hdrs = [
+        "parser_internal.h",
+    ],
+    deps = [
+        ":ast_node_factory",
+        ":keywords",
+        ":lookahead_transformer",
+        ":parse_tree",
+        ":parser_mode",
+        ":parser_runtime_info",
+        ":textmapper_lexer_adapter",
+        ":tm_parser",
+        ":token",
+        ":token_stream",
+        ":token_with_location",
+        "//googlesql/base:arena",
+        "//googlesql/base:map_util",
+        "//googlesql/base:ret_check",
+        "//googlesql/base:status",
+        "//googlesql/common:errors",
+        "//googlesql/common:timer_util",
+        "//googlesql/common:utf_util",
+        "//googlesql/common:warning_sink",
+        "//googlesql/parser/macros:macro_catalog",
+        "//googlesql/parser/macros:macro_expander",
+        "//googlesql/parser/macros:token_provider",
+        "//googlesql/public:id_string",
+        "//googlesql/public:language_options",
+        "//googlesql/public:options_cc_proto",
+        "//googlesql/public:parse_location",
+        "//googlesql/public/proto:logging_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+cc_library(
+    name = "parser_runtime_info",
+    hdrs = ["parser_runtime_info.h"],
+    deps = [
+        "//googlesql/common:timer_util",
+        "//googlesql/public:options_cc_proto",
+        "//googlesql/public/proto:logging_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "join_processor",
+    srcs = [
+        "join_processor.cc",
+    ],
+    hdrs = [
+        "join_processor.h",
+    ],
+    deps = [
+        ":ast_node_factory",
+        ":parse_tree",
+        "//googlesql/public:parse_location",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -297,7 +375,6 @@ cc_library(
     srcs = [
         "ast_node_internal.h",
         "parser.cc",
-        "parser_internal.cc",
         "unparser.cc",
     ],
     hdrs = [
@@ -308,7 +385,6 @@ cc_library(
         "parse_tree_errors.h",
         "parse_tree_visitor.h",
         "parser.h",
-        "parser_internal.h",
         "parser_runtime_info.h",
         "statement_properties.h",
         "unparser.h",
@@ -317,13 +393,15 @@ cc_library(
     deps = [
         ":ast_enums_cc_proto",
         ":ast_node_factory",
-        ":bison_parser_generated_lib",
         ":keywords",
         ":lookahead_transformer",
         ":parse_tree",
+        ":parser_internal",
         ":parser_mode",
+        ":textmapper_lexer_adapter",
         ":tm_parser",
         ":token",
+        ":token_stream",
         ":token_with_location",
         ":tokenizer",
         "//googlesql/base",
@@ -342,6 +420,7 @@ cc_library(
         "//googlesql/common:warning_sink",
         "//googlesql/parser/macros:macro_catalog",
         "//googlesql/parser/macros:macro_expander",
+        "//googlesql/parser/macros:token_provider",
         "//googlesql/proto:internal_error_location_cc_proto",
         "//googlesql/public:error_helpers",
         "//googlesql/public:error_location_cc_proto",
@@ -356,6 +435,7 @@ cc_library(
         "//googlesql/public/proto:logging_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -399,7 +479,9 @@ cc_library(
 cc_library(
     name = "token_with_location",
     srcs = ["token_with_location.cc"],
-    hdrs = ["token_with_location.h"],
+    hdrs = [
+        "token_with_location.h",
+    ],
     deps = [
         ":token",
         "//googlesql/base:status",
@@ -413,6 +495,15 @@ cc_library(
 )
 
 cc_library(
+    name = "token_stream",
+    hdrs = ["token_stream.h"],
+    deps = [
+        ":token_with_location",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "tokenizer",
     srcs = [
         "tokenizer.cc",
@@ -422,6 +513,8 @@ cc_library(
     ],
     deps = [
         ":tm_lexer",
+        ":token_stream",
+        ":token_with_location",
         "//googlesql/base:check",
         "//googlesql/base:status",
         "//googlesql/public:parse_location",
@@ -431,26 +524,40 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "tokenizer_test",
+    srcs = ["tokenizer_test.cc"],
+    deps = [
+        ":token",
+        ":token_with_location",
+        ":tokenizer",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/base/testing:status_matchers",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
 cc_library(
     name = "lookahead_transformer",
     srcs = ["lookahead_transformer.cc"],
-    hdrs = ["lookahead_transformer.h"],
+    hdrs = [
+        "lookahead_transformer.h",
+    ],
     deps = [
         ":parser_mode",
+        ":tm_parser",
         ":token",
+        ":token_stream",
         ":token_with_location",
-        "//googlesql/base:arena",
         "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
-        "//googlesql/common:errors",
-        "//googlesql/parser/macros:macro_catalog",
-        "//googlesql/parser/macros:macro_expander",
-        "//googlesql/parser/macros:token_provider",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:parse_location",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -470,6 +577,7 @@ cc_test(
         ":parser_mode",
         ":token",
         ":token_with_location",
+        ":tokenizer",
         "//googlesql/base:arena",
         "//googlesql/base:check",
         "//googlesql/base:ret_check",
@@ -477,6 +585,8 @@ cc_test(
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
         "//googlesql/parser/macros:macro_catalog",
+        "//googlesql/parser/macros:macro_expander",
+        "//googlesql/parser/macros:token_provider",
         "//googlesql/public:language_options",
         "//googlesql/public:parse_location",
         "//googlesql/public:parse_resume_location",
@@ -512,69 +622,6 @@ cc_test(
 )
 
 cc_library(
-    name = "bison_parser_generated_lib",
-    srcs = [
-        "join_processor.cc",
-    ],
-    hdrs = [
-        "join_processor.h",
-        "parser_internal.h",
-        "parser_runtime_info.h",
-        "statement_properties.h",
-    ],
-    # The -O2 is required because the generated bison parser uses a ton of
-    # stack space in non-optimized builds. The entire parser is contained in
-    # a single giant function, and non-optimized compilation does not reuse
-    # stack slots for local variables. Without -O2, clients are likely to
-    # fail in fastbuild with default 64KB stack sizes, or to start failing
-    # when the parser is extended further.
-    copts = [
-        "-O2",
-    ],
-    tags = ["nofixdeps"],  # generated and real files are interdependent
-    deps = [
-        ":ast_node_factory",
-        ":keywords",
-        ":parse_tree",
-        ":parser_mode",
-        ":token",
-        ":token_with_location",
-        "//googlesql/base",
-        "//googlesql/base:arena",
-        "//googlesql/base:arena_allocator",
-        "//googlesql/base:check",
-        "//googlesql/base:ret_check",
-        "//googlesql/base:status",
-        "//googlesql/base:strings",
-        "//googlesql/common:errors",
-        "//googlesql/common:timer_util",
-        "//googlesql/common:warning_sink",
-        "//googlesql/parser/macros:macro_catalog",
-        "//googlesql/public:id_string",
-        "//googlesql/public:language_options",
-        "//googlesql/public:options_cc_proto",
-        "//googlesql/public:parse_location",
-        "//googlesql/public:strings",
-        "//googlesql/public:type_cc_proto",
-        "//googlesql/public/proto:logging_cc_proto",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "parse_tree_serializer",
     srcs = ["parse_tree_serializer.cc"],
     hdrs = [
@@ -583,10 +630,10 @@ cc_library(
         "statement_properties.h",
     ],
     deps = [
-        ":bison_parser_generated_lib",
         ":parse_tree",
         ":parse_tree_cc_proto",
         ":parser_mode",
+        ":parser_runtime_info",
         "//googlesql/base:arena",
         "//googlesql/base:check",
         "//googlesql/base:status",
@@ -599,6 +646,7 @@ cc_library(
         "//googlesql/public:parse_location",
         "//googlesql/public/proto:logging_cc_proto",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -698,14 +746,18 @@ cc_test(
     deps = [
         ":parse_tree",
         ":parser",
+        "//googlesql/base:ret_check",
         "//googlesql/base:source_location",
         "//googlesql/base:status",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
+        "//googlesql/common:errors",
         "//googlesql/common:status_payload_utils",
         "//googlesql/common/testing:proto_matchers",
         "//googlesql/common/testing:status_payload_matchers",
         "//googlesql/proto:internal_fix_suggestion_cc_proto",
+        "//googlesql/public:error_helpers",
+        "//googlesql/public:options_cc_proto",
         "//googlesql/public:parse_location",
         "//googlesql/testdata:test_schema_cc_proto",
         "@com_google_absl//absl/status",
@@ -718,16 +770,14 @@ cc_library(
     testonly = 1,
     srcs = ["run_parser_test.cc"],
     deps = [
-        ":deidentify",
         ":parser",
         ":parser_mode",
         "//googlesql/base:check",
         "//googlesql/base:edit_distance",
-        "//googlesql/base:logging",
-        "//googlesql/base:source_location",
         "//googlesql/base:status",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
+        "//googlesql/common:errors",
         "//googlesql/public:error_helpers",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
@@ -738,8 +788,10 @@ cc_library(
         "//googlesql/scripting:parse_helpers",
         "//googlesql/scripting:script_segment",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -778,6 +830,7 @@ cc_library(
         ":token",
         "//googlesql/base",
         "//googlesql/base:case",
+        "//googlesql/base:check",
         "//googlesql/base:map_util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -805,49 +858,12 @@ cc_test(
     ],
     deps = [
         ":keywords",
-        "//googlesql/base",
-        "//googlesql/base:path",
+        ":lookahead_transformer",
+        ":tm_parser",
+        ":token",
         "//googlesql/base/testing:googlesql_gtest_main",
-        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
-    ],
-)
-
-cc_library(
-    name = "deidentify",
-    srcs = ["deidentify.cc"],
-    hdrs = ["deidentify.h"],
-    deps = [
-        ":parser",
-        "//googlesql/base:status",
-        "//googlesql/public:builtin_function_options",
-        "//googlesql/public:catalog",
-        "//googlesql/public:function",
-        "//googlesql/public:language_options",
-        "//googlesql/public:options_cc_proto",
-        "//googlesql/public:parse_resume_location",
-        "//googlesql/public:simple_catalog",
-        "//googlesql/public:strings",
-        "//googlesql/public:type_cc_proto",
-        "//googlesql/public/types",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "deidentify_test",
-    srcs = ["deidentify_test.cc"],
-    deps = [
-        ":deidentify",
-        ":parse_tree",
-        "//googlesql/base/testing:googlesql_gtest_main",
-        "//googlesql/base/testing:status_matchers",
     ],
 )
 
@@ -857,6 +873,16 @@ cc_test(
     ["testdata/*.test"],
     exclude = ["testdata/parse_tree_serializer.test"],
 )]
+
+# Run just the fast parser tests. This is sufficient for updating .test files.
+test_suite(
+    name = "fast",
+    tags = [
+        "-enormous",
+        "-java",
+        "-large",
+    ],
+)
 
 bzl_library(
     name = "builddefs_bzl",
@@ -874,11 +900,10 @@ cc_test(
     srcs = ["textmapper_lexer_adapter_test.cc"],
     deps = [
         ":parser",  # buildcleaner: keep
-        ":parser_mode",
-        ":tm_parser",
+        ":textmapper_lexer_adapter",
         ":token",
+        ":tokenizer",
         "//googlesql/base/testing:googlesql_gtest_main",
-        "//googlesql/public:language_options",
         "@com_google_absl//absl/strings:string_view",
     ],
 )

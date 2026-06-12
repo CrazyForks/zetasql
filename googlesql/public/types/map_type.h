@@ -75,7 +75,6 @@ class MapType : public ContainerType {
                                  /*use_external_float32=*/false);
   }
 
-  std::string CapitalizedName() const override;
 
   bool SupportsOrdering(const LanguageOptions& language_options,
                         std::string* type_description) const override;
@@ -126,6 +125,8 @@ class MapType : public ContainerType {
   void CopyValueContent(const ValueContent& from,
                         ValueContent* to) const override;
   void ClearValueContent(const ValueContent& value) const override;
+  uint64_t GetValueContentExternallyAllocatedByteSize(
+      const ValueContent& value) const override;
   absl::HashState HashTypeParameter(absl::HashState state) const override;
   absl::HashState HashValueContent(const ValueContent& value,
                                    absl::HashState state) const override;

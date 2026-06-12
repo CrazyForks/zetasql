@@ -55,9 +55,27 @@ namespace googlesql {
 namespace functions {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+
 constexpr UnsupportedFieldsEnum::UnsupportedFields kUnsupportFieldsDefault =
     UnsupportedFieldsEnum::FAIL;
 constexpr absl::StatusCode kUnimplemented = absl::StatusCode::kUnimplemented;
+
+MATCHER_P(EqualsJson, json_string, "") {
+  absl::StatusOr<JSONValue> expected = JSONValue::ParseJSONString(json_string);
+  if (!expected.ok()) {
+    *result_listener << "Failed to parse expected JSON string: " << json_string
+                     << " with status: " << expected.status();
+    return false;
+  }
+  if (arg.GetConstRef() == expected.value().GetConstRef()) {
+    return true;
+  }
+  *result_listener << "Expected json "
+                   << expected.value().GetConstRef().ToString() << ", but got "
+                   << arg.GetConstRef().ToString();
+  return false;
+}
 
 TEST(ToJsonTest, Compliance) {
   const std::vector<FunctionTestCall> tests = GetFunctionTestsToJson();
@@ -367,6 +385,75 @@ TEST(ToJsonTest, GraphPath) {
 
   EXPECT_EQ(values::Json(std::move(output)),
             values::Json(std::move(expectation)));
+}
+
+TEST(ToJsonTest, FloatDoubleSpecials) {
+  googlesql::LanguageOptions language_options;
+  double nan_d = std::numeric_limits<double>::quiet_NaN();
+  double inf_d = std::numeric_limits<double>::infinity();
+  double ninf_d = -std::numeric_limits<double>::infinity();
+  float nan_f = std::numeric_limits<float>::quiet_NaN();
+  float inf_f = std::numeric_limits<float>::infinity();
+  float ninf_f = -std::numeric_limits<float>::infinity();
+
+  // Doubles
+  EXPECT_THAT(ToJson(Value::Double(nan_d), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("NaN")")));
+  EXPECT_THAT(ToJson(Value::Double(inf_d), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("Infinity")")));
+  EXPECT_THAT(ToJson(Value::Double(ninf_d), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("-Infinity")")));
+
+  // Floats
+  EXPECT_THAT(ToJson(Value::Float(nan_f), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("NaN")")));
+  EXPECT_THAT(ToJson(Value::Float(inf_f), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("Infinity")")));
+  EXPECT_THAT(ToJson(Value::Float(ninf_f), false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"("-Infinity")")));
+
+  // Nulls
+  EXPECT_THAT(ToJson(values::NullDouble(), false, language_options, true),
+              IsOkAndHolds(EqualsJson("null")));
+  EXPECT_THAT(ToJson(values::NullFloat(), false, language_options, true),
+              IsOkAndHolds(EqualsJson("null")));
+
+  // Arrays
+  EXPECT_THAT(ToJson(values::DoubleArray({nan_d, inf_d, ninf_d}), false,
+                     language_options, true),
+              IsOkAndHolds(EqualsJson(R"(["NaN","Infinity","-Infinity"])")));
+
+  EXPECT_THAT(ToJson(values::FloatArray({nan_f, inf_f, ninf_f}), false,
+                     language_options, true),
+              IsOkAndHolds(EqualsJson(R"(["NaN","Infinity","-Infinity"])")));
+
+  EXPECT_THAT(ToJson(values::DoubleArray({inf_d, inf_d}), false,
+                     language_options, true),
+              IsOkAndHolds(EqualsJson(R"(["Infinity","Infinity"])")));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value array_with_nulls1,
+      Value::MakeArray(types::DoubleArrayType(),
+                       {values::NullDouble(), Value::Double(1.5),
+                        Value::Double(inf_d), values::NullDouble()}));
+  EXPECT_THAT(ToJson(array_with_nulls1, false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"([null,1.5,"Infinity",null])")));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value array_with_nulls2,
+      Value::MakeArray(types::DoubleArrayType(),
+                       {values::NullDouble(), values::NullDouble(),
+                        Value::Double(1.5), Value::Double(inf_d)}));
+  EXPECT_THAT(ToJson(array_with_nulls2, false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"([null,null,1.5,"Infinity"])")));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value array_with_nulls3,
+      Value::MakeArray(types::DoubleArrayType(),
+                       {Value::Double(1.5), Value::Double(inf_d),
+                        values::NullDouble(), values::NullDouble()}));
+  EXPECT_THAT(ToJson(array_with_nulls3, false, language_options, true),
+              IsOkAndHolds(EqualsJson(R"([1.5,"Infinity",null,null])")));
 }
 
 struct PicosTestCase {

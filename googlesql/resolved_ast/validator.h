@@ -112,6 +112,8 @@ class Validator {
   absl::Status ValidateResolvedStatementInternal(
       const ResolvedStatement* statement);
   absl::Status ValidateResolvedQueryStmt(const ResolvedQueryStmt* query);
+  absl::Status ValidateResolvedTerminalQueryStmt(
+      const ResolvedTerminalQueryStmt* stmt);
   absl::Status ValidateResolvedGeneralizedQueryStmt(
       const ResolvedGeneralizedQueryStmt* query);
   absl::Status ValidateResolvedGeneralizedQuerySubpipeline(
@@ -152,6 +154,8 @@ class Validator {
       const ResolvedCreateViewBase* stmt);
   absl::Status ValidateResolvedCreateViewStmt(
       const ResolvedCreateViewStmt* stmt);
+  absl::Status ValidateResolvedCreateLiveTableStmt(
+      const ResolvedCreateLiveTableStmt* stmt);
   absl::Status ValidateResolvedCreateMaterializedViewStmt(
       const ResolvedCreateMaterializedViewStmt* stmt);
   absl::Status ValidateResolvedCreateApproxViewStmt(
@@ -370,6 +374,9 @@ class Validator {
       const std::set<ResolvedColumn>& visible_parameters);
   absl::Status ValidateResolvedUnsetArgumentScan(
       const ResolvedUnsetArgumentScan* scan, bool allow_unset_argument_scan);
+  absl::Status ValidateResolvedAlignScan(
+      const ResolvedAlignScan* scan,
+      const std::set<ResolvedColumn>& visible_parameters);
 
   // For a scan with is_ordered=true, validate that this scan can legally
   // produce ordered output.
@@ -546,7 +553,7 @@ class Validator {
       const ResolvedFilterField* filter_field);
 
   absl::Status ValidateTemplatedSqlFunctionCall(
-      const TemplatedSQLFunctionCall& templated_info,
+      const Function* function, const TemplatedSQLFunctionCall& templated_info,
       const FunctionSignature& signature,
       const ArgumentKindSet& allowed_argument_kinds);
 
@@ -609,6 +616,9 @@ class Validator {
 
   absl::Status ValidateResolvedArgumentRef(
       const googlesql::ResolvedArgumentRef* arg_ref);
+
+  absl::Status ValidateResolvedFunctionRef(
+      const ResolvedFunctionRef* function_ref);
 
   absl::Status ValidateResolvedExpressionColumn(
       const ResolvedExpressionColumn* expression_column);
@@ -768,6 +778,10 @@ class Validator {
 
   absl::Status ValidateResolvedPipeIfScan(
       const ResolvedPipeIfScan* scan,
+      const std::set<ResolvedColumn>& visible_parameters);
+
+  absl::Status ValidateResolvedFinishScan(
+      const ResolvedFinishScan* scan,
       const std::set<ResolvedColumn>& visible_parameters);
 
   absl::Status ValidateResolvedPipeForkScan(
@@ -931,6 +945,25 @@ class Validator {
       const std::set<ResolvedColumn>& visible_columns,
       const std::set<ResolvedColumn>& visible_parameters,
       const ResolvedGraphGetElementProperty* get_element_prop_expr);
+
+  absl::Status ValidateResolvedGraphDMLPropertyItem(
+      const std::set<ResolvedColumn>& visible_columns,
+      const std::set<ResolvedColumn>& visible_parameters,
+      const ResolvedGraphDMLPropertyItem* node);
+
+  absl::Status ValidateEdgeEndpointProperties(
+      const GraphElementType* endpoint_element_type,
+      const GraphNodeTable* expected_node_table,
+      absl::string_view endpoint_type);
+
+  absl::Status ValidateResolvedGraphInsertElement(
+      const std::set<ResolvedColumn>& visible_columns,
+      const std::set<ResolvedColumn>& visible_parameters,
+      const ResolvedGraphInsertElement* node);
+
+  absl::Status ValidateResolvedGraphInsertScan(
+      const ResolvedGraphInsertScan* scan,
+      const std::set<ResolvedColumn>& visible_parameters);
 
   absl::Status ValidateResolvedGraphPathPatternQuantifier(
       const ResolvedGraphPathPatternQuantifier* quantifier,
@@ -1136,6 +1169,7 @@ class Validator {
   }
 
   std::string RecordContext();
+  std::string FormatTemplatedCallStack() const;
 
   // Clears internal Validator state from prior validation.
   // `in_multi_stmt` indicates this is being called for a sub-statement inside a
@@ -1168,6 +1202,32 @@ class Validator {
    private:
     Validator* validator_;
     const ResolvedNode* node_;
+  };
+
+  // RAII helper to track the stack of templated function or TVF calls
+  // during validation. This stack is used to provide a "call stack" in error
+  // messages when validation fails inside a templated function or TVF body.
+  class PushTemplatedCall {
+   public:
+    PushTemplatedCall(Validator* validator, const Function* function,
+                      const FunctionSignature* signature,
+                      const ResolvedNode* body_node)
+        : validator_(validator) {
+      validator_->templated_call_stack_.push_back(
+          {function, signature, nullptr, nullptr, body_node});
+    }
+
+    PushTemplatedCall(Validator* validator, const TableValuedFunction* tvf,
+                      const TVFSignature* signature,
+                      const ResolvedNode* body_node)
+        : validator_(validator) {
+      validator_->templated_call_stack_.push_back(
+          {nullptr, nullptr, tvf, signature, body_node});
+    }
+    ~PushTemplatedCall() { validator_->templated_call_stack_.pop_back(); }
+
+   private:
+    Validator* validator_;
   };
 
   struct RecursiveScanInfo {
@@ -1214,10 +1274,23 @@ class Validator {
   // Stack of subpipelines being validated.
   std::vector<SubpipelineInfo> subpipeline_info_stack_;
 
+  struct TemplatedCallInfo {
+    const Function* function = nullptr;
+    const FunctionSignature* function_signature = nullptr;
+
+    const TableValuedFunction* tvf = nullptr;
+    const TVFSignature* tvf_signature = nullptr;
+
+    const ResolvedNode* body_node = nullptr;
+  };
+
+  // Stack of templated call sites (functions or TVFs) that led to the body
+  // currently being validated.
+  std::vector<TemplatedCallInfo> templated_call_stack_;
+
   // Pre-aggregation columns, reflecting the columns available from the related
-  // FROM clause. Captured by WITH GROUP ROWS expression, to be used by
-  // GROUP_ROWS() function in it.
-  std::optional<std::set<ResolvedColumn>> input_columns_for_group_rows_;
+  // FROM clause. Captured by WITH GROUP ROWS alias.
+  std::set<ResolvedColumn> input_columns_for_group_rows_;
 
   // List of column ids seen so far. Used to ensure that every unique column
   // has a distinct id.
@@ -1243,6 +1316,16 @@ class Validator {
   //
   // If no validation error has yet occurred, this value is nullptr.
   const ResolvedNode* error_context_ = nullptr;
+
+  // If a validation error occurred while validating a templated function call
+  // body, this is set to that body's node. The templated function call body is
+  // not part of the AST being validated, so we need to store this node in order
+  // to match the location of `error_context_` when reporting the error.
+  const ResolvedNode* inner_templated_body_node_ = nullptr;
+
+  // If a validation error occurred while validating a templated body, this is
+  // set to the formatted call stack and is printed in the error message.
+  std::string templated_call_stack_string_;
 
   // A stack set by the current GraphLinearScan(s) under validation to track
   // their current scan that can be referenced by its child scan as input scan.

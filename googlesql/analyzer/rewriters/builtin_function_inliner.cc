@@ -36,11 +36,11 @@
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -132,18 +132,13 @@ class BuiltinFunctionInlinerVisitor : public ResolvedASTDeepCopyVisitor {
 
     Catalog* catalog_for_substitution = catalog_;
     std::optional<BuiltinOnlyCatalog> builtin_catalog;
-    bool disable_validation =
-        analyzer_options_.language().LanguageFeatureEnabled(
-            FEATURE_DISABLE_VALIDATE_REWRITERS_REFER_TO_BUILTINS);
-    if (!disable_validation) {
-      // Apply a BuiltinOnlyCatalog wrapper to ensure that only builtin objects
-      // are referenced when resolving the SQL template.
-      builtin_catalog.emplace("builtin_catalog", *catalog_);
-      builtin_catalog->set_allow_tables(allow_table_references);
-      builtin_catalog->set_allowed_function_groups(
-          std::move(allowed_function_groups));
-      catalog_for_substitution = &*builtin_catalog;
-    }
+    // Apply a BuiltinOnlyCatalog wrapper to ensure that only builtin objects
+    // are referenced when resolving the SQL template.
+    builtin_catalog.emplace("builtin_catalog", *catalog_);
+    builtin_catalog->set_allow_tables(allow_table_references);
+    builtin_catalog->set_allowed_function_groups(
+        std::move(allowed_function_groups));
+    catalog_for_substitution = &*builtin_catalog;
 
     GOOGLESQL_ASSIGN_OR_RETURN(
         std::unique_ptr<ResolvedExpr> rewritten_expr,

@@ -38,6 +38,7 @@
 #include "absl/container/btree_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -45,7 +46,6 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 // TODO This implementation probably doesn't cover all edge cases for
 // table name extraction.  It should be tested more and tuned for the final
@@ -216,8 +216,7 @@ class TableNameResolver {
                                  AliasSet* local_visible_aliases);
 
   absl::Status FindInGqlCallsOnNamedTvfsUnder(
-      const ASTGraphTableQuery* graph_query,
-      const AliasSet& external_visible_aliases,
+      const ASTNode* node, const AliasSet& external_visible_aliases,
       AliasSet* local_visible_aliases);
   absl::Status FindInTableSubquery(const ASTTableSubquery* table_subquery,
                                    const AliasSet& external_visible_aliases,
@@ -473,6 +472,21 @@ absl::Status TableNameResolver::FindInStatement(const ASTStatement* statement) {
         return absl::OkStatus();
       }
       break;
+    case AST_CREATE_LIVE_TABLE_STATEMENT:
+      if (analyzer_options_->language().SupportsStatementKind(
+              RESOLVED_CREATE_LIVE_TABLE_STMT)) {
+        const ASTCreateLiveTableStatement* stmt =
+            statement->GetAs<ASTCreateLiveTableStatement>();
+        const ASTTableElementList* table_elements = stmt->table_element_list();
+        if (table_elements != nullptr) {
+          GOOGLESQL_RETURN_IF_ERROR(FindInTableElements(table_elements));
+        }
+        if (stmt->query() != nullptr) {
+          GOOGLESQL_RETURN_IF_ERROR(FindInQuery(stmt->query(), /*visible_aliases=*/{}));
+        }
+        return absl::OkStatus();
+      }
+      break;
     case AST_CREATE_TABLE_STATEMENT: {
       const ASTCreateTableStatement* stmt =
           statement->GetAs<ASTCreateTableStatement>();
@@ -605,7 +619,8 @@ absl::Status TableNameResolver::FindInStatement(const ASTStatement* statement) {
       if (analyzer_options_->language().SupportsStatementKind(
               RESOLVED_CREATE_CONSTANT_STMT)) {
         GOOGLESQL_RETURN_IF_ERROR(FindInExpressionsUnder(
-            static_cast<const ASTCreateConstantStatement*>(statement)->expr(),
+            static_cast<const ASTCreateConstantStatement*>(statement)
+                ->expr(),
             /*visible_aliases=*/{}));
         return absl::OkStatus();
       }
@@ -868,11 +883,12 @@ absl::Status TableNameResolver::FindInStatement(const ASTStatement* statement) {
 
     case AST_DROP_SEARCH_INDEX_STATEMENT:
     case AST_DROP_VECTOR_INDEX_STATEMENT:
+    case AST_DROP_AI_INDEX_STATEMENT:
       if (analyzer_options_->language().SupportsStatementKind(
               RESOLVED_DROP_INDEX_STMT)) {
-        // For a "DROP [SEARCH|VECTOR] INDEX <name> [ON <table>]" statement, the
-        // table name is not inserted into table_names_. Engines that need to
-        // know about the target table should handle that themselves.
+        // For a "DROP [SEARCH|VECTOR|AI] INDEX <name> [ON <table>]" statement,
+        // the table name is not inserted into table_names_. Engines that need
+        // to know about the target table should handle that themselves.
         return absl::OkStatus();
       }
       break;
@@ -1649,6 +1665,16 @@ absl::Status TableNameResolver::FindInTableExpression(
       return FindInGraphTableQuery(table_expr->GetAs<ASTGraphTableQuery>(),
                                    external_visible_aliases,
                                    local_visible_aliases);
+    case AST_GROUP_ROWS: {
+      // ASTGroupRows represents the concise sugar syntax `FROM GROUP ROWS`
+      // (unlike the CTE form `FROM group_rows()` which parses as ASTTVF).
+      const auto* group_rows = table_expr->GetAsOrDie<ASTGroupRows>();
+      if (group_rows->alias() != nullptr) {
+        local_visible_aliases->insert(
+            absl::AsciiStrToLower(group_rows->alias()->GetAsString()));
+      }
+      return absl::OkStatus();
+    }
     default:
       return MakeSqlErrorAt(table_expr)
              << "Unhandled node type in from clause: "
@@ -1899,15 +1925,14 @@ absl::Status TableNameResolver::FindInGraphTableQuery(
   return FindInExpressionsUnder(graph_query, external_visible_aliases);
 }
 
+// TODO: Add more compreshensive tests for graph queries.
 absl::Status TableNameResolver::FindInGraphPatternQuery(
     const ASTGqlGraphPatternQuery* graph_pattern_query,
     const AliasSet& external_visible_aliases, AliasSet* local_visible_aliases) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
 
   // Find in any nested subqueries
-  return FindInExpressionsUnder(
-      graph_pattern_query->graph_pattern()->where_clause(),
-      external_visible_aliases);
+  return FindInExpressionsUnder(graph_pattern_query, external_visible_aliases);
 }
 
 absl::Status TableNameResolver::FindInGraphLinearOpsQuery(
@@ -1915,12 +1940,14 @@ absl::Status TableNameResolver::FindInGraphLinearOpsQuery(
     const AliasSet& external_visible_aliases, AliasSet* local_visible_aliases) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
 
-  // Find in any nested subqueries within each linear op
-  const auto& operators = linear_ops_query->linear_ops()->operators();
-  for (const auto& op : operators) {
-    GOOGLESQL_RETURN_IF_ERROR(FindInExpressionsUnder(op, external_visible_aliases));
-  }
-  return absl::OkStatus();
+  // Find any TVFs called through CALL, as these are not on a relational
+  // subquery and won't show up in the usual path looking for them as table
+  // expressions in a FROM clause.
+  GOOGLESQL_RETURN_IF_ERROR(FindInGqlCallsOnNamedTvfsUnder(
+      linear_ops_query, external_visible_aliases, local_visible_aliases));
+
+  // Find in any nested subqueries
+  return FindInExpressionsUnder(linear_ops_query, external_visible_aliases);
 }
 
 absl::Status TableNameResolver::FindInTableClause(
@@ -1954,15 +1981,15 @@ absl::Status TableNameResolver::FindInTableClause(
 }
 
 absl::Status TableNameResolver::FindInGqlCallsOnNamedTvfsUnder(
-    const ASTGraphTableQuery* graph_query,
-    const AliasSet& external_visible_aliases, AliasSet* local_visible_aliases) {
+    const ASTNode* node, const AliasSet& external_visible_aliases,
+    AliasSet* local_visible_aliases) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
 
-  GOOGLESQL_RET_CHECK(graph_query != nullptr);
+  GOOGLESQL_RET_CHECK(node != nullptr);
 
   std::vector<const ASTNode*> call_named_tvf_nodes;
-  graph_query->GetDescendantSubtreesWithKinds({AST_GQL_NAMED_CALL},
-                                              &call_named_tvf_nodes);
+  node->GetDescendantSubtreesWithKinds({AST_GQL_NAMED_CALL},
+                                       &call_named_tvf_nodes);
 
   for (const ASTNode* call_named_tvf_node : call_named_tvf_nodes) {
     GOOGLESQL_RETURN_IF_ERROR(FindInTVF(

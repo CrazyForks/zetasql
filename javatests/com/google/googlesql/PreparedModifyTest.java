@@ -19,7 +19,7 @@ package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -168,40 +168,33 @@ public final class PreparedModifyTest {
     SimpleCatalog catalog = new SimpleCatalog("catalog");
 
     // throws IllegalStateException if sql is not set
-    try {
-      PreparedModify.builder().setAnalyzerOptions(options).setCatalog(catalog).prepare();
-      fail();
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(
+        IllegalStateException.class,
+        () -> PreparedModify.builder().setAnalyzerOptions(options).setCatalog(catalog).prepare());
 
     // throws IllegalStateException if options is not set
-    try {
-      PreparedModify.builder().setSql(sql).setCatalog(catalog).prepare();
-      fail();
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(
+        IllegalStateException.class,
+        () -> PreparedModify.builder().setSql(sql).setCatalog(catalog).prepare());
 
     // throws IllegalStateException if catalog is not set
-    try {
-      PreparedModify.builder().setSql(sql).setAnalyzerOptions(options).prepare();
-      fail();
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(
+        IllegalStateException.class,
+        () -> PreparedModify.builder().setSql(sql).setAnalyzerOptions(options).prepare());
 
     SimpleCatalog registeredCatalog = new SimpleCatalog("RegisteredCatalog");
     try (SimpleCatalog.AutoUnregister unregisterCatalog = registeredCatalog.register()) {
       // throws IllegalStateException if the given catalog is registered and new tables contents are
       // being provided
-      try {
-        PreparedModify.builder()
-            .setSql(sql)
-            .setAnalyzerOptions(options)
-            .setCatalog(registeredCatalog)
-            .setTablesContents(ImmutableMap.of())
-            .prepare();
-        fail();
-      } catch (IllegalStateException expected) {
-      }
+      assertThrows(
+          IllegalStateException.class,
+          () ->
+              PreparedModify.builder()
+                  .setSql(sql)
+                  .setAnalyzerOptions(options)
+                  .setCatalog(registeredCatalog)
+                  .setTablesContents(ImmutableMap.of())
+                  .prepare());
     }
   }
 
@@ -576,15 +569,15 @@ public final class PreparedModifyTest {
             .setTablesContents(tablesContents);
 
     try (PreparedModify modify = pmBuilder.prepare()) {
-      modify.execute(ImmutableMap.of());
-      fail();
-    } catch (SqlException exception) {
+      SqlException exception =
+          assertThrows(SqlException.class, () -> modify.execute(ImmutableMap.of()));
       assertWithMessage(exception.getMessage())
           .that(exception.getMessage().contains("Incomplete sql expression parameters a"))
           .isTrue();
     }
   }
 
+  @SuppressWarnings("AssertThrowsMultipleStatements") // (broken link)
   @Test
   public void testPrepareThenExecuteWrongParameterType() {
     // Define the catalog but don't register
@@ -604,10 +597,14 @@ public final class PreparedModifyTest {
             .setTablesContents(tablesContents);
 
     try (PreparedModify modify = pmBuilder.prepare()) {
-      ImmutableMap<String, Value> parameters = ImmutableMap.of("a", Value.createInt32Value(123));
-      modify.execute(parameters);
-      fail();
-    } catch (SqlException exception) {
+      SqlException exception =
+          assertThrows(
+              SqlException.class,
+              () -> {
+                ImmutableMap<String, Value> parameters =
+                    ImmutableMap.of("a", Value.createInt32Value(123));
+                modify.execute(parameters);
+              });
       assertWithMessage(exception.getMessage())
           .that(
               exception.getMessage().contains("Expected query parameter 'a' to be of type STRING"))
@@ -629,21 +626,13 @@ public final class PreparedModifyTest {
 
     try (PreparedModify modify = pmBuilder.prepare()) {
       // throws NPE if parameters is null
-      try {
-        modify.execute((Map<String, Value>) null);
-        fail();
-      } catch (NullPointerException expected) {
-      }
+      assertThrows(NullPointerException.class, () -> modify.execute((Map<String, Value>) null));
     }
 
     // throws IllegalStateException if the prepared modify was closed when execute was called
     PreparedModify modify = pmBuilder.prepare();
     modify.close();
-    try {
-      modify.execute(ImmutableMap.of());
-      fail();
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> modify.execute(ImmutableMap.of()));
   }
 
   private static SimpleTable createTable(String name) {

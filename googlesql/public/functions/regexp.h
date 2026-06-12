@@ -28,10 +28,12 @@
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
 #include "absl/base/attributes.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "re2/re2.h"
 
 namespace googlesql {
@@ -92,33 +94,11 @@ class RegExp {
                bool use_legacy_position_behavior, absl::string_view* out,
                bool* is_null, absl::Status* error) const;
 
-  // TODO: b/328210654 - Remove this signature once all callers are migrated
-  // to pass `use_legacy_position_behavior` explicitly.
-  ABSL_DEPRECATED("Use Extract method without optional args instead")
-  bool Extract(absl::string_view str, PositionUnit position_unit,
-               int64_t position, int64_t occurrence_index,
-               absl::string_view* out, bool* is_null, absl::Status* error,
-               bool use_legacy_position_behavior = true) const {
-    return Extract(str, position_unit, position, occurrence_index,
-                   use_legacy_position_behavior, out, is_null, error);
-  }
-
   inline bool Extract(absl::string_view str, bool use_legacy_position_behavior,
                       absl::string_view* out, bool* is_null,
                       absl::Status* error) const {
     // Position unit doesn't matter here since both the `position` and
     // `occurrence_index` are 1 so we set a no-op value.
-    return Extract(str, /*position_unit=*/PositionUnit::kBytes, /*position=*/1,
-                   /*occurrence_index=*/1, use_legacy_position_behavior, out,
-                   is_null, error);
-  }
-
-  // TODO: b/328210654 - Remove this signature once all callers are migrated
-  // to pass `use_legacy_position_behavior` explicitly.
-  ABSL_DEPRECATED("Use Extract method without optional args instead")
-  inline bool Extract(absl::string_view str, absl::string_view* out,
-                      bool* is_null, absl::Status* error,
-                      bool use_legacy_position_behavior = true) const {
     return Extract(str, /*position_unit=*/PositionUnit::kBytes, /*position=*/1,
                    /*occurrence_index=*/1, use_legacy_position_behavior, out,
                    is_null, error);
@@ -313,14 +293,6 @@ class RegExp {
   // REGEX_INSTR("-2020-jack-class1", "-[^.-]*", 2, 1, 1) -> 11
   bool Instr(const InstrParams& options, bool use_legacy_position_behavior,
              absl::Status* error) const;
-
-  // TODO: b/328210654 - Remove this signature once all callers are migrated
-  // to pass `use_legacy_position_behavior` explicitly.
-  ABSL_DEPRECATED("Use Instr method without optional args instead")
-  bool Instr(const InstrParams& options, absl::Status* error,
-             bool legacy_position_behavior = true) const {
-    return Instr(options, legacy_position_behavior, error);
-  }
 
   // REGEXP_REPLACE
   // Replaces all matching substrings in str with newsub and returns result

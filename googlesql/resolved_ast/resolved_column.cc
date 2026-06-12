@@ -24,9 +24,9 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -95,13 +95,13 @@ std::string ResolvedColumnListToString(const ResolvedColumnList& columns) {
       ret += column.ShortDebugString();
     }
   } else {
-    ret += "[";
+    ret += '[';
     for (const ResolvedColumn& column : columns) {
       if (&column != &columns[0]) ret += ", ";
       ret += column.DebugString();
     }
   }
-  ret += "]";
+  ret += ']';
   return ret;
 }
 

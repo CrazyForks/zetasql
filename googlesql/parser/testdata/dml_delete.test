@@ -7,13 +7,27 @@ DeleteStatement [0-13] [delete from T]
 DELETE T
 ==
 
-delete x.T where true
+delete x.T where {{true|(true)}}
+--
+ALTERNATION GROUP: true
 --
 DeleteStatement [0-21] [delete x.T where true]
   PathExpression [7-10] [x.T]
     Identifier(x) [7-8] [x]
     Identifier(T) [9-10] [T]
   BooleanLiteral(true) [17-21] [true]
+--
+DELETE x.T
+WHERE
+  true
+--
+ALTERNATION GROUP: (true)
+--
+DeleteStatement [0-23] [delete x.T where (true)]
+  PathExpression [7-10] [x.T]
+    Identifier(x) [7-8] [x]
+    Identifier(T) [9-10] [T]
+  BooleanLiteral(true) [18-22] [true]
 --
 DELETE x.T
 WHERE

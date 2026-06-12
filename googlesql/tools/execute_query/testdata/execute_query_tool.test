@@ -4069,3 +4069,135 @@ QueryStmt
     +-input_scan=
       +-SingleRowScan
 \
+==
+
+[mode=execute]
+
+CREATE TABLE x AS (SELECT AS VALUE 1);
+
+FROM x;
+--
+Table created
+┌───┐
+│   │
+├───┤
+│ 1 │
+└───┘
+\
+==
+
+CREATE TABLE y AS (SELECT AS VALUE STRUCT(1 AS a, 2 AS b));
+
+FROM y;
+
+SELECT a from y;
+--
+Table created
+┌────────────┐
+│            │
+├────────────┤
+│ {1 a, 2 b} │
+└────────────┘
+
+┌───┐
+│ a │
+├───┤
+│ 1 │
+└───┘
+\
+==
+
+[enabled_language_features=MAXIMUM,+PIPE_FINISH]
+[mode=analyze,explain,execute]
+[catalog=sample]
+FROM KeyValue
+|> FINISH
+--
+TerminalQueryStmt
+└─query=
+  └─FinishScan
+    └─input_scan=
+      └─TableScan(table=KeyValue)
+
+DiscardResultExpr(
++-input: ArrayNestExpr(is_with_table=0
+  +-element: NewStructExpr(
+  | +-type: STRUCT<>),
+  +-input: FinishOp(
+    +-input: EvaluatorTableScanOp(
+      +-table: KeyValue))))
+
+No result table
+==
+
+[enabled_language_features=MAXIMUM,+PIPE_FINISH,+PIPE_ASSERT]
+[mode=execute]
+[catalog=sample]
+FROM KeyValue
+|> ASSERT Key > 0, "key must be positive"
+|> FINISH
+--
+No result table
+==
+
+[enabled_language_features=MAXIMUM,+PIPE_FINISH,+PIPE_ASSERT]
+[mode=execute]
+[catalog=sample]
+FROM KeyValue
+|> ASSERT Key > 1, "key must be > 1"
+|> FINISH
+--
+ERROR: OUT_OF_RANGE: Assert failed: key must be > 1
+==
+
+[enabled_language_features=MAXIMUM,+PIPE_FINISH,+PIPE_FORK]
+[mode=execute]
+[catalog=sample]
+FROM KeyValue
+|> FORK
+     (
+       |> SELECT value
+       |> FINISH
+     ),
+     (
+       |> SELECT Key
+       |> ORDER BY Key
+     ),
+     (
+       |> FINISH
+     )
+--
+No result table
+┌─────┐
+│ Key │
+├─────┤
+│ 1   │
+│ 2   │
+└─────┘
+
+No result table
+==
+
+[enabled_language_features=MAXIMUM,+PIPE_FINISH,+PIPE_TEE]
+[mode=execute]
+[catalog=sample]
+from KeyValue
+|> TEE (|> SELECT key),
+       (|> SELECT value)
+|> FINISH
+--
+┌─────┐
+│ key │
+├─────┤
+│ 1   │
+│ 2   │
+└─────┘
+
+┌───────┐
+│ value │
+├───────┤
+│ a     │
+│ b     │
+└───────┘
+
+No result table

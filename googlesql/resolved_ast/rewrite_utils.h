@@ -17,6 +17,7 @@
 #ifndef GOOGLESQL_RESOLVED_AST_REWRITE_UTILS_H_
 #define GOOGLESQL_RESOLVED_AST_REWRITE_UTILS_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,12 +44,12 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -295,6 +296,13 @@ class FunctionCallBuilder {
       std::unique_ptr<const ResolvedExpr> try_expr,
       std::unique_ptr<const ResolvedExpr> handle_expr);
 
+  // Construct a ResolvedFunctionCall for NULLIFERROR(expr)
+  //
+  // The signature for the built-in function "NULLIFERROR" must be available in
+  // <catalog> or an error status is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> NullIfError(
+      std::unique_ptr<const ResolvedExpr> expr);
+
   // Construct a ResolvedFunctionCall for ERROR(error_text).
   //
   // The signature for the built-in function "error" must be available in
@@ -489,6 +497,17 @@ class FunctionCallBuilder {
   absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> Int64AddLiteral(
       std::unique_ptr<const ResolvedExpr> a, int b);
 
+  // Construct a ResolvedFunctionCall for `a` + `b`.
+  //
+  // Requires: `a` and `b` must be of types compatible with one of the function
+  // signatures of the built-in function "$add" present in the `catalog`.
+  //
+  // The signature for the built-in function "$add" must be available in
+  // `catalog` or an error status is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> Add(
+      std::unique_ptr<const ResolvedExpr> left_expr,
+      std::unique_ptr<const ResolvedExpr> right_expr);
+
   // Construct a ResolvedFunctionCall for `minuend` - `subtrahend`.
   //
   // Requires: `minuend` and `subtrahend` must be of types compatible with one
@@ -632,6 +651,36 @@ class FunctionCallBuilder {
       std::unique_ptr<const ResolvedExpr> start_offset_expr,
       std::unique_ptr<const ResolvedExpr> end_offset_expr);
 
+  // Constructs a ResolvedFunctionCall for
+  // search_expr IN UNNEST(array_expr)
+  //
+  // Requires:
+  // - `search_expr` is a valid type which may be an array
+  // - `array_expr` ia an ARRAY of the same type as `search_expr`
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> InArray(
+      std::unique_ptr<const ResolvedExpr> search_expr,
+      std::unique_ptr<const ResolvedExpr> array_expr);
+
+  // Constructs a ResolvedFunctionCall for
+  // ARRAY_INCLUDES_ALL(array_expr, search_expr)
+  //
+  // Requires:
+  // - `search_expr` is a valid ARRAY type.
+  // - `array_expr` is an ARRAY of the same type.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> ArrayIncludesAll(
+      std::unique_ptr<const ResolvedExpr> array_expr,
+      std::unique_ptr<const ResolvedExpr> search_expr);
+
+  // Constructs a ResolvedFunctionCall for
+  // ARRAY_INCLUDES_ANY(array_expr, search_expr)
+  //
+  // Requires:
+  // - `search_expr` is a valid ARRAY type.
+  // - `array_expr` is an ARRAY of the same type.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> ArrayIncludesAny(
+      std::unique_ptr<const ResolvedExpr> array_expr,
+      std::unique_ptr<const ResolvedExpr> search_expr);
+
   // Constructs a ResolvedFunctionCall for ARRAY_TO_STRING(array_expr,
   // delimiter_expr).
   //
@@ -645,6 +694,16 @@ class FunctionCallBuilder {
   absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> ArrayToString(
       std::unique_ptr<const ResolvedExpr> array_expr,
       std::unique_ptr<const ResolvedExpr> delimiter_expr);
+
+  // Constructs a ResolvedFunctionCall for REGEXP_CONTAINS(value_expr,
+  // regexp_expr).
+  //
+  // Requires:
+  // - `value_expr` is a STRING.
+  // - `regexp_expr` is a STRING.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+  RegexpContainsString(std::unique_ptr<const ResolvedExpr> value_expr,
+                       std::unique_ptr<const ResolvedExpr> regexp_expr);
 
   // Constructs a ResolvedFunctionCall for the MOD(dividend, divisor).
   //
@@ -841,6 +900,60 @@ class FunctionCallBuilder {
       std::unique_ptr<const ResolvedExpr> left_expr,
       std::unique_ptr<const ResolvedExpr> right_expr);
 
+  // Constructs a ResolvedFunctionCall for
+  // TIMESTAMP_BUCKET(timestamp, interval[, origin]).
+  // Requires:
+  //   - arguments has two or three elements.
+  //   - The first element is an expression of type TIMESTAMP.
+  //   - The second element is an expression of type INTERVAL.
+  //   - The third element is an expression of type TIMESTAMP if present.
+  // Returns TIMESTAMP.
+  // The signature for the built-in function "$timestamp_bucket" must be
+  // available in `catalog` or an error status is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> TimestampBucket(
+      std::vector<std::unique_ptr<const ResolvedExpr>> arguments);
+
+  // Constructs a ResolvedFunctionCall for
+  // EXTRACT(part FROM interval).
+  // Requires:
+  //   - interval is an expression of type INTERVAL.
+  // Returns INT64.
+  // The signature for the built-in function "$extract" must be available in
+  // `catalog` or an error status is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>> Extract(
+      std::unique_ptr<const ResolvedExpr> interval,
+      functions::DateTimestampPart part);
+
+  // Converts a ResolvedExpr of type INTERVAL to a ResolvedExpr of type INT64
+  // representing the total number of nanoseconds in the interval.
+  //
+  // Requires:
+  // - `interval_expr` must be a `ResolvedColumnRef` or `ResolvedLiteral` to
+  //   prevent exponential AST bloat and redundant computation.
+  //
+  // Note: This function supports INTERVALs with time parts up to DAY (Day,
+  // Hour, Minute, Second, Nanosecond). If the INTERVAL contains MONTH or YEAR
+  // parts, the constructed AST will include a runtime check that produces a
+  // standard SQL ERROR().
+  // `function_name` is used to provide context in this user-facing error and
+  // internal invariant checks.
+  // The caller is responsible for validating that the resulting interval is
+  // positive, if required by their use case (e.g., window or step sizes).
+  absl::StatusOr<std::unique_ptr<const ResolvedExpr>> IntervalToNanos(
+      std::unique_ptr<const ResolvedExpr> interval_expr,
+      absl::string_view function_name);
+
+  // Constructs a ResolvedFunctionCall for
+  // GENERATE_TIMESTAMP_ARRAY(start_timestamp, end_timestamp, step, date_part).
+  // The signature for the built-in function "$generate_timestamp_array" must be
+  // available in `catalog` or an error status is returned.
+  absl::StatusOr<std::unique_ptr<const ResolvedFunctionCall>>
+  GenerateTimestampArrayWithDatePart(
+      std::unique_ptr<const ResolvedExpr> start_timestamp,
+      std::unique_ptr<const ResolvedExpr> end_timestamp,
+      std::unique_ptr<const ResolvedExpr> step,
+      std::unique_ptr<const ResolvedExpr> date_part);
+
   // Constructs a ResolvedAggregateFunctionCall for
   // `HLL_COUNT.INIT(expr)`.
   //
@@ -984,6 +1097,64 @@ absl::Status ValidateArgumentsDoNotContainCorrelation(
     const ResolvedTVFScan* tvf_node, absl::string_view function_name,
     absl::Span<const ResolvedExpr* /*absl_nonnull*/ const> expressions);
 
+// Validates that the TVF scan is for a specific GoogleSQL builtin function.
+// Returns OK if the node has a TVF which is a GoogleSQL builtin function and
+// has a signature which matches the given function_context_id.
+// Returns a non-OK status if any of the above conditions are not met.
+absl::Status ValidateTvfIsBuiltinAndSignatureMatches(
+    const ResolvedTVFScan* node, absl::string_view function_name,
+    int64_t function_context_id);
+
+// Validates ts_col_name exists in the input scan, is non-ambiguous and is of
+// type TIMESTAMP.
+// Returns OK if all of the above conditions are met.
+// Returns a user-facing error otherwise.
+absl::StatusOr<const ResolvedColumn*> FindAndValidateTimestampColumnInScan(
+    const ResolvedNode& error_location, absl::string_view ts_col_name,
+    const ResolvedScan& input_scan, absl::string_view function_name,
+    ProductMode product_mode);
+
+// Dynamically constructs the AST for a scalar subquery that
+// selects a single column from a CTE. This is useful for run-once semantics.
+//
+// For example, if you have a CTE defined as:
+//   WITH _hop_params AS (
+//     SELECT window_size, step_size, step_micros, origin
+//     FROM ...
+//   )
+//
+// And you call this function with:
+//   - cte_name: "_hop_params"
+//   - cte_defining_cols: {window_size, step_size, step_micros, origin}
+//   - col_index_to_select: 1
+//
+// The function will generate the equivalent of the following SQL subquery:
+//   (SELECT step_size FROM _hop_params)
+//
+// Sample resolved AST:
+// NOLINTBEGIN(whitespace/line_length)
+// clang-format off
+// +-SubqueryExpr
+// | +-type=INTERVAL
+// | +-subquery_type=SCALAR
+// | +-subquery=
+// |   +-ProjectScan
+// |     +-column_list=[$hop_params.step_size#55]
+// |     +-expr_list=
+// |     | +-step_size#55 := ColumnRef(type=INTERVAL, column=$hop_params.step_size#52)
+// |     +-input_scan=
+// |       +-WithRefScan(column_list=$hop_params.[window_size#51, step_size#52, step_micros#53, origin#54], with_query_name="_hop_params")
+// clang-format on
+// NOLINTEND(whitespace/line_length)
+//
+// By using a ResolvedWithRefScan, this subquery references the CTE while
+// maintaining run-once semantics, ensuring the CTE is evaluated only once.
+absl::StatusOr<std::unique_ptr<const ResolvedSubqueryExpr>>
+CreateCteColumnSubquery(ColumnFactory& column_factory,
+                        absl::string_view cte_name,
+                        const ResolvedColumnList& cte_defining_cols,
+                        int col_index_to_select);
+
 // Wrapper to help build a ResolvedColumnRef for the given column.
 std::unique_ptr<ResolvedColumnRef> BuildResolvedColumnRef(
     const ResolvedColumn& column);
@@ -996,11 +1167,11 @@ absl::StatusOr<int> GetMaxColumnId(const ResolvedNode* node);
 //
 // Example usage:
 //   ContainsResolvedColumnVisitor visitor;
-//   auto visitor_output = visitor.VisitAll(std::move(node));
+//   GOOGLESQL_RETURN_IF_ERROR(node->Accept(&visitor));
 //   const bool contains_resolved_column = visitor.ContainsResolvedColumn();
 //   const bool contains_resolved_expression_column =
 //       visitor.ContainsResolvedExpressionColumn();
-class ContainsResolvedColumnVisitor : public ResolvedASTRewriteVisitor {
+class ContainsResolvedColumnVisitor : public ResolvedASTVisitor {
  public:
   ContainsResolvedColumnVisitor() = default;
   // Neither copyable nor movable.
@@ -1014,21 +1185,54 @@ class ContainsResolvedColumnVisitor : public ResolvedASTRewriteVisitor {
     return contains_resolved_expression_column_;
   }
 
+  // Method that mimics the ResolvedASTRewriteVisitor interface.
+  // ContainsResolvedColumnVisitor was originally a subclass of
+  // ResolvedASTRewriteVisitor, and this method lets existing callers (F1 in
+  // particular) continue to use it as such.
+  absl::StatusOr<std::unique_ptr<const ResolvedNode>> VisitAll(
+      std::unique_ptr<const ResolvedNode> node) {
+    GOOGLESQL_RETURN_IF_ERROR(node->Accept(this));
+    return node;
+  }
+
  private:
-  absl::Status PreVisitResolvedColumn(
-      const googlesql::ResolvedColumn&) override {
+  absl::Status VisitResolvedColumn(const ResolvedColumn& column) override {
     contains_resolved_column_ = true;
     return absl::OkStatus();
   }
 
-  absl::Status PreVisitResolvedExpressionColumn(
-      const googlesql::ResolvedExpressionColumn&) override {
+  absl::Status VisitResolvedExpressionColumn(
+      const ResolvedExpressionColumn* node) override {
     contains_resolved_expression_column_ = true;
     return absl::OkStatus();
   }
 
   bool contains_resolved_column_ = false;
   bool contains_resolved_expression_column_ = false;
+};
+
+// Some rewriters need to add CASTs, and this is the helper class used to
+// propagate annotations for the added CASTs.
+//
+// AnnotationPropagator is not yet the complete solution, because of functions
+// that have a custom annotation propagation callback. Eventually those should
+// go away but until then, AnnotationPropagator is not universally right, though
+// for CASTs, so this class **INTENTIONALLY** is restricted to propagating over
+// CASTs.
+class CastAnnotationPropagator {
+ public:
+  CastAnnotationPropagator(const AnalyzerOptions& analyzer_options,
+                           TypeFactory& type_factory)
+      : annotation_propagator_(
+            AnnotationPropagator(analyzer_options, type_factory)) {}
+
+  absl::Status PropagateAnnotations(ResolvedCast& resolved_cast) {
+    return annotation_propagator_.CheckAndPropagateAnnotations(
+        /*error_node=*/nullptr, &resolved_cast);
+  }
+
+ private:
+  AnnotationPropagator annotation_propagator_;
 };
 
 }  // namespace googlesql

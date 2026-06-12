@@ -2323,7 +2323,7 @@ QueryStmt
                   +-GraphRefScan(column_list=$element_table.[$element3#11, e#12, $element4#20])
 ==
 
-[language_features=NONE,+V_1_4_SQL_GRAPH,+V_1_4_SQL_GRAPH_ADVANCED_QUERY,+V_1_4_SQL_GRAPH_PATH_TYPE,+V_1_4_SQL_GRAPH_CHEAPEST_PATH,+SQL_GRAPH_EXPOSE_GRAPH_ELEMENT]
+[language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_PATH_TYPE,+SQL_GRAPH_CHEAPEST_PATH,+SQL_GRAPH_EXPOSE_GRAPH_ELEMENT]
 GRAPH aml
 MATCH (n), -[e COST 1]-
 RETURN n.id as col

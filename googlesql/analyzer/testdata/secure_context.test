@@ -1,0 +1,67 @@
+# Tests for SECURE_CONTEXT.
+[language_features=NONE,+SECURE_CONTEXT]
+SELECT SECURE_CONTEXT("foo")
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:secure_context(STRING) -> STRING)
+    |     +-Literal(type=STRING, value="foo")
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# SECURE_CONTEXT() requires FEATURE_SECURE_CONTEXT.
+[language_features=NONE]
+SELECT SECURE_CONTEXT("foo")
+--
+ERROR: Function not found: SECURE_CONTEXT [at 1:8]
+SELECT SECURE_CONTEXT("foo")
+       ^
+==
+
+# SECURE_CONTEXT() argument must be constant.
+[language_features=NONE,+SECURE_CONTEXT]
+SELECT SECURE_CONTEXT(value) from KeyValue
+--
+ERROR: The argument to SECURE_CONTEXT must be a literal or query parameter [at 1:23]
+SELECT SECURE_CONTEXT(value) from KeyValue
+                      ^
+==
+
+# SECURE_CONTEXT() argument must be non-NULL.
+[language_features=NONE,+SECURE_CONTEXT]
+SELECT SECURE_CONTEXT(NULL)
+--
+ERROR: No matching signature for function SECURE_CONTEXT
+  Argument types: NULL
+  Signature: SECURE_CONTEXT(STRING)
+    Argument 1: Unable to coerce type INT64 to expected type STRING [at 1:8]
+SELECT SECURE_CONTEXT(NULL)
+       ^
+==
+
+# SECURE_CONTEXT() argument must be string.
+[language_features=NONE,+SECURE_CONTEXT]
+SELECT SECURE_CONTEXT(123)
+--
+ERROR: No matching signature for function SECURE_CONTEXT
+  Argument types: INT64
+  Signature: SECURE_CONTEXT(STRING)
+    Argument 1: Unable to coerce type INT64 to expected type STRING [at 1:8]
+SELECT SECURE_CONTEXT(123)
+       ^
+==
+
+# SECURE_CONTEXT() does not support SAFE.
+[language_features=NONE,+SECURE_CONTEXT,+SAFE_FUNCTION_CALL]
+SELECT SAFE.SECURE_CONTEXT("foo")
+--
+ERROR: Function SECURE_CONTEXT does not support SAFE error mode [at 1:8]
+SELECT SAFE.SECURE_CONTEXT("foo")
+       ^

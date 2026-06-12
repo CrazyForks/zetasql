@@ -86,8 +86,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
     LET
       a_4 = PATH(a_3)
     LET
@@ -102,8 +101,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      a_2 = (a_3
-      IS (% | ! %))
+      a_2 = (a_3 IS (% | ! %))
     LET
       a_4 = PATH(a_3)
     LET

@@ -360,7 +360,6 @@ ARRAY<STRUCT<bool_val BOOL,
 ]
 ==
 [name=union_all_multiple_columns_multiple_tables_float]
-[forbidden_features=DISALLOW_GROUP_BY_FLOAT]
 SELECT int32_val, float_val, double_val FROM Table1
 UNION DISTINCT
 SELECT int32_val, float_val, double_val FROM Table2

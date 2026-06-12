@@ -355,8 +355,8 @@ documentation on the corresponding syntax.
   <td><a href="#limit_pipe_operator"><code>LIMIT</code></a>
 </td>
   <td>
-    Limits the number of rows to return in a query, with an optional
-    <code>OFFSET</code> clause to skip over rows.
+    Limits the number of rows to return in a query, with
+    an optional <code>OFFSET</code> clause to skip over rows.
   </td>
 </tr>
 
@@ -490,6 +490,14 @@ documentation on the corresponding syntax.
   <td>
     Semi-terminal pipe operator. Splits the main pipeline into one or more
     subpipelines and continues the main pipeline.
+  </td>
+</tr>
+
+<tr>
+  <td><a href="#finish_pipe_operator"><code>FINISH</code></a>
+</td>
+  <td>
+    Terminal pipe operator. Consumes the input table, returning no result.
   </td>
 </tr>
 
@@ -665,7 +673,7 @@ FROM Produce
 <a id="set_pipe_operator"></a>
 
 <pre class="lang-sql prettyprint no-copy">
-|> SET column_name = expression [, ...]
+|> SET column = expression [, ...]
 </pre>
 
 **Description**
@@ -714,7 +722,7 @@ FROM (SELECT 2 AS x, 3 AS y) AS t
 <a id="drop_pipe_operator"></a>
 
 <pre class="lang-sql prettyprint no-copy">
-|> DROP column_name [, ...]
+|> DROP column [, ...]
 </pre>
 
 **Description**
@@ -810,8 +818,8 @@ all columns in the row.
 The `AS` operator can be useful after operators like
 [`SELECT`][select-pipe-operator], [`EXTEND`][extend-pipe-operator], or
 [`AGGREGATE`][aggregate-pipe-operator] that add columns but can't give table
-aliases to them. You can use the table alias to disambiguate columns after the
-`JOIN` operator.
+aliases to them. You can use the table alias
+to disambiguate columns after the `JOIN` operator.
 
 **Example**
 
@@ -939,8 +947,8 @@ be used before the `AGGREGATE` operator to compute window functions.
 
 The `GROUP BY` clause in the `AGGREGATE` operator corresponds to the `GROUP BY`
 clause in standard syntax. Unlike in standard syntax, aliases can be assigned to
-`GROUP BY` items. Standard grouping operators like `GROUPING SETS`, `ROLLUP`,
-and `CUBE` are supported.
+`GROUP BY` items. Standard grouping operators like
+`GROUPING SETS`, `ROLLUP`, and `CUBE` are supported.
 
 The output columns from the `AGGREGATE` operator include all grouping columns
 first, followed by all aggregate columns, using their assigned aliases as the
@@ -1030,8 +1038,8 @@ of the `AGGREGATE` operator without repeating the column list:
 
 The `GROUP AND ORDER BY` clause is equivalent to an `ORDER BY` clause on all
 `groupable_items`. By default, each `groupable_item` is sorted in ascending
-order with `NULL` values first. Other ordering suffixes like `DESC` or `NULLS
-LAST` can be used for other orders.
+order with `NULL` values first. Other ordering suffixes like `DESC`
+or `NULLS LAST` can be used for other orders.
 
 Without the `GROUP AND ORDER BY` clause, the `ASC` or `DESC` suffixes can be
 added on individual columns in the `GROUP BY` list or `AGGREGATE` list or both.
@@ -1382,8 +1390,8 @@ FROM input_table
 
 Sorts results by a list of expressions. The `ORDER BY` operator behaves the same
 as the [`ORDER BY` clause][order-by-clause] in standard syntax. Suffixes like
-`ASC`, `DESC`, and `NULLS LAST` are supported for customizing the ordering for
-each expression.
+`DESC` and `NULLS LAST` are supported for
+customizing the ordering for each expression.
 
 In pipe syntax, the [`AGGREGATE` operator][aggregate-pipe-operator] also
 supports [shorthand ordering suffixes][shorthand-order-pipe-syntax] to
@@ -1425,9 +1433,10 @@ apply `ORDER BY` behavior more concisely as part of aggregation.
 
 **Description**
 
-Limits the number of rows to return in a query, with an optional `OFFSET` clause
-to skip over rows. The `LIMIT` operator behaves the same as the
-[`LIMIT` and `OFFSET` clause][limit-offset-clause] in standard syntax.
+Limits the number of rows to return in a query, with an
+optional `OFFSET` clause to skip over rows. The `LIMIT` operator
+behaves the same as the [`LIMIT` and `OFFSET`
+clause][limit-offset-clause] in standard syntax.
 
 **Examples**
 
@@ -3222,6 +3231,74 @@ The main pipeline produces the following result table:
 [create-table-pipe-operator]: #create_table_pipe_operator
 
 [insert-pipe-operator]: #insert_pipe_operator
+
+### `FINISH` terminal pipe operator 
+<a id="finish_pipe_operator"></a>
+
+<pre class="lang-sql prettyprint no-copy">
+|> FINISH
+</pre>
+
+**Description**
+
+Consumes the input table and returns no result table. The input query is
+executed but its output is discarded.
+
+The `FINISH` operator is a [terminal pipe operator][terminal-operators]. It can
+only appear at the end of a pipe query. It cannot be followed by other pipe
+operators, and it cannot be used in a subquery or anywhere an output table is
+required.
+
+**Semantics**
+
+*   `FINISH` consumes its input and produces no output.
+*   Semantically, all rows of the input query are computed, but no columns are
+    read.
+    *   Expressions in `WHERE` clauses must be computed, since their values are
+        required to determine the row set.
+    *   Expressions in `SELECT` lists aren't necessarily computed, since their
+        values aren't needed.
+    *   `|> FINISH` requires computing the input rows in the same way that
+        `|> AGGREGATE COUNT(*)` does, but returns nothing, rather than a count.
+*   If the input query has side effects (for example, `ASSERT` failures),
+    those side effects do occur (when the input rows are computed).
+*   Optimizers may skip any execution stages that have no impact on query
+    side-effects.
+
+**Examples**
+
+This example shows how `FINISH` requires all input rows to be computed,
+whereas `LIMIT` does not.
+
+```googlesql
+-- This query typically succeeds if the first 10 rows pass the assertion.
+FROM Produce
+|> ASSERT sales > 0
+|> LIMIT 10;
+
+-- This query only succeeds if all rows in the table pass the assertion.
+FROM Produce
+|> ASSERT sales > 0
+|> FINISH;
+```
+
+This example uses the [`TEE` operator][tee-pipe-operator] with `FINISH` to
+assert a condition on all rows while returning only a subset of the rows:
+
+```googlesql
+-- This query asserts that all rows pass the assertion, and then returns the
+-- first 10 rows.
+FROM Produce
+|> TEE (
+    |> ASSERT sales > 0
+    |> FINISH
+  )
+|> LIMIT 10;
+```
+
+[terminal-operators]: https://github.com/google/googlesql/blob/master/docs/pipe-syntax.md#terminal_operators
+
+[tee-pipe-operator]: #tee_pipe_operator
 
 [query-syntax]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md
 

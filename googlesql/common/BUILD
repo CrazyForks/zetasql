@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load(":builddefs.bzl", "gen_module_test")
 
 package(
     default_visibility = ["//googlesql/base:googlesql_implementation"],
@@ -25,6 +27,7 @@ cc_library(
     srcs = ["status_payload_utils.cc"],
     hdrs = ["status_payload_utils.h"],
     deps = [
+        ":proto_format_utils",
         "//googlesql/base:status",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
@@ -122,9 +125,11 @@ cc_test(
         "//googlesql/proto:internal_error_location_cc_proto",
         "//googlesql/public:deprecation_warning_cc_proto",
         "//googlesql/public:error_helpers",
+        "//googlesql/public:options_cc_proto",
         "//googlesql/public:parse_location",
         "//googlesql/testdata:test_schema_cc_proto",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -249,13 +254,17 @@ cc_library(
     srcs = ["options_utils.cc"],
     hdrs = ["options_utils.h"],
     deps = [
+        "//googlesql/base:check",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/public:analyzer_options",
+        "//googlesql/public:catalog",
         "//googlesql/public:evaluator",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:parse_helpers",
+        "//googlesql/public:parse_location",
+        "//googlesql/public:parse_resume_location",
         "//googlesql/public:strings",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -396,6 +405,7 @@ cc_library(
         ":status_payload_utils",
         ":thread_stack",
         "//googlesql/base",
+        "//googlesql/base:arena",
         "//googlesql/base:map_util",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
@@ -414,6 +424,7 @@ cc_library(
         "//googlesql/public:fix_suggestion_cc_proto",
         "//googlesql/public:function",
         "//googlesql/public:function_cc_proto",
+        "//googlesql/public:id_string",
         "//googlesql/public:module_details",
         "//googlesql/public:multi_catalog",
         "//googlesql/public:non_sql_function",
@@ -486,6 +497,52 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
+)
+
+cc_library(
+    name = "run_modules_test_lib",
+    testonly = 1,
+    srcs = ["run_modules_test.cc"],
+    data = [
+        "//googlesql/public/proto:type_annotation_filegroup",
+        "//googlesql/testdata:test_files",
+        "//googlesql/testdata/modules:module_files",
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+    deps = [
+        ":status_payload_utils",
+        "//googlesql/base:check",
+        "//googlesql/base:path",
+        "//googlesql/base:ret_check",
+        "//googlesql/base:status",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/base/testing:status_matchers",
+        "//googlesql/public:analyzer",
+        "//googlesql/public:analyzer_options",
+        "//googlesql/public:analyzer_output",
+        "//googlesql/public:catalog",
+        "//googlesql/public:catalog_wrapper",
+        "//googlesql/public:constant_evaluator",
+        "//googlesql/public:evaluator",
+        "//googlesql/public:language_options",
+        "//googlesql/public:modules",
+        "//googlesql/public:options_cc_proto",
+        "//googlesql/public:prepared_expression_constant_evaluator",
+        "//googlesql/public:type",
+        "//googlesql/resolved_ast",
+        "//googlesql/testdata:sample_catalog",
+        "//googlesql/testing:test_module_contents_fetcher",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_file_based_test_driver//file_based_test_driver",
+        "@com_google_file_based_test_driver//file_based_test_driver:run_test_case_result",
+        "@com_google_file_based_test_driver//file_based_test_driver:test_case_options",
+        "@com_google_protobuf//:protobuf",
+    ],
+    alwayslink = 1,
 )
 
 cc_library(
@@ -646,6 +703,7 @@ cc_library(
     name = "builtin_function_internal",
     srcs = [
         "builtin_enum_type.cc",
+        "builtin_function_ai.cc",
         "builtin_function_array.cc",
         "builtin_function_comparison.cc",
         "builtin_function_differential_privacy.cc",
@@ -669,10 +727,10 @@ cc_library(
         "//googlesql/base",
         "//googlesql/base:check",
         "//googlesql/base:map_util",
-        "//googlesql/base:no_destructor",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/proto:anon_output_with_report_cc_proto",
+        "//googlesql/proto:kmeans_options_cc_proto",
         "//googlesql/proto:options_cc_proto",
         "//googlesql/public:analyzer_options",
         "//googlesql/public:anon_function",
@@ -680,9 +738,11 @@ cc_library(
         "//googlesql/public:builtin_function_options",
         "//googlesql/public:catalog",
         "//googlesql/public:coercer",
+        "//googlesql/public:constant_evaluator",
         "//googlesql/public:cycle_detector",
         "//googlesql/public:function",
         "//googlesql/public:function_cc_proto",
+        "//googlesql/public:kmeans_options",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:strings",
@@ -885,6 +945,26 @@ cc_library(
 )
 
 cc_library(
+    name = "proto_format_utils",
+    srcs = ["proto_format_utils.cc"],
+    hdrs = ["proto_format_utils.h"],
+    deps = [
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "proto_format_utils_test",
+    srcs = ["proto_format_utils_test.cc"],
+    deps = [
+        ":proto_format_utils",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
     name = "proto_from_iterator",
     srcs = [
         "proto_from_iterator.cc",
@@ -914,7 +994,6 @@ cc_test(
     srcs = ["proto_from_iterator_test.cc"],
     deps = [
         ":proto_from_iterator",
-        "//googlesql/base:status",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
         "//googlesql/common/testing:proto_matchers",
@@ -1088,6 +1167,7 @@ cc_test(
         "//googlesql/public:json_value",
         "//googlesql/public/functions:json",
         "//googlesql/public/types",
+        "//googlesql/resolved_ast",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -1243,4 +1323,20 @@ proto_library(
 cc_proto_library(
     name = "reflection_cc_proto",
     deps = [":reflection_proto"],
+)
+
+all_module_tests = [
+    gen_module_test(filename = f.split("/")[-1])
+    for f in glob(["testdata/*.module_test"])
+]
+
+test_suite(
+    name = "all_module_tests",
+    tests = all_module_tests,
+)
+
+bzl_library(
+    name = "builddefs_bzl",
+    srcs = ["builddefs.bzl"],
+    deps = ["@rules_cc//cc:core_rules"],
 )

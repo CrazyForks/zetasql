@@ -50,8 +50,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/stl_util.h"
-#include "googlesql/base/status_macros.h"
 
 using ::testing::_;
 using ::testing::ElementsAre;

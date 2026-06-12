@@ -40,11 +40,11 @@
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -143,9 +143,7 @@ absl::Status UnpivotRewriterVisitor::VisitResolvedUnpivotScan(
   for (int i = 0; i <= node->value_column_list_size(); ++i) {
     std::unique_ptr<ResolvedExpr> column_expr = MakeResolvedGetStructField(
         struct_type->field(i).type,
-        MakeResolvedColumnRef(unnest_column.type(), unnest_column,
-                              /*is_correlated=*/false),
-        i);
+        MakeResolvedColumnRef(unnest_column, /*is_correlated=*/false), i);
     std::unique_ptr<ResolvedComputedColumn> col = MakeResolvedComputedColumn(
         i < node->value_column_list_size() ? node->value_column_list(i)
                                            : node->label_column(),
@@ -171,7 +169,7 @@ absl::Status UnpivotRewriterVisitor::VisitResolvedUnpivotScan(
   // the rows in the output where at least one unpivot value columns is
   // "not null". We do this by concatenating the checks for struct fields (that
   // result in output value columns) with "or" function.
-  std::vector<std::unique_ptr<ResolvedExpr>> or_function_args;
+  std::vector<std::unique_ptr<const ResolvedExpr>> or_function_args;
   for (const googlesql::ResolvedExpr* value_column_struct_field :
        value_column_struct_fields) {
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> value_struct_expr,
@@ -179,46 +177,19 @@ absl::Status UnpivotRewriterVisitor::VisitResolvedUnpivotScan(
     // The null function checks that the struct field that holds the values for
     // the unpivot value columns is null. We then use a not function since we
     // want to add a filter for this value to not be null.
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> is_null_function_expr,
-                     fn_builder_.IsNull(std::move(value_struct_expr)));
+    GOOGLESQL_ASSIGN_OR_RETURN(auto is_not_null_function_expr,
+                     fn_builder_.IsNotNull(std::move(value_struct_expr)));
 
-    const Function* is_not_function;
-    GOOGLESQL_RET_CHECK_OK(catalog_->FindFunction({"$not"}, &is_not_function,
-                                        analyzer_options_.find_options()));
-    GOOGLESQL_RET_CHECK(is_not_function->IsGoogleSQLBuiltin());
-    std::vector<std::unique_ptr<ResolvedExpr>> is_not_args;
-    is_not_args.push_back(std::move(is_null_function_expr));
-    std::unique_ptr<ResolvedExpr> is_not_function_expr =
-        MakeResolvedFunctionCall(
-            types::BoolType(), is_not_function,
-            FunctionSignature(
-                FunctionArgumentType(types::BoolType(), /*num_occurrences=*/1),
-                {FunctionArgumentType(types::BoolType(),
-                                      /*num_occurrences=*/1)},
-                FN_NOT),
-            std::move(is_not_args), ResolvedFunctionCall::DEFAULT_ERROR_MODE);
     // Add all the "x is not null" expressions to concatenate with "or"
     // function.
-    or_function_args.push_back(std::move(is_not_function_expr));
+    or_function_args.push_back(std::move(is_not_null_function_expr));
   }
   std::unique_ptr<const ResolvedExpr> filter_expression;
   if (or_function_args.size() == 1) {
     filter_expression = std::move(or_function_args[0]);
   } else {
-    const Function* or_function;
-    GOOGLESQL_RET_CHECK_OK(catalog_->FindFunction({"$or"}, &or_function,
-                                        analyzer_options_.find_options()));
-    GOOGLESQL_RET_CHECK(or_function->IsGoogleSQLBuiltin());
-    filter_expression = MakeResolvedFunctionCall(
-        types::BoolType(), or_function,
-        FunctionSignature(
-            FunctionArgumentType(types::BoolType(), /*num_occurrences=*/1),
-            {FunctionArgumentType(
-                types::BoolType(), FunctionArgumentType::REPEATED,
-                /*num_occurrences=*/
-                static_cast<int>(node->value_column_list_size()))},
-            FN_OR),
-        std::move(or_function_args), ResolvedFunctionCall::DEFAULT_ERROR_MODE);
+    GOOGLESQL_ASSIGN_OR_RETURN(filter_expression,
+                     fn_builder_.Or(std::move(or_function_args)));
   }
 
   std::vector<ResolvedColumn> array_scan_output_columns =
@@ -262,14 +233,19 @@ UnpivotRewriterVisitor::CreateArrayScanWithStructElements(
     std::vector<std::unique_ptr<const ResolvedExpr>> struct_expressions_list;
     for (const std::unique_ptr<const ResolvedColumnRef>& in_col :
          in_col_list->column_list()) {
-      struct_expressions_list.push_back(MakeResolvedColumnRef(
-          in_col->type(), in_col->column(), /*is_correlated=*/false));
+
+      struct_expressions_list.push_back(
+          MakeResolvedColumnRef(in_col->column(), /*is_correlated=*/false));
     }
     struct_expressions_list.push_back(MakeResolvedLiteral(
         node->label_column().type(), node->label_list(column_index)->value(),
         /*has_explicit_type=*/true));
-    struct_elements_list.push_back(MakeResolvedMakeStruct(
-        *struct_type, std::move(struct_expressions_list)));
+    auto make_struct_expr = MakeResolvedMakeStruct(
+        *struct_type, std::move(struct_expressions_list));
+    GOOGLESQL_RETURN_IF_ERROR(
+        fn_builder_.annotation_propagator().CheckAndPropagateAnnotations(
+            nullptr, make_struct_expr.get()));
+    struct_elements_list.push_back(std::move(make_struct_expr));
   }
 
   const ArrayType* struct_array_type;
@@ -297,10 +273,10 @@ UnpivotRewriterVisitor::CreateArrayScanWithStructElements(
       make_array_function->GetSignature(0)->context_id());
   signature.SetConcreteResultType(struct_array_type,
                                   SignatureArgumentKind::ARG_ARRAY_TYPE_ANY_1);
-  std::unique_ptr<const ResolvedExpr> resolved_function_call =
-      MakeResolvedFunctionCall(struct_array_type, make_array_function,
-                               signature, std::move(struct_elements_list),
-                               ResolvedFunctionCallBase::DEFAULT_ERROR_MODE);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto resolved_function_call,
+      fn_builder_.MakeArray(*struct_type, std::move(struct_elements_list),
+                            /*cast_elements_if_needed=*/false));
 
   // Construct element column for array scan that'll hold the newly generated
   // value of struct type.

@@ -1,0 +1,36 @@
+MODULE module_test_warnings;
+
+-- UDF resolution with a deprecation warning
+CREATE PUBLIC FUNCTION udf_resolution_one_warning() AS
+    (deprecation_warning());
+
+-- UDF resolution with two deprecation warnings
+CREATE PUBLIC FUNCTION udf_resolution_two_warnings() AS
+    (deprecation_warning() + deprecation_warning2());
+
+-- UDF calls a UDF with a deprecation warning
+CREATE PUBLIC FUNCTION udf_calls_udf_with_warning() AS
+    (udf_resolution_one_warning());
+
+-- TVF resolution with a deprecation warning
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_one_warning()
+    RETURNS TABLE<x INT64> AS SELECT deprecation_warning() x;
+
+-- TVF resolution with two deprecation warnings
+CREATE PUBLIC TABLE FUNCTION tvf_resolution_two_warnings()
+    RETURNS TABLE<x INT64> AS
+      SELECT (deprecation_warning() + deprecation_warning2()) AS x;
+
+-- TVF calls a TVF with a deprecation warning
+CREATE PUBLIC TABLE FUNCTION tvf_calls_tvf_with_warning()
+    RETURNS TABLE<x INT64> AS
+      SELECT x FROM tvf_resolution_one_warning();
+
+-- TVF calls a UDF with a deprecation warning
+CREATE PUBLIC TABLE FUNCTION tvf_calls_udf_with_warning()
+    RETURNS TABLE<x INT64> AS
+      SELECT udf_resolution_one_warning(msg) AS x;
+
+-- UDF calls a TVF with a deprecation warning
+CREATE PUBLIC FUNCTION udf_calls_tvf_with_warning() AS
+    ((SELECT COUNT(*) FROM tvf_resolution_one_warning()));

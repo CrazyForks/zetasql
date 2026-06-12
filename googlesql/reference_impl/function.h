@@ -99,6 +99,7 @@ enum class FunctionKind {
   // Aggregate functions
   kAndAgg,  // private function that ANDs all input values incl. NULLs
   kAnyValue,
+  kScalarSubqueryValue,
   kApproxCountDistinct,
   kApproxTopSum,
   kArrayAgg,
@@ -603,6 +604,10 @@ enum class FunctionKind {
   // Builtin TVFs
   kTumble,
   kHop,
+  kBatchVectorSearchTVFWithProtoOptions,
+
+  // AI functions
+  kAiIf,
 };
 
 // Provides two utility methods to look up a built-in function name or function
@@ -778,7 +783,8 @@ class BuiltinTableValuedFunction : public TableValuedFunctionBody {
   CreateCall(FunctionKind kind, std::vector<TvfAlgebraArgument> arguments,
              std::vector<TVFSchemaColumn> output_columns,
              std::vector<VariableId> variables,
-             std::shared_ptr<FunctionSignature> function_call_signature);
+             std::shared_ptr<FunctionSignature> function_call_signature,
+             std::vector<int> output_column_indices);
 
   static absl::StatusOr<std::unique_ptr<BuiltinTableValuedFunction>> Create(
       FunctionKind kind);
@@ -831,7 +837,8 @@ class BuiltinAggregateFunction : public AggregateFunctionBody {
 
   absl::StatusOr<std::unique_ptr<AggregateAccumulator>> CreateAccumulator(
       absl::Span<const Value> args, absl::Span<const TupleData* const> params,
-      CollatorList collator_list, EvaluationContext* context) const override;
+      std::vector<CollatorPtrInfo> collator_list,
+      EvaluationContext* context) const override;
 
  private:
   const FunctionKind kind_;
@@ -849,7 +856,8 @@ class BinaryStatFunction : public BuiltinAggregateFunction {
 
   absl::StatusOr<std::unique_ptr<AggregateAccumulator>> CreateAccumulator(
       absl::Span<const Value> args, absl::Span<const TupleData* const> params,
-      CollatorList collator_list, EvaluationContext* context) const override;
+      std::vector<CollatorPtrInfo> collator_list,
+      EvaluationContext* context) const override;
 };
 
 // Adds additional members to `AggregateFunctionEvaluator` that the reference
@@ -1098,9 +1106,26 @@ class ArrayIsDistinctFunction : public SimpleBuiltinScalarFunction {
 class ArrayDistinctFunction : public SimpleBuiltinScalarFunction {
  public:
   using SimpleBuiltinScalarFunction::SimpleBuiltinScalarFunction;
+
+  static absl::StatusOr<std::unique_ptr<ScalarFunctionCallExpr>> CreateCall(
+      const LanguageOptions& language_options, const Type* output_type,
+      std::vector<std::unique_ptr<AlgebraArg>> arguments,
+      ResolvedFunctionCallBase::ErrorMode error_mode,
+      CollatorList collator_list);
+
   absl::StatusOr<Value> Eval(absl::Span<const TupleData* const> params,
                              absl::Span<const Value> args,
                              EvaluationContext* context) const override;
+
+ private:
+  explicit ArrayDistinctFunction(const Type* output_type)
+      : ArrayDistinctFunction(output_type, CollatorList()) {}
+
+  ArrayDistinctFunction(const Type* output_type, CollatorList collator_list)
+      : SimpleBuiltinScalarFunction(FunctionKind::kArrayDistinct, output_type),
+        collator_list_(std::move(collator_list)) {}
+
+  CollatorList collator_list_;
 };
 
 // Implementation for ARRAY_INCLUDES(ARRAY<T1>, T1) -> BOOL.
@@ -2656,6 +2681,29 @@ class HopTVF : public BuiltinTableValuedFunction {
   };
 };
 
+class BatchVectorSearchTVFWithProtoOptions : public BuiltinTableValuedFunction {
+ public:
+  explicit BatchVectorSearchTVFWithProtoOptions(FunctionKind kind)
+      : BuiltinTableValuedFunction(kind) {}
+
+  absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> CreateEvaluator(
+      std::vector<TableValuedFunction::TvfEvaluatorArg> args,
+      std::shared_ptr<FunctionSignature> function_call_signature,
+      EvaluationContext* context) override;
+
+  std::string debug_name() const override { return "vector_search"; }
+};
+
+class AiIfFunction : public SimpleBuiltinScalarFunction {
+ public:
+  AiIfFunction(FunctionKind kind, const Type* output_type)
+      : SimpleBuiltinScalarFunction(kind, output_type) {}
+
+  absl::StatusOr<Value> Eval(absl::Span<const TupleData* const> params,
+                             absl::Span<const Value> args,
+                             EvaluationContext* context) const override;
+};
+
 // This method is used only for setting non-deterministic output.
 // This method does not detect floating point types within STRUCTs or PROTOs,
 // which would be too expensive to call for each row.
@@ -2673,6 +2721,9 @@ void MaybeSetNonDeterministicArrayOutput(const Value& array,
 // feature is not turned on.
 absl::Status ValidateMicrosPrecision(const Value& value,
                                      EvaluationContext* context);
+
+// Returns true if 'x' is distinct from 'y'.
+bool IsDistinctFrom(const Value& x, const Value& y);
 
 // Helper to create an absl::Status with an error indicating that a value
 // reached the size limit.

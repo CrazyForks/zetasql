@@ -22,22 +22,27 @@
 
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/public/analyzer_options.h"
+#include "googlesql/public/annotation/is_versioned.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/function_signature.h"
+#include "googlesql/public/id_string.h"
 #include "googlesql/public/simple_catalog.h"
+#include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/array_type.h"
+#include "googlesql/public/types/simple_value.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
+#include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
 #include "googlesql/resolved_ast/test_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "googlesql/base/check.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -99,9 +104,11 @@ MakeArrayFaulty(std::vector<std::unique_ptr<const ResolvedExpr>> elements,
   FunctionArgumentType result_type(array_type,
                                    catalog_signature->result_type().options(),
                                    /*num_occurrences=*/1);
+  result_type.set_original_kind(SignatureArgumentKind::ARG_ARRAY_TYPE_ANY_1);
   FunctionArgumentType arguments_type(array_type->element_type(),
                                       catalog_signature->argument(0).options(),
                                       static_cast<int>(elements.size()));
+  arguments_type.set_original_kind(SignatureArgumentKind::ARG_TYPE_ANY_1);
   FunctionSignature make_array_signature(result_type, {arguments_type},
                                          catalog_signature->context_id(),
                                          catalog_signature->options());
@@ -206,5 +213,45 @@ FunctionCall(GoogleSQL:concat(STRING, repeated STRING) -> STRING)
 // greater_or_equal, between, like, in, min, max, strpos, starts_with,
 // ends_with, replace, split, instr, case_with_value, range_bucket, greatest,
 // least.
+
+class IsVersionedAnnotationPropagatorTest : public ::testing::Test {
+ protected:
+  IsVersionedAnnotationPropagatorTest() : type_factory_() {}
+
+  TypeFactory type_factory_;
+};
+
+TEST_F(IsVersionedAnnotationPropagatorTest,
+       TestIsVersionedAnnotationDoesNotPropagate) {
+  AnalyzerOptions options;
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_ANNOTATION_FRAMEWORK);
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_VERSION_AWARE_DML);
+
+  AnnotationPropagator propagator(options, type_factory_);
+
+  std::unique_ptr<AnnotationMap> annotation_map =
+      AnnotationMap::Create(type_factory_.get_string());
+  annotation_map->SetAnnotation<IsVersionedAnnotation>(SimpleValue::Bool(true));
+  ASSERT_TRUE(annotation_map->Has<IsVersionedAnnotation>());
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(const AnnotationMap* owned_map,
+                       type_factory_.TakeOwnership(std::move(annotation_map)));
+
+  ResolvedColumn column(1, IdString::MakeGlobal("table"),
+                        IdString::MakeGlobal("col"),
+                        AnnotatedType(type_factory_.get_string(), owned_map));
+  ASSERT_TRUE(column.type_annotation_map() != nullptr &&
+              column.type_annotation_map()->Has<IsVersionedAnnotation>());
+
+  auto column_ref = MakeResolvedColumnRef(type_factory_.get_string(), column,
+                                          /*is_correlated=*/false);
+
+  GOOGLESQL_ASSERT_OK(propagator.CheckAndPropagateAnnotations(/*error_node=*/nullptr,
+                                                    column_ref.get()));
+
+  EXPECT_EQ(column_ref->type_annotation_map(), nullptr);
+}
 
 }  // namespace googlesql

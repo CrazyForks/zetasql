@@ -1143,15 +1143,42 @@ ERROR: Unrecognized name: y [at 2:20]
 # Scoping: mixed aggregate and non-aggregate reference in the same expression,
 # referencing columns that may also be grouped.
 # (Including sum(x) bypasses check for non-aggregate expression.)
-# These should all be errors.
+# Grouping keys can resolve successfully as non-aggregate references inside
+# post-grouping expressions (e.g. sum(x)+x GROUP BY x). Others remain errors.
 select 1 x,2 y
 |> AGGREGATE sum(x)+{{x|y}} GROUP BY {{x|y}}
 --
 ALTERNATION GROUP: x,x
 --
-ERROR: AGGREGATE list expression references column x which is not aggregated [at 2:21]
-|> AGGREGATE sum(x)+x GROUP BY x
-                    ^
+QueryStmt
++-output_column_list=
+| +-$groupby.x#4 AS x [INT64]
+| +-$aggregate.$col1#5 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$groupby.x#4, $aggregate.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    |     +-ColumnRef(type=INT64, column=$aggregate.$agg1#3)
+    |     +-ColumnRef(type=INT64, column=$groupby.x#4)
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.x#4, $aggregate.$agg1#3]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=$query.[x#1, y#2]
+        |   +-expr_list=
+        |   | +-x#1 := Literal(type=INT64, value=1)
+        |   | +-y#2 := Literal(type=INT64, value=2)
+        |   +-input_scan=
+        |     +-SingleRowScan
+        +-group_by_list=
+        | +-x#4 := ColumnRef(type=INT64, column=$query.x#1)
+        +-aggregate_list=
+          +-$agg1#3 :=
+            +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+              +-ColumnRef(type=INT64, column=$query.x#1)
 --
 ALTERNATION GROUP: x,y
 --
@@ -1167,9 +1194,35 @@ ERROR: AGGREGATE list expression references column y which is not aggregated [at
 --
 ALTERNATION GROUP: y,y
 --
-ERROR: AGGREGATE list expression references column y which is not aggregated [at 2:21]
-|> AGGREGATE sum(x)+y GROUP BY y
-                    ^
+QueryStmt
++-output_column_list=
+| +-$groupby.y#4 AS y [INT64]
+| +-$aggregate.$col1#5 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$groupby.y#4, $aggregate.$col1#5]
+    +-expr_list=
+    | +-$col1#5 :=
+    |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    |     +-ColumnRef(type=INT64, column=$aggregate.$agg1#3)
+    |     +-ColumnRef(type=INT64, column=$groupby.y#4)
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.y#4, $aggregate.$agg1#3]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=$query.[x#1, y#2]
+        |   +-expr_list=
+        |   | +-x#1 := Literal(type=INT64, value=1)
+        |   | +-y#2 := Literal(type=INT64, value=2)
+        |   +-input_scan=
+        |     +-SingleRowScan
+        +-group_by_list=
+        | +-y#4 := ColumnRef(type=INT64, column=$query.y#2)
+        +-aggregate_list=
+          +-$agg1#3 :=
+            +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+              +-ColumnRef(type=INT64, column=$query.x#1)
 ==
 
 select 1 x, 2 y

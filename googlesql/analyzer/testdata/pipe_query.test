@@ -1217,3 +1217,31 @@ QueryStmt
         | +-x#1 := Literal(type=INT64, value=1)
         +-input_scan=
           +-SingleRowScan
+==
+
+# LIKE ANY with a subquery does not prune the subquery's output column.
+[language_features=NONE,+PIPES,+LIKE_ANY_SOME_ALL,+LIKE_ANY_SOME_ALL_SUBQUERY]
+[prune_unused_columns]
+SELECT 'abc' LIKE ANY (FROM query_table
+                                 |> DROP id, query_embedding, embedding, float_embedding)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#6 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#6]
+    +-expr_list=
+    | +-$col1#6 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=LIKE_ANY
+    |     +-in_expr=
+    |     | +-Literal(type=STRING, value="abc")
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[query_table.string_query_col#5]
+    |         +-input_scan=
+    |           +-TableScan(column_list=[query_table.string_query_col#5], table=query_table, column_index_list=[4])
+    +-input_scan=
+      +-SingleRowScan

@@ -61,6 +61,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -70,7 +71,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -577,7 +578,7 @@ StatementEvaluatorImpl::StatementEvaluation::ProcessDdlStatement(
              ->catalog_for_temp_objects()
              ->AddOwnedTableValuedFunctionIfNotPresent(&tvf)) {
       return googlesql_base::OutOfRangeErrorBuilder()
-             << "TVF " << tvf_name << "already exists";
+             << "TVF " << tvf_name << " already exists";
     }
 
     const StructType* struct_type = nullptr;
@@ -730,6 +731,9 @@ StatementEvaluatorImpl::StatementEvaluation::ProcessSingleStmtResult(
     case PreparedStatementBase::StmtKind::kCTAS: {
       return ProcessDdlStatement(sub_stmt, evaluator_options,
                                  std::move(stmt_result));
+    }
+    case PreparedStatementBase::StmtKind::kTerminalQuery: {
+      return Value();
     }
   }
 }

@@ -1,0 +1,26 @@
+MODULE named_constant_referenced_by_udf;
+
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_in_nested_module_referenced_by_udf
+    AS nested_module;
+
+CREATE PRIVATE CONSTANT bar = 1;
+
+CREATE PUBLIC FUNCTION udf_using_int64(a INT32) AS (a * bar);
+CREATE PUBLIC FUNCTION udf_using_int64_templated(a ANY TYPE) AS (a * bar);
+
+CREATE PUBLIC FUNCTION udf_using_nested_int64(a INT32) AS
+    (a * nested_module.baz);
+CREATE PUBLIC FUNCTION udf_using_nested_int64_templated(a ANY TYPE) AS
+    (a * nested_module.baz);
+
+-- These are error cases, because accessing names multiple levels deep is not
+-- valid.  Specifically, only the PUBLIC objects in 'nested_module' are
+-- visible here, not objects transitively imported by 'nested_module' (even
+-- PUBLIC ones).  Note that the templated version will not fail during
+-- initial resolution since its expression is not resolved yet, but it will
+-- fail when referenced in a query for execution.
+CREATE PUBLIC FUNCTION udf_using_nested_nested_int64(a INT32) AS
+    (a * nested_module.nested_nested_module.bat);
+CREATE PUBLIC FUNCTION udf_using_nested_nested_int64_templated(a ANY TYPE) AS
+    (a * nested_module.nested_nested_module.bat);

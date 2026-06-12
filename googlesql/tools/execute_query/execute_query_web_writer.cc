@@ -27,13 +27,14 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/tools/execute_query/output_query_result.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
+#include "googlesql/base/status_macros.h"
 #include "mstch/mstch.hpp"
 #include "re2/re2.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -41,7 +42,14 @@ namespace {
 
 // Prints the result of executing a query as an HTML table.
 absl::Status RenderResultsAsTable(std::unique_ptr<EvaluatorTableIterator> iter,
-                                  mstch::map& table_params) {
+                                  mstch::map& result_params) {
+  // For ResolvedTerminalQueryStmt and `|> FINISH`, we get a nullptr iterator.
+  // We show a log message rather than a table in that slot.
+  if (iter == nullptr) {
+    result_params["message"] = "No result table";
+    return absl::OkStatus();
+  }
+
   std::vector<mstch::node> columnNames;
   columnNames.reserve(iter->NumColumns() + 1);
   columnNames.push_back(std::string("#"));
@@ -61,7 +69,7 @@ absl::Status RenderResultsAsTable(std::unique_ptr<EvaluatorTableIterator> iter,
     }
     rows.push_back(std::move(row_values));
   }
-  table_params = mstch::map({
+  result_params["table"] = mstch::map({
       {"columnNames", mstch::node(std::move(columnNames))},
       {"rows", mstch::node(std::move(rows))},
   });
@@ -187,6 +195,14 @@ std::string DecorateASTDebugStringWithHTMLTagsImpl(
   absl::StrReplaceAll({{R"html(ast-col $)html", R"html(ast-col dollar_)html"}},
                       &ast_debug_string);
 
+  // Decorate parse_location in the Resolved AST.
+  // Original:
+  //   +-parse_location=0-24
+  // Modified:
+  //   +-<span class="ast-range">parse_location=0-24</span>
+  static LazyRE2 kParseLocation = {R"re((parse_location=\d+-\d+))re"};
+  RE2::GlobalReplace(&ast_debug_string, *kParseLocation,
+                     R"html(<span class="ast-range">\1</span>)html");
   return ast_debug_string;
 }
 
@@ -263,9 +279,7 @@ absl::Status ExecuteQueryWebWriter::executed(
 
   mstch::array tables;
   mstch::map result_params;
-  mstch::map table_params;
-  GOOGLESQL_RETURN_IF_ERROR(RenderResultsAsTable(std::move(iter), table_params));
-  result_params["table"] = std::move(table_params);
+  GOOGLESQL_RETURN_IF_ERROR(RenderResultsAsTable(std::move(iter), result_params));
   tables.push_back(std::move(result_params));
   current_statement_params_["result_executed_tables"] = std::move(tables);
   got_results_ = true;
@@ -282,9 +296,7 @@ absl::Status ExecuteQueryWebWriter::executed_multi(
   for (auto& result : results) {
     mstch::map result_params;
     if (result.ok()) {
-      mstch::map table_params;
-      GOOGLESQL_RETURN_IF_ERROR(RenderResultsAsTable(std::move(*result), table_params));
-      result_params["table"] = std::move(table_params);
+      GOOGLESQL_RETURN_IF_ERROR(RenderResultsAsTable(std::move(*result), result_params));
     } else {
       // The error string contains HTML, so the template contains
       // `error` in a triple mustache to disable HTML escaping.

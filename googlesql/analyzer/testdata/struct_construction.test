@@ -1128,3 +1128,29 @@ ERROR: Type not found: x; Did you mean to define the STRUCT field as `x int64` i
 select struct<int64 x>(5);
                     ^
 ==
+
+[language_features=NONE,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST,+ANNOTATION_FRAMEWORK,+TIMESTAMP_PRECISION,+TIMESTAMP_PICOS,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+TIMESTAMP_PRECISION_ANNOTATION,+NUMERIC_TYPE]
+[no_java]
+[no_run_sqlbuilder]
+# STRUCT of ARRAY with type modifiers
+select
+  STRUCT<ARRAY<STRING(5) COLLATE "und:ci">>(["abc"]);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1<<{Collation:"und:ci"}>> AS `$col1` [STRUCT<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1<<{Collation:"und:ci"}>>]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-MakeStruct
+    |     +-type=STRUCT<ARRAY<STRING>>
+    |     +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |     +-field_list=
+    |       +-Cast(ARRAY<STRING> -> ARRAY<STRING>)
+    |         +-type_annotation_map=<{Collation:"und:ci"}>
+    |         +-Literal(type=ARRAY<STRING>, value=["abc"], has_explicit_type=TRUE)
+    |         +-type_modifiers=type_parameters:[(max_length=5)], collation:[und:ci]
+    +-input_scan=
+      +-SingleRowScan

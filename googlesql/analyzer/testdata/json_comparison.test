@@ -1,0 +1,1335 @@
+[default language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON]
+
+SELECT JSON '1' = JSON '1';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT JSON '1' < JSON '1';
+--
+ERROR: Less than is not defined for arguments of type JSON [at 1:8]
+SELECT JSON '1' < JSON '1';
+       ^
+
+==
+
+SELECT JSON '1' < JSON '1';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+SELECT JSON '1' = JSON '1', JSON '1' < JSON '1.0', JSON '1' != JSON '1.0',
+       JSON '1' > JSON '1.0', JSON '1' <= JSON '1.0', JSON '1' >= JSON '1.0';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
+| +-$query.$col5#5 AS `$col5` [BOOL]
+| +-$query.$col6#6 AS `$col6` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4, $col5#5, $col6#6]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$not_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    | +-$col4#4 :=
+    | | +-FunctionCall(GoogleSQL:$greater(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    | +-$col5#5 :=
+    | | +-FunctionCall(GoogleSQL:$less_or_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    | +-$col6#6 :=
+    |   +-FunctionCall(GoogleSQL:$greater_or_equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1.0, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+SELECT JSON '1' + JSON '1';
+--
+ERROR: No matching signature for operator +
+  Argument types: JSON, JSON
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 1: Unable to coerce type JSON to expected type DOUBLE [at 1:8]
+SELECT JSON '1' + JSON '1';
+       ^
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
+--
+ERROR: BETWEEN is not defined for arguments of type JSON [at 1:17]
+SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
+                ^
+
+==
+
+SELECT JSON '2' BETWEEN JSON '1' AND JSON '3';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
+--
+ERROR: IN is not defined for arguments of type JSON [at 1:17]
+SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
+                ^
+
+==
+
+SELECT JSON '2' IN (JSON '1', JSON '2', JSON '3');
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$in(JSON, repeated(3) JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
+--
+ERROR: Cannot execute IN subquery with uncomparable types JSON and JSON [at 1:8]
+SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
+       ^
+
+==
+
+SELECT JSON '2' IN (SELECT json_col FROM JSONTable);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#2 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#2]
+    +-expr_list=
+    | +-$col1#2 :=
+    |   +-SubqueryExpr
+    |     +-type=BOOL
+    |     +-subquery_type=IN
+    |     +-in_expr=
+    |     | +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[JSONTable.json_col#1]
+    |         +-input_scan=
+    |           +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=NONE,+JSON_TYPE,+IS_DISTINCT]
+SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
+--
+ERROR: Grouping is not defined for arguments of type JSON [at 1:8]
+SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
+       ^
+
+==
+
+[language_features=NONE,+JSON_TYPE,+IS_DISTINCT,+JSON_TYPE_COMPARISON]
+SELECT (JSON '2') IS NOT DISTINCT FROM (JSON '1');
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$is_not_distinct_from(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
+--
+ERROR: MIN is not defined for arguments of type JSON [at 1:8]
+SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
+       ^
+
+==
+
+SELECT MIN(json_col), MAX(json_col) FROM JSONTable;
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#2 AS `$col1` [JSON]
+| +-$aggregate.$agg2#3 AS `$col2` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=$aggregate.[$agg1#2, $agg2#3]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=$aggregate.[$agg1#2, $agg2#3]
+        +-input_scan=
+        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+        +-aggregate_list=
+          +-$agg1#2 :=
+          | +-AggregateFunctionCall(GoogleSQL:min(JSON) -> JSON)
+          |   +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+          +-$agg2#3 :=
+            +-AggregateFunctionCall(GoogleSQL:max(JSON) -> JSON)
+              +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+[allow_undeclared_parameters]
+SELECT JSON '1' = @p;
+--
+ERROR: Equality is not defined for arguments of type JSON [at 1:8]
+SELECT JSON '1' = @p;
+       ^
+
+==
+
+[allow_undeclared_parameters]
+SELECT JSON '1' = @p;
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Parameter(parse_location=18-20, type=JSON, name="p")
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+p: JSON
+
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT json_col FROM JSONTable ORDER BY json_col;
+--
+ERROR: ORDER BY does not support expressions of type JSON [at 1:41]
+SELECT json_col FROM JSONTable ORDER BY json_col;
+                                        ^
+==
+
+SELECT json_col FROM JSONTable ORDER BY json_col;
+--
+QueryStmt
++-output_column_list=
+| +-JSONTable.json_col#1 AS json_col [JSON]
++-query=
+  +-OrderByScan
+    +-column_list=[JSONTable.json_col#1]
+    +-is_ordered=TRUE
+    +-input_scan=
+    | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+    +-order_by_item_list=
+      +-OrderByItem
+        +-column_ref=
+          +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+==
+
+[language_features=NONE,+JSON_TYPE]
+SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
+--
+ERROR: Grouping by expressions of type JSON is not allowed [at 1:51]
+SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
+                                                  ^
+
+==
+
+SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col;
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.json_col#3 AS json_col [JSON]
+| +-$aggregate.$agg1#2 AS `$col2` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
+        +-input_scan=
+        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+        +-group_by_list=
+        | +-json_col#3 := ColumnRef(type=JSON, column=JSONTable.json_col#1)
+        +-aggregate_list=
+          +-$agg1#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
+
+==
+
+SELECT json_col, COUNT(*) FROM JSONTable GROUP BY json_col ORDER BY json_col;
+--
+QueryStmt
++-output_column_list=
+| +-$groupby.json_col#3 AS json_col [JSON]
+| +-$aggregate.$agg1#2 AS `$col2` [INT64]
++-query=
+  +-OrderByScan
+    +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
+    +-is_ordered=TRUE
+    +-input_scan=
+    | +-AggregateScan
+    |   +-column_list=[$groupby.json_col#3, $aggregate.$agg1#2]
+    |   +-input_scan=
+    |   | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+    |   +-group_by_list=
+    |   | +-json_col#3 := ColumnRef(type=JSON, column=JSONTable.json_col#1)
+    |   +-aggregate_list=
+    |     +-$agg1#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
+    +-order_by_item_list=
+      +-OrderByItem
+        +-column_ref=
+          +-ColumnRef(type=JSON, column=$groupby.json_col#3)
+==
+
+[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS]
+select afn_agg() over (partition by json_col) from JSONTable;
+--
+ERROR: Partitioning by expressions of type JSON is not allowed [at 1:37]
+select afn_agg() over (partition by json_col) from JSONTable;
+                                    ^
+==
+
+[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
+select afn_agg() over (partition by json_col) from JSONTable;
+--
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#3 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#3]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
+        +-input_scan=
+        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-partition_by=
+            | +-WindowPartitioning
+            |   +-partition_by_list=
+            |     +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+            +-analytic_function_list=
+              +-$analytic1#3 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=ROWS)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=UNBOUNDED FOLLOWING)
+==
+
+
+[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS]
+select afn_agg() over (order by json_col) from JSONTable;
+--
+ERROR: Ordering by expressions of type JSON is not allowed [at 1:33]
+select afn_agg() over (order by json_col) from JSONTable;
+                                ^
+==
+
+[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
+select afn_agg() over (order by json_col) from JSONTable;
+--
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#3 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#3]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
+        +-input_scan=
+        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-order_by=
+            | +-WindowOrdering
+            |   +-order_by_item_list=
+            |     +-OrderByItem
+            |       +-column_ref=
+            |         +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+            +-analytic_function_list=
+              +-$analytic1#3 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=RANGE)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
+==
+
+[language_features=NONE,+JSON_TYPE,+ANALYTIC_FUNCTIONS,+JSON_TYPE_COMPARISON]
+select afn_agg() over (partition by json_col order by json_col) from JSONTable;
+--
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#3 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#3]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[JSONTable.json_col#1, $analytic.$analytic1#3]
+        +-input_scan=
+        | +-TableScan(column_list=[JSONTable.json_col#1], table=JSONTable, column_index_list=[0])
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-partition_by=
+            | +-WindowPartitioning
+            |   +-partition_by_list=
+            |     +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+            +-order_by=
+            | +-WindowOrdering
+            |   +-order_by_item_list=
+            |     +-OrderByItem
+            |       +-column_ref=
+            |         +-ColumnRef(type=JSON, column=JSONTable.json_col#1)
+            +-analytic_function_list=
+              +-$analytic1#3 :=
+                +-AnalyticFunctionCall(sample_functions:afn_agg() -> INT64)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=RANGE)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=CURRENT ROW)
+
+==
+
+[language_features=NONE,+JSON_TYPE,+CAST_TO_JSON_TYPE]
+SELECT CAST(1 AS JSON) AS col1;
+--
+QueryStmt
++-output_column_list=
+| +-$query.col1#1 AS col1 [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.col1#1]
+    +-expr_list=
+    | +-col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+JSON_TYPE]
+[allow_undeclared_parameters]
+SELECT CAST(@p AS JSON);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [JSON]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Parameter(parse_location=12-14, type=JSON, name="p")
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+p: JSON
+
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT JSON '1' = CAST(1 AS JSON) as col2;
+--
+QueryStmt
++-output_column_list=
+| +-$query.col2#1 AS col2 [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.col2#1]
+    +-expr_list=
+    | +-col2#1 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT CAST(1 AS JSON) AS col1, JSON '1' = CAST(1 AS JSON) as col2;
+--
+QueryStmt
++-output_column_list=
+| +-$query.col1#1 AS col1 [JSON]
+| +-$query.col2#2 AS col2 [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[col1#1, col2#2]
+    +-expr_list=
+    | +-col1#1 := Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | +-col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT JSON 'true' = false, JSON '1' = 1, "foo" = JSON '"foo"';
+--
+ERROR: No matching signature for operator = for argument types: JSON, BOOL
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {BOOL, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 1:8]
+SELECT JSON 'true' = false, JSON '1' = 1, "foo" = JSON '"foo"';
+       ^
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT JSON '"Infinity"' = CAST('Infinity' AS FLOAT64);
+--
+ERROR: No matching signature for operator = for argument types: JSON, DOUBLE
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {DOUBLE, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 1:8]
+SELECT JSON '"Infinity"' = CAST('Infinity' AS FLOAT64);
+       ^
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT JSON '"NaN"' = CAST('Infinity' AS FLOAT64);
+--
+ERROR: No matching signature for operator = for argument types: JSON, DOUBLE
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {DOUBLE, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 1:8]
+SELECT JSON '"NaN"' = CAST('Infinity' AS FLOAT64);
+       ^
+
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT JSON '1.0' = 0.0;
+--
+ERROR: No matching signature for operator = for argument types: JSON, DOUBLE
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {DOUBLE, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 1:8]
+SELECT JSON '1.0' = 0.0;
+       ^
+
+==
+
+[language_features=NONE,+JSON_TYPE,+CIVIL_TIME,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT timestamp '1987-05-31 14:21:00' = JSON '"1987-05-31 14:21:00"',
+       date '2025-12-31' = JSON '"2025-12-31"',
+       JSON '"2025-12-31 12:34:56"' = datetime '2025-12-31 12:34:56';
+--
+ERROR: No matching signature for operator = for argument types: TIMESTAMP, JSON
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {TIMESTAMP, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type TIMESTAMP to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type TIMESTAMP to expected type UINT64 [at 1:8]
+SELECT timestamp '1987-05-31 14:21:00' = JSON '"1987-05-31 14:21:00"',
+       ^
+
+==
+
+[language_features=NONE,+JSON_TYPE,+JSON_TYPE_COMPARISON,+CAST_TO_JSON_TYPE]
+SELECT id = nodeJsonProp FROM DynamicMultiLabelGraphNode;
+--
+ERROR: No matching signature for operator = for argument types: INT64, JSON
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, JSON}
+  Signature: INT64 = UINT64
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type INT64 to expected type UINT64 [at 1:8]
+SELECT id = nodeJsonProp FROM DynamicMultiLabelGraphNode;
+       ^
+
+==
+
+# Expansive and negative tests for JSON_TYPE_COMPARISON_COERCION are now in
+# googlesql/analyzer/json_comparison_analyzer_test.cc.
+
+# Negative test for CAST_TO_JSON_TYPE, which is required for coercing other
+# types to JSON for comparison.
+[language_features=MAXIMUM,-CAST_TO_JSON_TYPE,+JSON_TYPE_COMPARISON_COERCION]
+SELECT
+  JSON 'true' = true;
+--
+ERROR: No matching signature for operator = for argument types: JSON, BOOL
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {BOOL, JSON}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64 [at 2:3]
+  JSON 'true' = true;
+  ^
+==
+
+# Sample Literal Equality test
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT
+  JSON 'true' = true,
+  JSON '1' IS DISTINCT FROM CAST(1 AS INT32),
+  JSON '"abc"' = "abc",
+  JSON '[1, 2]' = [1, 2];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=true, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=true)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$is_distinct_from(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value="abc", has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value="abc")
+    | +-$col4#4 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=[1,2], has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=[1,2])
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Sample Column Equality test
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+WITH MyTable AS (
+  SELECT
+    JSON 'null' AS json_col,
+    true AS bool_col,
+    CAST(1 AS INT64) AS int64_col,
+    "abc" AS string_col,
+    [1, 2] AS array_col
+)
+SELECT
+  json_col = bool_col,
+  json_col = int64_col,
+  json_col = string_col,
+  json_col = array_col
+FROM MyTable;
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#11 AS `$col1` [BOOL]
+| +-$query.$col2#12 AS `$col2` [BOOL]
+| +-$query.$col3#13 AS `$col3` [BOOL]
+| +-$query.$col4#14 AS `$col4` [BOOL]
++-query=
+  +-WithScan
+    +-column_list=$query.[$col1#11, $col2#12, $col3#13, $col4#14]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="MyTable"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=MyTable.[json_col#1, bool_col#2, int64_col#3, string_col#4, array_col#5]
+    |       +-expr_list=
+    |       | +-json_col#1 := Literal(type=JSON, value=null, has_explicit_type=TRUE)
+    |       | +-bool_col#2 := Literal(type=BOOL, value=true)
+    |       | +-int64_col#3 := Literal(type=INT64, value=1, has_explicit_type=TRUE)
+    |       | +-string_col#4 := Literal(type=STRING, value="abc")
+    |       | +-array_col#5 := Literal(type=ARRAY<INT64>, value=[1, 2])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=$query.[$col1#11, $col2#12, $col3#13, $col4#14]
+        +-expr_list=
+        | +-$col1#11 :=
+        | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+        | |   +-ColumnRef(type=JSON, column=MyTable.json_col#6)
+        | |   +-Cast(BOOL -> JSON)
+        | |     +-ColumnRef(type=BOOL, column=MyTable.bool_col#7)
+        | +-$col2#12 :=
+        | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+        | |   +-ColumnRef(type=JSON, column=MyTable.json_col#6)
+        | |   +-Cast(INT64 -> JSON)
+        | |     +-ColumnRef(type=INT64, column=MyTable.int64_col#8)
+        | +-$col3#13 :=
+        | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+        | |   +-ColumnRef(type=JSON, column=MyTable.json_col#6)
+        | |   +-Cast(STRING -> JSON)
+        | |     +-ColumnRef(type=STRING, column=MyTable.string_col#9)
+        | +-$col4#14 :=
+        |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+        |     +-ColumnRef(type=JSON, column=MyTable.json_col#6)
+        |     +-Cast(ARRAY<INT64> -> JSON)
+        |       +-ColumnRef(type=ARRAY<INT64>, column=MyTable.array_col#10)
+        +-input_scan=
+          +-WithRefScan(column_list=MyTable.[json_col#6, bool_col#7, int64_col#8, string_col#9, array_col#10], with_query_name="MyTable")
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT ARRAY<STRING>['a', 'b'] = JSON '["a", "b"]',
+       JSON '1' = RANGE<DATE> '[2020-01-01, 2021-01-01)',
+       CAST('123e4567-e89b-12d3-a456-426614174000' AS UUID) = JSON '1';
+
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=["a","b"], has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=["a","b"], has_explicit_type=TRUE)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value={"end":"2021-01-01","start":"2020-01-01"}, has_explicit_type=TRUE)
+    | +-$col3#3 :=
+    |   +-FunctionCall(GoogleSQL:$equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value="123e4567-e89b-12d3-a456-426614174000", has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' != ARRAY<JSON>[JSON '1'], ARRAY<INT64>[1, 2] != JSON '1';
+
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$not_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=[1], has_explicit_type=TRUE)
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$not_equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=[1,2], has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' IS DISTINCT FROM ARRAY<INT64>[1, 2];
+
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$is_distinct_from(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=[1,2], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT ARRAY<STRING>['a', 'b'] IS NOT DISTINCT FROM JSON '["a", "b"]';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$is_not_distinct_from(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=["a","b"], has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=["a","b"], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Equality with collation
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+SELECT COLLATE(JSON '"a"', 'und:ci');
+--
+ERROR: No matching signature for function COLLATE
+  Argument types: JSON, STRING
+  Signature: COLLATE(STRING, STRING)
+    Argument 1: Unable to coerce type JSON to expected type STRING [at 1:8]
+SELECT COLLATE(JSON '"a"', 'und:ci');
+       ^
+==
+
+[language_features=MAXIMUM,-JSON_TYPE_COMPARISON_COERCION]
+WITH MyTable AS (SELECT 1 AS int_col, JSON '1' AS json_col)
+SELECT int_col = json_col FROM MyTable;
+--
+ERROR: No matching signature for operator = for argument types: INT64, JSON
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, JSON}
+  Signature: INT64 = UINT64
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type INT64 to expected type UINT64 [at 2:8]
+SELECT int_col = json_col FROM MyTable;
+       ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' < 2,
+       JSON '1' <= 2,
+       JSON '1' > 2,
+       JSON '1' >= 2;
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=2)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$less_or_equal(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=2)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$greater(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=2)
+    | +-$col4#4 :=
+    |   +-FunctionCall(GoogleSQL:$greater_or_equal(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=2)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' BETWEEN JSON '2' AND JSON '3',
+       JSON '2' BETWEEN 1 AND 3,
+       JSON '3' BETWEEN 1 AND date '2025-12-31',
+       JSON '4' BETWEEN NULL AND JSON '2',
+       NULL BETWEEN JSON '1' AND JSON '2';
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
+| +-$query.$col5#5 AS `$col5` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4, $col5#5]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | |   +-Literal(type=JSON, value=3)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=3, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | |   +-Literal(type=JSON, value="2025-12-31", has_explicit_type=TRUE)
+    | +-$col4#4 :=
+    | | +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=4, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=NULL)
+    | |   +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    | +-$col5#5 :=
+    |   +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=NULL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+[parameter_mode=positional]
+[allow_undeclared_parameters]
+SELECT JSON '1' BETWEEN ? AND 2;
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$between(JSON, JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Parameter(parse_location=24-25, type=JSON, position=1)
+    |     +-Literal(type=JSON, value=2)
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+JSON
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' IN (NULL, 2),
+       JSON '1' IN (1, JSON '2', true, date '2025-12-31'),
+       JSON '1' IN (1, 2, 3),
+       NULL IN (JSON '1', JSON '2');
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
+| +-$query.$col3#3 AS `$col3` [BOOL]
+| +-$query.$col4#4 AS `$col4` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$in(JSON, repeated(2) JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=NULL)
+    | |   +-Literal(type=JSON, value=2)
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:$in(JSON, repeated(4) JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | |   +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=true)
+    | |   +-Literal(type=JSON, value="2025-12-31", has_explicit_type=TRUE)
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:$in(JSON, repeated(3) JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=1)
+    | |   +-Literal(type=JSON, value=2)
+    | |   +-Literal(type=JSON, value=3)
+    | +-$col4#4 :=
+    |   +-FunctionCall(GoogleSQL:$in(JSON, repeated(2) JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=NULL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=2, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' < [], JSON '1' < [NULL];
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    | |   +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    | |   +-Literal(type=JSON, value=[])
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$less(JSON, JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Literal(type=JSON, value=[null])
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT NULL BETWEEN JSON '1' AND 2;
+--
+ERROR: No matching signature for operator BETWEEN
+  Argument types: NULL, JSON, INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 1: Untyped NULL is not supported for JSON coercion.
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, JSON} [at 1:13]
+SELECT NULL BETWEEN JSON '1' AND 2;
+            ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT [] BETWEEN JSON '[]' AND [1];
+--
+ERROR: No matching signature for operator BETWEEN
+  Argument types: [], JSON, ARRAY<INT64>
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 1: First argument must be explicitly typed as JSON.
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {ARRAY<INT64>, JSON} [at 1:11]
+SELECT [] BETWEEN JSON '[]' AND [1];
+          ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT [NULL] BETWEEN JSON '[]' AND [1];
+--
+ERROR: No matching signature for operator BETWEEN
+  Argument types: ARRAY<INT64>, JSON, ARRAY<INT64>
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type INT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type UINT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type UINT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type INT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type JSON
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {ARRAY<INT64>, JSON} [at 1:15]
+SELECT [NULL] BETWEEN JSON '[]' AND [1];
+              ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT NULL BETWEEN JSON '[]' AND [1];
+--
+ERROR: No matching signature for operator BETWEEN
+  Argument types: NULL, JSON, ARRAY<INT64>
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 1: Untyped NULL is not supported for JSON coercion.
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {ARRAY<INT64>, JSON} [at 1:13]
+SELECT NULL BETWEEN JSON '[]' AND [1];
+            ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+[parameter_mode=positional]
+[allow_undeclared_parameters]
+SELECT ? BETWEEN JSON '1' AND 2;
+--
+
+ERROR: No matching signature for operator BETWEEN
+  Argument types: INT64, JSON, INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 2: Unable to coerce type JSON to expected type UINT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 2: Unable to coerce type JSON to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 1: Untyped parameter is not supported for JSON coercion.
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, JSON} [at 1:10]
+SELECT ? BETWEEN JSON '1' AND 2;
+         ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT NULL IN (JSON '1', 2);
+--
+ERROR: No matching signature for operator IN for argument types NULL and {INT64, JSON} [at 1:13]
+SELECT NULL IN (JSON '1', 2);
+            ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+[parameter_mode=positional]
+[allow_undeclared_parameters]
+SELECT ? IN (JSON '1', 2);
+--
+ERROR: No matching signature for operator IN for argument types INT64 and {INT64, JSON} [at 1:10]
+SELECT ? IN (JSON '1', 2);
+         ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+[parameter_mode=positional]
+[allow_undeclared_parameters]
+SELECT JSON '1' IN (?, 2);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$in(JSON, repeated(2) JSON) -> BOOL)
+    |     +-Literal(type=JSON, value=1, has_explicit_type=TRUE)
+    |     +-Parameter(parse_location=20-21, type=JSON, position=1)
+    |     +-Literal(type=JSON, value=2)
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+JSON
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT [] IN (JSON '[]', [1]);
+--
+ERROR: No matching signature for operator IN for argument types empty array and {ARRAY<INT64>, JSON} [at 1:11]
+SELECT [] IN (JSON '[]', [1]);
+          ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT [NULL] IN (JSON '[]', [1]);
+--
+ERROR: No matching signature for operator IN for argument types ARRAY<INT64> and {ARRAY<INT64>, JSON} [at 1:15]
+SELECT [NULL] IN (JSON '[]', [1]);
+              ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT NULL IN (JSON '[]', [1]);
+--
+ERROR: No matching signature for operator IN for argument types NULL and {ARRAY<INT64>, JSON} [at 1:13]
+SELECT NULL IN (JSON '[]', [1]);
+            ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT INTERVAL '1' HOUR = JSON '1';
+--
+ERROR: No matching signature for operator = for argument types: INTERVAL, JSON
+  Signature: T1 = T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {JSON, INTERVAL}
+  Signature: INT64 = UINT64
+    Argument 1: Unable to coerce type INTERVAL to expected type INT64
+  Signature: UINT64 = INT64
+    Argument 1: Unable to coerce type INTERVAL to expected type UINT64
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type INTERVAL to expected type JSON
+  Signature: JSON = JSON
+    Argument 1: Unable to coerce type INTERVAL to expected type JSON [at 1:8]
+SELECT INTERVAL '1' HOUR = JSON '1';
+       ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '1' >= STRUCT(1 AS a, 'b' AS b);
+--
+ERROR: No matching signature for operator >= for argument types: JSON, STRUCT<a INT64, b STRING>
+  Signature: T1 >= T1
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {STRUCT<a INT64, b STRING>, JSON}
+  Signature: INT64 >= UINT64
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: UINT64 >= INT64
+    Argument 1: Unable to coerce type JSON to expected type UINT64
+  Signature: JSON >= JSON
+    Argument 2: Unable to coerce type STRUCT<a INT64, b STRING> to expected type JSON
+  Signature: JSON >= JSON
+    Argument 2: Unable to coerce type STRUCT<a INT64, b STRING> to expected type JSON [at 1:8]
+SELECT JSON '1' >= STRUCT(1 AS a, 'b' AS b);
+       ^
+==
+
+[language_features=MAXIMUM,+JSON_TYPE_COMPARISON_COERCION]
+SELECT JSON '2' BETWEEN INTERVAL '1' HOUR  AND INTERVAL '3' HOUR;
+--
+ERROR: No matching signature for operator BETWEEN
+  Argument types: JSON, INTERVAL, INTERVAL
+  Signature: (INT64) BETWEEN (UINT64) AND (UINT64)
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: (UINT64) BETWEEN (INT64) AND (UINT64)
+    Argument 1: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (UINT64) AND (INT64)
+    Argument 1: Unable to coerce type JSON to expected type UINT64
+  Signature: (UINT64) BETWEEN (INT64) AND (INT64)
+    Argument 1: Unable to coerce type JSON to expected type UINT64
+  Signature: (INT64) BETWEEN (UINT64) AND (INT64)
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: (INT64) BETWEEN (INT64) AND (UINT64)
+    Argument 1: Unable to coerce type JSON to expected type INT64
+  Signature: (JSON) BETWEEN (JSON) AND (JSON)
+    Argument 2: Unable to coerce type INTERVAL to expected type JSON
+  Signature: (T1) BETWEEN (T1) AND (T1)
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {JSON, INTERVAL} [at 1:17]
+SELECT JSON '2' BETWEEN INTERVAL '1' HOUR  AND INTERVAL '3' HOUR;
+                ^

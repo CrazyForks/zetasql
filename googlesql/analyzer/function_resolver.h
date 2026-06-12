@@ -17,6 +17,7 @@
 #ifndef GOOGLESQL_ANALYZER_FUNCTION_RESOLVER_H_
 #define GOOGLESQL_ANALYZER_FUNCTION_RESOLVER_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -149,6 +150,21 @@ class FunctionResolver {
       const TemplatedSQLFunction& function, const absl::Status& status,
       ErrorMessageOptions options);
 
+  // Adjusts the type modifiers from the source type to the target type for a
+  // cast. This is needed when the source and target types do not match in type
+  // structure (i.e., number of component types). For example:
+  //  * Graph node types when casting to a supertype, with a superset of the
+  //    properties.
+  static absl::StatusOr<TypeModifiers> AdjustTypeModifiersForCast(
+      const Type* source_type, const Type* target_type,
+      const TypeModifiers& source_type_modifiers);
+
+  // Same as above, but for type annotations. Caller should most likely be using
+  // the above method to adjust type modifiers instead.
+  absl::StatusOr<const AnnotationMap*> AdjustTypeAnnotationsForCast(
+      const Type* source_type, const Type* target_type,
+      const AnnotationMap* source_annotation_map) const;
+
   // Converts <argument> to <target_type> and replaces <argument> with the new
   // expression if successful. If <argument> is a converted literal and
   // <set_has_explicit_type> is true, then the new ResolvedLiteral is marked as
@@ -173,8 +189,7 @@ class FunctionResolver {
   // and would be more appropriate as type ASTExpression, though this would
   // require refactoring some callers.
   ABSL_DEPRECATED(
-      "Use AddCastOrConvertLiteral function with <annotated_target_type> "
-      "argument.")
+      "Use the overload which takes an explicit `type_modifiers` argument.")
   // TODO: Refactor and remove the deprecated functions in a quick
   // follow up.
   absl::Status AddCastOrConvertLiteral(
@@ -190,7 +205,7 @@ class FunctionResolver {
   // contain both target type and its annotation information. <type_modifers> is
   // used to hold the type modifiers for the cast.
   absl::Status AddCastOrConvertLiteral(
-      const ASTNode* ast_location, AnnotatedType annotated_target_type,
+      const ASTNode* ast_location, const Type* target_type,
       std::unique_ptr<const ResolvedExpr> format,
       std::unique_ptr<const ResolvedExpr> time_zone,
       TypeModifiers type_modifiers,
@@ -410,18 +425,18 @@ class FunctionResolver {
   // representations accordingly.
   // If `mismatch_errors` is non-null, it triggers generating detailed signature
   // mismatch message.
-  absl::StatusOr<const FunctionSignature*> FindMatchingSignature(
-      const Function* function, const ASTNode* ast_location,
-      const std::vector<const ASTNode*>& arg_locations,
-      bool match_internal_signatures,
-      absl::Span<const NamedArgumentInfo> named_arguments,
-      const NameScope* name_scope,
-      std::vector<InputArgumentType>* input_arguments,
-      std::vector<FunctionArgumentOverride>* arg_overrides,
-      std::vector<ArgIndexEntry>* arg_index_mapping,
-      absl::flat_hash_map<const ResolvedInlineLambda*, const ASTLambda*>*
-          lambda_ast_nodes,
-      std::vector<std::string>* mismatch_errors) const;
+  absl::StatusOr<std::unique_ptr<const FunctionSignature>>
+  FindMatchingSignature(const Function* function, const ASTNode* ast_location,
+                        const std::vector<const ASTNode*>& arg_locations,
+                        bool match_internal_signatures,
+                        absl::Span<const NamedArgumentInfo> named_arguments,
+                        const NameScope* name_scope,
+                        std::vector<InputArgumentType>* input_arguments,
+                        std::vector<FunctionArgumentOverride>* arg_overrides,
+                        std::vector<ArgIndexEntry>* arg_index_mapping,
+                        absl::flat_hash_map<const ResolvedInlineLambda*,
+                                            const ASTLambda*>* lambda_ast_nodes,
+                        std::vector<std::string>* mismatch_errors) const;
 
   // Returns user-facing text with a list of signatures along with the reason
   // why they didn't match the call (from `mismatch_error`), in the following
@@ -446,6 +461,10 @@ class FunctionResolver {
       const Function* function, absl::string_view prefix_message,
       FunctionArgumentType::NamePrintingStyle argument_print_style,
       const std::vector<std::string>* mismatch_errors = nullptr) const;
+
+  // Looks up a generated proxy function by its name in the resolver's list of
+  // generated functions.
+  Function* LookupGeneratedFunction(IdString name) const;
 
   // Converts <argument_literal> to <target_type> and replaces
   // <converted_literal> with the new expression if successful. If

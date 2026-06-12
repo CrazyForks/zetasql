@@ -16,23 +16,23 @@
 
 #include "googlesql/parser/parse_tree_serializer.h"
 
-#include <iostream>
 #include <memory>
 #include <string>
 
-#include "googlesql/base/path.h"
-#include "googlesql/parser/ast_node.h"
-#include "googlesql/parser/ast_node_kind.h"
+#include "googlesql/common/proto_format_utils.h"
 #include "googlesql/parser/parse_tree.h"
+#include "googlesql/parser/parse_tree.pb.h"
 #include "googlesql/parser/parser.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include "file_based_test_driver/file_based_test_driver.h"
 #include "file_based_test_driver/run_test_case_result.h"
 #include "file_based_test_driver/test_case_options.h"
@@ -73,7 +73,7 @@ class ParseTreeSerializerTest : public ::testing::Test {
 
       googlesql::AnyASTExpressionProto proto;
       status = ParseTreeSerializer::Serialize(expression, &proto);
-      test_result->AddTestOutput(proto.DebugString());
+      test_result->AddTestOutput(ToStableDebugString(proto));
 
       absl::StatusOr<std::unique_ptr<ParserOutput>> deserialized_parser_output =
           ParseTreeSerializer::Deserialize(proto, deserialize_parser_options);
@@ -94,7 +94,7 @@ class ParseTreeSerializerTest : public ::testing::Test {
 
       googlesql::AnyASTStatementProto proto;
       status = ParseTreeSerializer::Serialize(statement, &proto);
-      test_result->AddTestOutput(proto.DebugString());
+      test_result->AddTestOutput(ToStableDebugString(proto));
 
       ParserOptions deserialize_parser_options =
           ParserOptions(/*id_string_pool=*/nullptr,

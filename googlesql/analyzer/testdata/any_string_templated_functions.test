@@ -1,0 +1,463 @@
+[default language_features=MAXIMUM,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[prepare_database=db1]
+# For all function kinds, we also ensure that concrete arguments do not "leak"
+# collation from their inputs. By "leak", we mean that a concrete argument (e.g.
+# STRING) should have its collation stripped, whereas a templated argument
+# (e.g. ANY STRING) should propagate it.
+CREATE FUNCTION udf(s1 ANY STRING, s2 ANY STRING DEFAULT "abc", s3 STRING DEFAULT "xyz") AS (s1 || s2 || s3);
+--
+
+CreateFunctionStmt(name_path=udf, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(ANY STRING s1, optional ANY STRING {default_value: "abc"} s2, optional STRING {default_value: "xyz"} s3) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="s1 || s2 || s3")
+==
+
+[prepare_database=db1]
+CREATE AGGREGATE FUNCTION uda(s1 ANY STRING DEFAULT "abc", s2 ANY STRING DEFAULT "xyz" NOT AGGREGATE, s3 STRING DEFAULT "hjk" NOT AGGREGATE) AS (MAX(s1) || s2 || s3);
+--
+
+CreateFunctionStmt(name_path=uda, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(optional ANY STRING {default_value: "abc"} s1, optional ANY STRING {default_value: "xyz", is_not_aggregate: true} s2, optional STRING {default_value: "hjk", is_not_aggregate: true} s3) -> ANY TYPE rejects_collation=TRUE, is_aggregate=TRUE, language="SQL", code="MAX(s1) || s2 || s3")
+==
+
+[prepare_database=db1]
+CREATE TABLE FUNCTION tvf(t ANY TABLE, x ANY STRING DEFAULT "abc", y STRING DEFAULT "xyz") AS (
+  SELECT *, x FROM t WHERE col = x
+)
+--
+
+CreateTableFunctionStmt(name_path=tvf, argument_name_list=[t, x, y], signature=(ANY TABLE t, optional ANY STRING {default_value: "abc"} x, optional STRING {default_value: "xyz"} y) -> ANY TABLE, language="SQL", code="SELECT *, x FROM t WHERE col = x")
+==
+
+[default use_database=db1]
+
+# Type must coerce to string, when the arg is ANY STRING for UDFs.
+SELECT udf(1, "A")
+--
+
+ERROR: No matching signature for function Templated_SQL_Function:udf
+  Argument types: INT64, STRING
+  Signature: udf(ANY STRING, [ANY STRING], [STRING])
+    Argument 1: Unable to coerce type INT64 to expected type STRING [at 2:8]
+SELECT udf(1, "A")
+       ^
+==
+
+# Type must coerce to string, when the arg is ANY STRING for UDFA.
+SELECT uda(col, "A")
+FROM (SELECT 1 AS col)
+--
+
+ERROR: No matching signature for aggregate function Templated_SQL_Function:uda
+  Argument types: INT64, STRING
+  Signature: uda([ANY STRING], [ANY STRING], [STRING])
+    Argument 1: Unable to coerce type INT64 to expected type STRING [at 1:8]
+SELECT uda(col, "A")
+       ^
+==
+
+# Type must coerce to string, when the NOT_AGGREGATE arg is ANY STRING for UDFA.
+SELECT uda(col, 1)
+FROM (SELECT "A" AS col)
+--
+
+ERROR: No matching signature for aggregate function Templated_SQL_Function:uda
+  Argument types: STRING, INT64
+  Signature: uda([ANY STRING], [ANY STRING], [STRING])
+    Argument 2: Unable to coerce type INT64 to expected type STRING [at 1:8]
+SELECT uda(col, 1)
+       ^
+==
+
+# Type must coerce to string, when the arg is ANY STRING for TVFs.
+SELECT * FROM tvf((SELECT "a" AS col), 1)
+--
+
+ERROR: No matching signature for tvf
+  Argument types: TABLE<col STRING>, INT64, STRING
+  Signature: TVF(t => TABLE, [x => ANY STRING], [y => STRING])
+    Argument 2: Unable to coerce type INT64 to expected type STRING [at 1:15]
+SELECT * FROM tvf((SELECT "a" AS col), 1)
+              ^
+==
+
+# Collation is handled correctly, even when default values are applied.
+# Also ensures that STRING args do not leak collation.
+# UDFs and UDAs only.
+SELECT
+  udf(col),
+  uda(col),
+  udf(col, col, col),
+  uda(col, CAST("foo" AS STRING COLLATE "und:ci"), CAST("hjk" AS STRING COLLATE "und:ci"))
+FROM (SELECT COLLATE("A", "und:ci") AS col)
+GROUP BY col
+--
+
+QueryStmt
++-output_column_list=
+| +-$query.$col1#5{Collation:"und:ci"} AS `$col1` [STRING]
+| +-$aggregate.$agg1#2{Collation:"und:ci"} AS `$col2` [STRING]
+| +-$query.$col3#6{Collation:"und:ci"} AS `$col3` [STRING]
+| +-$aggregate.$agg2#3{Collation:"und:ci"} AS `$col4` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#5{Collation:"und:ci"}, $aggregate.$agg1#2{Collation:"und:ci"}, $query.$col3#6{Collation:"und:ci"}, $aggregate.$agg2#3{Collation:"und:ci"}]
+    +-expr_list=
+    | +-$col1#5 :=
+    | | +-FunctionCall(Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+    | |   +-type_annotation_map={Collation:"und:ci"}
+    | |   +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#4{Collation:"und:ci"})
+    | |   +-Literal(type=STRING, value="abc")
+    | |   +-Literal(type=STRING, value="xyz")
+    | +-$col3#6 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+    |     +-type_annotation_map={Collation:"und:ci"}
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#4{Collation:"und:ci"})
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#4{Collation:"und:ci"})
+    |     +-Cast(STRING -> STRING)
+    |       +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#4{Collation:"und:ci"})
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.col#4{Collation:"und:ci"}, $aggregate.$agg1#2{Collation:"und:ci"}, $aggregate.$agg2#3{Collation:"und:ci"}]
+        +-input_scan=
+        | +-ProjectScan
+        |   +-column_list=[$subquery1.col#1{Collation:"und:ci"}]
+        |   +-expr_list=
+        |   | +-col#1 :=
+        |   |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+        |   |     +-type_annotation_map={Collation:"und:ci"}
+        |   |     +-Literal(type=STRING, value="A")
+        |   |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+        |   +-input_scan=
+        |     +-SingleRowScan
+        +-group_by_list=
+        | +-col#4 := ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.col#1{Collation:"und:ci"})
+        +-collation_list=[und:ci]
+        +-aggregate_list=
+          +-$agg1#2 :=
+          | +-AggregateFunctionCall(Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+          |   +-type_annotation_map={Collation:"und:ci"}
+          |   +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.col#1{Collation:"und:ci"})
+          |   +-Literal(type=STRING, value="xyz")
+          |   +-Literal(type=STRING, value="hjk")
+          +-$agg2#3 :=
+            +-AggregateFunctionCall(Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+              +-type_annotation_map={Collation:"und:ci"}
+              +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$subquery1.col#1{Collation:"und:ci"})
+              +-Cast(STRING -> STRING)
+              | +-type_annotation_map={Collation:"und:ci"}
+              | +-Literal(type=STRING, value="foo", has_explicit_type=TRUE)
+              | +-type_modifiers=collation:und:ci
+              +-Cast(STRING -> STRING)
+                +-Cast(STRING -> STRING)
+                  +-type_annotation_map={Collation:"und:ci"}
+                  +-Literal(type=STRING, value="hjk", has_explicit_type=TRUE)
+                  +-type_modifiers=collation:und:ci
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1")
++-ArgumentRef(type=STRING, name="s2")
++-ArgumentRef(type=STRING, name="s3")
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1")
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s2")
++-ArgumentRef(type=STRING, name="s3")
+
+With Templated SQL function call:
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
++-ArgumentRef(type=STRING, name="s2", argument_kind=NOT_AGGREGATE)
++-ArgumentRef(type=STRING, name="s3", argument_kind=NOT_AGGREGATE)
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(GoogleSQL:max(STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(parse_location=4-6, type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1", argument_kind=AGGREGATE)
+      +-collation_list=[und:ci]
+
+With Templated SQL function call:
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s2", argument_kind=NOT_AGGREGATE)
++-ArgumentRef(type=STRING, name="s3", argument_kind=NOT_AGGREGATE)
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(GoogleSQL:max(STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(parse_location=4-6, type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1", argument_kind=AGGREGATE)
+      +-collation_list=[und:ci]
+==
+
+# Collation is handled correctly, even when default values are applied.
+SELECT
+  udf(col),
+  uda(col)
+FROM tvf((SELECT COLLATE("A", "und:ci") AS col))
+GROUP BY col
+--
+
+QueryStmt
++-output_column_list=
+| +-$query.$col1#6{Collation:"und:ci"} AS `$col1` [STRING]
+| +-$aggregate.$agg1#4{Collation:"und:ci"} AS `$col2` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#6{Collation:"und:ci"}, $aggregate.$agg1#4{Collation:"und:ci"}]
+    +-expr_list=
+    | +-$col1#6 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+    |     +-type_annotation_map={Collation:"und:ci"}
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#5{Collation:"und:ci"})
+    |     +-Literal(type=STRING, value="abc")
+    |     +-Literal(type=STRING, value="xyz")
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.col#5{Collation:"und:ci"}, $aggregate.$agg1#4{Collation:"und:ci"}]
+        +-input_scan=
+        | +-TVFScan
+        |   +-column_list=[tvf.col#2{Collation:"und:ci"}]
+        |   +-tvf=tvf((ANY TABLE t, optional ANY STRING {default_value: "abc"} x, optional STRING {default_value: "xyz"} y) -> ANY TABLE)
+        |   +-signature=(TABLE<col STRING{Collation:"und:ci"}>, literal STRING, literal STRING) -> TABLE<col STRING{Collation:"und:ci"}, x STRING>
+        |   +-argument_list=
+        |   | +-FunctionArgument
+        |   | | +-scan=
+        |   | | | +-ProjectScan
+        |   | | |   +-column_list=[$subquery1.col#1{Collation:"und:ci"}]
+        |   | | |   +-expr_list=
+        |   | | |   | +-col#1 :=
+        |   | | |   |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+        |   | | |   |     +-type_annotation_map={Collation:"und:ci"}
+        |   | | |   |     +-Literal(type=STRING, value="A")
+        |   | | |   |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+        |   | | |   +-input_scan=
+        |   | | |     +-SingleRowScan
+        |   | | +-argument_column_list=[$subquery1.col#1{Collation:"und:ci"}]
+        |   | +-FunctionArgument
+        |   | | +-expr=
+        |   | |   +-Literal(type=STRING, value="abc")
+        |   | +-FunctionArgument
+        |   |   +-expr=
+        |   |     +-Literal(type=STRING, value="xyz")
+        |   +-column_index_list=[0]
+        |   +-function_call_signature=(ANY TABLE t, optional(1) STRING x, optional(1) STRING y) -> ANY TABLE
+        +-group_by_list=
+        | +-col#5 := ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=tvf.col#2{Collation:"und:ci"})
+        +-collation_list=[und:ci]
+        +-aggregate_list=
+          +-$agg1#4 :=
+            +-AggregateFunctionCall(Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+              +-type_annotation_map={Collation:"und:ci"}
+              +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=tvf.col#2{Collation:"und:ci"})
+              +-Literal(type=STRING, value="xyz")
+              +-Literal(type=STRING, value="hjk")
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1")
++-ArgumentRef(type=STRING, name="s2")
++-ArgumentRef(type=STRING, name="s3")
+
+With Templated SQL TVF signature:
+  tvf(TABLE<col STRING{Collation:"und:ci"}>, literal STRING, literal STRING) -> TABLE<col STRING{Collation:"und:ci"}, x STRING>
+containing resolved templated query:
+QueryStmt
++-output_column_list=
+| +-t.col#1{Collation:"und:ci"} AS col [STRING]
+| +-$query.x#2 AS x [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[t.col#1{Collation:"und:ci"}, $query.x#2]
+    +-expr_list=
+    | +-x#2 := ArgumentRef(type=STRING, name="x")
+    +-input_scan=
+      +-FilterScan
+        +-column_list=[t.col#1{Collation:"und:ci"}]
+        +-input_scan=
+        | +-RelationArgumentScan(column_list=[t.col#1{Collation:"und:ci"}], name="t")
+        +-filter_expr=
+          +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+            +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.col#1{Collation:"und:ci"})
+            +-ArgumentRef(type=STRING, name="x")
+            +-collation_list=[und:ci]
+
+With Templated SQL function call:
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
++-ArgumentRef(type=STRING, name="s2", argument_kind=NOT_AGGREGATE)
++-ArgumentRef(type=STRING, name="s3", argument_kind=NOT_AGGREGATE)
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(GoogleSQL:max(STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(parse_location=4-6, type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1", argument_kind=AGGREGATE)
+      +-collation_list=[und:ci]
+==
+
+# Collation is handled correctly, even when optional argument is supplied.
+SELECT
+  udf(col, CAST("foo" AS STRING COLLATE "und:ci"), CAST("xyz" AS STRING COLLATE "binary")),
+  uda(col, CAST("bar" AS STRING COLLATE "und:ci"), CAST("hjk" AS STRING COLLATE "binary"))
+FROM tvf((SELECT COLLATE("A", "und:ci") AS col), "baz")
+GROUP BY col
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#6{Collation:"und:ci"} AS `$col1` [STRING]
+| +-$aggregate.$agg1#4{Collation:"und:ci"} AS `$col2` [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#6{Collation:"und:ci"}, $aggregate.$agg1#4{Collation:"und:ci"}]
+    +-expr_list=
+    | +-$col1#6 :=
+    |   +-FunctionCall(Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+    |     +-type_annotation_map={Collation:"und:ci"}
+    |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$groupby.col#5{Collation:"und:ci"})
+    |     +-Cast(STRING -> STRING)
+    |     | +-type_annotation_map={Collation:"und:ci"}
+    |     | +-Literal(type=STRING, value="foo", has_explicit_type=TRUE)
+    |     | +-type_modifiers=collation:und:ci
+    |     +-Cast(STRING -> STRING)
+    |       +-Cast(STRING -> STRING)
+    |         +-type_annotation_map={Collation:"binary"}
+    |         +-Literal(type=STRING, value="xyz", has_explicit_type=TRUE)
+    |         +-type_modifiers=collation:binary
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$groupby.col#5{Collation:"und:ci"}, $aggregate.$agg1#4{Collation:"und:ci"}]
+        +-input_scan=
+        | +-TVFScan
+        |   +-column_list=[tvf.col#2{Collation:"und:ci"}]
+        |   +-tvf=tvf((ANY TABLE t, optional ANY STRING {default_value: "abc"} x, optional STRING {default_value: "xyz"} y) -> ANY TABLE)
+        |   +-signature=(TABLE<col STRING{Collation:"und:ci"}>, literal STRING, literal STRING) -> TABLE<col STRING{Collation:"und:ci"}, x STRING>
+        |   +-argument_list=
+        |   | +-FunctionArgument
+        |   | | +-scan=
+        |   | | | +-ProjectScan
+        |   | | |   +-column_list=[$subquery1.col#1{Collation:"und:ci"}]
+        |   | | |   +-expr_list=
+        |   | | |   | +-col#1 :=
+        |   | | |   |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+        |   | | |   |     +-type_annotation_map={Collation:"und:ci"}
+        |   | | |   |     +-Literal(type=STRING, value="A")
+        |   | | |   |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+        |   | | |   +-input_scan=
+        |   | | |     +-SingleRowScan
+        |   | | +-argument_column_list=[$subquery1.col#1{Collation:"und:ci"}]
+        |   | +-FunctionArgument
+        |   | | +-expr=
+        |   | |   +-Literal(type=STRING, value="baz")
+        |   | +-FunctionArgument
+        |   |   +-expr=
+        |   |     +-Literal(type=STRING, value="xyz")
+        |   +-column_index_list=[0]
+        |   +-function_call_signature=(ANY TABLE t, optional(1) STRING x, optional(1) STRING y) -> ANY TABLE
+        +-group_by_list=
+        | +-col#5 := ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=tvf.col#2{Collation:"und:ci"})
+        +-collation_list=[und:ci]
+        +-aggregate_list=
+          +-$agg1#4 :=
+            +-AggregateFunctionCall(Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING)
+              +-type_annotation_map={Collation:"und:ci"}
+              +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=tvf.col#2{Collation:"und:ci"})
+              +-Cast(STRING -> STRING)
+              | +-type_annotation_map={Collation:"und:ci"}
+              | +-Literal(type=STRING, value="bar", has_explicit_type=TRUE)
+              | +-type_modifiers=collation:und:ci
+              +-Cast(STRING -> STRING)
+                +-Cast(STRING -> STRING)
+                  +-type_annotation_map={Collation:"binary"}
+                  +-Literal(type=STRING, value="hjk", has_explicit_type=TRUE)
+                  +-type_modifiers=collation:binary
+
+With Templated SQL function call:
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1")
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s2")
++-ArgumentRef(type=STRING, name="s3")
+
+With Templated SQL TVF signature:
+  tvf(TABLE<col STRING{Collation:"und:ci"}>, literal STRING, literal STRING) -> TABLE<col STRING{Collation:"und:ci"}, x STRING>
+containing resolved templated query:
+QueryStmt
++-output_column_list=
+| +-t.col#1{Collation:"und:ci"} AS col [STRING]
+| +-$query.x#2 AS x [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[t.col#1{Collation:"und:ci"}, $query.x#2]
+    +-expr_list=
+    | +-x#2 := ArgumentRef(type=STRING, name="x")
+    +-input_scan=
+      +-FilterScan
+        +-column_list=[t.col#1{Collation:"und:ci"}]
+        +-input_scan=
+        | +-RelationArgumentScan(column_list=[t.col#1{Collation:"und:ci"}], name="t")
+        +-filter_expr=
+          +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+            +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.col#1{Collation:"und:ci"})
+            +-ArgumentRef(type=STRING, name="x")
+            +-collation_list=[und:ci]
+
+With Templated SQL function call:
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+containing resolved templated expression:
+FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
++-type_annotation_map={Collation:"und:ci"}
++-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
++-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="s2", argument_kind=NOT_AGGREGATE)
++-ArgumentRef(type=STRING, name="s3", argument_kind=NOT_AGGREGATE)
+
+  $agg1#1 :=
+    +-AggregateFunctionCall(GoogleSQL:max(STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(parse_location=4-6, type=STRING, type_annotation_map={Collation:"und:ci"}, name="s1", argument_kind=AGGREGATE)
+      +-collation_list=[und:ci]
+==
+
+# Feature flag is required for UDF.
+[language_features=MAXIMUM,-ANY_STRING_TEMPLATED_ARGUMENT]
+CREATE FUNCTION udf_no_flag(s1 ANY STRING) AS (s1);
+--
+ERROR: Templated arguments with ANY STRING are not supported [at 1:32]
+CREATE FUNCTION udf_no_flag(s1 ANY STRING) AS (s1);
+                               ^
+==
+
+# Feature flag is required for UDA.
+[language_features=MAXIMUM,-ANY_STRING_TEMPLATED_ARGUMENT]
+CREATE AGGREGATE FUNCTION uda_no_flag(s1 ANY STRING) AS (s1);
+--
+ERROR: Templated arguments with ANY STRING are not supported [at 1:42]
+CREATE AGGREGATE FUNCTION uda_no_flag(s1 ANY STRING) AS (s1);
+                                         ^
+==
+
+# Feature flag is required for TVF.
+[default language_features=MAXIMUM,-ANY_STRING_TEMPLATED_ARGUMENT]
+CREATE TABLE FUNCTION f_no_flag(t ANY TABLE, x ANY STRING) AS SELECT * FROM t;
+--
+ERROR: Templated arguments with ANY STRING are not supported [at 1:48]
+CREATE TABLE FUNCTION f_no_flag(t ANY TABLE, x ANY STRING) AS SELECT * FROM t;
+                                               ^
+

@@ -132,8 +132,6 @@ Note: all GQL examples in the GQL reference use the
   <span class="var">element_keys</span>
   [ { <span class="var">label_and_properties_list</span> | <span
   class="var">element_properties</span> } ]
-  [ <span class="var">dynamic_label</span> ]
-  [ <span class="var">dynamic_properties</span> ]
 
 <span class="var">element_keys</span>:
   { <span class="var">node_element_key</span> | <span class="var">edge_element_keys</span> }
@@ -246,12 +244,6 @@ rules:
 + `label_and_properties_list`: The list of labels and properties to add to
   an element. For more information, see
   [Label and properties list definition][label-property-definition].
-+ `dynamic_label`: The name of the column that holds dynamic label values. For
-  more information, see the
-  [Dynamic label definition][dynamic-label-definition].
-+ `dynamic_properties`: The name of the column that holds dynamic properties
-  values. For more information see the
-  [Dynamic properties definition][dynamic-properties-definition].
 
 ### Label and properties list definition 
 <a id="label_property_definition"></a>
@@ -269,7 +261,6 @@ rules:
     LABEL <span class="var">label_name</span> |
     DEFAULT LABEL
   }
-
 </pre>
 
 **Description**
@@ -376,11 +367,11 @@ Adds properties associated with a label.
 
   A derived property includes:
 
-  + `value_expression`: An expression that can be represented by simple constructs
-    such as column references and functions. Subqueries are excluded.
+  +   `value_expression`: An expression that can be represented by simple constructs
+      such as column references and functions. Subqueries are excluded.
 
-  + `AS property_name`: Alias to assign to the value expression. This is
-    optional unless `value_expression` is a function.
+  +   `AS property_name`: Alias to assign to the value expression. This is
+      optional unless `value_expression` is a function.
 
   If `derived_property` has any column reference in `value_expression`, that
   column reference must refer to a column of the underlying table.
@@ -389,85 +380,15 @@ Adds properties associated with a label.
   must be a column reference and the implicit `property_name` is the
   column name.
 
-### Dynamic label definition 
-<a id="dynamic_label_definition"></a>
-
-<pre>
-<span class="var">dynamic_label</span>:
-  DYNAMIC LABEL (<span class="var">dynamic_label_column_name</span>)
-
-</pre>
-
-**Description**
-
-Specifies a column that holds dynamic label values.
-
-**Definitions**
-
-+ `dynamic_label_column_name`: The name of the column that holds label
-  values. The column must use the STRING data type.
-
-  + As a graph element is mapped from a row of an element table, an element's
-    dynamic label is the data that resides in the
-    `dynamic_label_column_name` column.
-
-  + There can be at most one node table and one edge table within a schema
-    that supports dynamic labels.
-
-  + Both defined labels and a dynamic label can be applied to an element.
-    If the names of a [defined label][label-property-definition] and dynamic
-    label overlap, the defined label takes precedence over the dynamic one.
-
-### Dynamic properties definition 
-<a id="dynamic_properties_definition"></a>
-
-<pre>
-<span class="var">dynamic_properties</span>:
-  DYNAMIC PROPERTIES (<span class="var">dynamic_properties_column_name</span>)
-
-</pre>
-
-**Description**
-
-Specifies a column that holds dynamic properties values.
-
-**Definitions**
-
-+ `dynamic_properties_column_name`: The name of the column that holds
-  properties values. The column must be of JSON type.
-
-  + As a graph element is mapped from a row of an element table, an element's
-    dynamic properties are the data that resides in the
-    `dynamic_properties_column_name` column.
-
-  + Top-level JSON keys in the `dynamic_properties_column_name` column are
-    mapped as dynamic properties.
-
-  + The JSON key of each dynamic property must be stored in lower-case.
-    When you access them in queries, they are case-insensitive.
-
-  + Unlike dynamic labels, any number of nodes or edges within a schema can
-    support dynamic properties.
-
-  + Unlike the
-    [Element properties definition][element-table-property-definition], dynamic
-    properties for an element are not exposed by a dynamic label and can evolve
-    independently.
-
-  + If the names of a defined property and dynamic property overlap, the defined
-    property takes precedence over the dynamic one.
-
-### `FinGraph` Examples 
+### `FinGraph` example 
 <a id="fin_graph"></a>
-
-#### `FinGraph` with defined labels and defined properties
 
 The following property graph, `FinGraph`, contains two node
 definitions (`Account` and `Person`) and two edge definitions
 (`PersonOwnAccount` and `AccountTransferAccount`).
 
 Note: all GQL examples in the GQL reference use the
-[`FinGraph`][fin-graph] property graph example.
+`FinGraph` property graph example.
 
 ```googlesql
 CREATE OR REPLACE PROPERTY GRAPH FinGraph
@@ -504,41 +425,6 @@ RETURN p.name
  | Lee     |
  +---------*/
 ```
-
-#### `FinGraph` with dynamic label and dynamic properties
-
-The following property graph, `FinGraph`, contains a unified node and unified
-edge definition with dynamic label and dynamic properties to store all nodes and
-edges.
-
-```googlesql
-CREATE PROPERTY GRAPH FinGraph
-  NODE TABLES (
-    GraphNode
-      DYNAMIC LABEL (label)
-      DYNAMIC PROPERTIES (properties)
-)
-  EDGE TABLES (
-    GraphEdge
-      SOURCE KEY (id) REFERENCES GraphNode(id)
-      DESTINATION KEY (dest_id) REFERENCES GraphNode(id)
-      DYNAMIC LABEL (label)
-      DYNAMIC PROPERTIES (properties)
-);
-```
-
-Compared to the previous example, to add `Account` and `Person` nodes in a
-dynamic label model, insert entries into `GraphNode` with the label as `Account`
-or `Person` to indicate which node type that entry specifies. Dynamic properties
-must be added as JSON.
-
-```googlesql
-INSERT INTO GraphNode (id, label, properties)
-VALUES (1, "person", JSON '{"name": "Alex", "age": 33}');
-```
-
-Similarly, inserting entries to `GraphEdge` with values like `PersonOwnAccount`
-and `AccountTransferAccount` for the `label` column creates edges.
 
 [hints]: https://github.com/google/googlesql/blob/master/docs/lexical.md#hints
 

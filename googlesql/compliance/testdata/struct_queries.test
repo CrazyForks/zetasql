@@ -280,3 +280,35 @@ ERROR: generic::out_of_range: Error casting field at index 1 in STRUCT: uint32 o
 select cast(cast((-1, -1) AS STRUCT<INT64, INT64>) AS STRUCT<INT32, UINT32>)
 --
 ERROR: generic::out_of_range: Error casting field at index 1 in STRUCT: uint32 out of range: -1
+==
+
+[name=struct_with_type_modifiers]
+[required_features=PARAMETERIZED_TYPES,COLLATION_SUPPORT,ANNOTATION_FRAMEWORK,TIMESTAMP_PRECISION,TIMESTAMP_PICOS,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,NUMERIC_TYPE]
+with tbl as (
+  SELECT
+    STRUCT<a STRING(5) COLLATE "und:ci", b NUMERIC(10, 2), c TIMESTAMP(12)>
+    ("abc", 123.456, TIMESTAMP "2001-01-01") as s1,
+    STRUCT<a STRING(5) COLLATE "und:ci", b NUMERIC(10, 1), c TIMESTAMP(6)>
+    ("ABC", 123.456, TIMESTAMP "2001-01-02 1:2:3.123456789012") as s2
+)
+SELECT
+  s1, s2,
+  s1.a = s2.a  -- returns true since the collation is "und:ci"
+FROM tbl;
+--
+ARRAY<STRUCT<
+        s1 STRUCT<a STRING, b NUMERIC, c TIMESTAMP>,
+        s2 STRUCT<a STRING, b NUMERIC, c TIMESTAMP>,
+        BOOL
+      >>
+[{{
+    "abc",
+    123.46,
+    2001-01-01 08:00:00+00
+  },
+  {
+    "ABC",
+    123.5,
+    2001-01-02 09:02:03.123456+00
+  },
+  true}]

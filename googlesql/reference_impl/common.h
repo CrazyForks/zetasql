@@ -35,6 +35,8 @@ GetCollationNameFromResolvedCollation(
     const ResolvedCollation& resolved_collation);
 
 // Returns a GoogleSqlCollator from input <resolved_collation>.
+// The returned collator may be composite. It corresponds to the structure of
+// the given `resolved_collation`.
 absl::StatusOr<std::unique_ptr<const GoogleSqlCollator>>
 GetCollatorFromResolvedCollation(const ResolvedCollation& resolved_collation);
 

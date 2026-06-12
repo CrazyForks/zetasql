@@ -1,0 +1,20 @@
+# This test imports a module whose import name matches a directory, where
+# the module file is inside that directory.  In this case, the import is
+# of the form "IMPORT module_with_directory_name.nested_module", where the
+# module file is looked up at:
+#   "module_with_directory_name/nested_module/nested_module.sqlm"
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules
+                  .module_with_directory_name_nested.nested_module;
+--
+Lazy_resolution_function:fun1
+  (INT64 a) -> INT64
+==
+
+# We can also import the same module using the full nested name.
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.module_with_directory_name_nested.nested_module.nested_module;
+--
+Lazy_resolution_function:fun1
+  (INT64 a) -> INT64

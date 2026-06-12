@@ -40,6 +40,8 @@
 
 using ::testing::ContainerEq;
 using ::testing::HasSubstr;
+using ::testing::TestWithParam;
+using ::testing::Values;
 using ::absl_testing::StatusIs;
 
 namespace googlesql {
@@ -540,6 +542,47 @@ TEST(GetNextStatementKindTest, DefineMacroStmt) {
   GOOGLESQL_EXPECT_OK(GetNextStatementProperties(parse_resume_location, language_options,
                                        &statement_properties));
 }
+
+struct GraphDmlTestCase {
+  std::string sql;
+  StatementProperties::StatementCategory expected_category;
+};
+
+class GraphDmlStatementPropertiesTest : public TestWithParam<GraphDmlTestCase> {
+};
+
+TEST_P(GraphDmlStatementPropertiesTest, CheckCategory) {
+  LanguageOptions language_options;
+  StatementProperties statement_properties;
+  GOOGLESQL_ASSERT_OK(GetNextStatementProperties(
+      ParseResumeLocation::FromString(GetParam().sql), language_options,
+      &statement_properties));
+  EXPECT_EQ(GetParam().expected_category,
+            statement_properties.statement_category);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    GraphDmlTests, GraphDmlStatementPropertiesTest,
+    Values(GraphDmlTestCase{"GRAPH Fin MATCH (a) INSERT (a)-[:Edge]->(:Node)",
+                            StatementProperties::DML},
+           GraphDmlTestCase{
+               "GRAPH Fin MATCH (a) INSERT (a)-[:Edge]->(:Node) RETURN a.id",
+               StatementProperties::DML},
+           GraphDmlTestCase{"GRAPH Fin MATCH (a) SET a.prop = 1",
+                            StatementProperties::SELECT},
+           GraphDmlTestCase{"GRAPH Fin MATCH (a) REMOVE a.prop",
+                            StatementProperties::SELECT},
+           GraphDmlTestCase{"GRAPH Fin MATCH (a) DELETE a",
+                            StatementProperties::SELECT},
+           GraphDmlTestCase{"GRAPH Fin MATCH (a) RETURN a",
+                            StatementProperties::SELECT},
+           // GQL with syntax errors are classified as SELECT, regardless of
+           // whether they have an INSERT operator or not.
+           GraphDmlTestCase{
+               "GRAPH Fin INSERT (a:Node)-[:Edge]->(b:Node) MATCH (a) RETURN a",
+               StatementProperties::SELECT},
+           GraphDmlTestCase{"GRAPH Fin MATCH (a) RETURN a |> WHERE true",
+                            StatementProperties::SELECT}));
 
 struct GetTopLevelTableNameFromDDLStatementTestCase {
   // The SQL string to test

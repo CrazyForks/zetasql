@@ -19,6 +19,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/value.h"
+#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -129,9 +131,9 @@ absl::Status AnalyzeExpression(
     Catalog* /*absl_nonnull*/ catalog, TypeFactory* /*absl_nonnull*/ type_factory,
     std::unique_ptr<const AnalyzerOutput>* /*absl_nonnull*/ output);
 
-// Similar to the above, but coerces the expression to <target_type>.
-// The conversion is performed using assignment semantics.
-// For details, see Coercer::AssignableTo() in
+// Similar to the above, but coerces the expression to <target_type> with
+// <target_type_modifiers>. The conversion is performed using assignment
+// semantics. For details, see Coercer::AssignableTo() in
 // .../public/coercer.h.  If the conversion is not possible, an
 // error is issued, with a location attached corresponding to the start of the
 // expression.
@@ -143,7 +145,21 @@ absl::Status AnalyzeExpressionForAssignmentToType(
     absl::string_view sql, const AnalyzerOptions& options,
     Catalog* /*absl_nonnull*/ catalog, TypeFactory* /*absl_nonnull*/ type_factory,
     const Type* /*absl_nullable*/ target_type,
+    std::optional<TypeModifiers> target_type_modifiers,
     std::unique_ptr<const AnalyzerOutput>* /*absl_nonnull*/ output);
+
+// Same as above, but coerces the expression to <target_type> with
+// nullopt `target_type_modifiers`.
+ABSL_DEPRECATED("Use overload with target_type_modifiers.")
+inline absl::Status AnalyzeExpressionForAssignmentToType(
+    absl::string_view sql, const AnalyzerOptions& options,
+    Catalog* /*absl_nonnull*/ catalog, TypeFactory* /*absl_nonnull*/ type_factory,
+    const Type* /*absl_nullable*/ target_type,
+    std::unique_ptr<const AnalyzerOutput>* /*absl_nonnull*/ output) {
+  return AnalyzeExpressionForAssignmentToType(
+      sql, options, catalog, type_factory, target_type,
+      /*target_type_modifiers=*/std::nullopt, output);
+}
 
 // TODO: Take a ParserOutput instead of ASTExpression; also make the
 // constructor of ParserOutput take an unowned ASTExpression.

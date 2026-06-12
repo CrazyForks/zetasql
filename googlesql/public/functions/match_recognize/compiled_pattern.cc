@@ -37,12 +37,12 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::functions::match_recognize {
 

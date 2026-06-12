@@ -23,6 +23,7 @@
 #ifndef THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_NET_PUBLIC_SUFFIX_OSS_H_
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_NET_PUBLIC_SUFFIX_OSS_H_
 
+#include <cstddef>
 #include <memory>
 #include <string>
 

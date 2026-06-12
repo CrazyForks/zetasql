@@ -32,3 +32,5 @@ def gen_analyzer_test(filename):
         ],
         args = ["--test_file=$(location " + datafile + ")"],
     )
+
+    return name

@@ -28,7 +28,7 @@ SELECT
 FROM SimpleTypes
 GROUP BY 1
 --
-ERROR: Column 1 contains a GROUP ROWS subquery or a GROUP BY modifier, which is not allowed in GROUP BY [at 4:10]
+ERROR: Column 1 contains a GROUP BY modifier, which is not allowed in GROUP BY [at 4:10]
 GROUP BY 1
          ^
 ==

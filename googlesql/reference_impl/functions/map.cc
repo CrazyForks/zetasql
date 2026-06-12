@@ -38,11 +38,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "googlesql/base/optional_ref.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -76,6 +76,10 @@ class MapFromArrayFunction : public SimpleBuiltinScalarFunction {
     std::vector<std::pair<const Value, const Value>> map_entries;
     map_entries.reserve(array_arg.elements().size());
     for (const auto& struct_val : array_arg.elements()) {
+      if (struct_val.is_null()) {
+        return MakeEvalError()
+               << "Struct element in MAP_FROM_ARRAY must not be NULL";
+      }
       map_entries.push_back(
           std::make_pair(struct_val.fields()[0], struct_val.fields()[1]));
     }
@@ -690,7 +694,7 @@ class MapFilterFunction : public SimpleBuiltinScalarFunction {
     for (const auto& [key, value] : map.map_entries()) {
       GOOGLESQL_ASSIGN_OR_RETURN(Value filter_result, lambda_eval_context.EvaluateLambda(
                                                 filter_lambda, {key, value}));
-      if (filter_result.bool_value()) {
+      if (!filter_result.is_null() && filter_result.bool_value()) {
         map_entries.push_back({key, value});
       }
     }

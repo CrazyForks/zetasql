@@ -31,13 +31,14 @@
 #include "googlesql/public/types/type_factory.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "googlesql/base/status_builder.h"
 #include "google/protobuf/descriptor.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/stl_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

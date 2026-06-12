@@ -20,7 +20,7 @@ package com.google.googlesql;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.googlesql.TypeTestBase.getDescriptorPoolWithTypeProtoAndTypeKind;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
@@ -165,14 +165,13 @@ public final class TableContentTest {
                             .addCell(ValueProto.newBuilder().setStringValue("string1"))))
             .build();
     ImmutableList<Type> columnsTypes = ImmutableList.of(int32Type);
-    try {
-      TableContent.deserialize(columnsTypes, tableContent);
-      fail();
-    } catch (IllegalArgumentException exception) {
-      assertWithMessage(exception.getMessage())
-          .that(exception.getMessage().contains("Type mismatch"))
-          .isTrue();
-    }
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TableContent.deserialize(columnsTypes, tableContent));
+    assertWithMessage(exception.getMessage())
+        .that(exception.getMessage().contains("Type mismatch"))
+        .isTrue();
   }
 
   @Test
@@ -187,14 +186,13 @@ public final class TableContentTest {
                             .addCell(ValueProto.newBuilder().setInt32Value(111))))
             .build();
     ImmutableList<Type> columnsTypes = ImmutableList.of(stringType);
-    try {
-      TableContent.deserialize(columnsTypes, tableContent);
-      fail();
-    } catch (IllegalArgumentException exception) {
-      assertWithMessage(exception.getMessage())
-          .that(exception.getMessage().contains("Unexpected number of elements for row content"))
-          .isTrue();
-    }
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TableContent.deserialize(columnsTypes, tableContent));
+    assertWithMessage(exception.getMessage())
+        .that(exception.getMessage().contains("Unexpected number of elements for row content"))
+        .isTrue();
 
     com.google.googlesql.LocalService.TableContent tableContent2 =
         com.google.googlesql.LocalService.TableContent.newBuilder()
@@ -209,13 +207,12 @@ public final class TableContentTest {
                             .addCell(ValueProto.newBuilder().setStringValue("string1"))))
             .build();
     ImmutableList<Type> columnsTypes2 = ImmutableList.of(stringType, int32Type);
-    try {
-      TableContent.deserialize(columnsTypes2, tableContent2);
-      fail();
-    } catch (IllegalArgumentException exception) {
-      assertWithMessage(exception.getMessage())
-          .that(exception.getMessage().contains("Unexpected number of elements for row content"))
-          .isTrue();
-    }
+    IllegalArgumentException exception2 =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TableContent.deserialize(columnsTypes2, tableContent2));
+    assertWithMessage(exception2.getMessage())
+        .that(exception2.getMessage().contains("Unexpected number of elements for row content"))
+        .isTrue();
   }
 }

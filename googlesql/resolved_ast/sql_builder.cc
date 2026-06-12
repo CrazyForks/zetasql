@@ -110,6 +110,7 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -125,7 +126,7 @@
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/stl_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -965,6 +966,12 @@ absl::Status SQLBuilder::VisitResolvedCatalogColumnRef(
   PushQueryFragment(node, ToIdentifierLiteral(node->column()->Name()));
   return absl::OkStatus();
 }
+
+absl::Status SQLBuilder::VisitResolvedFunctionRef(
+    const ResolvedFunctionRef* node) {
+  PushQueryFragment(node, ToIdentifierLiteral(node->function()->Name()));
+  return absl::OkStatus();
+}
 absl::Status SQLBuilder::VisitResolvedLiteral(const ResolvedLiteral* node) {
   GOOGLESQL_ASSIGN_OR_RETURN(
       const std::string result,
@@ -1099,6 +1106,10 @@ absl::Status SQLBuilder::VisitResolvedFunctionCall(
       if (argument->inline_lambda() != nullptr) {
         GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                          ProcessNode(argument->inline_lambda()));
+        inputs.push_back(result->GetSQL());
+      } else if (argument->function_ref() != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
+                         ProcessNode(argument->function_ref()));
         inputs.push_back(result->GetSQL());
       } else if (argument->sequence() != nullptr) {
         GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
@@ -1661,6 +1672,15 @@ absl::Status SQLBuilder::VisitResolvedFlatten(const ResolvedFlatten* node) {
                      ProcessNode(get_field.get()));
     absl::StrAppend(&text, get_field_fragment->GetSQL());
   }
+
+  if (node->depth() != nullptr) {
+    GOOGLESQL_RET_CHECK(node->depth()->Is<ResolvedLiteral>());
+    GOOGLESQL_RET_CHECK(node->depth()->GetAs<ResolvedLiteral>()->value().is_valid());
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> depth_fragment,
+                     ProcessNode(node->depth()));
+    absl::StrAppend(&text, ", depth => ", depth_fragment->GetSQL());
+  }
+
   absl::StrAppend(&text, ")");
   PushQueryFragment(node, text);
   return absl::OkStatus();
@@ -1869,6 +1889,69 @@ absl::Status SQLBuilder::VisitResolvedSubqueryExpr(
       GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                        ProcessNode(node->in_expr()));
       absl::StrAppend(&text, "((", result->GetSQL(), ") IN");
+      break;
+    }
+    case ResolvedSubqueryExpr::EQ_ANY:
+    case ResolvedSubqueryExpr::EQ_ALL:
+    case ResolvedSubqueryExpr::NE_ANY:
+    case ResolvedSubqueryExpr::NE_ALL:
+    case ResolvedSubqueryExpr::LT_ANY:
+    case ResolvedSubqueryExpr::LT_ALL:
+    case ResolvedSubqueryExpr::LE_ANY:
+    case ResolvedSubqueryExpr::LE_ALL:
+    case ResolvedSubqueryExpr::GT_ANY:
+    case ResolvedSubqueryExpr::GT_ALL:
+    case ResolvedSubqueryExpr::GE_ANY:
+    case ResolvedSubqueryExpr::GE_ALL: {
+      GOOGLESQL_RET_CHECK(node->in_expr() != nullptr)
+          << "ResolvedSubqueryExpr of quantified comparison type does not "
+             "have an associated in_expr:\n"
+          << node->DebugString();
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
+                       ProcessNode(node->in_expr()));
+      absl::string_view quantified_comparison;
+      switch (node->subquery_type()) {
+        case ResolvedSubqueryExpr::EQ_ANY:
+          quantified_comparison = "= ANY";
+          break;
+        case ResolvedSubqueryExpr::EQ_ALL:
+          quantified_comparison = "= ALL";
+          break;
+        case ResolvedSubqueryExpr::NE_ANY:
+          quantified_comparison = "!= ANY";
+          break;
+        case ResolvedSubqueryExpr::NE_ALL:
+          quantified_comparison = "!= ALL";
+          break;
+        case ResolvedSubqueryExpr::LT_ANY:
+          quantified_comparison = "< ANY";
+          break;
+        case ResolvedSubqueryExpr::LT_ALL:
+          quantified_comparison = "< ALL";
+          break;
+        case ResolvedSubqueryExpr::LE_ANY:
+          quantified_comparison = "<= ANY";
+          break;
+        case ResolvedSubqueryExpr::LE_ALL:
+          quantified_comparison = "<= ALL";
+          break;
+        case ResolvedSubqueryExpr::GT_ANY:
+          quantified_comparison = "> ANY";
+          break;
+        case ResolvedSubqueryExpr::GT_ALL:
+          quantified_comparison = "> ALL";
+          break;
+        case ResolvedSubqueryExpr::GE_ANY:
+          quantified_comparison = ">= ANY";
+          break;
+        case ResolvedSubqueryExpr::GE_ALL:
+          quantified_comparison = ">= ALL";
+          break;
+        default:
+          GOOGLESQL_RET_CHECK_FAIL();
+      }
+      absl::StrAppend(&text, "((", result->GetSQL(), ") ",
+                      quantified_comparison);
       break;
     }
     case ResolvedSubqueryExpr::LIKE_ANY: {
@@ -2257,12 +2340,19 @@ absl::Status SQLBuilder::VisitResolvedOption(const ResolvedOption* node) {
     case ResolvedOptionEnums::SUB_ASSIGN:
       assignment_operator_string = "-=";
       break;
-    default:
+    case ResolvedOptionEnums::FROM:
+      assignment_operator_string = "FROM ";
+      break;
+    case ResolvedOptionEnums::DEFAULT_ASSIGN:
       assignment_operator_string = "=";
       break;
   }
-  absl::StrAppend(&text, ToIdentifierLiteral(node->name()),
-                  assignment_operator_string);
+  if (node->assignment_op() == ResolvedOptionEnums::FROM) {
+    absl::StrAppend(&text, assignment_operator_string);
+  } else {
+    absl::StrAppend(&text, ToIdentifierLiteral(node->name()),
+                    assignment_operator_string);
+  }
 
   // If we have a CAST, strip it off and just print the value.  CASTs are
   // not allowed as part of the hint syntax so they must have been added
@@ -2497,7 +2587,8 @@ absl::Status SQLBuilder::VisitResolvedGetJsonField(
 
 absl::Status SQLBuilder::VisitResolvedGetRowField(
     const ResolvedGetRowField* node) {
-  GOOGLESQL_RET_CHECK(node->expr()->type()->IsRow()) << node->type()->DebugString();
+  GOOGLESQL_RET_CHECK(node->expr()->type()->IsRowOrTable())
+      << node->type()->DebugString();
 
   std::string text;
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
@@ -3102,6 +3193,9 @@ absl::Status SQLBuilder::VisitResolvedPivotScan(const ResolvedPivotScan* node) {
         absl::StrCat(pivot_expr_alias, "_", pivot_value_alias);
   }
 
+  // Mark as accessed.
+  node->pivot_value_collation();
+
   for (const auto& groupby_expr : node->group_by_list()) {
     const ResolvedColumn& output_column = groupby_expr->column();
     const ResolvedColumn& input_column =
@@ -3163,6 +3257,65 @@ absl::Status SQLBuilder::VisitResolvedUnpivotScan(
       GetColumnAlias(node->label_column()),
       absl::StrJoin(unpivot_in_column_groups, ",")));
   PushSQLForQueryExpression(node, query_expr.release());
+
+  return absl::OkStatus();
+}
+
+absl::Status SQLBuilder::VisitResolvedAlignScan(const ResolvedAlignScan* node) {
+  // Generate SQL for the input scan.
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> input,
+                   ProcessNode(node->input_scan()));
+  std::unique_ptr<QueryExpression> query_expr =
+      std::move(input->query_expression);
+  GOOGLESQL_RETURN_IF_ERROR(WrapQueryExpression(node->input_scan(), query_expr.get()));
+
+  std::string align = " ALIGN (";
+
+  // TIMESTAMP
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> timestamp_fragment,
+                   ProcessNode(node->timestamp_column()));
+  absl::StrAppend(&align, "\n  TIMESTAMP ", timestamp_fragment->GetSQL());
+
+  // PERIOD
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> period_fragment,
+                   ProcessNode(node->period()));
+  absl::StrAppend(&align, "\n  PERIOD ", period_fragment->GetSQL());
+
+  // ORIGIN
+  if (node->origin() != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> origin_fragment,
+                     ProcessNode(node->origin()));
+    absl::StrAppend(&align, "\n  ORIGIN ", origin_fragment->GetSQL());
+  }
+
+  // PARTITION BY
+  if (node->partition_by_list_size() > 0) {
+    absl::StrAppend(&align, "\n  PARTITION BY ");
+    for (int i = 0; i < node->partition_by_list_size(); ++i) {
+      if (i > 0) absl::StrAppend(&align, ", ");
+      GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> partition_fragment,
+                       ProcessNode(node->partition_by_list(i)));
+      absl::StrAppend(&align, partition_fragment->GetSQL());
+    }
+  }
+
+  // TODO: b/477116035 - Add SQL for OUTPUT WITHIN and METRICS clauses.
+  absl::StrAppend(&align, "\n)");
+
+  std::string scan_alias = GetScanAlias(node);
+  GOOGLESQL_RET_CHECK(!scan_alias.empty());
+  absl::StrAppend(&align, " AS ", scan_alias);
+
+  GOOGLESQL_RET_CHECK(query_expr->TrySetAlignClause(align));
+  PushSQLForQueryExpression(node, query_expr.release());
+
+  // Set the correct alias for the aligned timestamp column to match the alias
+  // of the input timestamp column.
+  googlesql_base::InsertOrUpdate(&mutable_computed_column_alias(),
+                      node->aligned_timestamp_column().column_id(),
+                      GetColumnAlias(node->timestamp_column()->column()));
+
+  SetPathForColumnList(node->column_list(), scan_alias);
 
   return absl::OkStatus();
 }
@@ -5857,6 +6010,14 @@ absl::Status SQLBuilder::VisitResolvedQueryStmt(const ResolvedQueryStmt* node) {
   return absl::OkStatus();
 }
 
+absl::Status SQLBuilder::VisitResolvedTerminalQueryStmt(
+    const ResolvedTerminalQueryStmt* node) {
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
+                   ProcessNode(node->query()));
+  PushQueryFragment(node, result->GetSQL());
+  return absl::OkStatus();
+}
+
 absl::Status SQLBuilder::VisitResolvedGeneralizedQueryStmt(
     const ResolvedGeneralizedQueryStmt* node) {
   // TODO Implement SQLBuilder for these.  We can't
@@ -6069,6 +6230,9 @@ absl::Status SQLBuilder::GetCreateStatementPrefix(
     }
     if (create_index->is_vector()) {
       absl::StrAppend(sql, "VECTOR ");
+    }
+    if (create_index->is_ai()) {
+      absl::StrAppend(sql, "AI ");
     }
   } else {
     switch (node->create_scope()) {
@@ -6849,6 +7013,9 @@ absl::Status SQLBuilder::VisitResolvedCreateIndexStmt(
       cols.push_back("ALL COLUMNS");
     }
   }
+  if (node->index_auto_columns()) {
+    cols.push_back("AUTO COLUMNS");
+  }
   absl::StrAppend(&sql, absl::StrJoin(cols, ","), ") ");
 
   if (!node->storing_expression_list().empty()) {
@@ -6870,10 +7037,16 @@ absl::Status SQLBuilder::VisitResolvedCreateIndexStmt(
     GOOGLESQL_RETURN_IF_ERROR(GetPartitionByListString(node->partition_by_list(), &sql));
   }
 
+  if (node->connection() != nullptr) {
+    absl::StrAppend(
+        &sql, " WITH CONNECTION ",
+        ToIdentifierLiteral(node->connection()->connection()->Name()), " ");
+  }
+
   GOOGLESQL_ASSIGN_OR_RETURN(const std::string options_string,
                    GetHintListString(node->option_list()));
   if (!options_string.empty()) {
-    absl::StrAppend(&sql, "OPTIONS(", options_string, ") ");
+    absl::StrAppend(&sql, " OPTIONS(", options_string, ") ");
   }
 
   PushQueryFragment(node, sql);
@@ -6883,6 +7056,72 @@ absl::Status SQLBuilder::VisitResolvedCreateIndexStmt(
 absl::Status SQLBuilder::VisitResolvedCreateViewStmt(
     const ResolvedCreateViewStmt* node) {
   return GetCreateViewStatement(node, node->is_value_table(), "VIEW");
+}
+
+absl::Status SQLBuilder::VisitResolvedCreateLiveTableStmt(
+    const ResolvedCreateLiveTableStmt* node) {
+  // Dummy access on the fields so as to pass the final CheckFieldsAccessed()
+  // on a statement level before building the sql.
+  for (const auto& output_col : node->output_column_list()) {
+    output_col->MarkFieldsAccessed();
+  }
+
+  node->is_value_table();
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryExpression> query_expression,
+                   ProcessQuery(node->query(), node->output_column_list()));
+
+  if (node->is_value_table()) {
+    GOOGLESQL_RET_CHECK_EQ(query_expression->SelectList().size(), 1);
+    query_expression->SetSelectAsModifier(" AS VALUE");
+  }
+
+  bool process_column_definitions =
+      (node->primary_key() != nullptr || !node->foreign_key_list().empty() ||
+       !node->check_constraint_list().empty());
+  if (!process_column_definitions) {
+    for (const auto& column_def : node->column_definition_list()) {
+      column_def->name();  // Mark accessed.
+      column_def->type();  // Mark accessed.
+      if (column_def->annotations() != nullptr || column_def->is_hidden() ||
+          column_def->generated_column_info() != nullptr ||
+          column_def->default_value() != nullptr) {
+        process_column_definitions = true;
+        break;
+      }
+    }
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::string sql,
+                   ProcessCreateTableStmtBase(node, process_column_definitions,
+                                              "LIVE TABLE"));
+
+  if (!node->partition_by_list().empty()) {
+    absl::StrAppend(&sql, " PARTITION BY ");
+    GOOGLESQL_RETURN_IF_ERROR(GetPartitionByListString(node->partition_by_list(), &sql));
+  }
+
+  if (!node->cluster_by_list().empty()) {
+    absl::StrAppend(&sql, " CLUSTER BY ");
+    GOOGLESQL_RETURN_IF_ERROR(GetPartitionByListString(node->cluster_by_list(), &sql));
+  }
+
+  if (node->connection() != nullptr) {
+    const std::string connection_alias =
+        ToIdentifierLiteral(node->connection()->connection()->Name());
+    absl::StrAppend(&sql, " WITH CONNECTION ", connection_alias, " ");
+  }
+
+  if (!node->option_list().empty()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(const std::string options_string,
+                     GetHintListString(node->option_list()));
+    absl::StrAppend(&sql, " OPTIONS(", options_string, ")");
+  }
+
+  absl::StrAppend(&sql, " AS\n", query_expression->GetSQLQuery());
+  PushQueryFragment(node, sql);
+
+  return absl::OkStatus();
 }
 
 absl::Status SQLBuilder::VisitResolvedCreateMaterializedViewStmt(
@@ -7833,6 +8072,9 @@ absl::Status SQLBuilder::VisitResolvedDropIndexStmt(
       break;
     case ResolvedDropIndexStmt::INDEX_VECTOR:
       absl::StrAppend(&sql, "DROP VECTOR INDEX");
+      break;
+    case ResolvedDropIndexStmt::INDEX_AI:
+      absl::StrAppend(&sql, "DROP AI INDEX");
       break;
     case ResolvedDropIndexStmt::INDEX_DEFAULT:
       GOOGLESQL_RET_CHECK_FAIL() << "unsupported index type";
@@ -10639,9 +10881,14 @@ GqlReturnOpSQLBuilder::GqlReturnOpSQLBuilder(
 
 std::vector<std::string> GqlReturnOpSQLBuilder::GetOutputColumnAliases() {
   std::vector<std::string> aliases;
-  for (auto iter = output_column_to_alias_.begin();
-       iter != output_column_to_alias_.end(); ++iter) {
-    aliases.push_back(iter->second);
+  aliases.reserve(output_column_list_.size());
+  for (const ResolvedColumn& col : output_column_list_) {
+    auto it = output_column_to_alias_.find(col);
+    ABSL_DCHECK(it != output_column_to_alias_.end())
+        << "Column alias not found for column ID: " << col.column_id();
+    if (it != output_column_to_alias_.end()) {
+      aliases.push_back(it->second);
+    }
   }
   return aliases;
 }
@@ -11690,6 +11937,27 @@ absl::Status SQLBuilder::VisitResolvedPipeIfScan(
                    MaybeWrapPipeQueryAsStandardQuery(*node, if_sql));
 
   PushSQLForQueryExpression(node, output_query_expr.release());
+  return absl::OkStatus();
+}
+
+absl::Status SQLBuilder::VisitResolvedFinishScan(
+    const ResolvedFinishScan* node) {
+  // Generate SQL for the input scan.
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> input,
+                   ProcessNode(node->input_scan()));
+  std::unique_ptr<QueryExpression> query_expr =
+      std::move(input->query_expression);
+
+  GOOGLESQL_RETURN_IF_ERROR(
+      MaybeWrapStandardQueryAsPipeQuery(node->input_scan(), query_expr.get()));
+
+  // Construct the SQL for the pipe operator as follows:
+  // <input_scan> |> FINISH
+  std::string finish_sql =
+      absl::StrCat(query_expr->GetSQLQuery(TargetSyntaxMode::kPipe),
+                   QueryExpression::kPipe, "FINISH");
+
+  PushQueryFragment(node, finish_sql);
   return absl::OkStatus();
 }
 

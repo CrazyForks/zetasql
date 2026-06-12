@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <string>
 #include <string_view>
@@ -34,9 +35,12 @@
 #include "googlesql/public/parse_tokens.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/value.h"
+#include "googlesql/tools/formatter/internal/procedural_block_def.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -53,7 +57,6 @@
 #include "unicode/utypes.h"
 #include "googlesql/base/flat_set.h"
 #include "re2/re2.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::formatter::internal {
 
@@ -1572,7 +1575,99 @@ absl::Status ParseEmbeddedSql(const ParseToken& string_literal,
   return absl::OkStatus();
 }
 
+// Tracks the nesting depth of procedural blocks (e.g., IF, CASE) during
+// tokenization. This is critical because statements inside procedural blocks
+// are terminated by semicolons, but these semicolons should not terminate the
+// parsing of the entire outer procedural statement. By keeping track of the
+// depth, the tokenizer knows when it has truly reached the end of the block.
+//
+// Note: A new instance of this tracker is created for each top-level statement
+// parsed by `TokenizeNextStatement` (meaning an entire procedural block is
+// treated as a single top-level statement). If this top-level statement does
+// not start with a procedural block opener (e.g., it starts with a `SELECT`),
+// tracking is permanently disabled (by setting depth to -1) for the duration
+// of that statement. This is safe because any procedural keywords (like `IF` or
+// `CASE`) encountered later in a non-procedural statement are part of
+// expressions, which do not contain internal semicolons.
+class ProceduralDepthTracker {
+ public:
+  // Updates the tracker state with the given token, adjusting the block depth
+  // when procedural block openers and closers are encountered.
+  void Update(const Token& token) {
+    // If tracking is disabled, do nothing.
+    if (block_depth_ < 0) return;
+
+    // We only care about keywords for depth tracking.
+    if (!token.IsKeyword()) return;
+
+    const absl::string_view kw = token.GetKeyword();
+
+    if (last_keyword_.empty()) {
+      // If this is the first token, it must be a valid procedural block opener.
+      // Otherwise, we permanently disable tracking for this statement.
+      if (token.Is(Token::Type::KEYWORD_AS_IDENTIFIER_FRAGMENT) ||
+          !IsBlockOpenerRequiringEnd(kw, "")) {
+        block_depth_ = -1;
+        return;
+      }
+    } else if (last_keyword_ == ".") {
+      // We check for cases where the keyword follows a dot (e.g., `END` in
+      // `table.END`). The tokenizer hasn't flagged them as
+      // KEYWORD_AS_IDENTIFIER_FRAGMENT yet in this phase. We must update
+      // last_keyword_ so that the next token doesn't think it follows a dot.
+      // However, we cannot use the current keyword (e.g., "END") because it
+      // might be falsely interpreted as a block closer in the next iteration.
+      // We also cannot use an empty string because that would signal the start
+      // of a new statement. So we use a safe sentinel value.
+      last_keyword_ = kResetContext;
+      return;
+    }
+
+    // Adjust block depth based on the keyword.
+    if (kw == "END") {
+      if (block_depth_ > 0) block_depth_--;
+    } else if (IsBlockOpenerRequiringEnd(kw, last_keyword_)) {
+      // We ignore block openers immediately following 'END'
+      // (e.g., 'CASE' in 'END CASE') so they don't increment the depth.
+      // This check correctly handles `END CASE` or `END IF` by not
+      // double-counting the closing keyword.
+      if (last_keyword_ != "END") {
+        block_depth_++;
+      }
+    }
+
+    last_keyword_ = kw;
+  }
+
+  // Returns true if the tracker is at a valid point to terminate the statement
+  // (i.e., tracking is disabled or not inside any unclosed procedural block).
+  bool IsAtValidStatementEnd() const { return block_depth_ <= 0; }
+
+ private:
+  static constexpr absl::string_view kResetContext = "<reset-context>";
+
+  int block_depth_ = 0;
+  std::string last_keyword_;
+};
+
 }  // namespace
+
+// Determines if a keyword starts a block or expression that MUST be closed by
+// an `END` keyword. This includes true procedural blocks (like `IF` statements)
+// and structural expressions (like `CASE` expressions).
+//
+// Context (`previous_keyword`) is used to disambiguate keywords that have
+// multiple meanings. For example, `IF(a, b, c)` is a function call (closed by
+// `)`), while `IF a THEN b END IF;` is a procedural statement (closed by
+// `END`).
+bool IsBlockOpenerRequiringEnd(absl::string_view keyword,
+                               absl::string_view previous_keyword) {
+  const ProceduralBlockDef* def = GetProceduralBlockDef(keyword);
+  return def &&
+         (def->allowed_previous_keywords.empty() || previous_keyword.empty() ||
+          absl::c_linear_search(def->allowed_previous_keywords,
+                                previous_keyword));
+}
 
 Token ParseInvalidToken(ParseResumeLocation* resume_location,
                         int end_position) {
@@ -1684,6 +1779,8 @@ absl::StatusOr<std::vector<Token>> TokenizeNextStatement(
   std::vector<ParseToken> parse_tokens;
   TokenGroupingState grouping_state{.is_statement_start = true,
                                     .may_be_define_macro = true};
+  ProceduralDepthTracker depth_tracker;
+
   do {
     parse_tokens.clear();
     const absl::Status parse_status =
@@ -1693,9 +1790,17 @@ absl::StatusOr<std::vector<Token>> TokenizeNextStatement(
     for (auto&& parse_token : parse_tokens) {
       grouping_state = MaybeMoveParseTokenIntoTokens(
           parse_token, parse_location->input(), grouping_state, tokens);
-      if (!tokens.empty() && tokens.back().IsEndOfInput()) {
-        break;
-      }
+
+      if (tokens.empty()) continue;
+
+      const Token& last = tokens.back();
+      if (last.IsEndOfInput()) break;
+
+      // If the token was added to the list, update the depth tracker to
+      // correctly identify if we are inside a procedural block. This is used to
+      // determine if a semicolon should terminate the current statement.
+      depth_tracker.Update(last);
+
       if (grouping_state.type == GroupingType::kNeedRetokenizing) {
         parse_location->set_byte_position(grouping_state.start_position);
         grouping_state.Reset();
@@ -1730,10 +1835,12 @@ absl::StatusOr<std::vector<Token>> TokenizeNextStatement(
       }
     }
     // Stop if we reached end of input, or we reached ';', which is not part of
-    // a grouped token (e.g., no format section).
+    // a grouped token (e.g., no format section), and we are not inside a
+    // procedural block.
   } while (tokens.empty() ||
-           !(tokens.back().IsEndOfInput() ||
-             (grouping_state.IsEmpty() && tokens.back().GetKeyword() == ";")));
+           (!tokens.back().IsEndOfInput() &&
+            (tokens.back().GetKeyword() != ";" || !grouping_state.IsEmpty() ||
+             !depth_tracker.IsAtValidStatementEnd())));
 
   if (tokens.back().IsEndOfInput()) {
     parse_location->set_byte_position(TokenEndOffset(tokens.back()));
@@ -1823,7 +1930,23 @@ bool Token::IsCaseExprKeyword() const {
   static const auto* kCaseClauseKeywords =
       new googlesql_base::flat_set<absl::string_view>({"ELSE", "END", "THEN", "WHEN"});
   return !Is(Type::KEYWORD_AS_IDENTIFIER_FRAGMENT) &&
-         kCaseClauseKeywords->contains(GetKeyword());
+         kCaseClauseKeywords->contains(GetKeyword()) && !IsProceduralKeyword();
+}
+
+bool Token::IsProceduralKeyword() const {
+  return IsOneOf({Type::PROCEDURAL_BLOCK_OPENER,
+                  Type::PROCEDURAL_BLOCK_CONTINUER,
+                  Type::PROCEDURAL_BLOCK_CLOSER});
+}
+
+bool Token::IsProceduralContinuerOrCloser() const {
+  return IsOneOf(
+      {Type::PROCEDURAL_BLOCK_CONTINUER, Type::PROCEDURAL_BLOCK_CLOSER});
+}
+
+bool Token::IsProceduralOpenerOrContinuer() const {
+  return IsOneOf(
+      {Type::PROCEDURAL_BLOCK_OPENER, Type::PROCEDURAL_BLOCK_CONTINUER});
 }
 
 bool Token::IsStringLiteral() const {

@@ -62,48 +62,55 @@ class BuiltinOnlyCatalog : public Catalog {
   // functions are allowed, however `set_allowed_function_groups` can be used to
   // allow functions from specific function groups (e.g. those containing
   // engine-builtin functions).
-  absl::Status FindFunction(
-      const absl::Span<const std::string>& path, const Function** function,
-      const FindOptions& options = FindOptions()) override;
+  using Catalog::FindFunction;  // Support non-virtual signatures.
+  absl::Status FindFunction(const absl::Span<const std::string>& path,
+                            const Function** function,
+                            const FindOptions& options) override;
   // Find the given type in the catalog. There are no builtin types in the
   // catalog that are relevant to rewriters, however some SQL templates for
   // BuiltinFunctionInliner rewriter may reference types. Whether or not to
   // allow type lookups can be controlled by `set_allow_types`.
+  using Catalog::FindType;  // Support non-virtual signatures.
   absl::Status FindType(const absl::Span<const std::string>& path,
-                        const Type** type,
-                        const FindOptions& options = FindOptions()) override;
+                        const Type** type, const FindOptions& options) override;
   // Find the given TVF in the catalog. By default, only GoogleSQL-builtin
   // TVFs are allowed, however `set_allowed_function_groups` can be used to
   // allow TVFs from specific groups (e.g. those containing engine-builtin
   // TVFs).
+  using Catalog::FindTableValuedFunction;  // Support non-virtual signatures.
   absl::Status FindTableValuedFunction(
       const absl::Span<const std::string>& path,
       const TableValuedFunction** function,
-      const FindOptions& options = FindOptions()) override;
+      const FindOptions& options) override;
   // Find the given table in the catalog. There are no builtin tables, however
   // some engine-provided SQL templates for BuiltinFunctionInliner rewriter may
   // reference tables. Whether or not to allow table lookups can be controlled
   // by `set_allow_tables`.
+  using Catalog::FindTable;  // Support non-virtual signatures.
   absl::Status FindTable(const absl::Span<const std::string>& path,
                          const Table** table,
-                         const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
   // There are no builtin procedures, always returns kNotFound.
-  absl::Status FindProcedure(
-      const absl::Span<const std::string>& path, const Procedure** procedure,
-      const FindOptions& options = FindOptions()) override;
+  using Catalog::FindProcedure;  // Support non-virtual signatures.
+  absl::Status FindProcedure(const absl::Span<const std::string>& path,
+                             const Procedure** procedure,
+                             const FindOptions& options) override;
   // There are no builtin models, always returns kNotFound.
+  using Catalog::FindModel;  // Support non-virtual signatures.
   absl::Status FindModel(const absl::Span<const std::string>& path,
                          const Model** model,
-                         const FindOptions& options = FindOptions()) override;
+                         const FindOptions& options) override;
   // There are no builtin property graphs, always returns kNotFound.
+  using Catalog::FindPropertyGraph;  // Support non-virtual signatures.
   absl::Status FindPropertyGraph(absl::Span<const std::string> path,
                                  const PropertyGraph*& property_graph,
                                  const FindOptions& options) override;
   // There are no builtin constants, always returns kNotFound.
-  absl::Status FindConstantWithPathPrefix(
-      absl::Span<const std::string> path, int* num_names_consumed,
-      const Constant** constant,
-      const FindOptions& options = FindOptions()) override;
+  using Catalog::FindConstantWithPathPrefix;  // Support non-virtual signatures.
+  absl::Status FindConstantWithPathPrefix(absl::Span<const std::string> path,
+                                          int* num_names_consumed,
+                                          const Constant** constant,
+                                          const FindOptions& options) override;
 
   void set_allow_tables(bool allow_tables) { allow_tables_ = allow_tables; }
   void set_allow_types(bool allow_types) { allow_types_ = allow_types; }

@@ -23,6 +23,7 @@
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/types/annotation.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
@@ -127,6 +128,7 @@ class AnnotatedTypeAndSignatureArgumentKindVisitor {
       case ARG_PROTO_MAP_VALUE_ANY:
       case ARG_PROTO_ANY:
       case ARG_ENUM_ANY:
+      case ARG_TYPE_STRING_ANY:
 
       case ARG_TYPE_ANY_1:
       case ARG_TYPE_ANY_2:

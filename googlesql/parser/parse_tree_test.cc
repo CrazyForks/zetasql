@@ -40,13 +40,13 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace testing {
@@ -192,7 +192,7 @@ static std::string CountNodeKinds(const std::vector<const ASTNode*>& nodes) {
   }
   std::string ret;
   for (const auto& item : counts) {
-    if (!ret.empty()) ret += " ";
+    if (!ret.empty()) ret += ' ';
     absl::StrAppend(&ret, item.first, ":", item.second);
   }
   return ret;
@@ -708,6 +708,21 @@ TEST(TestStatusVisitor, StatusPropagation) {
   EXPECT_THAT(parser_output->statement()->Accept(visitor, output),
               ::absl_testing::StatusIs(absl::StatusCode::kInternal));
 };
+
+TEST(ASTExpressionListTest, InitFields_EmptyList_Fails) {
+  ASTExpressionList node;
+  EXPECT_THAT(static_cast<ASTNode*>(&node)->InitFields(),
+              ::absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  ::testing::HasSubstr("Expression list is empty")));
+}
+
+TEST(ASTExpressionListTest, InitFields_NonEmptyList_Succeeds) {
+  ASTExpressionList node;
+  ASTIntLiteral child;
+  node.AddChild(&child);
+  GOOGLESQL_EXPECT_OK(static_cast<ASTNode*>(&node)->InitFields());
+}
 
 }  // namespace
 }  // namespace testing

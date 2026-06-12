@@ -560,3 +560,241 @@ ARRAY<STRUCT<id INT64, json_col JSON, id INT64, json_col JSON>>[unknown order:
 ]
 ==
 
+[name=scalar_coercion_basic]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  JSON '1' = 1.0,
+  JSON '1' != "1.0",
+  1.1 != JSON '1',
+  JSON '1.0000' <= 1.1,
+  # False cases
+  1.2 > JSON '1',
+  JSON '1' < 1.0,
+  "foo" >= JSON 'true',
+  # NULL cases
+  JSON '1' = CAST(NULL AS INT64);
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {true, true, true, true, true, false, false, NULL}
+]
+==
+
+[name=equality_coercion_scalars_true]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE,NUMERIC_TYPE,BIGNUMERIC_TYPE,CIVIL_TIME]
+SELECT
+  # JSON on left
+  JSON 'true' = true,
+  JSON '1' = CAST(1 AS INT32),
+  JSON '1' = CAST(1 AS UINT32),
+  JSON '1' = CAST(1 AS UINT64),
+  JSON '1.0' = CAST(1.00 AS FLOAT),
+  JSON '1.0' = CAST(1.00000 AS NUMERIC),
+  JSON '1.0' = CAST(1.00000000000000000 AS BIGNUMERIC),
+  JSON '"abc"' = 'abc',
+  JSON '"2023-10-27"' = DATE '2023-10-27',
+  JSON '"2023-10-27T10:00:00Z"' = TIMESTAMP '2023-10-27 10:00:00Z',
+  JSON '"10:00:00"' = TIME '10:00:00',
+  # JSON on right
+  1 = JSON '1',
+  CAST(1 AS INT32) = JSON '1',
+  CAST(1 AS UINT32) = JSON '1.00',
+  CAST(1 AS UINT64) = JSON '1.000000',
+  # Not equal operator
+  JSON '"1"' != 1,
+  "1" != JSON '1',
+  JSON '"abc"' != 'def',
+  'def' != JSON '"abc"';
+--
+ARRAY<STRUCT<BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL,
+             BOOL>>
+[{true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true}]
+==
+
+[name=equality_coercion_scalars_false]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  # JSON on left
+  JSON 'true' = false,
+  JSON '1' = 2,
+  JSON '1.0' = 1.1,
+  JSON '"abc"' = 'def',
+  # JSON on right
+  false = JSON 'true',
+  2 = JSON '1',
+  1.1 = JSON '1.0',
+  'def' = JSON '"abc"',
+  # Not equal operator (False cases, i.e., they are equal)
+  JSON '1' != 1.0,
+  1 != JSON '1.00',
+  JSON '"abc"' != 'abc',
+  'abc' != JSON '"abc"';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false}
+]
+==
+
+[name=ordering_coercion_scalars_true]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  # JSON on left
+  JSON 'false' < true,
+  JSON '0' < 1,
+  JSON '0.0' < 1.0,
+  JSON '"a"' < 'b',
+  JSON '"2023-10-27"' < DATE '2023-10-28',
+  # JSON on right
+  true > JSON 'false',
+  1 > JSON '0',
+  1.0 > JSON '0.0',
+  'b' > JSON '"a"',
+  DATE '2023-10-28' > JSON '"2023-10-27"';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {true, true, true, true, true, true, true, true, true, true}
+]
+==
+
+[name=ordering_coercion_scalars_false]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  # JSON on left
+  JSON 'true' < false,
+  JSON '1' < 0,
+  JSON '1.0' < 0.0,
+  JSON '"b"' < 'a',
+  JSON '"2023-10-28"' < DATE '2023-10-27',
+  # JSON on right
+  false > JSON 'true',
+  0 > JSON '1',
+  0.0 > JSON '1.0',
+  'a' > JSON '"b"',
+  DATE '2023-10-27' > JSON '"2023-10-28"';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {false, false, false, false, false, false, false, false, false, false}
+]
+==
+
+[name=is_distinct_from_coercion]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE,IS_DISTINCT]
+SELECT
+  # true cases
+  1 IS DISTINCT FROM JSON '1.1',
+  '1' IS DISTINCT FROM JSON '1',
+  JSON 'null' IS DISTINCT FROM 'null',
+  JSON 'null' IS DISTINCT FROM null,
+  CAST(NULL AS INT64) IS DISTINCT FROM JSON 'null',
+  # false cases
+  1 IS DISTINCT FROM JSON '1',
+  1 IS DISTINCT FROM JSON '1.0',
+  CAST(NULL AS JSON) IS DISTINCT FROM null;
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {true, true, true, true, true, false, false, false}
+]
+==
+
+[name=is_not_distinct_from_coercion]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE,IS_DISTINCT]
+SELECT
+  # true cases
+  1 IS NOT DISTINCT FROM JSON '1',
+  '1' IS NOT DISTINCT FROM JSON '"1"',
+  CAST(NULL AS JSON) IS NOT DISTINCT FROM NULL,
+  # false cases
+  1 IS NOT DISTINCT FROM JSON '1.1',
+  '1' IS NOT DISTINCT FROM JSON '1.0',
+  '1' IS NOT DISTINCT FROM JSON '"1.0"',
+  JSON 'null' IS NOT DISTINCT FROM 'null',
+  CAST(NULL AS INT64) IS NOT DISTINCT FROM JSON 'null';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL, BOOL>>[
+  {true, true, true, false, false, false, false, false}
+]
+==
+
+[name=in_operator_coercion]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  JSON '1' IN ("1", 2, 3.0),
+  JSON '"abc"' IN ('abc', 'def'),
+  JSON 'null' IN ('null'),
+    # Mixed types in list
+  JSON '1' IN (1, JSON '2', "3"),
+  JSON '"b"' IN ('a', JSON '"b"', 'c');
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL>>[{false, true, false, true, true}]
+==
+
+[name=between_operator_coercion]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  JSON '2' BETWEEN 1 AND 3,
+  JSON '"b"' BETWEEN 'a' AND 'c',
+  # Mixed types in bounds
+  JSON '2' BETWEEN 1 AND JSON '3',
+  JSON '2' BETWEEN JSON '1' AND 3,
+  JSON '"b"' BETWEEN 'a' AND JSON '"c"';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL>>[{true, true, true, true, true}]
+==
+
+[name=array_coercions_for_equality]
+[required_features=JSON_TYPE,JSON_TYPE_COMPARISON,JSON_TYPE_COMPARISON_COERCION,CAST_TO_JSON_TYPE]
+SELECT
+  JSON '[1, 2]' = [1, 2],
+  JSON '["a", "b"]' = ["a", "b"],
+  JSON '[1, 2]' != [1, 3],
+  [1, 2] = JSON '[1, 2]',
+  [ JSON 'null' ] = JSON ' [null]';
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL, BOOL, BOOL>>[{true, true, true, true, true}]
+
+

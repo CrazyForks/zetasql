@@ -119,7 +119,7 @@ static Value MakeProtoValue(const google::protobuf::Message* msg) {
   GOOGLESQL_CHECK_OK(test_values::static_type_factory()->MakeProtoType(
       msg->GetDescriptor(), &proto_type));
   absl::Cord bytes;
-  ABSL_CHECK(msg->SerializeToCord(&bytes));
+  ABSL_CHECK(msg->SerializeToString(&bytes));
   return Value::Proto(proto_type, bytes);
 }
 
@@ -478,7 +478,7 @@ ComplianceCodebasedTests::ComplianceCodebasedTests()
   }
 }
 
-ComplianceCodebasedTests::~ComplianceCodebasedTests() {}
+ComplianceCodebasedTests::~ComplianceCodebasedTests() = default;
 
 void ComplianceCodebasedTests::RunStatementTests(
     absl::Span<const QueryParamsWithResult> statement_tests,
@@ -2778,7 +2778,7 @@ void ComplianceCodebasedTests::TestProtoFieldImpl(
     const std::string& field_name, const ValueConstructor& expected_default,
     const ValueConstructor& expected_filled_value,
     const absl::Status& expected_status, const TestProtoFieldOptions& options) {
-  ABSL_LOG(INFO) << "TestProtoFieldImpl " << field_name;
+  GOOGLESQL_VLOG(1) << "TestProtoFieldImpl " << field_name;
   const std::string type_for_prefix =
       absl::StrCat(Type::TypeKindToString(expected_filled_value.type()->kind(),
                                           PRODUCT_INTERNAL),
@@ -2852,11 +2852,11 @@ ComplianceCodebasedTests::GetProtoFieldTests() {
   // function.
   TestProtoFieldOptions options;
 
-  std::vector<std::function<void(void)>> all_functions;
+  std::vector<std::function<void()>> all_functions;
 
 // The following marco converts TEST_*() macros to lambdas and collects them
 // into the all_functions list.
-#define COLLECT_TEST(f) all_functions.push_back([=]() mutable f)
+#define COLLECT_TEST(f) all_functions.push_back([ =, this ]() mutable f)
 
 // The following macros test various fields on protos. The fields with regular
 // types and civil time types are wrapped in different proto messages
@@ -3463,7 +3463,7 @@ TEST_F(ComplianceCodebasedTests, TestRecursiveProto) {
   Value proto_value;
   for (int i = 0; i < kDepth; i++) {
     absl::Cord bytes;
-    ABSL_CHECK(message.SerializeToCord(&bytes));
+    ABSL_CHECK(message.SerializeToString(&bytes));
     proto_value = Value::Proto(proto_type, bytes);
     RunStatementTests({QueryParamsWithResult({ValueConstructor(proto_value), i},
                                              ValueConstructor(proto_value))},
@@ -3473,7 +3473,7 @@ TEST_F(ComplianceCodebasedTests, TestRecursiveProto) {
     innermost_message = innermost_message->mutable_recursive_msg();
   }
   absl::Cord bytes_3611;
-  ABSL_CHECK(message.SerializeToCord(&bytes_3611));
+  ABSL_CHECK(message.SerializeToString(&bytes_3611));
   proto_value = Value::Proto(proto_type, bytes_3611);
 
   // Select message subfields.
@@ -3482,7 +3482,7 @@ TEST_F(ComplianceCodebasedTests, TestRecursiveProto) {
   innermost_message = &message;
   for (int i = 0; i < kDepth; i++) {
     absl::Cord bytes;
-    ABSL_CHECK(innermost_message->SerializeToCord(&bytes));
+    ABSL_CHECK(innermost_message->SerializeToString(&bytes));
     Value field_value = Value::Proto(proto_type, bytes);
     RunStatementTests({QueryParamsWithResult({ValueConstructor(proto_value), i},
                                              ValueConstructor(field_value))},
@@ -3676,8 +3676,8 @@ class ComplianceFilebasedTests : public SQLTestBase {
   }
 
  protected:
-  ComplianceFilebasedTests() {}
-  ~ComplianceFilebasedTests() override {}
+  ComplianceFilebasedTests() = default;
+  ~ComplianceFilebasedTests() override = default;
 };
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(
     ComplianceFilebasedTests);  // TODO (broken link)

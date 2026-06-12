@@ -34,9 +34,11 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "googlesql/base/status_builder.h"
 #include "unicode/coleitr.h"
 #include "unicode/errorcode.h"
 #include "unicode/stsearch.h"
@@ -47,7 +49,6 @@
 #include "unicode/ustring.h"
 #include "unicode/utypes.h"
 #include "re2/re2.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {

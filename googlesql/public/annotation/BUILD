@@ -62,3 +62,21 @@ cc_library(
         "@com_google_absl//absl/types:span",
     ],
 )
+
+cc_library(
+    name = "non_propagating_annotation_spec",
+    hdrs = ["non_propagating_annotation_spec.h"],
+    deps = [
+        "//googlesql/public/types",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "is_versioned",
+    hdrs = ["is_versioned.h"],
+    deps = [
+        ":non_propagating_annotation_spec",
+        "//googlesql/public/types",
+    ],
+)

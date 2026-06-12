@@ -944,11 +944,9 @@ QueryStatement [41-320] [GRAPH my.graph...) RETURN a]
 --
 GRAPH my.graph.name
 MATCH
-  (n
-  IS Person)
+  (n IS Person)
   -[e1]->
-  (m
-  IS Person)
+  (m IS Person)
   WHERE
     n.id = 1
 LET
@@ -965,8 +963,7 @@ NEXT
 MATCH
   (m)
   -[e2]->
-  (k
-  IS Person)
+  (k IS Person)
 LET
   score2 = score + e2.val
 FILTER

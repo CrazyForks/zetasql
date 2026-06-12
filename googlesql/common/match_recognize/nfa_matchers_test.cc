@@ -23,8 +23,8 @@
 #include "googlesql/common/match_recognize/nfa.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
 
 namespace googlesql::functions::match_recognize {
 

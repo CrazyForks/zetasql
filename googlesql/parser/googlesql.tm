@@ -24,6 +24,8 @@ dirIncludePrefix = "googlesql/parser/"
 debugParser = false # Set to true to print the parser shift/reduce decisions.
 optimizeTables = true
 defaultReduce = true
+minimizeDFA = true
+trackReduces = true
 tokenLine = true
 filenamePrefix = "tm_"
 caseInsensitive = true
@@ -32,10 +34,13 @@ skipByteOrderMark = false
 variantStackEntry = true
 // Use "-opt" rather than "_opt" or the default "opt" so that its less likely
 // that this operator is confused for part of the symbol name.
-optInstantiationSuffix = "_opt"
+optInstantiationSuffix = "-opt"
+// Otherwise Texmapper tries to consruct C++ identifiers with the "-" and the
+// C++ doesn't compile.
+aliasIncludesOptSuffix = false
 
 parseParams = [
-  "LookaheadTransformer& tokenizer",
+  "TokenStream& tokenizer",
   "const LanguageOptions& language_options",
   "ASTNodeFactory& node_factory",
   "WarningSink& warning_sink",
@@ -247,6 +252,7 @@ SCRIPT_LABEL {absl::string_view}:
 "-" (MINUS) {absl::string_view}: /-/
 "/" (DIV): /\//
 "~" (TILDE): /~/
+"**" (KW_UNPACK): /\*\*/
 "." (DOT): /\./
 KW_OPEN_HINT:
 "}" (RBRACE): /\}/
@@ -273,6 +279,21 @@ DOUBLE_AT_PRECEDENCE:
 PRIMARY_PRECEDENCE:
 RUN_PRECEDENCE:
 
+// FORCE_LA1_TOKEN? is used in some rules to force the parser to consume a token
+// into its lookahead 1 buffer.
+//
+// When a state marker is the last symbol in a rule that otherwise would not
+// have populated the lookahead buffer, the lookahead transformer may never have
+// an opportunity to observe the marked state. The reduce moves the parser into
+// a different state and a token is never requested from the state that is
+// marked.
+//
+// Adding `FORCE_LA1_TOKEN?` after the state marker forces the parser to consume
+// a token so that it can check whether it is `FORCE_LA1_TOKEN`. It never is,
+// but by forcing the parser to consume the token the lookahead transfomer has
+// an opportunity to observe the state we meant to mark.
+FORCE_LA1_TOKEN:
+
 // KEYWORDS
 // --------
 //
@@ -290,110 +311,111 @@ RUN_PRECEDENCE:
 // reserved keywords. Together with SENTINEL RESERVED KW END, a simple integer
 // comparison can efficiently identify a token as a reserved keyword. This token
 // is not produced by the lexer.
-SENTINEL_RESERVED_KW_START:
-"ALL" (KW_ALL): /all/
-"AND" (KW_AND): /and/
-"ANY" (KW_ANY): /any/
-"ARRAY" (KW_ARRAY): /array/
-"AS" (KW_AS): /as/
-"ASC" (KW_ASC): /asc/
-"ASSERT_ROWS_MODIFIED" (KW_ASSERT_ROWS_MODIFIED): /assert_rows_modified/
-"AT" (KW_AT): /at/
-"BETWEEN" (KW_BETWEEN): /between/
-"BY" (KW_BY): /by/
-"CASE" (KW_CASE): /case/
-"CAST" (KW_CAST): /cast/
+SENTINEL_RESERVED_KW_START {absl::string_view}:
+KW_ALIGN_RESERVED {absl::string_view}:
+"ALL" (KW_ALL) {absl::string_view}: /all/
+"AND" (KW_AND) {absl::string_view}: /and/
+"ANY" (KW_ANY) {absl::string_view}: /any/
+"ARRAY" (KW_ARRAY) {absl::string_view}: /array/
+"AS" (KW_AS) {absl::string_view}: /as/
+"ASC" (KW_ASC) {absl::string_view}: /asc/
+"ASSERT_ROWS_MODIFIED" (KW_ASSERT_ROWS_MODIFIED) {absl::string_view}: /assert_rows_modified/
+"AT" (KW_AT) {absl::string_view}: /at/
+"BETWEEN" (KW_BETWEEN) {absl::string_view}: /between/
+"BY" (KW_BY) {absl::string_view}: /by/
+"CASE" (KW_CASE) {absl::string_view}: /case/
+"CAST" (KW_CAST) {absl::string_view}: /cast/
 "COLLATE" (KW_COLLATE) {absl::string_view}: /collate/
-"CREATE" (KW_CREATE): /create/
-"CROSS" (KW_CROSS): /cross/
-"CURRENT" (KW_CURRENT): /current/
-"DEFAULT" (KW_DEFAULT): /default/
-KW_DEFINE_FOR_MACROS:
-"DEFINE" (KW_DEFINE): /define/
-"DESC" (KW_DESC): /desc/
-"DISTINCT" (KW_DISTINCT): /distinct/
-"ELSE" (KW_ELSE): /else/
-"END" (KW_END): /end/
-"ENUM" (KW_ENUM): /enum/
-"EXCEPT" (KW_EXCEPT): /except/
-"EXISTS" (KW_EXISTS): /exists/
-"EXTRACT" (KW_EXTRACT): /extract/
+"CREATE" (KW_CREATE) {absl::string_view}: /create/
+"CROSS" (KW_CROSS) {absl::string_view}: /cross/
+"CURRENT" (KW_CURRENT) {absl::string_view}: /current/
+"DEFAULT" (KW_DEFAULT) {absl::string_view}: /default/
+KW_DEFINE_FOR_MACROS {absl::string_view}:
+"DEFINE" (KW_DEFINE) {absl::string_view}: /define/
+"DESC" (KW_DESC) {absl::string_view}: /desc/
+"DISTINCT" (KW_DISTINCT) {absl::string_view}: /distinct/
+"ELSE" (KW_ELSE) {absl::string_view}: /else/
+"END" (KW_END) {absl::string_view}: /end/
+"ENUM" (KW_ENUM) {absl::string_view}: /enum/
+"EXCEPT" (KW_EXCEPT) {absl::string_view}: /except/
+"EXISTS" (KW_EXISTS) {absl::string_view}: /exists/
+"EXTRACT" (KW_EXTRACT) {absl::string_view}: /extract/
 "FALSE" (KW_FALSE) {absl::string_view}: /false/
-"FOLLOWING" (KW_FOLLOWING): /following/
-"FOR" (KW_FOR): /for/
-"FROM" (KW_FROM): /from/
-"FULL" (KW_FULL): /full/
-KW_GRAPH_TABLE_RESERVED:
-"GROUP" (KW_GROUP): /group/
+"FOLLOWING" (KW_FOLLOWING) {absl::string_view}: /following/
+"FOR" (KW_FOR) {absl::string_view}: /for/
+"FROM" (KW_FROM) {absl::string_view}: /from/
+"FULL" (KW_FULL) {absl::string_view}: /full/
+KW_GRAPH_TABLE_RESERVED {absl::string_view}:
+"GROUP" (KW_GROUP) {absl::string_view}: /group/
 "GROUPING" (KW_GROUPING) {absl::string_view}: /grouping/
-"HASH" (KW_HASH): /hash/
-"HAVING" (KW_HAVING): /having/
+"HASH" (KW_HASH) {absl::string_view}: /hash/
+"HAVING" (KW_HAVING) {absl::string_view}: /having/
 "IF" (KW_IF) {absl::string_view}: /if/
-"IGNORE" (KW_IGNORE): /ignore/
-"IN" (KW_IN): /in/
-"INNER" (KW_INNER): /inner/
-"INTERSECT" (KW_INTERSECT): /intersect/
+"IGNORE" (KW_IGNORE) {absl::string_view}: /ignore/
+"IN" (KW_IN) {absl::string_view}: /in/
+"INNER" (KW_INNER) {absl::string_view}: /inner/
+"INTERSECT" (KW_INTERSECT) {absl::string_view}: /intersect/
 "INTERVAL" (KW_INTERVAL) {absl::string_view}: /interval/
-"INTO" (KW_INTO): /into/
-"IS" (KW_IS): /is/
-"JOIN" (KW_JOIN): /join/
+"INTO" (KW_INTO) {absl::string_view}: /into/
+"IS" (KW_IS) {absl::string_view}: /is/
+"JOIN" (KW_JOIN) {absl::string_view}: /join/
 "LEFT" (KW_LEFT) {absl::string_view}: /left/
-"LIKE" (KW_LIKE): /like/
-"LIMIT" (KW_LIMIT): /limit/
-"LOOKUP" (KW_LOOKUP): /lookup/
-KW_MATCH_RECOGNIZE_RESERVED:
-"MERGE" (KW_MERGE): /merge/
-"NATURAL" (KW_NATURAL): /natural/
-"NEW" (KW_NEW): /new/
-"NO" (KW_NO): /no/
-"NOT" (KW_NOT): /not/
+"LIKE" (KW_LIKE) {absl::string_view}: /like/
+"LIMIT" (KW_LIMIT) {absl::string_view}: /limit/
+"LOOKUP" (KW_LOOKUP) {absl::string_view}: /lookup/
+KW_MATCH_RECOGNIZE_RESERVED {absl::string_view}:
+"MERGE" (KW_MERGE) {absl::string_view}: /merge/
+"NATURAL" (KW_NATURAL) {absl::string_view}: /natural/
+"NEW" (KW_NEW) {absl::string_view}: /new/
+"NO" (KW_NO) {absl::string_view}: /no/
+"NOT" (KW_NOT) {absl::string_view}: /not/
 "NULL" (KW_NULL) {absl::string_view}: /null/
-"NULLS" (KW_NULLS): /nulls/
-"ON" (KW_ON): /on/
-"OR" (KW_OR): /or/
-"ORDER" (KW_ORDER): /order/
-"OUTER" (KW_OUTER): /outer/
-"OVER" (KW_OVER): /over/
-"PARTITION" (KW_PARTITION): /partition/
-"PRECEDING" (KW_PRECEDING): /preceding/
-"PROTO" (KW_PROTO): /proto/
+"NULLS" (KW_NULLS) {absl::string_view}: /nulls/
+"ON" (KW_ON) {absl::string_view}: /on/
+"OR" (KW_OR) {absl::string_view}: /or/
+"ORDER" (KW_ORDER) {absl::string_view}: /order/
+"OUTER" (KW_OUTER) {absl::string_view}: /outer/
+"OVER" (KW_OVER) {absl::string_view}: /over/
+"PARTITION" (KW_PARTITION) {absl::string_view}: /partition/
+"PRECEDING" (KW_PRECEDING) {absl::string_view}: /preceding/
+"PROTO" (KW_PROTO) {absl::string_view}: /proto/
 "RANGE" (KW_RANGE) {absl::string_view}: /range/
-"RECURSIVE" (KW_RECURSIVE): /recursive/
-"RESPECT" (KW_RESPECT): /respect/
+"RECURSIVE" (KW_RECURSIVE) {absl::string_view}: /recursive/
+"RESPECT" (KW_RESPECT) {absl::string_view}: /respect/
 "RIGHT" (KW_RIGHT) {absl::string_view}: /right/
-"ROLLUP" (KW_ROLLUP): /rollup/
-"ROWS" (KW_ROWS): /rows/
+"ROLLUP" (KW_ROLLUP) {absl::string_view}: /rollup/
+"ROWS" (KW_ROWS) {absl::string_view}: /rows/
 "SELECT" (KW_SELECT) {absl::string_view}: /select/
-"SET" (KW_SET): /set/
-"STRUCT" (KW_STRUCT): /struct/
-"TABLESAMPLE" (KW_TABLESAMPLE): /tablesample/
-"THEN" (KW_THEN): /then/
-"TO" (KW_TO): /to/
+"SET" (KW_SET) {absl::string_view}: /set/
+"STRUCT" (KW_STRUCT) {absl::string_view}: /struct/
+"TABLESAMPLE" (KW_TABLESAMPLE) {absl::string_view}: /tablesample/
+"THEN" (KW_THEN) {absl::string_view}: /then/
+"TO" (KW_TO) {absl::string_view}: /to/
 "TRUE" (KW_TRUE) {absl::string_view}: /true/
-"UNBOUNDED" (KW_UNBOUNDED): /unbounded/
-"UNION" (KW_UNION): /union/
-"USING" (KW_USING): /using/
-"WHEN" (KW_WHEN): /when/
-"WHERE" (KW_WHERE): /where/
-"WINDOW" (KW_WINDOW): /window/
-"WITH" (KW_WITH): /with/
-"UNNEST" (KW_UNNEST): /unnest/
+"UNBOUNDED" (KW_UNBOUNDED) {absl::string_view}: /unbounded/
+"UNION" (KW_UNION) {absl::string_view}: /union/
+"USING" (KW_USING) {absl::string_view}: /using/
+"WHEN" (KW_WHEN) {absl::string_view}: /when/
+"WHERE" (KW_WHERE) {absl::string_view}: /where/
+"WINDOW" (KW_WINDOW) {absl::string_view}: /window/
+"WITH" (KW_WITH) {absl::string_view}: /with/
+"UNNEST" (KW_UNNEST) {absl::string_view}: /unnest/
 
 // These keywords may not be used in the grammar currently but are reserved
 // for future use.
-"CONTAINS" (KW_CONTAINS): /contains/
-"CUBE" (KW_CUBE): /cube/
-"ESCAPE" (KW_ESCAPE): /escape/
-"EXCLUDE" (KW_EXCLUDE): /exclude/
-"FETCH" (KW_FETCH): /fetch/
-"GROUPS" (KW_GROUPS): /groups/
-"LATERAL" (KW_LATERAL): /lateral/
-"OF" (KW_OF): /of/
-"SOME" (KW_SOME): /some/
-"TREAT" (KW_TREAT): /treat/
-"WITHIN" (KW_WITHIN): /within/
-KW_QUALIFY_RESERVED:
-SENTINEL_RESERVED_KW_END:
+"CONTAINS" (KW_CONTAINS) {absl::string_view}: /contains/
+"CUBE" (KW_CUBE) {absl::string_view}: /cube/
+"ESCAPE" (KW_ESCAPE) {absl::string_view}: /escape/
+"EXCLUDE" (KW_EXCLUDE) {absl::string_view}: /exclude/
+"FETCH" (KW_FETCH) {absl::string_view}: /fetch/
+"GROUPS" (KW_GROUPS) {absl::string_view}: /groups/
+"LATERAL" (KW_LATERAL) {absl::string_view}: /lateral/
+"OF" (KW_OF) {absl::string_view}: /of/
+"SOME" (KW_SOME) {absl::string_view}: /some/
+"TREAT" (KW_TREAT) {absl::string_view}: /treat/
+"WITHIN" (KW_WITHIN) {absl::string_view}: /within/
+KW_QUALIFY_RESERVED {absl::string_view}:
+SENTINEL_RESERVED_KW_END {absl::string_view}:
 
 
 // These tokens should not appear in the grammar rules. They are used in actions
@@ -420,9 +442,6 @@ LB_DOT_IN_PATH_EXPRESSION:
 // Used to lookback to know whether the previous token was the paren before a
 // nested DML statement.
 LB_OPEN_NESTED_DML:
-// Two tokens that help the lookahead_transformer locate type templates.
-LB_OPEN_TYPE_TEMPLATE:
-LB_CLOSE_TYPE_TEMPLATE:
 // Used as a lookback override in SELECT WITH <identifier> OPTIONS. See below
 // for more details.
 LB_WITH_IN_WITH_OPTIONS:
@@ -452,18 +471,37 @@ SENTINEL_LB_TOKEN_END:
 
 KW_WITH_STARTING_WITH_EXPRESSION:
 KW_EXCEPT_IN_SET_OP:
-KW_EXCEPT_IN_UNEXPECTED_CONTEXT:
 KW_FOR_BEFORE_LOCK_MODE:
 KW_FULL_IN_SET_OP:
 KW_INNER_IN_SET_OP:
 KW_LEFT_IN_SET_OP:
 KW_TABLE_FOR_TABLE_CLAUSE:
+KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS:
 KW_REPLACE_AFTER_INSERT:
 KW_UPDATE_AFTER_INSERT:
+KW_FUNCTION_IN_TABLE_FUNCTION:
 // This is a different token because using KW_NOT for BETWEEN/IN/LIKE would
 // confuse the operator precedence parsing. Boolean NOT has a different
 // precedence than NOT BETWEEN/IN/LIKE.
 "NOT_SPECIAL" (KW_NOT_SPECIAL):
+
+// These tokens represent errors discovered by the lexer. Passing errors as
+// tokens gives the parser the chance to ignore the error in contexts where it
+// it is valid. This pattern keeps the parser context in the parser and reduces
+// the need for the lexer to be made aware of the parser's state.
+ERROR_SCRIPT_LABEL_IS_RESERVED_KEYWORD:
+ERROR_EXCEPT_IN_UNEXPECTED_CONTEXT:
+
+// Guideance tokens help the lookahead transformer communicate decisions to the
+// parser. The guideance tokens need to be identifiable so that they can be
+// excluded from error messages. The sentinels help identify the block of
+// tokens.
+SENTINEL_GUIDANCE_TOKENS_START:
+// This token is inserted by the token stream to indicate that the type symbol
+// is empty in a column definition (e.g. in CREATE TABLE).
+GUIDE_EMPTY_COLUMN_TYPE:
+
+SENTINEL_GUIDANCE_TOKENS_END:
 
 // This token is used alongside LB_WITH_IN_WITH_OPTIONS in The
 // SELECT WITH <identifier> OPTIONS construct.
@@ -521,6 +559,10 @@ EXP_IN_FLOAT_NO_SIGN: /{exponent_without_sign}/
 // directly.
 "e" (STANDALONE_EXPONENT_SIGN): /e/
 
+// The * in the braced constructor that represents "update many" in the UPDATE
+// constructor.
+UPDATE_MANY_STAR:
+
 // Non-reserved keywords.  These can also be used as identifiers.
 // These must all be listed explicitly in the "keyword_as_identifier" rule
 // below. Do NOT include keywords in this list that are conditionally generated.
@@ -530,249 +572,256 @@ EXP_IN_FLOAT_NO_SIGN: /{exponent_without_sign}/
 // reserved keywords. Together with SENTINEL RESERVED KW END, a simple integer
 // comparison can efficiently identify a token as a reserved keyword. This token
 // is not produced by the lexer.
-SENTINEL_NONRESERVED_KW_START:
-"ABORT" (KW_ABORT): /abort/
-"ACCESS" (KW_ACCESS): /access/
-"ACTION" (KW_ACTION): /action/
-"ACYCLIC" (KW_ACYCLIC): /acyclic/
-"ADD" (KW_ADD): /add/
-"AFTER" (KW_AFTER): /after/
-"AGGREGATE" (KW_AGGREGATE): /aggregate/
-"ALTER" (KW_ALTER): /alter/
-"ALWAYS" (KW_ALWAYS): /always/
-"ANALYZE" (KW_ANALYZE): /analyze/
-"APPROX" (KW_APPROX): /approx/
-"ARE" (KW_ARE): /are/
-"ASCENDING" (KW_ASCENDING): /ascending/
-"ASSERT" (KW_ASSERT): /assert/
-"BATCH" (KW_BATCH): /batch/
-"BEGIN" (KW_BEGIN): /begin/
-"BIGDECIMAL" (KW_BIGDECIMAL): /bigdecimal/
-"BIGNUMERIC" (KW_BIGNUMERIC): /bignumeric/
-"BREAK" (KW_BREAK): /break/
-"CALL" (KW_CALL): /call/
-"CASCADE" (KW_CASCADE): /cascade/
-"CHECK" (KW_CHECK): /check/
-"CHEAPEST" (KW_CHEAPEST): /cheapest/
-"CLAMPED" (KW_CLAMPED): /clamped/
-"CLONE" (KW_CLONE): /clone/
-"COPY" (KW_COPY): /copy/
-"CLUSTER" (KW_CLUSTER): /cluster/
-"COLUMN" (KW_COLUMN): /column/
-"COLUMNS" (KW_COLUMNS): /columns/
-"COMMIT" (KW_COMMIT): /commit/
-"CONFLICT" (KW_CONFLICT): /conflict/
-"CONNECTION" (KW_CONNECTION): /connection/
-"CONTINUE" (KW_CONTINUE): /continue/
-"CONSTANT" (KW_CONSTANT): /constant/
-"CONSTRAINT" (KW_CONSTRAINT): /constraint/
-"COST" (KW_COST): /cost/
-"CYCLE" (KW_CYCLE): /cycle/
-"DATA" (KW_DATA): /data/
-"DATABASE" (KW_DATABASE): /database/
-"DATE" (KW_DATE): /date/
-"DATETIME" (KW_DATETIME): /datetime/
-"DECIMAL" (KW_DECIMAL): /decimal/
-"DECLARE" (KW_DECLARE): /declare/
-"DEFINER" (KW_DEFINER): /definer/
-"DELETE" (KW_DELETE): /delete/
-"DELETION" (KW_DELETION): /deletion/
-"DEPTH" (KW_DEPTH): /depth/
-"DESCENDING" (KW_DESCENDING): /descending/
-"DESCRIBE" (KW_DESCRIBE): /describe/
-"DESCRIPTOR" (KW_DESCRIPTOR): /descriptor/
-"DESTINATION" (KW_DESTINATION): /destination/
-"DETERMINISTIC" (KW_DETERMINISTIC): /deterministic/
-"DO" (KW_DO): /do/
-"DROP" (KW_DROP): /drop/
-"DYNAMIC" (KW_DYNAMIC): /dynamic/
-"EDGE" (KW_EDGE): /edge/
-"ENFORCED" (KW_ENFORCED): /enforced/
-"ELSEIF" (KW_ELSEIF): /elseif/
-"EXECUTE" (KW_EXECUTE): /execute/
-"EXPLAIN" (KW_EXPLAIN): /explain/
-"EXPORT" (KW_EXPORT): /export/
-"EXTEND" (KW_EXTEND): /extend/
-"EXTERNAL" (KW_EXTERNAL): /external/
-"FILES" (KW_FILES): /files/
-"FILTER" (KW_FILTER): /filter/
-"FILL" (KW_FILL): /fill/
-"FIRST" (KW_FIRST): /first/
-"FOREIGN" (KW_FOREIGN): /foreign/
-"FORK" (KW_FORK): /fork/
-"FORMAT" (KW_FORMAT): /format/
-"FUNCTION" (KW_FUNCTION): /function/
-"GENERATED" (KW_GENERATED): /generated/
-"GRAPH" (KW_GRAPH): /graph/
+SENTINEL_NONRESERVED_KW_START {absl::string_view}:
+"ABORT" (KW_ABORT) {absl::string_view}: /abort/
+"ACCESS" (KW_ACCESS) {absl::string_view}: /access/
+"ACTION" (KW_ACTION) {absl::string_view}: /action/
+"ACYCLIC" (KW_ACYCLIC) {absl::string_view}: /acyclic/
+"ADD" (KW_ADD) {absl::string_view}: /add/
+"AFTER" (KW_AFTER) {absl::string_view}: /after/
+"AI" (KW_AI) {absl::string_view}: /ai/
+"AGGREGATE" (KW_AGGREGATE) {absl::string_view}: /aggregate/
+KW_ALIGN_NONRESERVED {absl::string_view}: /align/
+"ALTER" (KW_ALTER) {absl::string_view}: /alter/
+"ALWAYS" (KW_ALWAYS) {absl::string_view}: /always/
+"ANALYZE" (KW_ANALYZE) {absl::string_view}: /analyze/
+"APPROX" (KW_APPROX) {absl::string_view}: /approx/
+"ARE" (KW_ARE) {absl::string_view}: /are/
+"ASCENDING" (KW_ASCENDING) {absl::string_view}: /ascending/
+"ASSERT" (KW_ASSERT) {absl::string_view}: /assert/
+"AUTO" (KW_AUTO) {absl::string_view}: /auto/
+"BATCH" (KW_BATCH) {absl::string_view}: /batch/
+"BEGIN" (KW_BEGIN) {absl::string_view}: /begin/
+"BIGDECIMAL" (KW_BIGDECIMAL) {absl::string_view}: /bigdecimal/
+"BIGNUMERIC" (KW_BIGNUMERIC) {absl::string_view}: /bignumeric/
+"BACKWARDS" (KW_BACKWARDS) {absl::string_view}: /backwards/
+"BREAK" (KW_BREAK) {absl::string_view}: /break/
+"CALL" (KW_CALL) {absl::string_view}: /call/
+"CASCADE" (KW_CASCADE) {absl::string_view}: /cascade/
+"CHECK" (KW_CHECK) {absl::string_view}: /check/
+"CHEAPEST" (KW_CHEAPEST) {absl::string_view}: /cheapest/
+"CLAMPED" (KW_CLAMPED) {absl::string_view}: /clamped/
+"CLONE" (KW_CLONE) {absl::string_view}: /clone/
+"COPY" (KW_COPY) {absl::string_view}: /copy/
+"CLUSTER" (KW_CLUSTER) {absl::string_view}: /cluster/
+"COLUMN" (KW_COLUMN) {absl::string_view}: /column/
+"COLUMNS" (KW_COLUMNS) {absl::string_view}: /columns/
+"COMMIT" (KW_COMMIT) {absl::string_view}: /commit/
+"CONFLICT" (KW_CONFLICT) {absl::string_view}: /conflict/
+"CONNECTION" (KW_CONNECTION) {absl::string_view}: /connection/
+"CONTINUE" (KW_CONTINUE) {absl::string_view}: /continue/
+"CONSTANT" (KW_CONSTANT) {absl::string_view}: /constant/
+"CONSTRAINT" (KW_CONSTRAINT) {absl::string_view}: /constraint/
+"COST" (KW_COST) {absl::string_view}: /cost/
+"CYCLE" (KW_CYCLE) {absl::string_view}: /cycle/
+"DATA" (KW_DATA) {absl::string_view}: /data/
+"DATABASE" (KW_DATABASE) {absl::string_view}: /database/
+"DATE" (KW_DATE) {absl::string_view}: /date/
+"DATETIME" (KW_DATETIME) {absl::string_view}: /datetime/
+"DECIMAL" (KW_DECIMAL) {absl::string_view}: /decimal/
+"DECLARE" (KW_DECLARE) {absl::string_view}: /declare/
+"DEFINER" (KW_DEFINER) {absl::string_view}: /definer/
+"DELETE" (KW_DELETE) {absl::string_view}: /delete/
+"DELETION" (KW_DELETION) {absl::string_view}: /deletion/
+"DEPTH" (KW_DEPTH) {absl::string_view}: /depth/
+"DESCENDING" (KW_DESCENDING) {absl::string_view}: /descending/
+"DESCRIBE" (KW_DESCRIBE) {absl::string_view}: /describe/
+"DESCRIPTOR" (KW_DESCRIPTOR) {absl::string_view}: /descriptor/
+"DESTINATION" (KW_DESTINATION) {absl::string_view}: /destination/
+"DETERMINISTIC" (KW_DETERMINISTIC) {absl::string_view}: /deterministic/
+"DO" (KW_DO) {absl::string_view}: /do/
+"DROP" (KW_DROP) {absl::string_view}: /drop/
+"DYNAMIC" (KW_DYNAMIC) {absl::string_view}: /dynamic/
+"EDGE" (KW_EDGE) {absl::string_view}: /edge/
+"ELSEIF" (KW_ELSEIF) {absl::string_view}: /elseif/
+"ENFORCED" (KW_ENFORCED) {absl::string_view}: /enforced/
+"EPOCH" (KW_EPOCH) {absl::string_view}: /epoch/
+"EXECUTE" (KW_EXECUTE) {absl::string_view}: /execute/
+"EXPLAIN" (KW_EXPLAIN) {absl::string_view}: /explain/
+"EXPORT" (KW_EXPORT) {absl::string_view}: /export/
+"EXTEND" (KW_EXTEND) {absl::string_view}: /extend/
+"EXTERNAL" (KW_EXTERNAL) {absl::string_view}: /external/
+"FILES" (KW_FILES) {absl::string_view}: /files/
+"FINISH" (KW_FINISH) {absl::string_view}: /finish/
+"FILTER" (KW_FILTER) {absl::string_view}: /filter/
+"FILL" (KW_FILL) {absl::string_view}: /fill/
+"FIRST" (KW_FIRST) {absl::string_view}: /first/
+"FOREIGN" (KW_FOREIGN) {absl::string_view}: /foreign/
+"FORK" (KW_FORK) {absl::string_view}: /fork/
+"FORMAT" (KW_FORMAT) {absl::string_view}: /format/
+"FORWARDS" (KW_FORWARDS) {absl::string_view}: /forwards/
+"FUNCTION" (KW_FUNCTION) {absl::string_view}: /function/
+"GENERATED" (KW_GENERATED) {absl::string_view}: /generated/
+"GRAPH" (KW_GRAPH) {absl::string_view}: /graph/
 KW_GRAPH_TABLE_NONRESERVED {absl::string_view}:  /graph_table/
-"GRANT" (KW_GRANT): /grant/
-"GROUP_ROWS" (KW_GROUP_ROWS): /group_rows/
-"HIDDEN" (KW_HIDDEN): /hidden/
-"IDENTITY" (KW_IDENTITY): /identity/
-"IMMEDIATE" (KW_IMMEDIATE): /immediate/
-"IMMUTABLE" (KW_IMMUTABLE): /immutable/
-"IMPORT" (KW_IMPORT): /import/
-"INCLUDE" (KW_INCLUDE): /include/
-"INCREMENT" (KW_INCREMENT): /increment/
-"INDEX" (KW_INDEX): /index/
-"INOUT" (KW_INOUT): /inout/
-"INPUT" (KW_INPUT): /input/
-"INSERT" (KW_INSERT): /insert/
-"INVOKER" (KW_INVOKER): /invoker/
-"ITERATE" (KW_ITERATE): /iterate/
-"ISOLATION" (KW_ISOLATION): /isolation/
-"JSON" (KW_JSON): /json/
-"KEY" (KW_KEY): /key/
-"LABEL" (KW_LABEL): /label/
-"LABELED" (KW_LABELED): /labeled/
-"LANGUAGE" (KW_LANGUAGE): /language/
-"LAST" (KW_LAST): /last/
-"LEAVE" (KW_LEAVE): /leave/
-"LET" (KW_LET): /let/
-"LEVEL" (KW_LEVEL): /level/
-"LOAD" (KW_LOAD): /load/
-"LOCALITY" (KW_LOCALITY): /locality/
-"LOG" (KW_LOG): /log/
-"LOOP" (KW_LOOP): /loop/
-"MACRO" (KW_MACRO): /macro/
-"MAP" (KW_MAP): /map/
-"MATCH" (KW_MATCH): /match/
-KW_MATCH_RECOGNIZE_NONRESERVED: /match_recognize/
-"MATCHED" (KW_MATCHED): /matched/
-"MATERIALIZED" (KW_MATERIALIZED): /materialized/
-"MAX" (KW_MAX): /max/
-"MAXVALUE" (KW_MAXVALUE): /maxvalue/
-"MEASURES" (KW_MEASURES): /measures/
-"MESSAGE" (KW_MESSAGE): /message/
-"METADATA" (KW_METADATA): /metadata/
-"MIN" (KW_MIN): /min/
-"MINVALUE" (KW_MINVALUE): /minvalue/
-"MODEL" (KW_MODEL): /model/
-"MODULE" (KW_MODULE): /module/
-"NAME" (KW_NAME): /name/
-"NEXT" (KW_NEXT): /next/
-"NODE" (KW_NODE): /node/
-"NOTHING" (KW_NOTHING): /nothing/
-"NUMERIC" (KW_NUMERIC): /numeric/
-"OFFSET" (KW_OFFSET): /offset/
-"ONLY" (KW_ONLY): /only/
-"OPTIONAL" (KW_OPTIONAL): /optional/
-"OPTIONS" (KW_OPTIONS): /options/
-"OUT" (KW_OUT): /out/
-"OUTPUT" (KW_OUTPUT): /output/
-"OVERWRITE" (KW_OVERWRITE): /overwrite/
-"PARTITIONS" (KW_PARTITIONS): /partitions/
-"PAST" (KW_PAST): /past/
-"PATTERN" (KW_PATTERN): /pattern/
-"PATH" (KW_PATH): /path/
-"PATHS" (KW_PATHS): /paths/
-"PER" (KW_PER): /per/
-"PERCENT" (KW_PERCENT): /percent/
-"PIVOT" (KW_PIVOT): /pivot/
-"POLICIES" (KW_POLICIES): /policies/
-"POLICY" (KW_POLICY): /policy/
-"PRIMARY" (KW_PRIMARY): /primary/
-"PRIVATE" (KW_PRIVATE): /private/
-"PRIVILEGE" (KW_PRIVILEGE): /privilege/
-"PRIVILEGES" (KW_PRIVILEGES): /privileges/
-"PROCEDURE" (KW_PROCEDURE): /procedure/
+"GRANT" (KW_GRANT) {absl::string_view}: /grant/
+"GROUP_ROWS" (KW_GROUP_ROWS) {absl::string_view}: /group_rows/
+"HIDDEN" (KW_HIDDEN) {absl::string_view}: /hidden/
+"IDENTITY" (KW_IDENTITY) {absl::string_view}: /identity/
+"IMMEDIATE" (KW_IMMEDIATE) {absl::string_view}: /immediate/
+"IMMUTABLE" (KW_IMMUTABLE) {absl::string_view}: /immutable/
+"IMPORT" (KW_IMPORT) {absl::string_view}: /import/
+"INCLUDE" (KW_INCLUDE) {absl::string_view}: /include/
+"INCREMENT" (KW_INCREMENT) {absl::string_view}: /increment/
+"INDEX" (KW_INDEX) {absl::string_view}: /index/
+"INOUT" (KW_INOUT) {absl::string_view}: /inout/
+"INPUT" (KW_INPUT) {absl::string_view}: /input/
+"INSERT" (KW_INSERT) {absl::string_view}: /insert/
+"INVOKER" (KW_INVOKER) {absl::string_view}: /invoker/
+"ITERATE" (KW_ITERATE) {absl::string_view}: /iterate/
+"ISOLATION" (KW_ISOLATION) {absl::string_view}: /isolation/
+"JSON" (KW_JSON) {absl::string_view}: /json/
+"KEY" (KW_KEY) {absl::string_view}: /key/
+"LABEL" (KW_LABEL) {absl::string_view}: /label/
+"LABELED" (KW_LABELED) {absl::string_view}: /labeled/
+"LANGUAGE" (KW_LANGUAGE) {absl::string_view}: /language/
+"LAST" (KW_LAST) {absl::string_view}: /last/
+"LEAVE" (KW_LEAVE) {absl::string_view}: /leave/
+"LET" (KW_LET) {absl::string_view}: /let/
+"LEVEL" (KW_LEVEL) {absl::string_view}: /level/
+"LIVE" (KW_LIVE) {absl::string_view}: /live/
+"LOAD" (KW_LOAD) {absl::string_view}: /load/
+"LOCALITY" (KW_LOCALITY) {absl::string_view}: /locality/
+"LOG" (KW_LOG) {absl::string_view}: /log/
+"LOOP" (KW_LOOP) {absl::string_view}: /loop/
+"MACRO" (KW_MACRO) {absl::string_view}: /macro/
+"MAP" (KW_MAP) {absl::string_view}: /map/
+"MATCH" (KW_MATCH) {absl::string_view}: /match/
+KW_MATCH_RECOGNIZE_NONRESERVED {absl::string_view}: /match_recognize/
+"MATCHED" (KW_MATCHED) {absl::string_view}: /matched/
+"MATERIALIZED" (KW_MATERIALIZED) {absl::string_view}: /materialized/
+"MAX" (KW_MAX) {absl::string_view}: /max/
+"MAXVALUE" (KW_MAXVALUE) {absl::string_view}: /maxvalue/
+"MEASURES" (KW_MEASURES) {absl::string_view}: /measures/
+"MESSAGE" (KW_MESSAGE) {absl::string_view}: /message/
+"METADATA" (KW_METADATA) {absl::string_view}: /metadata/
+"METRICS" (KW_METRICS) {absl::string_view}: /metrics/
+"MIN" (KW_MIN) {absl::string_view}: /min/
+"MINVALUE" (KW_MINVALUE) {absl::string_view}: /minvalue/
+"MODEL" (KW_MODEL) {absl::string_view}: /model/
+"MODULE" (KW_MODULE) {absl::string_view}: /module/
+"NAME" (KW_NAME) {absl::string_view}: /name/
+"NEXT" (KW_NEXT) {absl::string_view}: /next/
+"NODE" (KW_NODE) {absl::string_view}: /node/
+"NOTHING" (KW_NOTHING) {absl::string_view}: /nothing/
+"NUMERIC" (KW_NUMERIC) {absl::string_view}: /numeric/
+"OFFSET" (KW_OFFSET) {absl::string_view}: /offset/
+"ORIGIN" (KW_ORIGIN) {absl::string_view}: /origin/
+"ONLY" (KW_ONLY) {absl::string_view}: /only/
+"OPTIONAL" (KW_OPTIONAL) {absl::string_view}: /optional/
+"OPTIONS" (KW_OPTIONS) {absl::string_view}: /options/
+"OUT" (KW_OUT) {absl::string_view}: /out/
+"OUTPUT" (KW_OUTPUT) {absl::string_view}: /output/
+"OVERWRITE" (KW_OVERWRITE) {absl::string_view}: /overwrite/
+"PARTITIONS" (KW_PARTITIONS) {absl::string_view}: /partitions/
+"PAST" (KW_PAST) {absl::string_view}: /past/
+"PATTERN" (KW_PATTERN) {absl::string_view}: /pattern/
+"PATH" (KW_PATH) {absl::string_view}: /path/
+"PATHS" (KW_PATHS) {absl::string_view}: /paths/
+"PER" (KW_PER) {absl::string_view}: /per/
+"PERIOD" (KW_PERIOD) {absl::string_view}: /period/
+"PERCENT" (KW_PERCENT) {absl::string_view}: /percent/
+"PIVOT" (KW_PIVOT) {absl::string_view}: /pivot/
+"POLICIES" (KW_POLICIES) {absl::string_view}: /policies/
+"POLICY" (KW_POLICY) {absl::string_view}: /policy/
+"PRIMARY" (KW_PRIMARY) {absl::string_view}: /primary/
+"PRIVATE" (KW_PRIVATE) {absl::string_view}: /private/
+"PRIVILEGE" (KW_PRIVILEGE) {absl::string_view}: /privilege/
+"PRIVILEGES" (KW_PRIVILEGES) {absl::string_view}: /privileges/
+"PROCEDURE" (KW_PROCEDURE) {absl::string_view}: /procedure/
 "PROJECT" (KW_PROJECT) {absl::string_view}: /project/
-"PROPERTIES" (KW_PROPERTIES): /properties/
-"PROPERTY" (KW_PROPERTY): /property/
-"PUBLIC" (KW_PUBLIC): /public/
+"PROPERTIES" (KW_PROPERTIES) {absl::string_view}: /properties/
+"PROPERTY" (KW_PROPERTY) {absl::string_view}: /property/
+"PUBLIC" (KW_PUBLIC) {absl::string_view}: /public/
 KW_QUALIFY_NONRESERVED {absl::string_view}: /qualify/
-"RAISE" (KW_RAISE): /raise/
-"READ" (KW_READ): /read/
-"REBUILD" (KW_REBUILD): /rebuild/
-"REFERENCES" (KW_REFERENCES): /references/
-"REMOTE" (KW_REMOTE): /remote/
-"REMOVE" (KW_REMOVE): /remove/
-"RENAME" (KW_RENAME): /rename/
-"REPEAT" (KW_REPEAT): /repeat/
-"REPEATABLE" (KW_REPEATABLE): /repeatable/
-"REPLACE" (KW_REPLACE): /replace/
-"REPLACE_FIELDS" (KW_REPLACE_FIELDS): /replace_fields/
+"RAISE" (KW_RAISE) {absl::string_view}: /raise/
+"READ" (KW_READ) {absl::string_view}: /read/
+"REBUILD" (KW_REBUILD) {absl::string_view}: /rebuild/
+"REFERENCES" (KW_REFERENCES) {absl::string_view}: /references/
+"REMOTE" (KW_REMOTE) {absl::string_view}: /remote/
+"REMOVE" (KW_REMOVE) {absl::string_view}: /remove/
+"RENAME" (KW_RENAME) {absl::string_view}: /rename/
+"REPEAT" (KW_REPEAT) {absl::string_view}: /repeat/
+"REPEATABLE" (KW_REPEATABLE) {absl::string_view}: /repeatable/
+"REPLACE" (KW_REPLACE) {absl::string_view}: /replace/
+"REPLACE_FIELDS" (KW_REPLACE_FIELDS) {absl::string_view}: /replace_fields/
 "REPLICA" (KW_REPLICA) {absl::string_view}: /replica/
-"REPORT" (KW_REPORT): /report/
-"RESTRICT" (KW_RESTRICT): /restrict/
-"RESTRICTION" (KW_RESTRICTION): /restriction/
-"RETURN" (KW_RETURN): /return/
-"RETURNS" (KW_RETURNS): /returns/
-"REVOKE" (KW_REVOKE): /revoke/
-"ROLLBACK" (KW_ROLLBACK): /rollback/
-"ROW" (KW_ROW): /row/
-"RUN" (KW_RUN): /run/
-"SAFE_CAST" (KW_SAFE_CAST): /safe_cast/
-"SCHEMA" (KW_SCHEMA): /schema/
-"SEARCH" (KW_SEARCH): /search/
-"SECURITY" (KW_SECURITY): /security/
-"SEQUENCE" (KW_SEQUENCE): /sequence/
-"SETS" (KW_SETS): /sets/
-"SHORTEST" (KW_SHORTEST): /shortest/
-"SHOW" (KW_SHOW): /show/
-"SIMPLE" (KW_SIMPLE): /simple/
-"SKIP" (KW_SKIP): /skip/
-"SNAPSHOT" (KW_SNAPSHOT): /snapshot/
-"SOURCE" (KW_SOURCE): /source/
-"SQL" (KW_SQL): /sql/
-"STABLE" (KW_STABLE): /stable/
-"START" (KW_START): /start/
-"STATIC_DESCRIBE" (KW_STATIC_DESCRIBE): /static_describe/
-"STORED" (KW_STORED): /stored/
-"STORING" (KW_STORING): /storing/
-"SYSTEM" (KW_SYSTEM): /system/
-"SYSTEM_TIME" (KW_SYSTEM_TIME): /system_time/
-"TABLE" (KW_TABLE): /table/
-"TABLES" (KW_TABLES): /tables/
-"TARGET" (KW_TARGET): /target/
-"TRAIL" (KW_TRAIL): /trail/
-"TRANSFORM" (KW_TRANSFORM): /transform/
-"TEMP" (KW_TEMP): /temp/
-"TEMPORARY" (KW_TEMPORARY): /temporary/
-"TEE" (KW_TEE): /tee/
-"TIME" (KW_TIME): /time/
-"TIMESTAMP" (KW_TIMESTAMP): /timestamp/
-"TRANSACTION" (KW_TRANSACTION): /transaction/
-"TRUNCATE" (KW_TRUNCATE): /truncate/
-"TYPE" (KW_TYPE): /type/
-"UNDROP" (KW_UNDROP): /undrop/
-"UNIQUE" (KW_UNIQUE): /unique/
-"UNKNOWN" (KW_UNKNOWN): /unknown/
-"UNPIVOT" (KW_UNPIVOT): /unpivot/
-"UNTIL" (KW_UNTIL): /until/
-"UPDATE" (KW_UPDATE): /update/
-"VALUE" (KW_VALUE): /value/
-"VALUES" (KW_VALUES): /values/
-"VECTOR" (KW_VECTOR): /vector/
-"VOLATILE" (KW_VOLATILE): /volatile/
-"VIEW" (KW_VIEW): /view/
-"VIEWS" (KW_VIEWS): /views/
-"WALK" (KW_WALK): /walk/
-"WEIGHT" (KW_WEIGHT): /weight/
-"WHILE" (KW_WHILE): /while/
-"WRITE" (KW_WRITE): /write/
-"YIELD" (KW_YIELD): /yield/
-"ZONE" (KW_ZONE): /zone/
-"EXCEPTION" (KW_EXCEPTION): /exception/
-"ERROR" (KW_ERROR): /error/
-"CORRESPONDING" (KW_CORRESPONDING): /corresponding/
-"STRICT" (KW_STRICT): /strict/
+"REPORT" (KW_REPORT) {absl::string_view}: /report/
+"RESTRICT" (KW_RESTRICT) {absl::string_view}: /restrict/
+"RESTRICTION" (KW_RESTRICTION) {absl::string_view}: /restriction/
+"RETURN" (KW_RETURN) {absl::string_view}: /return/
+"RETURNS" (KW_RETURNS) {absl::string_view}: /returns/
+"REVOKE" (KW_REVOKE) {absl::string_view}: /revoke/
+"ROLLBACK" (KW_ROLLBACK) {absl::string_view}: /rollback/
+"ROW" (KW_ROW) {absl::string_view}: /row/
+"RUN" (KW_RUN) {absl::string_view}: /run/
+"SAFE_CAST" (KW_SAFE_CAST) {absl::string_view}: /safe_cast/
+"SCHEMA" (KW_SCHEMA) {absl::string_view}: /schema/
+"SEARCH" (KW_SEARCH) {absl::string_view}: /search/
+"SECURITY" (KW_SECURITY) {absl::string_view}: /security/
+"SEQUENCE" (KW_SEQUENCE) {absl::string_view}: /sequence/
+"SETS" (KW_SETS) {absl::string_view}: /sets/
+"SHORTEST" (KW_SHORTEST) {absl::string_view}: /shortest/
+"SHOW" (KW_SHOW) {absl::string_view}: /show/
+"SIMPLE" (KW_SIMPLE) {absl::string_view}: /simple/
+"SKIP" (KW_SKIP) {absl::string_view}: /skip/
+"SNAPSHOT" (KW_SNAPSHOT) {absl::string_view}: /snapshot/
+"SOURCE" (KW_SOURCE) {absl::string_view}: /source/
+"SQL" (KW_SQL) {absl::string_view}: /sql/
+"STABLE" (KW_STABLE) {absl::string_view}: /stable/
+"START" (KW_START) {absl::string_view}: /start/
+"STATIC_DESCRIBE" (KW_STATIC_DESCRIBE) {absl::string_view}: /static_describe/
+"STORED" (KW_STORED) {absl::string_view}: /stored/
+"STORING" (KW_STORING) {absl::string_view}: /storing/
+"SYSTEM" (KW_SYSTEM) {absl::string_view}: /system/
+"SYSTEM_TIME" (KW_SYSTEM_TIME) {absl::string_view}: /system_time/
+"TABLE" (KW_TABLE) {absl::string_view}: /table/
+"TABLES" (KW_TABLES) {absl::string_view}: /tables/
+"TARGET" (KW_TARGET) {absl::string_view}: /target/
+"TRAIL" (KW_TRAIL) {absl::string_view}: /trail/
+"TRANSFORM" (KW_TRANSFORM) {absl::string_view}: /transform/
+"TEMP" (KW_TEMP) {absl::string_view}: /temp/
+"TEMPORARY" (KW_TEMPORARY) {absl::string_view}: /temporary/
+"TEE" (KW_TEE) {absl::string_view}: /tee/
+"TIME" (KW_TIME) {absl::string_view}: /time/
+"TIMESTAMP" (KW_TIMESTAMP) {absl::string_view}: /timestamp/
+"TRANSACTION" (KW_TRANSACTION) {absl::string_view}: /transaction/
+"TRUNCATE" (KW_TRUNCATE) {absl::string_view}: /truncate/
+"TYPE" (KW_TYPE) {absl::string_view}: /type/
+"UNDROP" (KW_UNDROP) {absl::string_view}: /undrop/
+"UNIQUE" (KW_UNIQUE) {absl::string_view}: /unique/
+"UNKNOWN" (KW_UNKNOWN) {absl::string_view}: /unknown/
+"UNPIVOT" (KW_UNPIVOT) {absl::string_view}: /unpivot/
+"UNTIL" (KW_UNTIL) {absl::string_view}: /until/
+"UPDATE" (KW_UPDATE) {absl::string_view}: /update/
+"VALUE" (KW_VALUE) {absl::string_view}: /value/
+"VALUES" (KW_VALUES) {absl::string_view}: /values/
+"VERSION" (KW_VERSION) {absl::string_view}: /version/
+"VECTOR" (KW_VECTOR) {absl::string_view}: /vector/
+"VOLATILE" (KW_VOLATILE) {absl::string_view}: /volatile/
+"VIEW" (KW_VIEW) {absl::string_view}: /view/
+"VIEWS" (KW_VIEWS) {absl::string_view}: /views/
+"WALK" (KW_WALK) {absl::string_view}: /walk/
+"WEIGHT" (KW_WEIGHT) {absl::string_view}: /weight/
+"WHILE" (KW_WHILE) {absl::string_view}: /while/
+"WRITE" (KW_WRITE) {absl::string_view}: /write/
+"YIELD" (KW_YIELD) {absl::string_view}: /yield/
+"ZONE" (KW_ZONE) {absl::string_view}: /zone/
+"EXCEPTION" (KW_EXCEPTION) {absl::string_view}: /exception/
+"ERROR" (KW_ERROR) {absl::string_view}: /error/
+"CORRESPONDING" (KW_CORRESPONDING) {absl::string_view}: /corresponding/
+"STRICT" (KW_STRICT) {absl::string_view}: /strict/
 
 // Spanner-specific keywords
-"INTERLEAVE" (KW_INTERLEAVE): /interleave/
-"NULL_FILTERED" (KW_NULL_FILTERED): /null_filtered/
-"PARENT" (KW_PARENT): /parent/
+"INTERLEAVE" (KW_INTERLEAVE) {absl::string_view}: /interleave/
+"NULL_FILTERED" (KW_NULL_FILTERED) {absl::string_view}: /null_filtered/
+"PARENT" (KW_PARENT) {absl::string_view}: /parent/
 
-SENTINEL_NONRESERVED_KW_END:
+SENTINEL_NONRESERVED_KW_END {absl::string_view}:
 
 // This is not a keyword token. It represents all identifiers that are
 // CURRENT_* functions for date/time.
 KW_CURRENT_DATETIME_FUNCTION:
-
-// When in parser mode kMacroBody, any token other than EOI or ';' will be
-// emitted as MACRO_BODY_TOKEN. This prevents the parser from needing to
-// enumerate all token kinds to implement the macro body rule.
-MACRO_BODY_TOKEN {absl::string_view}:
 
 /* Whitespace and EOI rule.
 
@@ -811,26 +860,7 @@ catch_all: /./ -100 {
 // rule, which is the desired behavior.
 //
 //
-// AMBIGUOUS CASE 2: CREATE TABLE FUNCTION
-// ---------------------------------------
-// GoogleSQL now supports statements of type CREATE TABLE FUNCTION <name> to
-// generate new table-valued functions with user-defined names. It also
-// supports statements of type CREATE TABLE <name> to generate tables. In the
-// latter case, the table name can be any identifier, including FUNCTION, so
-// the parser encounters a shift/reduce conflict when the CREATE TABLE FUNCTION
-// tokens are pushed onto the stack. By default, the parser chooses to shift,
-// favoring creating a new table-valued function. The user may workaround this
-// limitation by surrounding the FUNCTION token in backticks.
-// This case is responsible for 3 shift/reduce conflicts:
-// 1. The separate parser rules for CREATE EXTERNAL TABLE and CREATE EXTERNAL
-//    TABLE FUNCTION encounter a shift/reduce conflict.
-// 2. The separate parser rules for CREATE TABLE AS and CREATE TABLE FUNCTION
-//    encounter a shift/reduce confict.
-// 3. The separate next_statement_kind rules for CREATE TABLE AS and CREATE
-//    TABLE FUNCTION encounter a shift/reduce confict.
-//
-//
-// AMBIGUOUS CASE 3: CREATE TABLE CONSTRAINTS
+// AMBIGUOUS CASE 2: CREATE TABLE CONSTRAINTS
 // ------------------------------------------
 // The CREATE TABLE rules for the PRIMARY KEY and FOREIGN KEY constraints have
 // 2 shift/reduce conflicts, one for each constraint. PRIMARY and FOREIGN can
@@ -843,14 +873,14 @@ catch_all: /./ -100 {
 // table_column_definition. Note that this grammar reports a syntax error when
 // using PRIMARY KEY or FOREIGN KEY as column definition name and type pairs.
 //
-// AMBIGUOUS CASE 4: REPLACE_FIELDS(...)
+// AMBIGUOUS CASE 3: REPLACE_FIELDS(...)
 // --------------------------------
 // The REPLACE_FIELDS keyword is non-reserved and can be used as an identifier.
 // This causes a shift/reduce conflict between keyword_as_identifier and the
 // rule that starts with "REPLACE_FIELDS" "(". It is resolved in favor of the
 // REPLACE_FIELDS( rule, which is the desired behavior.
 //
-// AMBIGUOUS CASE 5: Procedure parameter list in CREATE PROCEDURE
+// AMBIGUOUS CASE 4: Procedure parameter list in CREATE PROCEDURE
 // -------------------------------------------------------------
 // With rule procedure_parameter being:
 // [<mode>] <identifier> <type>
@@ -864,7 +894,7 @@ catch_all: /./ -100 {
 // In order to use OUT/INOUT as identifier, it needs to be escaped with
 // backticks.
 //
-// AMBIGUOUS CASE 6: CREATE TABLE GENERATED
+// AMBIGUOUS CASE 5: CREATE TABLE GENERATED
 // -------------------------------------------------------------
 // The GENERATED keyword is non-reserved, so when a generated column is defined
 // with "<name> [<type>] GENERATED AS ()", we have a shift/reduce conflict, not
@@ -873,21 +903,21 @@ catch_all: /./ -100 {
 // "shift", treating GENERATED as a keyword. To use it as an identifier, it
 // needs to be escaped with backticks.
 //
-// AMBIGUOUS CASE 7: DESCRIPTOR(...)
+// AMBIGUOUS CASE 6: DESCRIPTOR(...)
 // --------------------------------
 // The DESCRIPTOR keyword is non-reserved and can be used as an identifier. This
 // causes one shift/reduce conflict between keyword_as_identifier and the rule
 // that starts with "DESCRIPTOR" "(". It is resolved in favor of DESCRIPTOR(
 // rule, which is the desired behavior.
 //
-// AMBIGUOUS CASE 8: ANALYZE OPTIONS(...)
+// AMBIGUOUS CASE 7: ANALYZE OPTIONS(...)
 // --------------------------------
 // The OPTIONS keyword is non-reserved and can be used as an identifier.
 // This causes a shift/reduce conflict between keyword_as_identifier and the
 // rule that starts with "ANALYZE"  "OPTIONS" "(". It is resolved in favor of
 // the OPTIONS( rule, which is the desired behavior.
 //
-// AMBIGUOUS CASE 9: SELECT * FROM T QUALIFY
+// AMBIGUOUS CASE 8: SELECT * FROM T QUALIFY
 // --------------------------------
 // The QUALIFY keyword is non-reserved and can be used as an identifier.
 // This causes a shift/reduce conflict between keyword_as_identifier and the
@@ -896,7 +926,7 @@ catch_all: /./ -100 {
 // error messages to user when QUALIFY clause is used without
 // WHERE/GROUP BY/HAVING.
 //
-// AMBIGUOUS CASE 10: ALTER COLUMN
+// AMBIGUOUS CASE 9: ALTER COLUMN
 // --------------------------------
 // Spanner DDL compatibility extensions provide support for Spanner flavor of
 // ALTER COLUMN action, which expects full column definition instead of
@@ -909,7 +939,7 @@ catch_all: /./ -100 {
 // or reduce DROP as type identifier in Spanner-specific rule. Bison chooses to
 // shift, which is a desired behavior.
 //
-// AMBIGUOUS CASE 11: SEQUENCE CLAMPED
+// AMBIGUOUS CASE 10: SEQUENCE CLAMPED
 // ----------------------------------
 // MyFunction(SEQUENCE clamped)
 // Resolve to a function call passing a SEQUENCE input argument type.
@@ -935,7 +965,7 @@ catch_all: /./ -100 {
 // If the user wants to reference a sequence called 'clamped', they must
 // identifier quote it (SEQUENCE `clamped`);
 //
-// AMBIGUOUS CASE 12: WITH OFFSET in <graph_with_operator>
+// AMBIGUOUS CASE 11: WITH OFFSET in <graph_with_operator>
 // ----------------------------------
 // In graph linear queries, there is a true ambiguity when using WITH following
 // FOR <identifier> IN <expression>, which allows a trailing WITH OFFSET.
@@ -944,7 +974,7 @@ catch_all: /./ -100 {
 // that KW_WITH in this context is always interpreted as the beginning of
 // WITH OFFSET [AS <alias>], which is the desired behavior.
 //
-// AMBIGUOUS CASE 13: WITH WEIGHT in <graph_sample_operator>
+// AMBIGUOUS CASE 12: WITH WEIGHT in <graph_sample_operator>
 // ----------------------------------
 // Similar to the above case, there is a true ambiguity when using WITH
 // following the TABLESAMPLE clause in graph linear queries, which allows
@@ -953,7 +983,7 @@ catch_all: /./ -100 {
 // that KW_WITH in this context is always interpreted as the beginning of
 // WITH WEIGHT [AS <alias>], which is the desired behavior.
 //
-// AMBIGUOUS CASE 14: Pipe INSERT
+// AMBIGUOUS CASE 13: Pipe INSERT
 // ------------------------------
 // The INSERT syntax has many optional modifiers.  Two of them come after the
 // embedded (unparenthesized) query in an INSERT statement.
@@ -973,10 +1003,10 @@ catch_all: /./ -100 {
 // will be rejected at analysis time, since pipe INSERT is only allowed in
 // query statements, not in DML statements like INSERT.
 //
-// AMBIGUOUS CASE 15: COST in <graph_element_pattern_filler>
+// AMBIGUOUS CASE 14: COST in <graph_element_pattern_filler>
 // ----------------------------------
 //  graph_element_pattern_filler:
-//    hint?  graph_identifier_opt[elem_name] is_label_expression[label]?
+//    hint?  graph_identifier-opt[elem_name] is_label_expression[label]?
 //    graph_property_specification[prop_spec]?  where_clause[where]?
 //    ("COST" expression[cost])?
 //
@@ -1012,7 +1042,7 @@ catch_all: /./ -100 {
 //  * MATCH - [ hint ● COST
 //  * MATCH < - [ ● COST
 //
-// AMBIGUOUS CASE 16: CALL PER()
+// AMBIGUOUS CASE 15: CALL PER()
 // ------------------------------
 // The PER keyword is non-reserved and can be used as an identifier.
 // When the parser sees `CALL PER(`, it can either assume this is the PER clause
@@ -1022,16 +1052,54 @@ catch_all: /./ -100 {
 // There are 2 instances because graph subquery has a different entry point from
 // the main graph query.
 //
+// AMBIGUOUS CASE 16: INTERVAL expression identifier TO
+// ------------------------------
+// Usage of `interval_expression` in `within_range_clause` introduces
+// ambiguity in parsing `interval_expression` when `TO` follows
+// `INTERVAL expression identifier`. The parser can interpret `TO` as
+// introducing the end of datetime part, e.g. `INTERVAL '2-11' YEAR TO MONTH`,
+// or as introducing the upper bound of `within_range_clause`,
+// e.g. `WITHIN (RANGE FROM INTERVAL 1 DAY TO ...)` where `INTERVAL 1 DAY`
+// is the lower bound.
+// The conflict is resolved by shifting `TO` to prefer parsing
+// `INTERVAL ... TO ...`, which is the only option available based on how the
+// grammar is currently structured. This is desired behavior for interval
+// expression bound in `WITHIN (RANGE FROM ... TO ...)` as it must be followed
+// by `PRECEDING` or `FOLLOWING`, e.g. `WITHIN (RANGE FROM INTERVAL 1 DAY
+// PRECEDING TO ...)`. This is undesired behavior for timestamp expression bound
+// in `WITHIN (RANGE FROM ... TO ...)` when it has interval expression as right
+// factor, e.g `WITHIN (RANGE FROM CURRENT_TIMESTAMP() - INTERVAL 1 DAY TO ...)`
+// and will require it to be parenthesized.
+//
+// AMBIGUOUS CASE 17: VALUE { ... }
+// ------------------------------
+// The VALUE keyword is non-reserved and can be used as an identifier.
+// When the parser sees `VALUE {`, it can either:
+//   * Reduce VALUE as a unit length path expression such that the open brace
+//     is the start of a braced constructor suffix.
+//   * Shift VALUE as the keyword opening a GQL braced subquery expression.
+// This case may be solvable by pulling the braced VALUE subquery up into the
+// primary non-terminals for expressions and parsing "VALUE" as an expression.
+// Doing so naïvely introduces more conflicts because of the hint in
+// the VALUE subquery, but they are potentially resolvable with careful
+// adjustment.
+//
+// AMBIGUOUS CASE 19: COLUMNS(...)
+// --------------------------------
+// The COLUMNS keyword is non-reserved and can be used as an identifier. This
+// causes one shift/reduce conflict between `keyword_as_identifier` and
+// `column_list_spec_constructor`, because it starts with "COLUMNS" "(".
+// It is resolved in favor of the column_list_spec_constructor, which is the
+// desired behavior.
 //
 // Total expected shift/reduce conflicts as described above:
 //   1: SAFE CAST
-//   3: CREATE TABLE FUNCTION
 //   2: CREATE TABLE CONSTRAINTS
 //   1: REPLACE FIELDS
 //   4: CREATE PROCEDURE
 //   1: CREATE TABLE GENERATED
-//   1: CREATE EXTERNAL TABLE FUNCTION
 //   1: DESCRIPTOR
+//   1: COLUMNS
 //   1: ANALYZE
 //   5: QUALIFY
 //   2: ALTER COLUMN
@@ -1041,7 +1109,9 @@ catch_all: /./ -100 {
 //   2: Pipe INSERT
 //   5: COST
 //   2: CALL PER()
-%expect 34;
+//   1: INTERVAL expression identifier TO
+//   1: VALUE { ... }
+%expect 33;
 
 // Precedence for operator tokens. The operator precedence is defined by the
 // order of the declarations here, with tokens specified in the same declaration
@@ -1070,14 +1140,85 @@ catch_all: /./ -100 {
 %nonassoc UNARY_PRECEDENCE;      // For all unary operators
 %nonassoc DOUBLE_AT_PRECEDENCE;  // Needs to appear before "."
 
-// Without this precedence rule, the `next_statement_kind` rule does not allow
-// an optional "(" to follow a `path_expression` (shift/reduce conflict).
-// Needs to appear before PRIMARY_PRECEDENE.
+// The RUN statement in `next_statement_kind_without_hint` experiences a
+// shift/reduce conflict when it has consumed a "complete" path expression and
+// has a lookahead of either "." or "(".
+//
+// The expanded rules for the "(" case look like this:
+//    | "RUN" path_expression      // This rule wants to reduce on lookahead "("
+//    | "RUN" path_expression "("  // This rule wants to shift on lookahead "("
+//
+// Textmapper's default resolution rules compare the precedence of the rule
+// that wants to reduce with the precedence of the lookahead token. A rule's
+// precedence is taken from the precedence of the last terminal in the rule. In
+// this case that is the "RUN" keyword. "RUN" has no specified precdence, so
+// neither does the rule.
+//
+// To enable the conflict resolution logic we need the rule to have a precedence
+// level. That means either giving a precedence level to the "RUN" keyword or
+// giving a precedence level to the rule explicitly using %prec. Generally we
+// want to keep precedences as local as possible, so we choose to give the rule
+// an explicit precedence.
+//
+// We want a shift resolution. Textmapper's rules state that shift is chosen "if
+// the lookahead token has higher precedence than the rule". Thus we add the
+// RUN_PRECEDENCE token with precedence lower than the "(" token to serve this
+// purpose.
+//
+// With the explicit precedence the conflict is resolved in favor of shift and
+// the expanded rules look like this:
+//    | "RUN" path_expression %prec RUN_PRECEDENCE
+//    | "RUN" path_expression "("
 %left RUN_PRECEDENCE;
 
-// We need "." to have high precedence for generalised names, but giving ( and [
-// a precedence leads to burying some complex shift-reduce conflicts.
-%left PRIMARY_PRECEDENCE "(" "[" ".";
+// The symbols listed in this declaration are used to start suffix expressions.
+// These tokens will be the lookahead token in various cases where the parser
+// decides between reducing unparenthesized_expression_higher_prec_than_and or
+// shifting a token to start another expression as a suffix of the just parsed
+// expression. We have %prec levels like UNARY_PRECIDENCE, UNARY_NOT_PRECEDENCE,
+// and EDGE_ENDPOINT_PRECEDENCE assigned to a bunch of rules that involve suffix
+// expressions, but Textmapper requires both the rule and the lookahead token to
+// have a precedence level to enable precedence based conflict resolution, hence
+// the requirement to give precedence to "(", "[", "{", and ".". These operators
+// share the lowest precedence since they just need to have a precedence level
+// to enable conflict resolution.
+%left PRIMARY_PRECEDENCE "(" "[" "{" ".";
+
+// The set of tokens that can start an expression.
+%generate ExpressionFirst = set(first expression);
+
+// The set of tokens that can start a graph operation block.
+%generate GraphOperationBlockFirst =
+    // TODO: b/474135498 - Remove SET, REMOVE, and DELETE once those graph
+    //     operators are implemented in the parser.
+    set(first graph_operation_block | "SET" | "REMOVE" | "DELETE");
+
+// The set of tokens that can follow "TABLE FUNCTION" as a schema object. In
+// some of the no-eoi rules we need one more token after
+// KW_FUNCTION_IN_TABLE_FUNCTION to prevent a shift/reduce conflict between
+// "FUNCTION" being optional and the parse ending.
+// * "IF" occurs because of 'CREATE TABLE FUNCTION IF NOT EXISTS ...'
+// * path_expression occurs because of 'CREATE TABLE FUNCTION my.namespace...'
+%generate FollowsTableFunction = set("IF" | first path_expression);
+
+// The set of tokens that can follow a column schema definition. The column
+// schema includes a list of attributes wihtout a separator, so this is both
+// the token that start each of those attributes and also the tokens that can
+// follow the last attribute (if any).
+//
+// This is used to resolve ambiguity betwen the type name and the first
+// attribute in the case that the column type is not specified, but inferred
+// from context.
+%generate TableColumnSchemaFollow = set(follow table_column_schema);
+
+// The list of non-reserved keywords which are reserved as function names in
+// `WITH identifier() AS ...` syntax.
+// This is needed to resolve a reduce/reduce conflict that arises for input like
+// `INSERT INTO table_name WITH TIMESTAMP ● ( ...`.
+%generate WithFunctionNameReserved = set("TIMESTAMP" | "VERSION");
+
+%generate WithFunctionNameNonReserved =
+    set(NonReservedKeyword & ~WithFunctionNameReserved);
 
 %input next_script_statement no-eoi,
        next_statement no-eoi,
@@ -1282,6 +1423,7 @@ sql_statement_body_no_pipe_suffix {ASTNode*}:
   | create_model_statement
   | create_table_function_statement
   | create_table_statement
+  | create_live_table_statement
   | create_view_statement
   | explain_statement
   | export_data_statement
@@ -1295,7 +1437,7 @@ sql_statement_body_no_pipe_suffix {ASTNode*}:
   | begin_statement
   | analyze_statement
   | assert_statement
-  | aux_load_data_statement { $$ = $aux_load_data_statement; }
+  | aux_load_data_statement
   | clone_data_statement
   | merge_statement
   | truncate_statement
@@ -1312,7 +1454,7 @@ sql_statement_body_no_pipe_suffix {ASTNode*}:
   | create_index_statement
   | create_privilege_restriction_statement
   | create_row_access_policy_statement
-  | create_sequence_statement { $$ = $1; }
+  | create_sequence_statement
   | create_locality_group_statement
   | create_property_graph_statement
   | create_schema_statement
@@ -1389,55 +1531,12 @@ define_macro_statement {ASTNode*}:
     // Use a special version of KW_DEFINE which indicates that this macro
     // definition was "original" (i.e., not expanded from other macros), and
     // is top-level (i.e., not nested under other statements or blocks like IF).
-    KW_DEFINE_FOR_MACROS "MACRO"
+    KW_DEFINE_FOR_MACROS "MACRO" identifier[name]
+    set(~(";" | eoi | invalid_token))*[body]
     {
-      PushParserMode(tokenizer, ParserMode::kMacroBody);
+      auto* body = MakeNode<ASTMacroBody>(@body);
+      $$ = MakeNode<ASTDefineMacroStatement>(@$, $name, body);
     }
-    MACRO_BODY_TOKEN[name] macro_body[body]
-    {
-      absl::string_view name = $name;
-      absl::Status is_identifier_or_keyword =
-          IsIdentifierOrKeyword($name);
-      if (!is_identifier_or_keyword.ok()) {
-        return MakeSyntaxError(@name,
-            absl::StrCat("Syntax error: ", is_identifier_or_keyword.message()));
-      }
-
-      if (name.front() == '`') {
-        name = name.substr(1, name.length()-2);
-      }
-
-      PopParserMode(tokenizer);
-      $$ = MakeNode<ASTDefineMacroStatement>(@$,
-                      node_factory.MakeIdentifier(@name, name), $body);
-    }
-;
-
-// We are using the tokenizer to find the end of the DEFINE MACRO statement.
-// We need to store the body. Ideally, we would keep the tokens to avoid having
-// to re-tokenize the body when processing an invocation of this macro.
-// However, current frameworks and APIs represent macros as strings. More
-// importantly, comments may still be needed as they are used by some
-// environments as a workaround for the lack of annotations. Consequently,
-// after finding the full macro_body, we discard the tokens, and just store the
-// input text, including whitespace and comments. When the environment has been
-// upgraded to store tokens (which would require us to standardize token kinds
-// and codes since they will be stored externally), we can store the tokens
-// themselves.
-macro_body {ASTNode*}:
-    %empty
-    {
-      $$ = MakeNode<ASTMacroBody>(@$);
-    }
-  | macro_token_list
-    {
-      $$ = MakeNode<ASTMacroBody>(@$);
-    }
-;
-
-macro_token_list:
-    MACRO_BODY_TOKEN
-  | macro_token_list MACRO_BODY_TOKEN
 ;
 
 query_statement {ASTNode*}:
@@ -1509,11 +1608,11 @@ alter_action {ASTNode*}:
       node->set_is_if_exists($3);
       $$ = node;
     }
-  | "ADD" "COLUMN" opt_if_not_exists table_column_definition
-          opt_column_position opt_fill_using_expression
+  | "ADD" "COLUMN" if_not_exists? table_column_definition[definition]
+        column_position[psn]? ("FILL" "USING" expression[fill])?
     {
-      auto* node = MakeNode<ASTAddColumnAction>(@$, $4, $5, $6);
-      node->set_is_if_not_exists($3);
+      auto* node = MakeNode<ASTAddColumnAction>(@$, $definition, $psn, $fill);
+      node->set_is_if_not_exists(@if_not_exists.has_value());
       $$ = node;
     }
   | "DROP" "COLUMN" opt_if_exists identifier
@@ -1630,18 +1729,18 @@ alter_action {ASTNode*}:
       node->set_is_if_exists($3);
       $$ = node;
     }
+  | "REBUILD"
+    {
+      $$ = MakeNode<ASTRebuildAction>(@$);
+    }
   | spanner_alter_column_action
   | spanner_set_on_delete_action
 ;
 
 alter_action_list {ASTNode*}:
-    alter_action
+    (alter_action separator ",")+[actions]
     {
-      $$ = MakeNode<ASTAlterActionList>(@$, $1);
-    }
-  | alter_action_list "," alter_action
-    {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = MakeNode<ASTAlterActionList>(@$, $actions);
     }
 ;
 
@@ -1659,67 +1758,6 @@ privilege_restriction_alter_action {ASTNode*}:
     {
       auto* node = MakeNode<ASTRemoveFromRestricteeListClause>(@$, $3);
       node->set_is_if_exists($2);
-      $$ = node;
-    }
-;
-
-// This is split up from the other ALTER actions since the alter actions for
-// PRIVILEGE RESTRICTION are only used by PRIVILEGE RESTRICTION at the moment.
-privilege_restriction_alter_action_list {ASTNode*}:
-    privilege_restriction_alter_action
-    {
-      $$ = MakeNode<ASTAlterActionList>(@$, $1);
-    }
-  | privilege_restriction_alter_action_list ","
-    privilege_restriction_alter_action
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
-// This is split up from the other ALTER actions because REBUILD and
-// ADD COLUMN c1 OPTIONS are only used in ALTER [SEARCH|VECTOR] INDEX.
-// Adding ADD COLUMN c1 OPTIONS to the generic alter_action_list will
-// 1. Cause a shift/reduce conflict with existing alter_action:
-//    ADD COLUMN table_column_definition.
-// 2. Failures in some engines' integration tests since they don't support it.
-alter_index_action_list {ASTNode*}:
-    alter_index_action
-    {
-      $$ = MakeNode<ASTAlterActionList>(@$, $1);
-    }
-  | alter_index_action_list "," alter_index_action
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
-alter_index_action {ASTNode*}:
-    "SET" "OPTIONS" options_list
-    {
-      $$ = MakeNode<ASTSetOptionsAction>(@$, $3);
-    }
-  | "ADD" "COLUMN" opt_if_not_exists identifier opt_options_list
-    {
-      auto* node = MakeNode<ASTAddColumnIdentifierAction>(@$, $4, $5);
-      node->set_is_if_not_exists($3);
-      $$ = node;
-    }
-  | "DROP" "COLUMN" opt_if_exists identifier
-    {
-      auto* node = MakeNode<ASTDropColumnAction>(@$, $4);
-      node->set_is_if_exists($3);
-      $$ = node;
-    }
-  | "ALTER" "COLUMN" opt_if_exists identifier "SET" "OPTIONS" options_list
-    {
-      auto* node = MakeNode<ASTAlterColumnOptionsAction>(@$, $4, $7);
-      node->set_is_if_exists($3);
-      $$ = node;
-    }
-  | "REBUILD"
-    {
-      auto* node = MakeNode<ASTRebuildAction>(@$);
       $$ = node;
     }
 ;
@@ -1748,19 +1786,6 @@ row_access_policy_alter_action {ASTNode*}:
     {
       ASTPathExpression* id = MakeNode<ASTPathExpression>(@3, $3);
       $$ = MakeNode<ASTRenameToClause>(@$, id);
-    }
-;
-
-// This is split up the other ALTER actions since the alter actions for ROW
-// ACCESS POLICY are only used by ROW ACCESS POLICY at the moment.
-row_access_policy_alter_action_list {ASTNode*}:
-    row_access_policy_alter_action
-    {
-      $$ = MakeNode<ASTAlterActionList>(@$, $1);
-    }
-  | row_access_policy_alter_action_list "," row_access_policy_alter_action
-    {
-      $$ = ExtendNodeRight($1, $3);
     }
 ;
 
@@ -1794,9 +1819,9 @@ schema_object_kind {SchemaObjectKind}:
     {
       $$ = SchemaObjectKind::kDatabase;
     }
-  | "EXTERNAL" table_or_table_function
+  | "EXTERNAL" "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION[fn]?
     {
-      if ($2 == TableOrTableFunctionKeywords::kTableAndFunctionKeywords) {
+      if (@fn.has_value()) {
         return MakeSyntaxError(@1, "EXTERNAL TABLE FUNCTION is not supported");
       } else {
         $$ = SchemaObjectKind::kExternalTable;
@@ -1810,9 +1835,26 @@ schema_object_kind {SchemaObjectKind}:
     {
       $$ = SchemaObjectKind::kFunction;
     }
-  | "INDEX"
+  | index_type? "INDEX"
     {
-      $$ = SchemaObjectKind::kIndex;
+      switch ($index_type.value_or(IndexType::INDEX_DEFAULT)) {
+        case IndexType::INDEX_DEFAULT:
+          $$ = SchemaObjectKind::kIndex;
+          break;
+        case IndexType::INDEX_SEARCH:
+          $$ = SchemaObjectKind::kSearchIndex;
+          break;
+        case IndexType::INDEX_VECTOR:
+          $$ = SchemaObjectKind::kVectorIndex;
+          break;
+        case IndexType::INDEX_AI:
+          $$ = SchemaObjectKind::kAiIndex;
+          break;
+      }
+    }
+  | "LIVE" "TABLE"
+    {
+      $$ = SchemaObjectKind::kLiveTable;
     }
   | "MATERIALIZED" "VIEW"
     {
@@ -1845,50 +1887,86 @@ schema_object_kind {SchemaObjectKind}:
 ;
 
 alter_statement {ASTNode*}:
-    "ALTER" table_or_table_function opt_if_exists maybe_dashed_path_expression
-      alter_action_list
+    "ALTER" "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION[fn]?
+      if_exists? maybe_dashed_path_expression[name] alter_action_list[actions]
     {
-      if ($2 == TableOrTableFunctionKeywords::kTableAndFunctionKeywords) {
+      if (@fn.has_value()) {
         return MakeSyntaxError(@2, "ALTER TABLE FUNCTION is not supported");
       }
-      ASTAlterTableStatement* node = MakeNode<ASTAlterTableStatement>(@$, $4, $5);
-      node->set_is_if_exists($3);
+      auto* node = MakeNode<ASTAlterTableStatement>(@$, $name, $actions);
+      node->set_is_if_exists(@if_exists.has_value());
       $$ = node;
     }
-  | "ALTER" schema_object_kind opt_if_exists path_expression[name]
-      alter_action_list[actions]
+  | "ALTER" schema_object_kind[kind] if_exists? path_expression[name]
+      ("ON" path_expression[on])? alter_action_list[actions]
     {
       ASTAlterStatementBase* node = nullptr;
-      // Only ALTER DATABASE, SCHEMA, TABLE, VIEW, MATERIALIZED VIEW,
-      // APPROX VIEW and MODEL are currently supported.
-      if ($2 == SchemaObjectKind::kApproxView) {
-        node = MakeNode<ASTAlterApproxViewStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kConnection) {
-        node = MakeNode<ASTAlterConnectionStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kDatabase) {
-        node = MakeNode<ASTAlterDatabaseStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kSchema) {
-        node = MakeNode<ASTAlterSchemaStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kExternalSchema) {
-        node = MakeNode<ASTAlterExternalSchemaStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kView) {
-        node = MakeNode<ASTAlterViewStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kMaterializedView) {
-        node = MakeNode<ASTAlterMaterializedViewStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kModel) {
-        node = MakeNode<ASTAlterModelStatement>(@$);
-      } else if ($2 == SchemaObjectKind::kSequence) {
-        node = MakeNode<ASTAlterSequenceStatement>(@$);
-      } else {
-        return MakeSyntaxError(
-          @2,
-          absl::StrCat(
-            "ALTER ",
-            absl::AsciiStrToUpper(
-              SchemaObjectKindToName($schema_object_kind)),
-            " is not supported"));
+      switch ($kind) {
+        case SchemaObjectKind::kApproxView:
+          node = MakeNode<ASTAlterApproxViewStatement>(@$);
+          break;
+        case SchemaObjectKind::kConnection:
+          node = MakeNode<ASTAlterConnectionStatement>(@$);
+          break;
+        case SchemaObjectKind::kDatabase:
+          node = MakeNode<ASTAlterDatabaseStatement>(@$);
+          break;
+        case SchemaObjectKind::kSchema:
+          node = MakeNode<ASTAlterSchemaStatement>(@$);
+          break;
+        case SchemaObjectKind::kExternalSchema:
+          node = MakeNode<ASTAlterExternalSchemaStatement>(@$);
+          break;
+        case SchemaObjectKind::kView:
+          node = MakeNode<ASTAlterViewStatement>(@$);
+          break;
+        case SchemaObjectKind::kMaterializedView:
+          node = MakeNode<ASTAlterMaterializedViewStatement>(@$);
+          break;
+        case SchemaObjectKind::kModel:
+          node = MakeNode<ASTAlterModelStatement>(@$);
+          break;
+        case SchemaObjectKind::kSequence:
+          node = MakeNode<ASTAlterSequenceStatement>(@$);
+          break;
+        case SchemaObjectKind::kSearchIndex: {
+          auto* alter =
+              MakeNode<ASTAlterIndexStatement>(@$, $name, $on, $actions);
+          alter->set_index_type(ASTAlterIndexStatement::INDEX_SEARCH);
+          alter->set_is_if_exists(@if_exists.has_value());
+          $$ = alter;
+          return absl::OkStatus();
+        }
+        case SchemaObjectKind::kVectorIndex: {
+          auto* alter =
+              MakeNode<ASTAlterIndexStatement>(@$, $name, $on, $actions);
+          alter->set_index_type(ASTAlterIndexStatement::INDEX_VECTOR);
+          alter->set_is_if_exists(@if_exists.has_value());
+          $$ = alter;
+          return absl::OkStatus();
+        }
+        case SchemaObjectKind::kAiIndex: {
+          auto* alter =
+              MakeNode<ASTAlterIndexStatement>(@$, $name, $on, $actions);
+          alter->set_index_type(ASTAlterIndexStatement::INDEX_AI);
+          alter->set_is_if_exists(@if_exists.has_value());
+          $$ = alter;
+          return absl::OkStatus();
+        }
+        default: {
+          absl::string_view kind_name = SchemaObjectKindToName($kind);
+          return MakeSyntaxError(
+              @kind, absl::StrCat("ALTER ", absl::AsciiStrToUpper(kind_name),
+                                  " is not supported"));
+        }
       }
-      node->set_is_if_exists($3);
+      if ($on.has_value()) {
+        absl::string_view kind_name = SchemaObjectKindToName($kind);
+        return MakeSyntaxError(
+            @on, absl::StrCat("ALTER ", absl::AsciiStrToUpper(kind_name),
+                              " does not support the ON clause"));
+      }
+      node->set_is_if_exists(@if_exists.has_value());
       $$ = ExtendNodeRight(node, $name, $actions);
     }
   | "ALTER" generic_entity_type opt_if_exists path_expression
@@ -1906,16 +1984,18 @@ alter_statement {ASTNode*}:
     }
   | "ALTER" "PRIVILEGE" "RESTRICTION" opt_if_exists
       "ON" privilege_list "ON" identifier path_expression
-      privilege_restriction_alter_action_list
+      (privilege_restriction_alter_action separator ",")+[actions]
     {
-      auto* alter_privilege_restriction = MakeNode<ASTAlterPrivilegeRestrictionStatement>(@$, $6, $8, $9, $10);
+      auto* actions_list = MakeNode<ASTAlterActionList>(@actions, $actions);
+      auto* alter_privilege_restriction = MakeNode<ASTAlterPrivilegeRestrictionStatement>(@$, $6, $8, $9, actions_list);
       alter_privilege_restriction->set_is_if_exists($4);
       $$ = alter_privilege_restriction;
     }
   | "ALTER" "ROW" "ACCESS" "POLICY" opt_if_exists identifier "ON"
-      path_expression row_access_policy_alter_action_list
+      path_expression (row_access_policy_alter_action separator ",")+[actions]
     {
-      ASTAlterRowAccessPolicyStatement* node = MakeNode<ASTAlterRowAccessPolicyStatement>(@$, $6, $8, $9);
+      auto* actions_list = MakeNode<ASTAlterActionList>(@actions, $actions);
+      ASTAlterRowAccessPolicyStatement* node = MakeNode<ASTAlterRowAccessPolicyStatement>(@$, $6, $8, actions_list);
       node->set_is_if_exists($5);
       $$ = node;
     }
@@ -1923,14 +2003,6 @@ alter_statement {ASTNode*}:
       row_access_policy_alter_action
     {
       $$ = MakeNode<ASTAlterAllRowAccessPoliciesStatement>(@$, $7, $8);
-    }
-  | "ALTER" alter_index_type "INDEX" opt_if_exists path_expression
-      opt_on_path_expression alter_index_action_list
-    {
-      auto* alter_index = MakeNode<ASTAlterIndexStatement>(@$, $5, $6, $7);
-      alter_index->set_index_type($2);
-      alter_index->set_is_if_exists($4);
-      $$ = alter_index;
     }
 ;
 
@@ -1968,7 +2040,7 @@ assert_statement {ASTNode*}:
 ;
 
 analyze_statement {ASTNode*}:
-    "ANALYZE" options_opt[options] (table_and_column_info separator ",")*[info]
+    "ANALYZE" options-opt (table_and_column_info separator ",")*[info]
     {
       auto info_list = MakeListNode<ASTTableAndColumnInfoList>(@info, $info);
       $$ = MakeNode<ASTAnalyzeStatement>(@$, $options, info_list);
@@ -2225,7 +2297,7 @@ procedure_parameters {ASTNode*}:
 ;
 
 procedure_parameter {ASTFunctionParameter*}:
-    procedure_parameter_mode_opt[mode] identifier (type_or_tvf_schema[type] | ")"[paren] | ","[comma])
+    procedure_parameter_mode-opt[mode] identifier (type_or_tvf_schema[type] | ")"[paren] | ","[comma])
     {
       if (!$type.has_value()) {
         // There may be 3 cases causing this error:
@@ -2374,36 +2446,14 @@ opt_as_sql_function_body_or_string {ASTNode*}:
     }
 ;
 
-as_code {ASTNode*}:
-    "AS" string_literal
-    {
-      $$ = $string_literal;
-    }
-;
-
-opt_as_code {ASTNode*}:
-    as_code?
-    {
-      $$ = $as_code.value_or(nullptr);
-    }
-;
 
 path_expression_or_string {ASTNode*}:
     path_expression
-    {
-      $$ = $1;
-    }
   | string_literal
-    {
-      $$ = $1;
-    }
 ;
 
 path_expression_or_default {ASTExpression*}:
     path_expression
-    {
-      $$ = $1;
-    }
   | "DEFAULT"
     {
       $$ = MakeNode<ASTDefaultLiteral>(@$);
@@ -2519,7 +2569,7 @@ with_connection_clause {ASTWithConnectionClause*}:
 
 create_external_table_statement {ASTNode*}:
     "CREATE" opt_or_replace[or_replace] opt_create_scope[create_scope]
-    "EXTERNAL" "TABLE" opt_if_not_exists[if_not_exists]
+    "EXTERNAL" "TABLE" .TableFunction opt_if_not_exists[if_not_exists]
     maybe_dashed_path_expression table_element_list? like_path_expression?
     default_collate_clause? with_partition_columns_clause?
     with_connection_clause? options
@@ -2535,80 +2585,91 @@ create_external_table_statement {ASTNode*}:
     }
 ;
 
-// This rule encounters a shift/reduce conflict with
-// 'create_external_table_statement' as noted in AMBIGUOUS CASE 3 in the
-// file-level comment. The syntax of this rule and
-// 'create_external_table_statement' must be kept the same until the "TABLE"
-// keyword, so that parser can choose between these two rules based on the
-// "FUNCTION" keyword conflict.
 create_external_table_function_statement {ASTNode*}:
-    "CREATE" opt_or_replace opt_create_scope "EXTERNAL" "TABLE" "FUNCTION"
+    "CREATE" opt_or_replace opt_create_scope "EXTERNAL"[ex] "TABLE"
+    .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION
     {
       return MakeSyntaxError(
-        @4,
-        "Syntax error: CREATE EXTERNAL TABLE FUNCTION is not supported");
+          @ex, "Syntax error: CREATE EXTERNAL TABLE FUNCTION is not supported");
     }
 ;
 
-// This rule encounters a shift/reduce conflict with 'create_index_statement'
-// if "PARTITION BY" and "INTERLEAVING IN" are both present. This is because in
-// "PARTITION BY", a "," can be used to separate the partition columns, while
-// "INTERLEAVING IN" is leading by a ",".
-// To avoid this conflict, in the create index suffix, we do not allow partition
-// by and interleaving in to be present at the same time.
+// "PARTITION BY" and "INTERLEAVE IN" clauses conflict because "PARTITION BY"
+// uses Token::COMMA is used to separate the partition columns, while
+// "INTERLEAVE IN" starts with Token::COMMA. One token of LA is insufficent to
+// decide if ", INTERLEAVE" starts another partition by expression or starts the
+// INTERLEAVE IN clause. To work around the conflict,
+// create_index_statement_suffix does not allow partition by and interleave in
+// to be present at the same time.
 create_index_statement_suffix {CreateIndexStatementSuffix}:
-    partition_by_clause_prefix_no_hint opt_options_list
+    partition_by_clause_prefix_no_hint with_connection_clause[conn]? options?
     {
-      $$ = {$partition_by_clause_prefix_no_hint, $opt_options_list,
-            /*spanner_index_innerleaving_clause=*/nullptr};
+      $$ = CreateIndexStatementSuffix{
+            .partition_by = $partition_by_clause_prefix_no_hint,
+            .with_connection_clause = $conn.value_or(nullptr),
+            .options_list = $options.value_or(nullptr)};
     }
-  | opt_options_list spanner_index_interleave_clause
+  | with_connection_clause[conn] options?
     {
-      $$ = {/*partition_by=*/nullptr, $opt_options_list,
-            $spanner_index_interleave_clause};
+      $$ = CreateIndexStatementSuffix{
+            .with_connection_clause = $with_connection_clause,
+            .options_list = $options.value_or(nullptr)};
+    }
+  | options? spanner_index_interleave_clause[interleave]
+    {
+      $$ = CreateIndexStatementSuffix{
+            .options_list = $options.value_or(nullptr),
+            .interleave_in = $interleave};
     }
   | options
     {
-      $$ = {/*partition_by=*/nullptr, $options,
-            /*spanner_index_innerleaving_clause=*/nullptr};
+      $$ = CreateIndexStatementSuffix{.options_list = $options};
     }
 ;
 
-create_index_statement {ASTNode*}:
-    "CREATE" opt_or_replace opt_unique opt_spanner_null_filtered opt_index_type
-    "INDEX" opt_if_not_exists path_expression on_path_expression as_alias?
-    opt_index_unnest_expression_list index_order_by_and_options
-    opt_index_storing_list create_index_statement_suffix?
+create_index_statement {ASTCreateIndexStatement*}:
+    "CREATE" opt_or_replace "UNIQUE"[unique]? "NULL_FILTERED"[null_filtered]?
+    index_type? "INDEX" if_not_exists? path_expression[name]
+    "ON" path_expression[target] as_alias-opt[table_alias]
+    index_unnest_expression_list-opt[unnest]
+    index_order_by_and_options[order_by] index_storing_list[storing]?
+    create_index_statement_suffix[suffix]?
     {
+      if (@null_filtered.has_value() &&
+          !language_options.LanguageFeatureEnabled(FEATURE_SPANNER_LEGACY_DDL)) {
+        return MakeSyntaxError(
+            @null_filtered, "null_filtered is not a supported object type");
+      }
       ASTPartitionBy* partition_by = nullptr;
-        ASTOptionsList* options_list = nullptr;
-        ASTSpannerInterleaveClause* spanner_interleaving_clause =
-            nullptr;
-        if ($create_index_statement_suffix.has_value()) {
-          partition_by = static_cast<ASTPartitionBy*>(
-              $create_index_statement_suffix->partition_by);
-          options_list = static_cast<ASTOptionsList*>(
-              $create_index_statement_suffix->options_list);
-          spanner_interleaving_clause = static_cast<
-              ASTSpannerInterleaveClause*>($create_index_statement_suffix
-              ->spanner_index_innerleaving_clause);
-        }
-        auto* create =
-          MakeNode<ASTCreateIndexStatement>(@$,
-              $path_expression, $on_path_expression, $as_alias,
-              $opt_index_unnest_expression_list, $index_order_by_and_options,
-              $opt_index_storing_list,
-              partition_by, options_list, spanner_interleaving_clause);
-        create->set_is_or_replace($opt_or_replace);
-        create->set_is_unique($opt_unique);
-        create->set_is_if_not_exists($opt_if_not_exists);
-        create->set_spanner_is_null_filtered($opt_spanner_null_filtered);
-        if ($opt_index_type == IndexTypeKeywords::kSearch) {
-          create->set_is_search(true);
-        } else if ($opt_index_type == IndexTypeKeywords::kVector) {
-          create->set_is_vector(true);
-        }
-        $$ = create;
+      ASTWithConnectionClause* with_connection_clause = nullptr;
+      ASTOptionsList* options_list = nullptr;
+      ASTSpannerInterleaveClause* interleave_in = nullptr;
+      if ($suffix.has_value()) {
+        partition_by = $suffix->partition_by;
+        with_connection_clause = $suffix->with_connection_clause;
+        options_list = $suffix->options_list;
+        interleave_in = $suffix->interleave_in;
+      }
+      $$ = MakeNode<ASTCreateIndexStatement>(@$,
+            $name, $target, $table_alias, $unnest, $order_by, $storing,
+            partition_by, with_connection_clause, options_list, interleave_in);
+      $$->set_is_or_replace($opt_or_replace);
+      $$->set_is_unique(@unique.has_value());
+      $$->set_is_if_not_exists(@if_not_exists.has_value());
+      $$->set_spanner_is_null_filtered(@null_filtered.has_value());
+      switch ($index_type.value_or(IndexType::INDEX_DEFAULT)) {
+        case IndexType::INDEX_DEFAULT:
+          break;
+        case IndexType::INDEX_SEARCH:
+          $$->set_is_search(true);
+          break;
+        case IndexType::INDEX_VECTOR:
+          $$->set_is_vector(true);
+          break;
+        case IndexType::INDEX_AI:
+          $$->set_is_ai(true);
+          break;
+      }
     }
 ;
 
@@ -2685,6 +2746,44 @@ element_table_list {ASTNode*}:
     }
 ;
 
+inlined_edge_direction {ASTGraphEdgePatternEnums::EdgeOrientation}:
+    "FORWARDS"  { $$ = ASTGraphEdgePatternEnums::RIGHT; }
+  | "BACKWARDS" { $$ = ASTGraphEdgePatternEnums::LEFT; }
+;
+
+inlined_edge_definition {ASTGraphInlinedEdgeDefinition*}:
+    "EDGE" as_alias_with_required_as[name]
+    "JOIN" "KEY" column_list[join_keys] "REFERENCES" identifier[ref_table]
+    opt_column_list[dest_element_table_columns]
+    inlined_edge_direction[direction]?
+    opt_options_list[default_label_options]
+    opt_label_and_properties_clause
+    dynamic_label_and_properties?
+    {
+       auto direction = $direction.has_value() ? $direction.value() : ASTGraphEdgePatternEnums::RIGHT;
+       $$ = MakeNode<ASTGraphInlinedEdgeDefinition>(@$,
+           $name,
+           $join_keys,
+           $ref_table,
+           $dest_element_table_columns,
+           $opt_label_and_properties_clause,
+           $dynamic_label_and_properties.has_value() ?
+               $dynamic_label_and_properties->dynamic_label : nullptr,
+           $dynamic_label_and_properties.has_value() ?
+               $dynamic_label_and_properties->dynamic_properties : nullptr,
+           $default_label_options
+       );
+       $$->set_direction(static_cast<ASTGraphEdgePattern::EdgeOrientation>(direction));
+    }
+;
+
+inlined_edge_definitions {std::vector<ASTGraphInlinedEdgeDefinition*>}:
+    (inlined_edge_definition)+[defs]
+    {
+      $$ = $defs;
+    }
+;
+
 element_table_definition {ASTNode*}:
     path_expression as_alias_with_required_as?
     key_clause?
@@ -2692,6 +2791,7 @@ element_table_definition {ASTNode*}:
     opt_options_list[default_label_options]
     opt_label_and_properties_clause
     dynamic_label_and_properties?
+    inlined_edge_definitions?
     {
       $$ = MakeNode<ASTGraphElementTable>(@$,
           $path_expression,
@@ -2704,7 +2804,8 @@ element_table_definition {ASTNode*}:
               $dynamic_label_and_properties->dynamic_label : nullptr,
           $dynamic_label_and_properties.has_value() ?
               $dynamic_label_and_properties->dynamic_properties : nullptr,
-          $default_label_options
+          $default_label_options,
+          $inlined_edge_definitions
         );
     }
 ;
@@ -2992,15 +3093,10 @@ unordered_language_options {std::pair<ASTIdentifier*, ASTNode*>}:
     }
 ;
 
-// This rule encounters a shift/reduce conflict with 'create_table_statement'
-// as noted in AMBIGUOUS CASE 3 in the file-level comment. The syntax of this
-// rule and 'create_table_statement' must be kept the same until the "TABLE"
-// keyword, so that parser can choose between these two rules based on the
-// "FUNCTION" keyword conflict.
 create_table_function_statement {ASTNode*}:
     // The preferred style is LANGUAGE OPTIONS but OPTIONS LANGUAGE is allowed
     // for backwards compatibility (no deprecation warning YET).
-    "CREATE" opt_or_replace opt_create_scope "TABLE" "FUNCTION"
+    "CREATE" opt_or_replace opt_create_scope "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION
         opt_if_not_exists path_expression opt_function_parameters returns?
         sql_security? unordered_language_options[ulo]? opt_as_query_or_string[body]
     {
@@ -3030,18 +3126,9 @@ create_table_function_statement {ASTNode*}:
     }
 ;
 
-// LINT.IfChange(ctas_statement)
-// This is the CREATE TABLE statement without the optional AS-query.
-//
-// This rule encounters a shift/reduce conflict with
-// 'create_table_function_statement' as noted in AMBIGUOUS CASE 3 in the
-// file-level comment. The syntax of this rule and
-// 'create_table_function_statement' must be kept the same until the "TABLE"
-// keyword, so that parser can choose between these two rules based on the
-// "FUNCTION" keyword conflict.
 create_table_statement_prefix {ASTNode*}:
-    "CREATE" opt_or_replace opt_create_scope "TABLE" opt_if_not_exists
-    maybe_dashed_path_expression opt_table_element_list
+    "CREATE" opt_or_replace opt_create_scope "TABLE" .TableFunction
+    opt_if_not_exists maybe_dashed_path_expression opt_table_element_list
     opt_spanner_table_options opt_like_path_expression opt_clone_table
     opt_copy_table opt_default_collate_clause opt_partition_by_clause_no_hint
     opt_cluster_by_clause_no_hint opt_ttl_clause opt_with_connection_clause
@@ -3075,7 +3162,32 @@ create_table_statement {ASTNode*}:
       $$ = ExtendNodeRight($prefix, @$.end(), $opt_as_query);
     }
 ;
-// LINT.ThenChange(:ctas_new_statement_kind)
+
+create_live_table_statement {ASTNode*}:
+    "CREATE" opt_or_replace opt_create_scope "LIVE" "TABLE" opt_if_not_exists
+    maybe_dashed_path_expression opt_table_element_list
+    opt_default_collate_clause opt_partition_by_clause_no_hint
+    opt_cluster_by_clause_no_hint
+    opt_with_connection_clause
+    opt_options_list as_query
+    {
+      if ($opt_create_scope != ASTCreateStatement::DEFAULT_SCOPE) {
+        return MakeSyntaxError(@opt_create_scope,
+            "Syntax error: TEMP, TEMPORARY, PUBLIC, or PRIVATE modifiers are not supported for LIVE TABLE");
+      }
+      auto* create = MakeNode<ASTCreateLiveTableStatement>(
+          @$, $maybe_dashed_path_expression, $opt_table_element_list,
+          $opt_default_collate_clause,
+          $opt_partition_by_clause_no_hint, $opt_cluster_by_clause_no_hint,
+          $opt_with_connection_clause,
+          $opt_options_list, $as_query);
+      create->set_is_or_replace($opt_or_replace);
+      create->set_scope($opt_create_scope);
+      create->set_is_if_not_exists($opt_if_not_exists);
+      $$ = create;
+    }
+;
+
 
 append_or_overwrite {ASTAuxLoadDataStatement::InsertionMode}:
     "INTO"
@@ -3136,7 +3248,7 @@ aux_load_data_statement {ASTNode*}:
     {
       OVERRIDE_NEXT_TOKEN_LOOKBACK(LPAREN, LB_LPAREN_NOT_OPEN_SUBQUERY);
     }
-    table_element_list_opt[table_elements]
+    table_element_list-opt[table_elements]
     load_data_partitions_clause[partitions]?
     collate_clause[collate]?
     partition_by_clause_prefix_no_hint[partition_by]?
@@ -3220,13 +3332,7 @@ generic_sub_entity_type {ASTNode*}:
 
 generic_entity_body {ASTNode*}:
     json_literal
-    {
-      $$ = $json_literal;
-    }
   | string_literal
-    {
-      $$ = $string_literal;
-    }
 ;
 
 opt_generic_entity_body {ASTNode*}:
@@ -3315,7 +3421,7 @@ table_element_list_prefix {ASTNode*}:
 
 // The table_element grammar includes 2 shift/reduce conflicts in its
 // table_constraint_definition rule. See the file header comment for
-// AMBIGUOUS CASE 4: CREATE TABLE CONSTRAINTS.
+// AMBIGUOUS CASE ... CREATE TABLE CONSTRAINTS.
 //
 // The table elements for the CREATE TABLE statement include a mix of column
 // definitions and constraint definitions (such as foreign key, primary key,
@@ -3351,11 +3457,20 @@ table_element {ASTNode*}:
 ;
 
 table_column_definition {ASTNode*}:
-    identifier table_column_schema column_attributes? opt_options_list
+    identifier[name] .lr0 .AfterColumnName
+    ( (table_column_schema[schema] | GUIDE_EMPTY_COLUMN_TYPE)
+      column_attributes? options?
+    )[full_schema]
     {
-      auto* schema = ExtendNodeRight(
-          $2, @$.end(), $column_attributes, $4);
-      $$ = MakeNode<ASTColumnDefinition>(@$, $1, schema);
+      ASTNode* schema = nullptr;
+      if (@schema.has_value()) {
+        schema =
+            ExtendNodeRight(*$schema, @$.end(), $column_attributes, $options);
+      } else {
+        schema = MakeNode<ASTInferredTypeColumnSchema>(
+            @full_schema, $column_attributes, $options);
+      }
+      $$ = MakeNode<ASTColumnDefinition>(@$, $name, schema);
     }
 ;
 
@@ -3386,21 +3501,21 @@ simple_column_schema_inner {ASTNode*}:
 ;
 
 array_column_schema_inner {ASTNode*}:
-    "ARRAY" template_type_open field_schema template_type_close
+    "ARRAY" "<" .OpenTypeTemplate field_schema template_type_close
     {
       $$ = MakeNode<ASTArrayColumnSchema>(@$, $3);
     }
 ;
 
 range_column_schema_inner {ASTNode*}:
-    "RANGE" template_type_open field_schema template_type_close
+    "RANGE" "<" .OpenTypeTemplate field_schema template_type_close
     {
       $$ = MakeNode<ASTRangeColumnSchema>(@$, $3);
     }
 ;
 
 map_column_schema_inner {ASTNode*}:
-    "MAP" template_type_open field_schema[key] "," field_schema[value] template_type_close
+    "MAP" "<" .OpenTypeTemplate field_schema[key] "," field_schema[value] template_type_close
     {
       $$ = MakeNode<ASTMapColumnSchema>(@$, $key, $value);
     }
@@ -3436,7 +3551,7 @@ struct_column_field {ASTNode*}:
 ;
 
 struct_column_schema_prefix {ASTNode*}:
-    "STRUCT" template_type_open struct_column_field
+    "STRUCT" "<" .OpenTypeTemplate  struct_column_field
     {
       $$ = MakeNode<ASTStructColumnSchema>(@$, $3);
     }
@@ -3449,7 +3564,7 @@ struct_column_schema_prefix {ASTNode*}:
 // This node does not apply WithEndLocation. column_schema and
 // field_schema do.
 struct_column_schema_inner {ASTNode*}:
-    "STRUCT" template_type_open template_type_close
+    "STRUCT" "<" .OpenTypeTemplate template_type_close
     {
       $$ = MakeNode<ASTStructColumnSchema>(@$);
     }
@@ -3510,9 +3625,6 @@ signed_numerical_literal {ASTExpression*}:
   | numeric_literal
   | bignumeric_literal
   | floating_point_literal
-    {
-      $$ = $1;
-    }
   | "-" integer_literal[literal]
     {
       auto* expression = MakeNode<ASTUnaryExpression>(@$, $literal);
@@ -3807,29 +3919,6 @@ column_position {ASTNode*}:
     }
 ;
 
-opt_column_position {ASTNode*}:
-    column_position
-  | %empty
-    {
-      $$ = nullptr;
-    }
-;
-
-fill_using_expression {ASTExpression*}:
-    "FILL" "USING" expression
-    {
-      $$ = $3;
-    }
-;
-
-opt_fill_using_expression {ASTExpression*}:
-    fill_using_expression
-  | %empty
-    {
-      $$ = nullptr;
-    }
-;
-
 table_constraint_spec {ASTNode*}:
     "CHECK" "(" expression ")" opt_constraint_enforcement opt_options_list
     {
@@ -3908,7 +3997,7 @@ primary_key_or_table_constraint_spec {ASTNode*}:
 table_constraint_definition {ASTNode*}:
     primary_key_spec
   | table_constraint_spec
-  | identifier identifier[name] table_constraint_spec
+  | identifier .lr0 .AfterColumnName identifier[name] table_constraint_spec
     {
       auto* node = $3;
       absl::string_view constraint = $1->GetAsStringView();
@@ -4069,19 +4158,6 @@ constraint_enforcement {bool}:
     }
 ;
 
-// Matches either "TABLE" or "TABLE FUNCTION". This encounters a shift/reduce
-// conflict as noted in AMBIGUOUS CASE 3 in the file-level comment.
-table_or_table_function {TableOrTableFunctionKeywords}:
-    "TABLE" "FUNCTION"
-    {
-      $$ = TableOrTableFunctionKeywords::kTableAndFunctionKeywords;
-    }
-  | "TABLE"
-    {
-      $$ = TableOrTableFunctionKeywords::kTableKeyword;
-    }
-;
-
 tvf_schema_column {ASTNode*}:
     identifier type
     {
@@ -4094,7 +4170,7 @@ tvf_schema_column {ASTNode*}:
 ;
 
 tvf_schema_prefix {ASTNode*}:
-    "TABLE" template_type_open tvf_schema_column
+    "TABLE" "<" .OpenTypeTemplate tvf_schema_column
     {
       auto* create = MakeNode<ASTTVFSchema>(@$, $3);
       $$ = create;
@@ -4189,9 +4265,6 @@ as_query {ASTNode*}:
 
 opt_as_query {ASTNode*}:
     as_query
-    {
-      $$ = $1;
-    }
   | %empty
     {
       $$ = nullptr;
@@ -4200,9 +4273,6 @@ opt_as_query {ASTNode*}:
 
 as_query_or_string {ASTNode*}:
     as_query
-    {
-      $$ = $1;
-    }
   | as_before_query string_literal
     {
       $$ = $2;
@@ -4218,12 +4288,9 @@ opt_as_query_or_string {ASTNode*}:
 
 as_query_or_aliased_query_list {ASTNode*}:
     as_query
+  | as_before_query "(" (aliased_query separator ",")+[queries] ")"
     {
-      $$ = $1;
-    }
-  | as_before_query "(" aliased_query_list ")"
-    {
-      $$ = $3;
+      $$ = MakeNode<ASTAliasedQueryList>(@queries, $queries);
     }
 ;
 
@@ -4295,17 +4362,16 @@ export_model_statement {ASTNode*}:
 ;
 
 export_metadata_statement {ASTNode*}:
-    "EXPORT" table_or_table_function "METADATA" "FROM"
-    maybe_dashed_path_expression opt_with_connection_clause opt_options_list
+    "EXPORT" "TABLE" "FUNCTION"[fn]? "METADATA" "FROM"
+    maybe_dashed_path_expression[name] opt_with_connection_clause[conn] options?
     {
-      if ($2 == TableOrTableFunctionKeywords::kTableAndFunctionKeywords) {
+      if (@fn.has_value()) {
         return MakeSyntaxError(@2,
             "EXPORT TABLE FUNCTION METADATA is not supported");
       }
       auto* export_metadata =
-      MakeNode<ASTExportMetadataStatement>(@$, $5, $6, $7);
-      export_metadata->set_schema_object_kind(
-        SchemaObjectKind::kTable);
+          MakeNode<ASTExportMetadataStatement>(@$, $name, $conn, $options);
+      export_metadata->set_schema_object_kind(SchemaObjectKind::kTable);
       $$ = export_metadata;
     }
 ;
@@ -4348,9 +4414,6 @@ privileges {ASTNode*}:
       $$ = MakeNode<ASTPrivileges>(@$);
     }
   | privilege_list
-    {
-      $$ = $1;
-    }
 ;
 
 privilege_list {ASTNode*}:
@@ -4369,9 +4432,6 @@ privilege {ASTNode*}:
 
 privilege_name {ASTNode*}:
     identifier
-    {
-      $$ = $1;
-    }
   | "SELECT"
     {
       // The SELECT keyword is allowed to be a privilege name.
@@ -4462,12 +4522,30 @@ index_all_columns {ASTNode*}:
     }
 ;
 
+index_auto_columns {ASTNode*}:
+    "(" "AUTO" "COLUMNS" ")"
+    {
+      auto* auto_columns = MakeNode<ASTIndexAutoColumns>(@$);
+      auto_columns->set_image("AUTO COLUMNS");
+      auto* ordering_expr =
+          MakeNode<ASTOrderingExpression>(@$,
+                    auto_columns);
+      ordering_expr->set_ordering_spec(
+                              ASTOrderingExpression::UNSPECIFIED);
+      $$ = MakeNode<ASTIndexItemList>(@$, ordering_expr);
+    }
+;
+
 index_order_by_and_options {ASTNode*}:
     index_order_by_and_options_prefix ")"
     {
       $$ = WithEndLocation($1, @$);
     }
   | index_all_columns
+    {
+      $$ = WithEndLocation($1, @$);
+    }
+  | index_auto_columns
     {
       $$ = WithEndLocation($1, @$);
     }
@@ -4480,24 +4558,10 @@ index_unnest_expression_list {ASTNode*}:
     }
 ;
 
-opt_index_unnest_expression_list {ASTNode*}:
-    index_unnest_expression_list?
-    {
-      $$ = $index_unnest_expression_list.value_or(nullptr);
-    }
-;
-
 index_storing_list {ASTNode*}:
     "STORING" "("[lparen] (expression separator ",")+[index_storing_list] ")"
     {
       $$ = WithStartLocation(MakeNode<ASTIndexStoringExpressionList>(@$, $index_storing_list), @lparen);
-    }
-;
-
-opt_index_storing_list {ASTNode*}:
-    index_storing_list?
-    {
-      $$ = $index_storing_list.value_or(nullptr);
     }
 ;
 
@@ -4564,9 +4628,6 @@ show_target {ASTIdentifier*}:
       $$ = node_factory.MakeIdentifier(@$, "MATERIALIZED VIEWS");
     }
   | identifier
-    {
-      $$ = $1;
-    }
 ;
 
 like_string_literal {ASTNode*}:
@@ -4841,7 +4902,7 @@ query_after_as {ASTQuery*}:
 ;
 
 # For helpful errors if a user writes a subquery where a subpipeline was expected.
-subpipeline_bad_prefix_subquery {ASTNode*}:
+subpipeline_bad_prefix_subquery:
     "SELECT"
   | "FROM"
   | "WITH"
@@ -4850,7 +4911,7 @@ subpipeline_bad_prefix_subquery {ASTNode*}:
 # "Expected |>" errors are suppressed to avoid suggesting pipes everywhere,
 # but we still want an error like that in subpipelines if a user writes
 # pipe operators directly without writing |>.
-subpipeline_bad_prefix_not_subquery {ASTNode*}:
+subpipeline_bad_prefix_not_subquery:
     # This catches some common reserved keyword pipe operators plus any
     # non-reserved keyword operators.
     # "SELECT" isn't here because it's in `subpipeline_bad_prefix_subquery` above.
@@ -4932,6 +4993,7 @@ pipe_operator {ASTPipeOperator*}:
   | pipe_call
   | pipe_window
   | pipe_distinct
+  | pipe_finish
   | pipe_tablesample
   | pipe_as
   | pipe_describe
@@ -4952,6 +5014,7 @@ pipe_operator {ASTPipeOperator*}:
   | pipe_create_table
   | pipe_insert
   | pipe_match_recognize
+  | pipe_align_operator
 ;
 
 pipe_where {ASTPipeOperator*}:
@@ -5010,54 +5073,26 @@ pipe_selection_item_with_order {ASTNode*}:
   | select_column_dot_star
 ;
 
-// This is a restricted form of ASTSelectList that excludes * and
-// other SELECT-list specific syntaxes.
-pipe_selection_item_list_no_comma {ASTNode*}:
-    pipe_selection_item
-    {
-      $$ = MakeNode<ASTSelectList>(@$, $1);
-    }
-  | pipe_selection_item_list_no_comma "," pipe_selection_item
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
-pipe_selection_item_list_no_comma_with_order {ASTNode*}:
-    pipe_selection_item_with_order
-    {
-      $$ = MakeNode<ASTSelectList>(@$, $1);
-    }
-  | pipe_selection_item_list_no_comma_with_order ","
-      pipe_selection_item_with_order
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 // This is the selection list used for most pipe operators.
 // It resolves to an ASTSelectList.
 pipe_selection_item_list {ASTNode*}:
-    pipe_selection_item_list_no_comma ","?
+    (pipe_selection_item separator ",")+[items] ","?
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTSelectList>(@$, $items);
     }
 ;
 
 // This extends pipe_selection_item_list to support
 // ASTGroupingItemOrder suffixes.
 pipe_selection_item_list_with_order {ASTNode*}:
-    pipe_selection_item_list_no_comma_with_order ","?
+    (pipe_selection_item_with_order separator ",")+[items] ","?
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTSelectList>(@$, $items);
     }
 ;
 
 pipe_selection_item_list_with_order_or_empty {ASTNode*}:
     pipe_selection_item_list_with_order
-    {
-      $$ = $1;
-    }
   | %empty
     {
       $$ = MakeNode<ASTSelectList>(@$);
@@ -5079,21 +5114,10 @@ pipe_rename_item {ASTPipeOperator*}:
     }
 ;
 
-pipe_rename_item_list {ASTPipeOperator*}:
-    pipe_rename_item[item]
-    {
-      $$ = MakeNode<ASTPipeRename>(@$, $item);
-    }
-  | pipe_rename_item_list[list] "," pipe_rename_item[item]
-    {
-      $$ = ExtendNodeRight($list, $item);
-    }
-;
-
 pipe_rename {ASTPipeOperator*}:
-    "RENAME" pipe_rename_item_list ","?
+    "RENAME" (pipe_rename_item separator ",")+[items] ","?
     {
-      $$ = $pipe_rename_item_list;
+      $$ = MakeNode<ASTPipeRename>(@items, $items);
     }
 ;
 
@@ -5239,6 +5263,13 @@ pipe_distinct {ASTPipeOperator*}:
     }
 ;
 
+pipe_finish {ASTPipeOperator*}:
+    "FINISH" hint?
+    {
+      $$ = MakeNode<ASTPipeFinish>(@$, $hint);
+    }
+;
+
 pipe_tablesample {ASTPipeOperator*}:
     sample_clause
     {
@@ -5293,11 +5324,10 @@ pipe_log {ASTPipeOperator*}:
     }
 ;
 
-identifier_in_pipe_drop {ASTNode*}:
+// This is the same as identifier, but gives a custom error if the
+// items are paths rather than just identifiers.
+pipe_drop_item {ASTNode*}:
     identifier
-    {
-      $$ = $identifier;
-    }
   | identifier "."
     {
       {
@@ -5308,25 +5338,18 @@ identifier_in_pipe_drop {ASTNode*}:
             "supported");
       }
     }
+  | unpack_expression
+    {
+      $$ = $unpack_expression;
+    }
 ;
 
-// This is the same as identifier_list, but gives a custom error if the
-// items are paths rather than just identifiers.
-identifier_list_in_pipe_drop {ASTNode*}:
-    identifier_in_pipe_drop[item]
-    {
-      $$ = MakeNode<ASTIdentifierList>(@$, $item);
-    }
-  | identifier_list_in_pipe_drop[list] "," identifier_in_pipe_drop[item]
-    {
-      $$ = ExtendNodeRight($list, $item);
-    }
-;
 
 pipe_drop {ASTPipeOperator*}:
-    "DROP" identifier_list_in_pipe_drop[list] ","?
+    "DROP" (pipe_drop_item separator ",")+[items] ","?
     {
-      $$ = MakeNode<ASTPipeDrop>(@$, $list);
+      auto* items = MakeNode<ASTExpressionList>(@items, $items);
+      $$ = MakeNode<ASTPipeDrop>(@$, items);
     }
 ;
 
@@ -5347,21 +5370,10 @@ pipe_set_item {ASTNode*}:
     }
 ;
 
-pipe_set_item_list {ASTPipeOperator*}:
-    pipe_set_item
-    {
-      $$ = MakeNode<ASTPipeSet>(@$, $1);
-    }
-  | pipe_set_item_list "," pipe_set_item
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 pipe_set {ASTPipeOperator*}:
-    "SET" pipe_set_item_list ","?
+    "SET" (pipe_set_item separator ",")+[items] ","?
     {
-      $$ = WithLocation($2, @$);
+      $$ = MakeNode<ASTPipeSet>(@$, $items);
     }
 ;
 
@@ -5522,6 +5534,13 @@ pipe_match_recognize {ASTPipeOperator*}:
     }
 ;
 
+pipe_align_operator {ASTPipeOperator*}:
+    align_operator
+    {
+      $$ = MakeNode<ASTPipeAlignOperator>(@$, $align_operator);
+    }
+;
+
 opt_corresponding_outer_mode {ASTSetOperationColumnPropagationMode*}:
     (KW_FULL_IN_SET_OP | KW_FULL_IN_SET_OP "OUTER" | "OUTER")
     {
@@ -5556,6 +5575,39 @@ opt_strict {ASTSetOperationColumnPropagationMode*}:
     }
 ;
 
+identifier_or_unpack_expression {ASTExpression*}:
+    identifier
+    {
+      $$ = $identifier;
+    }
+  | unpack_expression
+    {
+      $$ = $unpack_expression;
+    }
+;
+
+identifier_or_unpack_list {ASTExpressionList*}:
+     (identifier_or_unpack_expression separator ",")+[list]
+    {
+      $$ = MakeNode<ASTExpressionList>(@$, $list);
+    }
+;
+
+opt_column_match_suffix_column_list {ASTExpressionList*}:
+    identifier_or_unpack_list[column_list]
+    {
+      $$ = $column_list;
+      OVERRIDE_NEXT_TOKEN_LOOKBACK(RPAREN, LB_CLOSE_COLUMN_LIST);
+    }
+;
+
+opt_column_match_suffix_column_list_with_parens {ASTExpressionList*}:
+    "(" opt_column_match_suffix_column_list[column_list] ")"
+    {
+      $$ = WithStartLocation(WithEndLocation($column_list, @$), @1);
+    }
+;
+
 opt_column_match_suffix {ColumnMatchSuffix}:
     "CORRESPONDING"
     {
@@ -5564,12 +5616,12 @@ opt_column_match_suffix {ColumnMatchSuffix}:
       $$.column_match_mode = mode;
       $$.column_list = nullptr;
     }
-  | "CORRESPONDING" "BY" column_list
+  | "CORRESPONDING" "BY" opt_column_match_suffix_column_list_with_parens[column_list]
     {
       auto* mode = MakeNode<ASTSetOperationColumnMatchMode>(MakeLocationRange(@1, @2));
       mode->set_value(ASTSetOperation::CORRESPONDING_BY);
       $$.column_match_mode = mode;
-      $$.column_list = $column_list->GetAsOrDie<ASTColumnList>();
+      $$.column_list = $column_list;
     }
   | "BY" "NAME"
     {
@@ -5578,12 +5630,12 @@ opt_column_match_suffix {ColumnMatchSuffix}:
       $$.column_match_mode = mode;
       $$.column_list = nullptr;
     }
-  | "BY" "NAME" "ON" column_list
+  | "BY" "NAME" "ON" opt_column_match_suffix_column_list_with_parens[column_list]
     {
       auto* mode = MakeNode<ASTSetOperationColumnMatchMode>(MakeLocationRange(@1, @3));
       mode->set_value(ASTSetOperation::BY_NAME_ON);
       $$.column_match_mode = mode;
-      $$.column_list = $column_list->GetAsOrDie<ASTColumnList>();
+      $$.column_list = $column_list;
     }
   | %empty
     {
@@ -5887,21 +5939,10 @@ select_list {ASTNode*}:
     }
 ;
 
-star_except_list_prefix {ASTNode*}:
-    "EXCEPT" "(" identifier
-    {
-      $$ = MakeNode<ASTStarExceptList>(@$, $3);
-    }
-  | star_except_list_prefix "," identifier
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 star_except_list {ASTNode*}:
-    star_except_list_prefix ")"
+    "EXCEPT" "(" identifier_or_unpack_list ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTStarExceptList>(@$, WithStartLocation(WithEndLocation($3, @$), @2));
     }
 ;
 
@@ -6209,17 +6250,6 @@ pivot_expression {ASTNode*}:
     }
 ;
 
-pivot_expression_list {ASTNode*}:
-    pivot_expression
-    {
-      $$ = MakeNode<ASTPivotExpressionList>(@$, $1);
-    }
-  | pivot_expression_list "," pivot_expression
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 pivot_value {ASTNode*}:
     expression as_alias?
     {
@@ -6227,26 +6257,14 @@ pivot_value {ASTNode*}:
     }
 ;
 
-pivot_value_list {ASTNode*}:
-    pivot_value
-    {
-      $$ = MakeNode<ASTPivotValueList>(@$, $1);
-    }
-  | pivot_value_list "," pivot_value
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 pivot_clause {ASTPivotClause*}:
-    "PIVOT" "(" pivot_expression_list
-    "FOR" expression_higher_prec_than_and "IN" "(" pivot_value_list ")" ")"
+    "PIVOT" "(" (pivot_expression separator ",")+[exprs]
+    "FOR" expression_higher_prec_than_and[for]
+    "IN" "(" (pivot_value separator ",")+[values] ")" ")"
     {
-      if ($3 == nullptr) {
-        return MakeSyntaxError(@3,
-            "PIVOT clause requires at least one pivot expression");
-      }
-      $$ = MakeNode<ASTPivotClause>(@$, $3, $5, $8);
+      auto* exprs = MakeNode<ASTPivotExpressionList>(@exprs, $exprs);
+      auto* values = MakeNode<ASTPivotValueList>(@values, $values);
+      $$ = MakeNode<ASTPivotClause>(@$, exprs, $for, values);
     }
 ;
 
@@ -6265,25 +6283,33 @@ opt_as_string_or_integer {ASTNode*}:
     }
 ;
 
-path_expression_list {ASTNode*}:
+unpivot_in_column_item {ASTExpression*}:
     path_expression
     {
-      $$ = MakeNode<ASTPathExpressionList>(@$, $1);
+      $$ = $1;
     }
-  | path_expression_list "," path_expression
+  | unpack_expression
     {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = $1;
     }
 ;
 
-path_expression_list_with_opt_parens {ASTNode*}:
-    "(" path_expression_list ")"
+unpivot_in_columm_list {ASTExpressionList*}:
+    (unpivot_in_column_item separator ",")+[list]
+    {
+      $$ = MakeNode<ASTExpressionList>(@$, $list);
+    }
+;
+
+unpivot_in_columm_list_with_opt_parens {ASTExpressionList*}:
+    "(" unpivot_in_columm_list ")"
     {
       $$ = $2;
+      $$->set_parenthesized(true);
     }
   | path_expression
     {
-      $$ = MakeNode<ASTPathExpressionList>(@$, $1);
+      $$ = MakeNode<ASTExpressionList>(@$, $1);
     }
 ;
 
@@ -6314,9 +6340,13 @@ opt_path_expression_list_with_parens {ASTNode*}:
 ;
 
 unpivot_in_item {ASTNode*}:
-    path_expression_list_with_opt_parens opt_as_string_or_integer
+    unpivot_in_columm_list_with_opt_parens opt_as_string_or_integer
     {
       $$ = MakeNode<ASTUnpivotInItem>(@$, $1, $2);
+    }
+  | unpack_expression
+    {
+      $$ = MakeNode<ASTUnpivotInItem>(@$, MakeNode<ASTExpressionList>(@$, $1));
     }
 ;
 
@@ -6338,6 +6368,17 @@ unpivot_in_item_list {ASTNode*}:
     }
 ;
 
+unpivot_value_columm_list_with_opt_parens {ASTNode*}:
+    "(" unpivot_in_columm_list ")"
+    {
+      $$ = $2;
+    }
+  | path_expression
+    {
+      $$ = MakeNode<ASTExpressionList>(@$, $1);
+    }
+;
+
 opt_unpivot_nulls_filter {ASTUnpivotClause::NullFilter}:
     "EXCLUDE" "NULLS"
     {
@@ -6355,7 +6396,7 @@ opt_unpivot_nulls_filter {ASTUnpivotClause::NullFilter}:
 
 unpivot_clause {ASTUnpivotClause*}:
     "UNPIVOT" opt_unpivot_nulls_filter "("
-   path_expression_list_with_opt_parens
+   unpivot_value_columm_list_with_opt_parens
    "FOR" path_expression "IN" unpivot_in_item_list ")"
     {
       auto* unpivot_clause = MakeNode<ASTUnpivotClause>(@$, $4, $6, $8);
@@ -6396,6 +6437,163 @@ match_recognize_clause {ASTPostfixTableOperator*}:
                        $options, $partition_by, $order_by, $measures,
                        $after_match_skip_clause, $row_pattern_expr,
                        $definitions, $alias);
+    }
+;
+
+within_clause_bound_expression {ASTAlignWithinBoundExpr*}:
+    expression
+    {
+      $$ = MakeNode<ASTAlignWithinBoundExpr>(@$, $expression);
+      $$->set_bound_type(ASTAlignWithinBoundExpr::TIMESTAMP);
+    }
+  | expression preceding_or_following
+    {
+      $$ = MakeNode<ASTAlignWithinBoundExpr>(@$, $expression);
+      $$->set_bound_type(($preceding_or_following == PrecedingOrFollowingKeyword::kPreceding)
+          ? ASTAlignWithinBoundExpr::INTERVAL_PRECEDING
+          : ASTAlignWithinBoundExpr::INTERVAL_FOLLOWING);
+    }
+  | expression "PERIOD" preceding_or_following
+    {
+      $$ = MakeNode<ASTAlignWithinBoundExpr>(@$, $expression);
+      $$->set_bound_type(($preceding_or_following == PrecedingOrFollowingKeyword::kPreceding)
+              ? ASTAlignWithinBoundExpr::PERIOD_PRECEDING
+              : ASTAlignWithinBoundExpr::PERIOD_FOLLOWING);
+    }
+  | "UNBOUNDED" preceding_or_following
+    {
+      $$ = MakeNode<ASTAlignWithinBoundExpr>(@$);
+      $$->set_bound_type(($2 == PrecedingOrFollowingKeyword::kPreceding)
+          ? ASTAlignWithinBoundExpr::UNBOUNDED_PRECEDING
+          : ASTAlignWithinBoundExpr::UNBOUNDED_FOLLOWING);
+    }
+;
+
+within_range_clause {ASTAlignWithinClause*}:
+    "RANGE" "FROM" within_clause_bound_expression[low] "TO" within_clause_bound_expression[high]
+    {
+       $$ = MakeNode<ASTAlignWithinClause>(@$);
+       $$->set_bounds($low, $high);
+    }
+  | "RANGE" "FROM" within_clause_bound_expression[low]
+    {
+      $$ = MakeNode<ASTAlignWithinClause>(@$);
+      $$->set_bounds($low, nullptr);
+    }
+  | "RANGE" "TO" within_clause_bound_expression[high]
+    {
+      $$ = MakeNode<ASTAlignWithinClause>(@$);
+      $$->set_bounds(nullptr, $high);
+    }
+  | expression "PERIOD" preceding_or_following?
+    {
+      auto* bound = MakeNode<ASTAlignWithinBoundExpr>(@$, $expression);
+      if($preceding_or_following.value_or(PrecedingOrFollowingKeyword::kPreceding) ==
+          PrecedingOrFollowingKeyword::kPreceding) {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::PERIOD_PRECEDING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(bound, nullptr);
+      }
+      else {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::PERIOD_FOLLOWING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(nullptr, bound);
+      }
+    }
+  | expression preceding_or_following?
+    {
+      auto* bound = MakeNode<ASTAlignWithinBoundExpr>(@$, $expression);
+      if($preceding_or_following.value_or(PrecedingOrFollowingKeyword::kPreceding) ==
+          PrecedingOrFollowingKeyword::kPreceding) {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::INTERVAL_PRECEDING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(bound, nullptr);
+      }
+      else {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::INTERVAL_FOLLOWING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(nullptr, bound);
+      }
+    }
+  | "UNBOUNDED" preceding_or_following
+    {
+      auto* bound = MakeNode<ASTAlignWithinBoundExpr>(@$);
+      if($preceding_or_following == PrecedingOrFollowingKeyword::kPreceding) {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::UNBOUNDED_PRECEDING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(bound, nullptr);
+      }
+      else {
+        bound->set_bound_type(ASTAlignWithinBoundExpr::UNBOUNDED_FOLLOWING);
+        $$ = MakeNode<ASTAlignWithinClause>(@$);
+        $$->set_bounds(nullptr, bound);
+      }
+    }
+;
+
+within_clause {ASTAlignWithinClause*}:
+    "WITHIN" "(" within_range_clause ")"
+    {
+        $$ = WithLocation($within_range_clause, @$);
+
+    }
+  |  "WITHIN" "("[lparen] ")"[rparen]
+    {
+       auto* low = MakeNode<ASTAlignWithinBoundExpr>(
+        ParseLocationRange(@lparen.end(), @lparen.end()));
+       low->set_bound_type(ASTAlignWithinBoundExpr::UNBOUNDED_PRECEDING);
+       auto* high = MakeNode<ASTAlignWithinBoundExpr>(
+        ParseLocationRange(@rparen.start(), @rparen.start()));
+       high->set_bound_type(ASTAlignWithinBoundExpr::UNBOUNDED_FOLLOWING);
+       $$ = MakeNode<ASTAlignWithinClause>(@$);
+       $$->set_bounds(low, high);
+    }
+;
+
+
+metrics_clause {ASTMetricsClause*}:
+    "METRICS" (expression_with_alias separator ",")+[exprs]
+    {
+      $$ = MakeNode<ASTMetricsClause>(@$, $exprs);
+    }
+;
+
+origin_expression {ASTAlignOriginExpression*}:
+    "ORIGIN" expression[expr]
+  {
+    // "EPOCH" is parsed as an expression (path expression) instead of having
+    // a parser rule which introduces a reduce/reduce conflict.
+    if ($expr->node_kind() == AST_PATH_EXPRESSION &&
+          ! $expr->parenthesized() &&
+          $expr->num_children() == 1) {
+      auto identifier = $expr->child(0)->GetAs<ASTIdentifier>();
+      if(googlesql_base::CaseEqual(identifier->GetAsStringView(), "EPOCH") &&
+          ! identifier->is_quoted()) {
+        $$ = MakeNode<ASTAlignOriginExpression>(@$);
+        $$->set_is_epoch(true);
+      }
+      else {
+        $$ = MakeNode<ASTAlignOriginExpression>(@$, $expr);
+      }
+    } else {
+      $$ = MakeNode<ASTAlignOriginExpression>(@$, $expr);
+    }
+  }
+;
+
+align_operator {ASTPostfixTableOperator*}:
+    KW_ALIGN_RESERVED "("
+    ("TIMESTAMP" expression_with_opt_alias[timestamp])?
+    "PERIOD" expression[period]
+    origin_expression[origin]?
+    ("OUTPUT" "WITHIN" within_range_clause[within])?
+    partition_by_clause_with_opt_alias[partition_by]?
+    metrics_clause[metrics]?
+    ")" as_alias[alias]?
+    {
+      $$ = MakeNode<ASTAlignOperator>(@$,
+                      $timestamp, $period, $origin,
+                      $within, $partition_by, $metrics, $alias);
     }
 ;
 
@@ -6522,9 +6720,6 @@ row_pattern_primary {ASTRowPatternExpression*}:
 
 row_pattern_quantifier {ASTQuantifier*}:
     potentially_reluctant_quantifier[q]
-    {
-      $$ = $q;
-    }
   | potentially_reluctant_quantifier[q] "?"
     {
       $$ = WithEndLocation($q, @$);
@@ -6559,9 +6754,6 @@ potentially_reluctant_quantifier {ASTQuantifier*}:
       $$ = quantifier;
     }
   | plus_or_star_quantifier
-    {
-      $$ = $1;
-    }
   | "{" opt_int_literal_or_parameter[lower] ","
     opt_int_literal_or_parameter[upper] "}"
     {
@@ -6636,21 +6828,11 @@ descriptor_column {ASTNode*}:
     }
 ;
 
-descriptor_column_list {ASTNode*}:
-    descriptor_column
-    {
-      $$ = MakeNode<ASTDescriptorColumnList>(@$, $1);
-    }
-  | descriptor_column_list "," descriptor_column
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 descriptor_argument {ASTNode*}:
-    "DESCRIPTOR" "(" descriptor_column_list ")"
+    "DESCRIPTOR" "(" (descriptor_column separator ",")+[columns] ")"
     {
-      $$ = MakeNode<ASTDescriptor>(@$, $3);
+      auto* columns = MakeNode<ASTDescriptorColumnList>(@columns, $columns);
+      $$ = MakeNode<ASTDescriptor>(@$, columns);
     }
 ;
 
@@ -6670,12 +6852,23 @@ named_non_expr_argument {ASTNamedArgument*}:
     }
 ;
 
+column_list_spec {ASTExpression*}:
+    "COLUMNS" "(" expression ")"
+    {
+      $$ = MakeNode<ASTColumnListSpec>(@$, $3);
+    }
+;
+
 tvf_argument {ASTNode*}:
     expression
     {
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
   | descriptor_argument
+    {
+      $$ = MakeNode<ASTTVFArgument>(@$, $1);
+    }
+  | column_list_spec
     {
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
@@ -6762,9 +6955,6 @@ tvf {ASTTVF*}:
 table_path_expression_base {ASTNode*}:
     unnest_expression
   | maybe_slashed_or_dashed_path_expression
-    {
-      $$ = $1;
-    }
   | path_expression "["
     {
       return MakeSyntaxError(
@@ -6834,15 +7024,17 @@ table_primary {ASTTableExpression*}:
       $$ = MakeNode<ASTParenthesizedJoin>(@$, node);
     }
   | table_subquery
-    {
-      $$ = $table_subquery;
-    }
   | "LATERAL" table_subquery
     {
       $table_subquery->set_is_lateral(true);
       $$ = WithStartLocation($table_subquery, @$);
     }
   | graph_table_query
+  | "GROUP" "ROWS" as_alias[alias]? pivot_or_unpivot_clause[pivot]?
+    {
+      auto* gr = MakeNode<ASTGroupRows>(@$, $alias.value_or(nullptr));
+      $$ = WithStartLocation(ExtendNodeRight(gr, $pivot), @$);
+    }
     // Postfix operators. Note that PIVOT/UNPIVOT are lumped together with each
     // rule because they're entangled with alias to work around the fact that
     // PIVOT and UNPIVOT are not reserved keywords.
@@ -6855,14 +7047,19 @@ table_primary {ASTTableExpression*}:
     {
       $$ = ExtendNodeRight($table, $sample_clause);
     }
+  | table_primary[table] align_operator
+    {
+      $$ = ExtendNodeRight($table, $align_operator);
+    }
 ;
 
 gql_query {ASTQuery*}:
-    "GRAPH" path_expression[graph] graph_operation_block[composite_query]
+    "GRAPH" path_expression[graph] graph_operation_block[operation_block]
     {
       auto* graph_table = MakeNode<ASTGraphTableQuery>(@$,
-                                    $graph, $composite_query);
+                                    $graph, $operation_block);
       auto* graph_query = MakeNode<ASTGqlQuery>(@$, graph_table);
+      graph_query->set_is_subquery(false);
       $$ = MakeNode<ASTQuery>(@$, graph_query);
     }
 ;
@@ -6886,18 +7083,18 @@ graph_table_query {ASTTableExpression*}:
     }
   | KW_GRAPH_TABLE_RESERVED "("
       path_expression[graph]
-      graph_operation_block[composite_query]
+      graph_operation_block[operation_block]
       ")"
       as_alias[alias]?
     {
-      $$ = MakeNode<ASTGraphTableQuery>(@$, $graph, $composite_query, $alias);
+      $$ = MakeNode<ASTGraphTableQuery>(@$, $graph, $operation_block, $alias);
     }
 ;
 
 graph_shape_clause {ASTNode*}:
     "COLUMNS" "(" select_list ")"
     {
-      $$ = $3;
+      $$ = MakeNode<ASTSelect>(@$, $3);
     }
   | %empty
     {
@@ -6924,13 +7121,9 @@ graph_return_item {ASTNode*}:
 ;
 
 graph_return_item_list {ASTNode*}:
-    graph_return_item
+    (graph_return_item separator ",")+[items]
     {
-      $$ = MakeNode<ASTSelectList>(@$, $1);
-    }
-  | graph_return_item_list "," graph_return_item
-    {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = MakeNode<ASTSelectList>(@$, $items);
     }
 ;
 
@@ -7012,9 +7205,6 @@ graph_order_by_clause {ASTNode*}:
 
 opt_graph_order_by_clause {ASTNode*}:
     graph_order_by_clause[order_by]
-    {
-      $$ = $order_by;
-    }
   | %empty
     {
       $$ = nullptr;
@@ -7059,20 +7249,10 @@ graph_optional_match_operator {ASTNode*}:
 ;
 
 graph_let_operator {ASTNode*}:
-    "LET" graph_let_variable_definition_list
+    "LET" (graph_let_variable_definition separator ",")+[defs]
     {
-      $$ = MakeNode<ASTGqlLet>(@$, $2);
-    }
-;
-
-graph_let_variable_definition_list {ASTNode*}:
-    graph_let_variable_definition
-    {
-      $$ = MakeNode<ASTGqlLetVariableDefinitionList>(@$, $1);
-    }
-  | graph_let_variable_definition_list "," graph_let_variable_definition
-    {
-      $$ = ExtendNodeRight($1, $3);
+      auto* defs = MakeNode<ASTGqlLetVariableDefinitionList>(@defs, $defs);
+      $$ = MakeNode<ASTGqlLet>(@$, defs);
     }
 ;
 
@@ -7182,24 +7362,13 @@ opt_per_clause {ASTNode*}:
 ;
 
 opt_yield_clause {ASTNode*}:
-    "YIELD" yield_item_list[list]
+    "YIELD" (yield_item separator ",")+[items]
     {
-      $$ = WithLocation($list, @$);
+      $$ = MakeNode<ASTYieldItemList>(@$, $items);
     }
   | %empty
     {
       $$ = nullptr;
-    }
-;
-
-yield_item_list {ASTNode*}:
-    yield_item
-    {
-      $$ = MakeNode<ASTYieldItemList>(@$, $1);
-    }
-  | yield_item_list "," yield_item
-    {
-      $$ = ExtendNodeRight($1, $3);
     }
 ;
 
@@ -7223,13 +7392,7 @@ graph_linear_op {ASTNode*}:
   | graph_filter_operator
   | graph_order_by_operator
   | graph_offset_clause
-    {
-      $$ = $graph_offset_clause;
-    }
   | graph_limit_clause
-    {
-      $$ = $graph_limit_clause;
-    }
   | graph_with_operator
   | graph_for_operator
   | graph_sample_operator
@@ -7307,18 +7470,94 @@ graph_composite_query_prefix {ASTNode*}:
     }
 ;
 
+graph_insert_element_pattern_filler {ASTGraphInsertElementPatternFiller*}:
+    opt_graph_element_identifier[elem_name]
+    is_label_expression[label_spec]?
+    opt_graph_property_specification[prop_spec]
+    {
+      $$ = MakeNode<ASTGraphInsertElementPatternFiller>(
+          @$, $elem_name, $label_spec, $prop_spec);
+    }
+;
+
+graph_insert_edge_pattern {ASTGraphInsertEdgePattern*}:
+    "<" "-" "[" graph_insert_element_pattern_filler[filler] "]" "-"
+    {
+      $$ = MakeNode<ASTGraphInsertEdgePattern>(@$, $filler);
+      $$->set_orientation(ASTGraphEdgePattern::LEFT);
+    }
+  | "-" "[" graph_insert_element_pattern_filler[filler] "]" "->"
+    {
+      $$ = MakeNode<ASTGraphInsertEdgePattern>(@$, $filler);
+      $$->set_orientation(ASTGraphEdgePattern::RIGHT);
+    }
+;
+
+graph_insert_node_pattern {ASTGraphInsertNodePattern*}:
+    "(" graph_insert_element_pattern_filler[filler] ")"
+    {
+      $$ = MakeNode<ASTGraphInsertNodePattern>(@$, $filler);
+    }
+;
+
+graph_insert_path_pattern {ASTGraphInsertPathPattern*}:
+    graph_insert_node_pattern
+    {
+      $$ = MakeNode<ASTGraphInsertPathPattern>(@$, $1);
+    }
+  | graph_insert_path_pattern graph_insert_edge_pattern graph_insert_node_pattern
+    {
+      $$ = ExtendNodeRight(ExtendNodeRight($1, $2), $3);
+    }
+;
+
+graph_insert_operator {ASTGqlInsert*}:
+    "INSERT" (graph_insert_path_pattern separator ",")+[patterns]
+    {
+      $$ = MakeNode<ASTGqlInsert>(@$, $patterns);
+    }
+;
+
+graph_dml_operator {ASTNode*}:
+    graph_insert_operator
+;
+
+graph_dml_linear_operation {ASTNode*}:
+    graph_dml_operator graph_return_operator?
+    {
+      if ($2 == nullptr) {
+        $$ = MakeNode<ASTGqlOperatorList>(@$, $1);
+      } else {
+        $$ = MakeNode<ASTGqlOperatorList>(@$, $1, $2);
+      }
+    }
+  | graph_linear_operator_list graph_dml_operator graph_return_operator?
+    {
+      auto* list = ExtendNodeRight($1, $2);
+      if ($3 != nullptr) {
+        ExtendNodeRight(list, $3);
+      }
+      $$ = list;
+    }
+;
+
 graph_composite_query_block {ASTNode*}:
     graph_linear_query_operation
   | graph_composite_query_prefix
 ;
 
-graph_operation_block {ASTGqlOperatorList*}:
+graph_statement_block {ASTNode*}:
     graph_composite_query_block
+  | graph_dml_linear_operation
+;
+
+graph_operation_block {ASTGqlOperatorList*}:
+    graph_statement_block
     {
       // Top-level list
       $$ = MakeNode<ASTGqlOperatorList>(@$, $1);
     }
-  | graph_operation_block "NEXT" graph_composite_query_block
+  | graph_operation_block "NEXT" graph_statement_block
     {
       $$ = ExtendNodeRight($1, $3);
     }
@@ -7567,9 +7806,6 @@ graph_quantifier {ASTQuantifier*}:
       $$ = MakeNode<ASTFixedQuantifier>(@fixed_bound, $fixed_bound);
     }
   | plus_or_star_quantifier[quantifier]
-    {
-      $$ = $quantifier;
-    }
 ;
 
 graph_quantified_path_primary {ASTGraphPathBase*}:
@@ -7599,11 +7835,17 @@ graph_element_pattern {ASTGraphElementPattern*}:
   | graph_edge_pattern
 ;
 
+%generate GraphPathReserved =
+    set("SIMPLE" | "ACYCLIC" | "PATH" | "PATHS" | "TRAIL" | "WALK");
+
+%generate GraphPathNonReserved =
+    set(NonReservedKeyword & ~GraphPathReserved);
+
 graph_identifier {ASTIdentifier*}:
     token_identifier
-  | common_keyword_as_identifier
+  |  set(GraphPathNonReserved)[kw]
     {
-      $$ = node_factory.MakeIdentifier(@1, $1);
+      GOOGLESQL_ASSIGN_OR_RETURN($$, MakeIdentifierFromKeyword(@kw, $kw));
     }
 ;
 
@@ -7771,6 +8013,22 @@ parenthesized_label_expression {ASTGraphLabelExpression*}:
       // messages about this expression should point at the start of the
       // expression, not at the opening parentheses.
       $$ = $2;
+    }
+;
+
+unpack_expression {ASTExpression*}:
+  "**" column_list_spec[arg] %prec UNARY_PRECEDENCE
+    {
+      $$ = MakeNode<ASTUnpackExpression>(@$, $arg);
+    }
+  | "**" "(" column_list_spec[arg] ")" %prec UNARY_PRECEDENCE
+    {
+      $arg->set_parenthesized(true);
+      $$ = MakeNode<ASTUnpackExpression>(@$, $arg);
+    }
+  | "**" expression_higher_prec_than_and[expr] %prec UNARY_PRECEDENCE
+    {
+      $$ = MakeNode<ASTUnpackExpression>(@$, $expr);
     }
 ;
 
@@ -8025,9 +8283,6 @@ join {ASTTableExpression*}:
 
 from_clause_contents {ASTNode*}:
     table_primary[table]
-    {
-      $$ = $table;
-    }
   | from_clause_contents[from] "," table_primary[table]
     {
       ErrorInfo error_info;
@@ -8206,33 +8461,22 @@ cube_list {ASTNode*}:
 grouping_set {ASTNode*}:
     "(" ")"
     {
-      auto* grouping_set = MakeNode<ASTGroupingSet>(@$);
-      $$ = WithEndLocation(grouping_set, @$);
+      $$ = MakeNode<ASTGroupingSet>(@$);
     }
   | expression
     {
-      $$ = MakeNode<ASTGroupingSet>(@$, WithEndLocation($1, @$));
+      $$ = MakeNode<ASTGroupingSet>(@$, $1);
     }
   | rollup_list
     {
-      $$ = MakeNode<ASTGroupingSet>(@$, WithEndLocation($rollup_list, @$));
+      $$ = MakeNode<ASTGroupingSet>(@$, $rollup_list);
     }
   | cube_list
     {
-      $$ = MakeNode<ASTGroupingSet>(@$, WithEndLocation($cube_list, @$));
+      $$ = MakeNode<ASTGroupingSet>(@$, $cube_list);
     }
 ;
 
-grouping_set_list {ASTNode*}:
-    "GROUPING" "SETS" "(" grouping_set
-    {
-      $$ = MakeNode<ASTGroupingSetList>(@$, $4);
-    }
-  | grouping_set_list "," grouping_set
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
 
 // In selection items, NULLS FIRST/LAST is not allowed without ASC/DESC first.
 selection_item_order {ASTNode*}:
@@ -8445,13 +8689,7 @@ opt_window_clause_with_trailing_comma {ASTNode*}:
 
 qualify_clause {ASTNode*}:
     qualify_clause_reserved
-    {
-      $$ = $1;
-    }
   | qualify_clause_nonreserved
-    {
-      $$ = $1;
-    }
 ;
 
 qualify_clause_reserved {ASTNode*}:
@@ -8663,14 +8901,13 @@ aliased_query {ASTAliasedQuery*}:
     }
 ;
 
-aliased_query_list {ASTAliasedQueryList*}:
-    aliased_query
+// An identifier for the name of a WITH function, such as `my_fn` in
+// `WITH my_fn() AS GROUP ROWS`.
+with_function_name_identifier {ASTIdentifier*}:
+    token_identifier
+  |  set(WithFunctionNameNonReserved)[kw]
     {
-      $$ = MakeNode<ASTAliasedQueryList>(@$, $aliased_query);
-    }
-  | aliased_query_list "," aliased_query
-    {
-      $$ = ExtendNodeRight($1, $3);
+      GOOGLESQL_ASSIGN_OR_RETURN($$, MakeIdentifierFromKeyword(@kw, $kw));
     }
 ;
 
@@ -8679,19 +8916,19 @@ with_clause_entry {ASTWithClauseEntry*}:
   {
     $$ = MakeNode<ASTWithClauseEntry>(@$, $aliased_query);
   }
-| identifier "(" ")" "AS" "GROUP" "ROWS"
+| with_function_name_identifier[name] "(" ")" "AS" "GROUP" "ROWS"
   {
     if (!language_options.LanguageFeatureEnabled(FEATURE_WITH_GROUP_ROWS)) {
       return MakeSyntaxError(@5, "GROUP ROWS is not supported.");
     }
-    auto aliased_group_rows = MakeNode<ASTAliasedGroupRows>(@$, $identifier);
+    auto aliased_group_rows = MakeNode<ASTAliasedGroupRows>(@$, $name);
     $$ = MakeNode<ASTWithClauseEntry>(@$, aliased_group_rows);
     $$ = WithEndLocation($$, @$);
   }
 ;
 
 with_clause {ASTWithClause*}:
-    "WITH" "RECURSIVE"[recursive]? with_clause_entry
+    "WITH" .PossibleWithTimestamp "RECURSIVE"[recursive]? with_clause_entry
     {
       $$ = MakeNode<ASTWithClause>(@$, $with_clause_entry);
       $$->set_recursive(@recursive.has_value());
@@ -8765,9 +9002,6 @@ opt_null_order {ASTNode*}:
 
 string_literal_or_parameter {ASTExpression*}:
     string_literal
-    {
-      $$ = $string_literal;
-    }
   | parameter_expression
   | system_variable_expression
 ;
@@ -8843,9 +9077,6 @@ opt_order_by_clause {ASTNode*}:
 
 parenthesized_in_rhs {ASTNode*}:
     parenthesized_query[query]
-    {
-      $$ = $query;
-    }
   | "(" expression_maybe_parenthesized_not_a_query[e] ")"
     {
       // `expression_maybe_parenthesized_not_a_query` is NOT a query.
@@ -8882,7 +9113,10 @@ parenthesized_anysomeall_list_rhs {ASTNode*}:
           $$ = MakeNode<ASTInList>(@$, sub_query);
         } else {
           // Case 1: A subquery.
-          $$ = MakeNode<ASTQuery>(@query, $query);
+          // Note: $query->parenthesized() is false here even though it came
+          // from parenthesized_query. The parenthesized_query rule does not
+          // consider the outermost parens into the query's is_parenthesized.
+          $$ = $query->GetAsOrDie<ASTQuery>();
         }
       }
     // Case 2. Single expression
@@ -8918,6 +9152,13 @@ expression_with_opt_alias {ASTNode*}:
     {
       $$ = MakeNode<ASTExpressionWithOptAlias>(@$, $expression, $opt_alias);
     }
+;
+
+expression_with_alias {ASTExpressionWithAlias*}:
+    expression[expr] as_alias[alias]
+   {
+      $$ = MakeNode<ASTExpressionWithAlias>(@$, $expr, $alias);
+   }
 ;
 
 unnest_expression_prefix {ASTNode*}:
@@ -9171,7 +9412,7 @@ with_expression {ASTExpression*}:
 ;
 
 // This top level rule is designed to make it possible to use one token of
-// lookahead to decide whether to turn a parenthesized query query into an
+// lookahead to decide whether to turn a parenthesized query into an
 // expression.
 // The lookahead is used to disambiguate between
 // - the expression case like ((SELECT 1)) + 1
@@ -9250,13 +9491,7 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
     null_literal
   | boolean_literal
   | string_literal
-    {
-      $$ = $string_literal;
-    }
   | bytes_literal
-    {
-      $$ = $bytes_literal;
-    }
   | integer_literal
   | numeric_literal
   | bignumeric_literal
@@ -9269,11 +9504,9 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
   | array_constructor
   | new_constructor
   | braced_constructor[ctor]
-    {
-      $$ = $ctor;
-    }
   | braced_new_constructor
   | struct_braced_constructor
+  | map_braced_constructor
   | case_expression
   | cast_expression
   | extract_expression
@@ -9308,9 +9541,6 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
     }
   | struct_constructor
   | expression_subquery_with_keyword
-    {
-      $$ = $1;
-    }
   | expression_higher_prec_than_and "[" expression "]" %prec PRIMARY_PRECEDENCE
     {
       auto* bracket_loc = MakeNode<ASTLocation>(@2);
@@ -9342,6 +9572,23 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
       } else {
         $$ = MakeNode<ASTDotIdentifier>(@$, $1, $3);
       }
+    }
+  | expression_higher_prec_than_and[expr] braced_constructor[ctor] %prec PRIMARY_PRECEDENCE
+    {
+      if ($expr->node_kind() == AST_FUNCTION_CALL &&
+          !$expr->GetAs<ASTFunctionCall>()->parenthesized()) {
+        const ASTNode* fn_name = $expr->GetAs<ASTFunctionCall>()->child(0);
+        if (fn_name->node_kind() == AST_PATH_EXPRESSION &&
+            fn_name->num_children() == 1 &&
+            googlesql_base::CaseEqual(
+                fn_name->child(0)->GetAs<ASTIdentifier>()->GetAsStringView(),
+                "UPDATE") &&  !
+                fn_name->child(0)->GetAs<ASTIdentifier>()->is_quoted()) {
+          $$ = MakeNode<ASTUpdateConstructor>(@$, $expr, $ctor);
+          return absl::OkStatus();
+        }
+      }
+      $$ = MakeNode<ASTBracedConstructorExtendedExpr>(@$, $expr, $ctor);
     }
   | "NOT" expression_higher_prec_than_and %prec UNARY_NOT_PRECEDENCE
     {
@@ -9652,12 +9899,14 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
       binary_expression->set_op(ASTBinaryExpression::BITWISE_AND);
       $$ = binary_expression;
     }
-  | expression_higher_prec_than_and "||" expression_higher_prec_than_and
+  | expression_higher_prec_than_and[lhs] "||" expression_higher_prec_than_and[rhs] %prec "||"
     {
-      GOOGLESQL_RETURN_IF_ERROR(ErrorIfUnparenthesizedNotExpression($3));
-      auto* binary_expression = MakeNode<ASTBinaryExpression>(@$, $1, $3);
-      binary_expression->set_op(ASTBinaryExpression::CONCAT_OP);
-      $$ = binary_expression;
+      GOOGLESQL_RETURN_IF_ERROR(ErrorIfUnparenthesizedNotExpression($rhs));
+      if ($lhs->node_kind() == AST_CONCAT_EXPR && !$lhs->parenthesized()) {
+        $$ = ExtendNodeRight($lhs, @$.end(), $rhs);
+      } else {
+        $$ = MakeNode<ASTConcatExpr>(@$, $lhs, $rhs);
+      }
     }
   | expression_higher_prec_than_and shift_operator expression_higher_prec_than_and %prec "<<"
     {
@@ -9690,6 +9939,7 @@ unparenthesized_expression_higher_prec_than_and {ASTExpression*}:
       $$ = expression;
     }
   | graph_expression
+  | unpack_expression
 ;
 
 // Note that the tokenizer will be in "DOT_IDENTIFIER" mode for all identifiers
@@ -9822,9 +10072,6 @@ dashed_path_expression {ASTExpression*}:
 
 maybe_dashed_path_expression {ASTExpression*}:
     path_expression
-    {
-      $$ = $1;
-    }
   | dashed_path_expression
     {
       if (language_options.LanguageFeatureEnabled(
@@ -9850,9 +10097,6 @@ maybe_dashed_path_expression {ASTExpression*}:
 
 maybe_slashed_or_dashed_path_expression {ASTExpression*}:
     maybe_dashed_path_expression
-    {
-      $$ = $1;
-    }
   | slashed_path_expression
     {
       if (language_options.LanguageFeatureEnabled(FEATURE_ALLOW_SLASH_PATHS)) {
@@ -10225,28 +10469,12 @@ type_name {ASTNode*}:
     }
 ;
 
-template_type_open:
-    {
-      OVERRIDE_NEXT_TOKEN_LOOKBACK(LT, LB_OPEN_TYPE_TEMPLATE);
-    }
-    "<"[open]
-    {
-      @$ = @open;
-    }
-;
-
 template_type_close:
-    {
-      OVERRIDE_NEXT_TOKEN_LOOKBACK(GT, LB_CLOSE_TYPE_TEMPLATE);
-    }
-    ">"[close]
-    {
-      @$ = @close;
-    }
+    ">" .CloseTypeTemplate FORCE_LA1_TOKEN?
 ;
 
 array_type {ASTNode*}:
-    "ARRAY" template_type_open type template_type_close
+    "ARRAY" "<" .OpenTypeTemplate type template_type_close
     {
       $$ = MakeNode<ASTArrayType>(@$, $3);
     }
@@ -10264,7 +10492,7 @@ struct_field {ASTNode*}:
 ;
 
 struct_type_prefix {ASTNode*}:
-    "STRUCT" template_type_open struct_field
+    "STRUCT" "<" .OpenTypeTemplate struct_field
     {
       $$ = MakeNode<ASTStructType>(@$, $3);
     }
@@ -10275,7 +10503,7 @@ struct_type_prefix {ASTNode*}:
 ;
 
 struct_type {ASTNode*}:
-    "STRUCT" template_type_open template_type_close
+    "STRUCT" "<" .OpenTypeTemplate template_type_close
     {
       $$ = MakeNode<ASTStructType>(@$);
     }
@@ -10286,14 +10514,14 @@ struct_type {ASTNode*}:
 ;
 
 range_type {ASTNode*}:
-    "RANGE" template_type_open type template_type_close
+    "RANGE" "<" .OpenTypeTemplate type template_type_close
     {
       $$ = MakeNode<ASTRangeType>(@$, $3);
     }
 ;
 
 function_type_prefix {ASTNode*}:
-    "FUNCTION" template_type_open "(" type
+    "FUNCTION" "<" .OpenTypeTemplate "(" type
     {
       $$ = MakeNode<ASTFunctionTypeArgList>(@$, $type);
     }
@@ -10304,13 +10532,12 @@ function_type_prefix {ASTNode*}:
 ;
 
 function_type {ASTNode*}:
-    "FUNCTION" template_type_open "("[open_paren] ")"[close_paren] "->" type[return_type] template_type_close
+    "FUNCTION" "<" .OpenTypeTemplate ("(" ")")[parens] "->" type[return_type] template_type_close
     {
-      auto empty_arg_list =
-          MakeNode<ASTFunctionTypeArgList>(MakeLocationRange(@open_paren, @close_paren));
+      auto empty_arg_list = MakeNode<ASTFunctionTypeArgList>(@parens);
       $$ = MakeNode<ASTFunctionType>(@$, empty_arg_list, $return_type);
     }
-  | "FUNCTION" template_type_open type[arg_type] "->" type[return_type] template_type_close
+  | "FUNCTION" "<" .OpenTypeTemplate type[arg_type] "->" type[return_type] template_type_close
     {
       auto arg_list = MakeNode<ASTFunctionTypeArgList>(@arg_type, $arg_type);
       $$ = MakeNode<ASTFunctionType>(@$, arg_list, $return_type);
@@ -10322,7 +10549,7 @@ function_type {ASTNode*}:
 ;
 
 map_type {ASTNode*}:
-    "MAP" template_type_open type[key_type] "," type[value_type] template_type_close
+    "MAP" "<" .OpenTypeTemplate type[key_type] "," type[value_type] template_type_close
     {
       $$ = MakeNode<ASTMapType>(@$, $key_type, $value_type);
     }
@@ -10342,17 +10569,8 @@ type_parameter {ASTExpression*}:
     integer_literal
   | boolean_literal
   | string_literal
-    {
-      $$ = $string_literal;
-    }
   | bytes_literal
-    {
-      $$ = $bytes_literal;
-    }
   | floating_point_literal
-    {
-      $$ = $floating_point_literal;
-    }
   | "MAX"
     {
       $$ = MakeNode<ASTMaxLiteral>(@1);
@@ -10372,9 +10590,6 @@ type_parameters_prefix {ASTNode*}:
 
 type_parameters {ASTNode*}:
     type_parameters_prefix ")"
-    {
-      $$ = $1;
-    }
   | type_parameters_prefix "," ")"
     {
       return MakeSyntaxError(@2,
@@ -10421,6 +10636,8 @@ templated_parameter_kind {ASTTemplatedParameterType::TemplatedTypeKind}:
         $$ = ASTTemplatedParameterType::ANY_TABLE;
       } else if (googlesql_base::CaseEqual(templated_type_string, "TYPE")) {
         $$ = ASTTemplatedParameterType::ANY_TYPE;
+      } else if (googlesql_base::CaseEqual(templated_type_string, "STRING")) {
+        $$ = ASTTemplatedParameterType::ANY_STRING;
       } else {
         return MakeSyntaxError(@1,
                               "Syntax error: unexpected ANY template type");
@@ -10489,50 +10706,71 @@ new_constructor {ASTExpression*}:
     }
 ;
 
-braced_constructor_extension_expression {ASTExpression*}:
-    "(" path_expression[base] ")"
-    ("["[brack] expression[idx] "]")?
-    ("." generalized_path_expression[path])?
-    {
-      $base->set_parenthesized(true);
-      $$ = $base;
-      if ($brack.has_value()) {
-        auto* bracket_loc = MakeNode<ASTLocation>(*@brack);
-        $$ = MakeNode<ASTArrayElement>(@$, $$, bracket_loc, $idx);
-      }
-      if ($path.has_value()) {
-        $$ = MakeNode<ASTExtendedPathExpression>(@$, $$, $path);
-      }
-    }
-;
-
 braced_constructor_field {ASTBracedConstructorField*}:
-    (braced_constructor_extension_expression[key] | generalized_path_expression[key_no_paren])
-    ("*"[star] | "?"[question])? (":" expression[value] | braced_constructor[sub])
+    expression[key]
+    ((UPDATE_MANY_STAR[star] ":" | "?"[question] ":" | ":") expression[value])?
     {
-      auto key = @key.has_value()
-          ? MakeNode<ASTBracedConstructorLhs>(*@key, $key)
-          : MakeNode<ASTBracedConstructorLhs>(*@key_no_paren, $key_no_paren);
-      key->set_operation(
-          @star.has_value()
-              ? ASTBracedConstructorLhs::UPDATE_MANY
-              : @question.has_value()
-                  ? ASTBracedConstructorLhs::UPDATE_SINGLE_NO_CREATION
-                  : ASTBracedConstructorLhs::UPDATE_SINGLE);
+      // We can't simply ask Is<ASTGeneralizedPathExpression> because that only
+      // works for concrete nodes.
+      auto is_generalized_path_expression = [](const ASTNode* node) {
+        return node->Is<ASTArrayElement>() ||
+               node->Is<ASTDotGeneralizedField>() ||
+               node->Is<ASTDotIdentifier>() ||
+               node->Is<ASTPathExpression>();
+      };
+      ASTBracedConstructorLhs* key = nullptr;
       ASTBracedConstructorFieldValue* value = nullptr;
-      if ($value.has_value())  {
+      if ($value.has_value()) {
+        key = MakeNode<ASTBracedConstructorLhs>(@key, $key);
         value = MakeNode<ASTBracedConstructorFieldValue>(*@value, $value);
         value->set_colon_prefixed(true);
+      } else if (!$value.has_value()
+                 && $key->Is<ASTBracedConstructorExtendedExpr>()
+                 && $key->num_children() > 0
+                 && is_generalized_path_expression($key->child(0))) {
+        // This case has no colon. It is either a single key that happens to be
+        // a braced constructor or it is a key-value pair where the colon has
+        // been omitted and the value is a braced constructor. We assume the
+        // latter for backward compatibility with textproto format.
+        GOOGLESQL_RET_CHECK_EQ($key->num_children(), 2);
+        key = MakeNode<ASTBracedConstructorLhs>($key->child(0)->location(),
+                                                $key->mutable_child(0));
+        value = MakeNode<ASTBracedConstructorFieldValue>(
+            $key->child(1)->location(), $key->mutable_child(1));
+        value->set_colon_prefixed(false);
       } else {
-        value = MakeNode<ASTBracedConstructorFieldValue>(*@sub, $sub);
+        // This case has only a key but cannot be the omitted colon case since
+        // the key is not a braced constructor like expression. This branch may
+        // eventually be useful for a SET-like constructor that only provides
+        // keys but not values. For now it's an error. Try to be helpful in case
+        // this looks like a dropped colon.
+        if ($key->Is<ASTBracedConstructorExtendedExpr>()) {
+          GOOGLESQL_RET_CHECK_EQ($key->num_children(), 2);
+          return MakeSyntaxError(
+              $key->child(1)->location(),
+              "Syntax error: Unexpected braced constructor. Did you mean to "
+              "use a ':' before the '{'?");
+        }
+        return MakeSyntaxError(next_symbol_.location,
+                              "Syntax error: Invalid braced constructor "
+                              "element, expected ':' followed by an expression "
+                              "that computes the value");
       }
+      auto update_op = @star.has_value()
+          ? ASTBracedConstructorLhs::UPDATE_MANY
+          : @question.has_value()
+              ? ASTBracedConstructorLhs::UPDATE_SINGLE_NO_CREATION
+              : ASTBracedConstructorLhs::UPDATE_SINGLE;
+      key->set_operation(update_op);
       $$ = MakeNode<ASTBracedConstructorField>(@$, key, value);
     }
 ;
 
 braced_constructor_field_following_omitted_comma {ASTBracedConstructorField*}:
     generalized_path_expression[key]
-    ("*"[star] | "?"[question])? (":" expression[value] | braced_constructor[sub])
+    (((UPDATE_MANY_STAR[star] ":" | "?"[question] ":" | ":") expression[value])
+     | braced_constructor[sub]
+    )
     {
       auto key = MakeNode<ASTBracedConstructorLhs>(@key, $key);
       key->set_operation(
@@ -10553,7 +10791,7 @@ braced_constructor_field_following_omitted_comma {ASTBracedConstructorField*}:
 ;
 
 braced_constructor_field_list_continuation {ASTBracedConstructorField*}:
-    "," braced_constructor_field
+    "," .lr0 .StartBracedConstructorField braced_constructor_field
     {
       $$ = $braced_constructor_field;
       $$->set_comma_separated(true);
@@ -10563,18 +10801,15 @@ braced_constructor_field_list_continuation {ASTBracedConstructorField*}:
   // restricted to path expressions to avoid gramatical ambiguity between the
   // value preceeding the ommited comma and the key following the omitted comma.
   | braced_constructor_field_following_omitted_comma
-    {
-      $$ = $braced_constructor_field_following_omitted_comma;
-    }
 ;
 
 braced_constructor {ASTBracedConstructor*}:
-    "{" (braced_constructor_field[first] (braced_constructor_field_list_continuation)*[rest] ","? )? "}"
+  "{" .lr0 .StartBracedConstructorField
+      ( braced_constructor_field[first]
+        (braced_constructor_field_list_continuation)*[rest]
+        ("," .lr0 .StartBracedConstructorField )[trailing_comma]?
+      )? "}"
     {
-      if (!language_options.LanguageFeatureEnabled(
-           FEATURE_BRACED_PROTO_CONSTRUCTORS)) {
-        return MakeSyntaxError(@1, "Braced constructors are not supported");
-      }
       $$ = MakeNode<ASTBracedConstructor>(@$, $first, $rest);
     }
 ;
@@ -10594,6 +10829,13 @@ struct_braced_constructor {ASTExpression*}:
   | "STRUCT" braced_constructor[ctor]
     {
       $$ = MakeNode<ASTStructBracedConstructor>(@$, $ctor);
+    }
+;
+
+map_braced_constructor {ASTTypedBracedConstructor*}:
+    "NEW" map_type braced_constructor[ctor]
+    {
+      $$ = MakeNode<ASTTypedBracedConstructor>(@$, $map_type, $ctor);
     }
 ;
 
@@ -10761,13 +11003,7 @@ function_name_from_keyword {ASTNode*}:
 # special handling in the lexer for DOT_IDENTIFIER mode.
 identifier_or_function_name_from_keyword {ASTNode*}:
     identifier
-    {
-      $$ = $1;
-    }
   | function_name_from_keyword
-    {
-      $$ = $1;
-    }
 ;
 
 // These rules have "expression" as their first part rather than
@@ -10917,6 +11153,10 @@ named_argument {ASTExpression*}:
     {
       $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $input_table_argument);
     }
+  | identifier "=>" column_list_spec
+    {
+      $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $column_list_spec);
+    }
 ;
 
 lambda_argument {ASTExpression*}:
@@ -11035,7 +11275,7 @@ opt_identifier {ASTIdentifier*}:
     }
 ;
 
-partition_by_clause_prefix {ASTNode*}:
+partition_by_clause_prefix {ASTPartitionBy*}:
     "PARTITION" hint? "BY" expression
     {
       $$ = MakeNode<ASTPartitionBy>(@$, $hint, $4);
@@ -11046,14 +11286,14 @@ partition_by_clause_prefix {ASTNode*}:
     }
 ;
 
-opt_partition_by_clause {ASTNode*}:
+opt_partition_by_clause {ASTPartitionBy*}:
     partition_by_clause_prefix[partition_by_clause]?
     {
       $$ = $partition_by_clause.value_or(nullptr);
     }
 ;
 
-partition_by_clause_prefix_no_hint {ASTNode*}:
+partition_by_clause_prefix_no_hint {ASTPartitionBy*}:
     "PARTITION" "BY" expression
     {
       $$ = MakeNode<ASTPartitionBy>(@$, $3);
@@ -11068,6 +11308,13 @@ opt_partition_by_clause_no_hint {ASTNode*}:
     partition_by_clause_prefix_no_hint[partition_by_clause_no_hint]?
     {
       $$ = $partition_by_clause_no_hint.value_or(nullptr);
+    }
+;
+
+partition_by_clause_with_opt_alias {ASTNode*}:
+    "PARTITION" "BY" (expression_with_opt_alias separator ",")+[exprs]
+    {
+      $$ = MakeNode<ASTPartitionByWithOptAlias>(@$, $exprs);
     }
 ;
 
@@ -11202,9 +11449,9 @@ function_call_expression_with_clauses {ASTExpression*}:
       }
       $$ = current_expression;
     }
-  | function_call_expression braced_constructor
+  | function_call_expression[call] within_clause[within]
     {
-      $$ = MakeNode<ASTUpdateConstructor>(@$, $1, $2);
+      $$ = MakeNode<ASTEstimatorFunctionCall>(@$, $call, $within);
     }
 ;
 
@@ -11292,9 +11539,6 @@ expression_subquery_with_keyword {ASTExpressionSubquery*}:
       $$ = subquery;
     }
   | exists_graph_subquery[subquery]
-    {
-      $$ = $subquery;
-    }
   | "VALUE" hint? braced_graph_subquery[graph_query]
     {
       auto* subquery = MakeNode<ASTExpressionSubquery>(@$, $hint, $graph_query);
@@ -11538,9 +11782,9 @@ token_identifier {ASTIdentifier*}:
 
 identifier {ASTIdentifier*}:
     token_identifier
-  | keyword_as_identifier
+  | set(NonReservedKeyword)[kw]
     {
-      $$ = node_factory.MakeIdentifier(@1, $1);
+      GOOGLESQL_ASSIGN_OR_RETURN($$, MakeIdentifierFromKeyword(@kw, $kw));
     }
 ;
 
@@ -11587,19 +11831,16 @@ system_variable_expression {ASTExpression*}:
     }
 ;
 
-// This includes non-reserved keywords that can also be used as identifiers.
-// This production returns nothing -- the enclosing rule uses only the location
-// of the keyword to retrieve the token image from the parser input.
-common_keyword_as_identifier {absl::string_view}:
-    // WARNING: If you add something here, add it in the non-reserved token list
-    // at the top.
-    // KEYWORD_AS_IDENTIFIER_START
+%generate NonReservedKeyword = set(
     "ABORT"
   | "ACCESS"
   | "ACTION"
+  | "ACYCLIC"
   | "AGGREGATE"
   | "ADD"
   | "AFTER"
+  | "AI"
+  | KW_ALIGN_NONRESERVED
   | "ALTER"
   | "ALWAYS"
   | "ANALYZE"
@@ -11607,10 +11848,12 @@ common_keyword_as_identifier {absl::string_view}:
   | "ARE"
   | "ASCENDING"
   | "ASSERT"
+  | "AUTO"
   | "BATCH"
   | "BEGIN"
   | "BIGDECIMAL"
   | "BIGNUMERIC"
+  | "BACKWARDS"
   | "BREAK"
   | "CALL"
   | "CASCADE"
@@ -11651,6 +11894,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "EDGE"
   | "ELSEIF"
   | "ENFORCED"
+  | "EPOCH"
   | "ERROR"
   | "EXCEPTION"
   | "EXECUTE"
@@ -11659,20 +11903,17 @@ common_keyword_as_identifier {absl::string_view}:
   | "EXTEND"
   | "EXTERNAL"
   | "FILES"
+  | "FINISH"
   | "FILTER"
   | "FILL"
   | "FIRST"
   | "FOREIGN"
   | "FORK"
   | "FORMAT"
+  | "FORWARDS"
   | "FUNCTION"
   | "GENERATED"
   | KW_GRAPH_TABLE_NONRESERVED
-    {
-      GOOGLESQL_RETURN_IF_ERROR(
-          AddKeywordReservationWarning(kGraphTable, @1, warning_sink));
-      $$ = $1;
-    }
   | "GRAPH"
   | "GRANT"
   | "GROUP_ROWS"
@@ -11699,6 +11940,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "LEAVE"
   | "LET"
   | "LEVEL"
+  | "LIVE"
   | "LOAD"
   | "LOCALITY"
   | "LOG"
@@ -11714,6 +11956,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "MEASURES"
   | "MESSAGE"
   | "METADATA"
+  | "METRICS"
   | "MIN"
   | "MINVALUE"
   | "MODEL"
@@ -11727,14 +11970,18 @@ common_keyword_as_identifier {absl::string_view}:
   | "ONLY"
   | "OPTIONAL"
   | "OPTIONS"
+  | "ORIGIN"
   | "OUT"
   | "OUTPUT"
   | "OVERWRITE"
   | "PARTITIONS"
   | "PAST"
+  | "PATH"
+  | "PATHS"
   | "PATTERN"
   | "PER"
   | "PERCENT"
+  | "PERIOD"
   | "PIVOT"
   | "POLICIES"
   | "POLICY"
@@ -11748,11 +11995,6 @@ common_keyword_as_identifier {absl::string_view}:
   | "PROPERTY"
   | "PUBLIC"
   | KW_QUALIFY_NONRESERVED
-    {
-      GOOGLESQL_RETURN_IF_ERROR(
-          AddKeywordReservationWarning(kQualify, @1, warning_sink));
-      $$ = $1;
-    }
   | "RAISE"
   | "READ"
   | "REBUILD"
@@ -11782,6 +12024,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "SETS"
   | "SHORTEST"
   | "SHOW"
+  | "SIMPLE"
   | "SKIP"
   | "SNAPSHOT"
   | "SOURCE"
@@ -11802,6 +12045,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "TEE"
   | "TIME"
   | "TIMESTAMP"
+  | "TRAIL"
   | "TRANSACTION"
   | "TRANSFORM"
   | "TRUNCATE"
@@ -11814,10 +12058,12 @@ common_keyword_as_identifier {absl::string_view}:
   | "UPDATE"
   | "VALUE"
   | "VALUES"
+  | "VERSION"
   | "VECTOR"
   | "VIEW"
   | "VIEWS"
   | "VOLATILE"
+  | "WALK"
   | "WEIGHT"
   | "WHILE"
   | "WRITE"
@@ -11829,17 +12075,7 @@ common_keyword_as_identifier {absl::string_view}:
   | "INTERLEAVE"
   | "NULL_FILTERED"
   | "PARENT"
-;
-
-keyword_as_identifier {absl::string_view}:
-    common_keyword_as_identifier
-  | "SIMPLE"
-  | "ACYCLIC"
-  | "PATH"
-  | "PATHS"
-  | "TRAIL"
-  | "WALK"
-    // KEYWORD_AS_IDENTIFIER_END
+)
 ;
 
 or_replace:
@@ -11879,29 +12115,9 @@ opt_create_scope {ASTCreateStatement::Scope}:
     }
 ;
 
-unique:
-    "UNIQUE"
-;
-
-opt_unique {bool}:
-    unique?
-    {
-      $$ = @unique.has_value();
-    }
-;
-
 describe_keyword:
     "DESCRIBE"
   | "DESC"
-;
-
-options_entry {ASTNode*}:
-    identifier_in_hints options_assignment_operator expression_or_proto
-    {
-      auto* options_entry = MakeNode<ASTOptionsEntry>(@$, $1, $3);
-      options_entry->set_assignment_op($2);
-      $$ = options_entry;
-    }
 ;
 
 options_assignment_operator {ASTOptionsEntry::AssignmentOp}:
@@ -11929,14 +12145,41 @@ expression_or_proto {ASTExpression*}:
   | expression
 ;
 
+options_entry {ASTOptionsEntry*}:
+    identifier_in_hints[name] options_assignment_operator[op] expression_or_proto[value]
+    {
+      auto* entry = MakeNode<ASTOptionsEntry>(@$, $name, $value);
+      entry->set_assignment_op($op);
+      $$ = entry;
+    }
+  | "FROM" expression[expr]
+    {
+      auto* entry = MakeNode<ASTOptionsEntry>(@$, nullptr, $expr);
+      entry->set_assignment_op(ASTOptionsEntry::FROM);
+      $$ = entry;
+    }
+;
+
 options_list {ASTOptionsList*}:
     "(" (options_entry separator ",")*[options] ")"
     {
+      bool non_from_option_seen = false;
+      for (int i = 0; i < $options.size(); ++i) {
+        if ($options[i]->assignment_op() == ASTOptionsEntry::FROM) {
+          if (non_from_option_seen) {
+            return MakeSyntaxError(
+                $options[i]->location(),
+                "Syntax error: FROM option must appear before all other options");
+          }
+        } else {
+          non_from_option_seen = true;
+        }
+      }
       $$ = MakeNode<ASTOptionsList>(@$, $options);
     }
 ;
 
-options {ASTNode*}:
+options {ASTOptionsList*}:
     "OPTIONS" options_list
     {
       $$ = $2;
@@ -11959,9 +12202,6 @@ define_table_statement {ASTNode*}:
 
 dml_statement {ASTNode*}:
     insert_statement
-    {
-      $$ = $1;
-    }
   | delete_statement
   | update_statement
 ;
@@ -12001,9 +12241,6 @@ returning_clause {ASTNode*}:
 
 conflict_target {ASTNode*}:
     column_list
-    {
-      $$ = $column_list;
-    }
   | "ON" "UNIQUE" "CONSTRAINT" identifier
     {
       $$ = $identifier;
@@ -12077,19 +12314,46 @@ identifierPreceedsParenthsizedQuery:
     }
 ;
 
+version_aware_clause {ASTNode*}:
+    temporal_at_clause
+  | with_timestamp_clause
+;
+
+temporal_at_clause {ASTTemporalAt*}:
+    "AT" "(" expression ")"
+    {
+      $$ = MakeNode<ASTTemporalAt>(@$, $expression);
+    }
+;
+
+with_timestamp_clause {ASTWithTimestamp*}:
+    "WITH" .PossibleWithTimestamp "TIMESTAMP"
+    {
+      $$ = MakeNode<ASTWithTimestamp>(@$);
+    }
+  | "WITH" .PossibleWithTimestamp KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS
+    as_alias_with_required_as
+    {
+      $$ = MakeNode<ASTWithTimestamp>(@$, $as_alias_with_required_as);
+    }
+;
+
 insert_statement {ASTInsertStatement*}:
     # LINT.IfChange(insert_statement)
-    "INSERT" insert_mode[mode]?
+    "INSERT"[kwd] insert_mode[mode]?
     "INTO"? maybe_dashed_generalized_path_expression[target]
     identifierPreceedsParenthsizedQuery
-    hint? column_list[cols]? insert_source_and_opt_on_conflict
+    hint? version_aware_clause?
+    column_list[cols]? insert_source_and_opt_on_conflict
     assert_rows_modified[assert]? returning_clause[returning]?
     {
       auto [source, on_conflict] = $insert_source_and_opt_on_conflict;
-      $$ = MakeNode<ASTInsertStatement>(@$, $target, $hint, $cols, source,
-                                        on_conflict, $assert, $returning);
+      $$ = MakeNode<ASTInsertStatement>(@$, $target, $hint,
+                                        $version_aware_clause,
+                                        $cols, source, on_conflict, $assert,
+                                        $returning);
       $$->set_insert_mode($mode.value_or(ASTInsertStatement::DEFAULT_MODE));
-      $$->set_operator_keyword_location(@1);
+      $$->set_operator_keyword_location(@kwd);
     }
     # LINT.ThenChange(:insert_statement_in_pipe)
 ;
@@ -12108,9 +12372,11 @@ insert_statement_in_pipe_prefix {ASTInsertStatement*}:
     # LINT.IfChange(insert_statement_in_pipe)
     "INSERT" insert_mode[mode]?
     "INTO"? maybe_dashed_generalized_path_expression[target]
-    hint? column_list? on_conflict_clause[on_conflict]?
+    hint? version_aware_clause?
+    column_list? on_conflict_clause[on_conflict]?
     {
-      $$ = MakeNode<ASTInsertStatement>(@$, $target, $hint, $column_list,
+      $$ = MakeNode<ASTInsertStatement>(@$, $target, $hint,
+                                        $version_aware_clause, $column_list,
                                         $on_conflict);
       $$->set_insert_mode($mode.value_or(ASTInsertStatement::DEFAULT_MODE));
       $$->set_operator_keyword_location(@1);
@@ -12118,7 +12384,7 @@ insert_statement_in_pipe_prefix {ASTInsertStatement*}:
 ;
 
 insert_statement_in_pipe {ASTInsertStatement*}:
-    insert_statement_in_pipe_prefix[stmt] assert_rows_modified_opt[assert]
+    insert_statement_in_pipe_prefix[stmt] assert_rows_modified-opt[assert]
     returning_clause[returning]?
     {
       $$ = ExtendNodeRight($stmt, $assert, $returning);
@@ -12164,18 +12430,29 @@ insert_values_row {ASTInsertValuesRow*}:
     }
 ;
 
-delete_statement {ASTNode*}:
-    "DELETE" "FROM"? maybe_dashed_generalized_path_expression hint?
-    as_alias? with_offset_and_alias? where_expression?
-    assert_rows_modified? returning_clause?
+# The prefix is factored off to control the number of expanded rules
+delete_statement_prefix {ASTDeleteStatement*}:
+    "DELETE"[kwd] "FROM"? maybe_dashed_generalized_path_expression hint?
+    as_alias? version_aware_clause? with_offset_and_alias?
     {
-      $$ = MakeNode<ASTDeleteStatement>(@$, $3, $hint, $5, $6, $7, $8, $9);
-      $$->set_operator_keyword_location(@1);
+      $$ = MakeNode<ASTDeleteStatement>(@$,
+                                        $maybe_dashed_generalized_path_expression,
+                                        $hint, $as_alias, $version_aware_clause,
+                                        $with_offset_and_alias);
+      $$->set_operator_keyword_location(@kwd);
+    }
+;
+
+delete_statement {ASTNode*}:
+    delete_statement_prefix where_expression? assert_rows_modified?
+    returning_clause?
+    {
+      $$ = ExtendNodeRight($delete_statement_prefix, @$.end(), $where_expression, $assert_rows_modified, $returning_clause);
     }
 ;
 
 with_offset {ASTWithOffset*}:
-    "WITH" "OFFSET"
+    "WITH" .PossibleWithTimestamp "OFFSET"
     {
       $$ = MakeNode<ASTWithOffset>(@$);
     }
@@ -12189,13 +12466,20 @@ with_offset_and_alias {ASTWithOffset*}:
 ;
 
 update_statement {ASTNode*}:
-    "UPDATE" maybe_dashed_generalized_path_expression hint? as_alias?
-    with_offset_and_alias? "SET" (update_item separator ",")+[update_item_list] opt_from_clause
-    where_expression? assert_rows_modified? returning_clause?
+    "UPDATE"[kwd] maybe_dashed_generalized_path_expression[path] hint? as_alias?
+    version_aware_clause? with_offset_and_alias?
+    "SET" (update_item separator ",")+[update_item_list]
+    opt_from_clause where_expression? assert_rows_modified? returning_clause?
     {
       auto* update_item_list = MakeNode<ASTUpdateItemList>(@update_item_list, $update_item_list);
-      $$ = MakeNode<ASTUpdateStatement>(@$, $2, $hint, $4, $5, update_item_list, $8, $9, $10, $11);
-      $$->set_operator_keyword_location(@1);
+      $$ = MakeNode<ASTUpdateStatement>(@$, $path, $hint, $as_alias,
+                                        $version_aware_clause,
+                                        $with_offset_and_alias,
+                                        update_item_list, $opt_from_clause,
+                                        $where_expression,
+                                        $assert_rows_modified,
+                                        $returning_clause);
+      $$->set_operator_keyword_location(@kwd);
     }
 ;
 
@@ -12253,9 +12537,6 @@ generalized_path_expression {ASTExpression*}:
 
 maybe_dashed_generalized_path_expression {ASTExpression*}:
     generalized_path_expression
-    {
-      $$ = $1;
-    }
     // TODO: This is just a regular path expression, not generalized one
     // it doesn't allow extensions or array elements access. It is OK for now,
     // since this production is only used in INSERT INTO and UPDATE statements
@@ -12374,9 +12655,6 @@ merge_when_clause {ASTMergeWhenClause*}:
 merge_source {ASTTableExpression*}:
     table_path_expression
   | table_subquery
-    {
-      $$ = $table_subquery;
-    }
 ;
 
 merge_statement_prefix {ASTNode*}:
@@ -12426,7 +12704,7 @@ opt_function_parameters {ASTNode*}:
 
 /* Returns true if IF EXISTS was specified. */
 opt_if_exists {bool}:
-    "IF" "EXISTS"
+    if_exists
     {
       $$ = true;
     }
@@ -12434,6 +12712,10 @@ opt_if_exists {bool}:
     {
       $$ = false;
     }
+;
+
+if_exists:
+    "IF" "EXISTS"
 ;
 
 /* Returns true if ACCESS was specified. */
@@ -12462,20 +12744,6 @@ drop_all_row_access_policies_statement {ASTNode*}:
     }
 ;
 
-on_path_expression {ASTExpression*}:
-    "ON" path_expression
-    {
-      $$ = $path_expression;
-    }
-;
-
-opt_on_path_expression {ASTNode*}:
-    on_path_expression?
-    {
-      $$ = $on_path_expression.value_or(nullptr);
-    }
-;
-
 drop_mode {ASTDropStatement::DropMode}:
     "RESTRICT"
     {
@@ -12496,34 +12764,19 @@ drop_statement {ASTNode*}:
       node->set_is_if_exists($4);
       $$ = node;
     }
-  | "DROP" "ROW" "ACCESS" "POLICY" opt_if_exists identifier
-    on_path_expression
+  | "DROP" "ROW" "ACCESS" "POLICY" if_exists? identifier[name]
+      "ON" path_expression[target]
     {
-      ASTPathExpression* path_expression =
-            $7 == nullptr ? nullptr : MakeNode<ASTPathExpression>(@6, $6);
+      auto name = MakeNode<ASTPathExpression>(@name, $name);
       // This is a DROP ROW ACCESS POLICY statement.
-      auto* drop_row_access_policy = MakeNode<ASTDropRowAccessPolicyStatement>(@$, path_expression, $7);
-      drop_row_access_policy->set_is_if_exists($5);
-      $$ = drop_row_access_policy;
+      auto* drop = MakeNode<ASTDropRowAccessPolicyStatement>(@$, name, $target);
+      drop->set_is_if_exists(@if_exists.has_value());
+      $$ = drop;
     }
-  | "DROP" index_type "INDEX" opt_if_exists path_expression
-      on_path_expression?
+  | "DROP" "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION[fn]?
+     if_exists? maybe_dashed_path_expression[path] function_parameters?
     {
-      if ($index_type == IndexTypeKeywords::kSearch) {
-        auto* drop_search_index = MakeNode<ASTDropSearchIndexStatement>(@$, $path_expression, $on_path_expression);
-        drop_search_index->set_is_if_exists($opt_if_exists);
-        $$ = drop_search_index;
-      }
-      if ($index_type == IndexTypeKeywords::kVector) {
-        auto* drop_vector_index = MakeNode<ASTDropVectorIndexStatement>(@$, $path_expression, $on_path_expression);
-        drop_vector_index->set_is_if_exists($opt_if_exists);
-        $$ = drop_vector_index;
-      }
-    }
-  | "DROP" table_or_table_function opt_if_exists maybe_dashed_path_expression
-      function_parameters?
-    {
-      if ($2 == TableOrTableFunctionKeywords::kTableAndFunctionKeywords) {
+      if (@fn.has_value()) {
         // Table functions don't support overloading so this statement doesn't
         // accept any function parameters.
         // (broken link)
@@ -12534,8 +12787,8 @@ drop_statement {ASTNode*}:
                                 "functions don't support "
                                 "overloading");
         }
-        auto* drop = MakeNode<ASTDropTableFunctionStatement>(@$, $4);
-        drop->set_is_if_exists($3);
+        auto* drop = MakeNode<ASTDropTableFunctionStatement>(@$, $path);
+        drop->set_is_if_exists(@if_exists.has_value());
         $$ = drop;
       } else {
         // This is a DROP TABLE statement. Table function parameters should
@@ -12544,9 +12797,9 @@ drop_statement {ASTNode*}:
           return MakeSyntaxError(*@function_parameters,
                                 "Syntax error: Unexpected \"(\"");
         }
-        auto* drop = MakeNode<ASTDropStatement>(@$, $4);
+        auto* drop = MakeNode<ASTDropStatement>(@$, $path);
         drop->set_schema_object_kind(SchemaObjectKind::kTable);
-        drop->set_is_if_exists($3);
+        drop->set_is_if_exists(@if_exists.has_value());
         $$ = drop;
       }
     }
@@ -12562,86 +12815,102 @@ drop_statement {ASTNode*}:
       drop->set_is_if_exists($3);
       $$ = drop;
     }
-  | "DROP" schema_object_kind opt_if_exists path_expression
-      function_parameters? drop_mode?
+  | "DROP" schema_object_kind[kind] if_exists? path_expression[name]
+      function_parameters[params]? ("ON" path_expression[parent_name])[on]? drop_mode?
     {
-      // This is a DROP <object_type> <object_name> statement.
-      if ($2 == SchemaObjectKind::kAggregateFunction) {
+      if ($kind == SchemaObjectKind::kAggregateFunction) {
         // GoogleSQL does not (yet) support DROP AGGREGATE FUNCTION,
         // though it should as per a recent spec.  Currently, table/aggregate
         // functions are dropped via simple DROP FUNCTION statements.
-        return MakeSyntaxError(@2,
-                              "DROP AGGREGATE FUNCTION is not "
-                              "supported, use DROP FUNCTION");
+        return MakeSyntaxError(
+            @kind,
+            "DROP AGGREGATE FUNCTION is not supported, use DROP FUNCTION");
       }
-      if ($2 != SchemaObjectKind::kSchema) {
-        if ($drop_mode.has_value()) {
-          return MakeSyntaxError(
-            @drop_mode.value(), absl::StrCat(
-            "Syntax error: '",
-            ASTDropStatement::GetSQLForDropMode(*$drop_mode),
-            "' is not supported for DROP ",
-            SchemaObjectKindToName($2)));
-          }
+      if (@params.has_value() && $kind != SchemaObjectKind::kFunction) {
+        return MakeSyntaxError(
+            *@params,
+            "Syntax error: Parameters are only supported for DROP FUNCTION");
       }
-      if ($2 == SchemaObjectKind::kFunction) {
+      if (@drop_mode.has_value() && $kind != SchemaObjectKind::kSchema) {
+        return MakeSyntaxError(
+            *@drop_mode,
+            absl::StrCat("Syntax error: '",
+                         ASTDropStatement::GetSQLForDropMode(*$drop_mode),
+                         "' is not supported for DROP ",
+                         SchemaObjectKindToName($kind)));
+      }
+      if (@parent_name.has_value() &&
+          $kind != SchemaObjectKind::kSearchIndex &&
+          $kind != SchemaObjectKind::kVectorIndex &&
+          $kind != SchemaObjectKind::kAiIndex) {
+        absl::string_view kind_name = SchemaObjectKindToName($kind);
+        return MakeSyntaxError(
+            @on, absl::StrCat("DROP ", absl::AsciiStrToUpper(kind_name),
+                              " does not support the ON clause"));
+      }
+      // This is a DROP <object_type> <object_name> statement.
+      switch ($kind) {
+        case SchemaObjectKind::kFunction: {
           // If no function parameters are given, then all overloads of the
           // named function will be dropped. Note that "DROP FUNCTION FOO()"
           // will drop the zero-argument overload of foo(), rather than
           // dropping all overloads.
-          auto* drop_function =
-              MakeNode<ASTDropFunctionStatement>(@$, $path_expression,
-                                                  $function_parameters);
-          drop_function->set_is_if_exists($opt_if_exists);
-          $$ = drop_function;
-      } else {
-        if ($function_parameters) {
-          return MakeSyntaxError(@function_parameters.value(),
-                                "Syntax error: Parameters are only "
-                                "supported for DROP FUNCTION");
+          auto* drop = MakeNode<ASTDropFunctionStatement>(@$, $name, $params);
+          drop->set_is_if_exists(@if_exists.has_value());
+          $$ = drop;
+          return absl::OkStatus();
         }
-        if ($2 == SchemaObjectKind::kMaterializedView) {
-          auto* drop_materialized_view =
-              MakeNode<ASTDropMaterializedViewStatement>(@$, $4);
-          drop_materialized_view->set_is_if_exists($3);
-          $$ = drop_materialized_view;
-        } else {
-          auto* drop = MakeNode<ASTDropStatement>(@$, $4);
-          drop->set_schema_object_kind($2);
-          drop->set_is_if_exists($3);
+        case SchemaObjectKind::kMaterializedView: {
+          auto* drop = MakeNode<ASTDropMaterializedViewStatement>(@$, $name);
+          drop->set_is_if_exists(@if_exists.has_value());
+          $$ = drop;
+          return absl::OkStatus();
+        }
+        case SchemaObjectKind::kSearchIndex: {
+          auto* drop =
+              MakeNode<ASTDropSearchIndexStatement>(@$, $name, $parent_name);
+          drop->set_is_if_exists(@if_exists.has_value());
+          $$ = drop;
+          return absl::OkStatus();
+        }
+        case SchemaObjectKind::kVectorIndex: {
+          auto* drop =
+              MakeNode<ASTDropVectorIndexStatement>(@$, $name, $parent_name);
+          drop->set_is_if_exists(@if_exists.has_value());
+          $$ = drop;
+          return absl::OkStatus();
+        }
+        case SchemaObjectKind::kAiIndex: {
+          auto* drop =
+              MakeNode<ASTDropAiIndexStatement>(@$, $name, $parent_name);
+          drop->set_is_if_exists(@if_exists.has_value());
+          $$ = drop;
+          return absl::OkStatus();
+        }
+        default: {
+          auto* drop = MakeNode<ASTDropStatement>(@$, $name);
+          drop->set_schema_object_kind($kind);
+          drop->set_is_if_exists(@if_exists.has_value());
           drop->set_drop_mode($drop_mode.value_or(ASTDropStatement::DropMode::DROP_MODE_UNSPECIFIED));
           $$ = drop;
+          return absl::OkStatus();
         }
       }
     }
 ;
 
-alter_index_type {ASTAlterIndexStatement::IndexType}:
+index_type {IndexType}:
     "SEARCH"
     {
-      $$ = ASTAlterIndexStatement::IndexType::INDEX_SEARCH;
+      $$ = IndexType::INDEX_SEARCH;
     }
   | "VECTOR"
     {
-      $$ = ASTAlterIndexStatement::IndexType::INDEX_VECTOR;
+      $$ = IndexType::INDEX_VECTOR;
     }
-;
-
-index_type {IndexTypeKeywords}:
-    "SEARCH"
+  | "AI"
     {
-      $$ = IndexTypeKeywords::kSearch;
-    }
-  | "VECTOR"
-    {
-      $$ = IndexTypeKeywords::kVector;
-    }
-;
-
-opt_index_type {IndexTypeKeywords}:
-    index_type?
-    {
-      $$ = $index_type.value_or(IndexTypeKeywords::kNone);
+      $$ = IndexType::INDEX_AI;
     }
 ;
 
@@ -12700,23 +12969,10 @@ execute_using_argument {ASTNode*}:
     }
 ;
 
-// Returns ASTExecuteUsingClause to avoid an unneeded AST class for accumulating
-// list values.
-execute_using_argument_list {ASTNode*}:
-    execute_using_argument
-    {
-      $$ = MakeNode<ASTExecuteUsingClause>(@$, $1);
-    }
-  | execute_using_argument_list "," execute_using_argument
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 execute_using_clause {ASTNode*}:
-    "USING" execute_using_argument_list
+    "USING" (execute_using_argument separator ",")+[args]
     {
-      $$ = $execute_using_argument_list;
+      $$ = MakeNode<ASTExecuteUsingClause>(@args, $args);
     }
 ;
 
@@ -12834,6 +13090,11 @@ exception_handler {ASTNode*}:
 ;
 
 default_expression {ASTNode*}:
+  "DEFAULT" column_list_spec
+    {
+      $$ = $column_list_spec;
+    }
+  |
     "DEFAULT" expression
     {
       $$ = $expression;
@@ -13048,7 +13309,7 @@ next_statement_kind_parenthesized_select {ASTNodeKind}:
 ;
 
 next_statement_kind_table:
-    "TABLE"
+    "TABLE" .TableFunction
     {
       // Set statement properties node_kind before finishing parsing, so that
       // in the case of a syntax error after "TABLE", ParseNextStatementKind()
@@ -13091,7 +13352,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTExportModelStatement::kConcreteNodeKind;
     }
-  | "EXPORT" table_or_table_function "METADATA"
+  | "EXPORT" "TABLE" "FUNCTION"? "METADATA"
     {
       $$ = ASTExportMetadataStatement::kConcreteNodeKind;
     }
@@ -13139,17 +13400,10 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTDropRowAccessPolicyStatement::kConcreteNodeKind;
     }
-  | "DROP" "SEARCH" "INDEX"
+  | "DROP" "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION[fn]?
+    set(FollowsTableFunction)
     {
-      $$ = ASTDropSearchIndexStatement::kConcreteNodeKind;
-    }
-  | "DROP" "VECTOR" "INDEX"
-    {
-      $$ = ASTDropVectorIndexStatement::kConcreteNodeKind;
-    }
-  | "DROP" table_or_table_function
-    {
-      if ($2 == TableOrTableFunctionKeywords::kTableAndFunctionKeywords) {
+      if (@fn.has_value()) {
         $$ = ASTDropTableFunctionStatement::kConcreteNodeKind;
       } else {
         $$ = ASTDropStatement::kConcreteNodeKind;
@@ -13163,14 +13417,23 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTDropEntityStatement::kConcreteNodeKind;
     }
-  | "DROP" schema_object_kind
+  | "DROP" schema_object_kind[kind] set(FollowsTableFunction)
     {
-      switch ($2) {
+      switch ($kind) {
         case SchemaObjectKind::kFunction:
           $$ = ASTDropFunctionStatement::kConcreteNodeKind;
           break;
         case SchemaObjectKind::kMaterializedView:
           $$ = ASTDropMaterializedViewStatement::kConcreteNodeKind;
+          break;
+        case SchemaObjectKind::kSearchIndex:
+          $$ = ASTDropSearchIndexStatement::kConcreteNodeKind;
+          break;
+        case SchemaObjectKind::kVectorIndex:
+          $$ = ASTDropVectorIndexStatement::kConcreteNodeKind;
+          break;
+        case SchemaObjectKind::kAiIndex:
+          $$ = ASTDropAiIndexStatement::kConcreteNodeKind;
           break;
         default:
           $$ = ASTDropStatement::kConcreteNodeKind;
@@ -13184,6 +13447,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
   | "GRAPH"
     {
       $$ = ASTQueryStatement::kConcreteNodeKind;
+      ast_statement_properties->is_top_level_graph_statement_syntax = true;
     }
   | "REVOKE"
     {
@@ -13233,18 +13497,20 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTStartBatchStatement::kConcreteNodeKind;
     }
-  | "RUN" path_expression ("("[has_parens])? %prec RUN_PRECEDENCE
+  | "RUN" path_expression %prec RUN_PRECEDENCE
     {
       absl::string_view first_identifier =
-        $path_expression->child(0)->GetAs<ASTIdentifier>()->GetAsStringView();
-      if(
-        $path_expression->num_children() > 1
-        || @has_parens.has_value()
-        || !googlesql_base::CaseEqual(first_identifier, "BATCH")) {
-          $$ = ASTRunStatement::kConcreteNodeKind;
-      } else {
+          $path_expression->child(0)->GetAs<ASTIdentifier>()->GetAsStringView();
+      if ($path_expression->num_children() == 1
+          && googlesql_base::CaseEqual(first_identifier, "BATCH")) {
         $$ = ASTRunBatchStatement::kConcreteNodeKind;
+      } else {
+        $$ = ASTRunStatement::kConcreteNodeKind;
       }
+    }
+  | "RUN" path_expression "("
+    {
+      $$ = ASTRunStatement::kConcreteNodeKind;
     }
   | "RUN" string_literal_component
     {
@@ -13266,7 +13532,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTAlterDatabaseStatement::kConcreteNodeKind;
     }
-  | "ALTER" alter_index_type "INDEX"
+  | "ALTER" index_type "INDEX"
     {
       $$ = ASTAlterIndexStatement::kConcreteNodeKind;
     }
@@ -13339,7 +13605,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTCreateLocalityGroupStatement::kConcreteNodeKind;
     }
-  | "CREATE" opt_or_replace opt_unique spanner_null_filtered? index_type?
+  | "CREATE" opt_or_replace "UNIQUE"? "NULL_FILTERED"? index_type?
       "INDEX"
     {
       $$ = ASTCreateIndexStatement::kConcreteNodeKind;
@@ -13353,7 +13619,6 @@ next_statement_kind_without_hint {ASTNodeKind}:
       $$ = ASTCreateEntityStatement::kConcreteNodeKind;
     }
   | "CREATE"
-      // LINT.IfChange(ctas_next_statement_kind)
       next_statement_kind_create_modifiers
       next_statement_kind_table opt_if_not_exists
       maybe_dashed_path_expression opt_table_element_list
@@ -13365,7 +13630,6 @@ next_statement_kind_without_hint {ASTNodeKind}:
       // the statement must end either with the query, a semicolon, or the end
       // of the input.
       ("AS"[as_for_query] | semicolon_or_eoi)
-      // LINT.ThenChange(:ctas_statement)
     {
       ast_statement_properties->is_create_table_as_select =
           @as_for_query.has_value();
@@ -13375,12 +13639,16 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTCreateSequenceStatement::kConcreteNodeKind;
     }
+  | "CREATE" next_statement_kind_create_modifiers "LIVE" "TABLE"
+    {
+      $$ = ASTCreateLiveTableStatement::kConcreteNodeKind;
+    }
   | "CREATE" next_statement_kind_create_modifiers "MODEL"
     {
       $$ = ASTCreateModelStatement::kConcreteNodeKind;
     }
-  | "CREATE" next_statement_kind_create_modifiers "TABLE"
-      "FUNCTION"
+  | "CREATE" next_statement_kind_create_modifiers
+      "TABLE" .TableFunction KW_FUNCTION_IN_TABLE_FUNCTION[fn]
     {
       $$ = ASTCreateTableFunctionStatement::kConcreteNodeKind;
     }
@@ -13520,7 +13788,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTRepeatStatement::kConcreteNodeKind;
     }
-  | "UNDROP" schema_object_kind
+  | "UNDROP" schema_object_kind set(FollowsTableFunction)
     {
       $$ = ASTUndropStatement::kConcreteNodeKind;
     }
@@ -13543,17 +13811,16 @@ spanner_primary_key {ASTNode*}:
     }
 ;
 
-spanner_index_interleave_clause {ASTNode*}:
-    "," "INTERLEAVE" "IN" maybe_dashed_path_expression
+spanner_index_interleave_clause {ASTSpannerInterleaveClause*}:
+    "," "INTERLEAVE" "IN" maybe_dashed_path_expression[target]
     {
       if (!language_options.LanguageFeatureEnabled(
           FEATURE_SPANNER_LEGACY_DDL)) {
         return MakeSyntaxError(@1, "Syntax error: Expected end of input but "
             "got \",\"");
       }
-      auto* clause = MakeNode<ASTSpannerInterleaveClause>(@$, $4);
-      clause->set_type(ASTSpannerInterleaveClause::IN);
-      $$ = clause;
+      $$ = MakeNode<ASTSpannerInterleaveClause>(@$, $target);
+      $$->set_type(ASTSpannerInterleaveClause::IN);
     }
 ;
 
@@ -13592,25 +13859,6 @@ opt_spanner_table_options {ASTNode*}:
   | %empty
     {
       $$ = nullptr;
-    }
-;
-
-spanner_null_filtered {bool}:
-    "NULL_FILTERED"
-    {
-      if (!language_options.LanguageFeatureEnabled(
-          FEATURE_SPANNER_LEGACY_DDL)) {
-        return MakeSyntaxError(
-            @1, "null_filtered is not a supported object type");
-      }
-      $$ = true;
-    }
-;
-
-opt_spanner_null_filtered {bool}:
-    spanner_null_filtered?
-    {
-      $$ = $spanner_null_filtered.value_or(false);
     }
 ;
 
@@ -13718,8 +13966,8 @@ create_sequence_statement {ASTCreateSequenceStatement*}:
   // Similar to LastTokenLocation(), but the start and end offsets are adjusted
   // to account for the fact that the lexer is initialized with a substring of
   // the input.
-  Location LastTokenLocationWithStartOffset() const {
-    Location location = LastTokenLocation();
+  ParseLocationRange LastTokenLocationWithStartOffset() const {
+    ParseLocationRange location = LastTokenLocation();
     location.mutable_start().SetByteOffset(location.start().GetByteOffset() +
                                            start_offset_);
     location.mutable_end().SetByteOffset(location.end().GetByteOffset() +
@@ -13760,9 +14008,23 @@ create_sequence_statement {ASTCreateSequenceStatement*}:
   friend class GoogleSqlTokenizer;
 {{end}}
 
+{{- define "parserPublicDecls" -}}
+  // Returns the expected tokens following a syntax error. Before a syntax error
+  // occurs, this returns an empty vector. The vector contains one or more
+  // sets of tokens, each one from a different state the parser has passed
+  // through since the last token was consumed. Each token in each of the sets
+  // is a potential expected token. We preserve the structure (keeping the
+  // followsets of each set separate) to enable error message generation to
+  // consider that when generating the error message.
+  const std::vector<std::set<Token>>& expected_tokens() const {
+    return expected_tokens_;
+  }
+{{- end -}}
+
 {{- define "parserPrivateDecls" -}}
 
-  absl::Status ValidateLabelSupport(ASTNode* node, const Location& location) {
+  absl::Status ValidateLabelSupport(
+      ASTNode* node, const ParseLocationRange& location) {
     if (node == nullptr || language_options.LanguageFeatureEnabled(
                               FEATURE_SCRIPT_LABEL)) {
       return absl::OkStatus();
@@ -13773,7 +14035,7 @@ create_sequence_statement {ASTCreateSequenceStatement*}:
   // Generate a parse error if macro expansions are disabled (`kNone`). This is
   // used to prevent the parser from silently ignoring macro constructs when the
   // the system isn't configured to use them.
-  absl::Status ValidateMacroSupport(const Location& location) {
+  absl::Status ValidateMacroSupport(const ParseLocationRange& location) {
     if(macro_expansion_mode == MacroExpansionMode::kNone) {
       return MakeSyntaxError(
           location,
@@ -13790,107 +14052,90 @@ create_sequence_statement {ASTCreateSequenceStatement*}:
     return result;
   }
 
-template <typename T, typename TElements>
-std::optional<T*> MakeListNode(const ParseLocationRange& location,
-                               const std::vector<TElements>& children) {
-  if (children.empty()) {
-    return std::nullopt;
+  absl::StatusOr<ASTIdentifier*> MakeIdentifierFromKeyword(
+      const ParseLocationRange& location, absl::string_view name) {
+    GOOGLESQL_RETURN_IF_ERROR(
+        AddWarningIfReserved(name, location, language_options, warning_sink));
+    return node_factory.MakeIdentifier(location, name, /*is_quoted=*/false);
   }
-  return MakeNode<T>(location, children);
-}
+
+  template <typename T, typename TElements>
+  std::optional<T*> MakeListNode(const ParseLocationRange& location,
+                                const std::vector<TElements>& children) {
+    if (children.empty()) {
+      return std::nullopt;
+    }
+    return MakeNode<T>(location, children);
+  }
+
+  // Get the followset for the given state.
+  std::set<Token> GetFollowset(int32_t state);
 
   // Used to assign positions to ? parameters.
   int32_t previous_positional_parameter_position_ = 0;
 
+  // Stores the tokens in the followset after a syntax error.
+  std::vector<std::set<Token>> expected_tokens_;
+
 {{ end -}}
 
-{{ define "onBeforeParserImpl" -}}
-static absl::string_view getTokenStrForError(int32_t token_kind) {
-  if (token_kind == static_cast<int32_t>(Token::EOI)) {
-    return "end of input";
-  }
-  absl::string_view token_string = tokenName[token_kind];
-  // Strip away unnecessary quotes and backslashes. The heuristic is that
-  // double-quoting is unnecessary unless the string contains an apostrophe,
-  // a comma, or backslash (other than backslash-backslash).
-  if (token_string.length() < 2 || token_string[0] != '"') {
-    return token_string;
-  }
-
-  for (int i = 1; i < token_string.length() - 1; i++) {
-    if (token_string[i] == '\'' || token_string[i] == ',' ||
-        (token_string[i] == '\\' && token_string[i + 1] == '\\')) {
-      // Keep quotes
-      return token_string;
+{{ define "onAfterParser" -}}
+// Get the followset for the given state.
+std::set<Token> Parser::GetFollowset(int32_t state) {
+  std::set<Token> followset;
+  if (tmAction[state] > tmActionBase) {
+    for (int32_t i = 0; i < static_cast<int32_t>(Token::NumTokens); i++) {
+      // Skip ERROR and INVALID_TOKEN.
+      if (i == 1 || i == 2) {
+        continue;
+      }
+      int32_t action = tmAction[state];
+      int32_t pos = action + i;
+      if (pos >= 0 && pos < tmTableLen && tmCheck[pos] == i) {
+        action = tmTable[pos];
+      } else {
+        action = tmDefAct[state];
+      }
+      if (action < -1) { // this is a shift into state = -2-action
+        followset.insert(static_cast<Token>(i));
+      }
     }
   }
-  return token_string.substr(1, token_string.length() - 2);
+  return followset;
 }
 {{ end -}}
 
 {{ define "returnParserErr" -}}
-    int32_t state = stack.back().state;
-    std::vector<absl::string_view> expected_tokens;
-    const int MAX_EXPECTEDS_TO_REPORT = 4;
-    if (tmAction[state] > tmActionBase) {
-      for (int32_t i = 0; i < static_cast<int32_t>(Token::NumTokens); i++) {
-        // Skip ERROR and INVALID_TOKEN.
-        if (i == 1 || i == 2) {
-          continue;
-        }
-        int32_t action = tmAction[state];
-        int32_t pos = action + i;
-        if (pos >= 0 && pos < tmTableLen && tmCheck[pos] == i) {
-          action = tmTable[pos];
-        } else {
-          action = tmDefAct[state];
-        }
-        if (action < -1) { // this is a shift into state = -2-action
-          expected_tokens.push_back(getTokenStrForError(i));
-          if (expected_tokens.size() > MAX_EXPECTEDS_TO_REPORT) {
-            expected_tokens = {};
-            break;
-          }
-        }
-      }
-    }
-
-    std::string error_message =
-        expected_tokens.empty()
-        ? absl::StrFormat("syntax error, unexpected %s",
-                          getTokenStrForError(next_symbol_.symbol))
-        : absl::StrFormat("syntax error, unexpected %s, expecting %s",
-                          getTokenStrForError(next_symbol_.symbol),
-                          absl::StrJoin(expected_tokens, " or "));
-    return MakeSyntaxError(lexer.LastTokenLocation(), error_message);
+    expected_tokens_.clear();
+    expected_tokens_.reserve(1);
+    expected_tokens_.push_back(GetFollowset(stack.back().state));
+    return absl::InvalidArgumentError(
+        absl::StrCat("syntax error, unexpected ",
+                     tokenName[next_symbol_.symbol]));
 {{ end -}}
 
 {{ define "parserHeaderIncludes" -}}
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "googlesql/common/status_payload_utils.h"
-#include "googlesql/parser/ast_node_factory.h"
-#include "googlesql/parser/textmapper_lexer_adapter.h"
-#include "googlesql/parser/join_processor.h"
 #include "googlesql/parser/parse_tree.h"
-#include "googlesql/parser/parser_internal.h"
+#include "googlesql/parser/parser_mode.h"
+#include "googlesql/parser/tm_parser_util.h"
 #include "googlesql/parser/statement_properties.h"
-#include "googlesql/public/strings.h"
-#include "googlesql/base/case.h"
+#include "googlesql/parser/token_stream.h"
 #include "absl/base/attributes.h"
-#include "absl/functional/function_ref.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
-#include "{{.Options.DirIncludePrefix}}{{.Options.FilenamePrefix}}token.h"
+
+namespace googlesql::parser {
+class TextMapperLexerAdapter;
+}  // namespace googlesql::parser
 
 using namespace googlesql::parser::internal;
 {{end -}}
@@ -13901,16 +14146,25 @@ using namespace googlesql::parser::internal;
 #include <cstdint>
 #include <string>
 
+#include "googlesql/common/status_payload_utils.h"
+#include "googlesql/parser/ast_node_factory.h"
+#include "googlesql/parser/join_processor.h"
+#include "googlesql/parser/statement_properties.h"
+#include "googlesql/parser/textmapper_lexer_adapter.h"
+#include "googlesql/public/strings.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "{{.Options.DirIncludePrefix}}{{.Options.FilenamePrefix}}token.h"
-using Location = ::googlesql::ParseLocationRange;
 
 // There are n symbols in the RHS. The locations can be accessed by
 // get_location(i) where i is in [0, n-1].
-inline Location CreateLocationFromRHS(
-    int32_t n, absl::FunctionRef<Location(int32_t)> get_location) {
-  Location range;
+inline googlesql::ParseLocationRange CreateLocationFromRHS(
+    int32_t n,
+    absl::FunctionRef<googlesql::ParseLocationRange(int32_t)> get_location) {
+  googlesql::ParseLocationRange range;
   int i = 0;
   // i<n-1 so that we don't run off the end of stack. If all empty we grab
   // the last symbol's location
@@ -13925,12 +14179,14 @@ inline Location CreateLocationFromRHS(
 }
 {{end -}}
 
-
+{{ define "LexerClass" }}TextMapperLexerAdapter{{ end -}}
+{{ define "LocationClass" }}ParseLocationRange{{ end -}}
 {{ define "Location" }}using Location = ::googlesql::ParseLocationRange;{{ end -}}
 {{ define "locStart" }}.start(){{ end -}}
 {{ define "locEnd" -}}.end(){{ end -}}
 {{ define "LocationFromOffsets" -}}
-Location(ParseLocationPoint::FromByteOffset(filename_, token_offset_), ParseLocationPoint::FromByteOffset(filename_, offset_))
+ParseLocationRange(ParseLocationPoint::FromByteOffset(filename_, token_offset_),
+                   ParseLocationPoint::FromByteOffset(filename_, offset_))
 {{ end -}}
 {{ define "CreateLocationFromRHS" -}}CreateLocationFromRHS{{ end -}}
 {{ define "onAfterShift" -}}
@@ -13942,7 +14198,7 @@ stack.back().value = absl::string_view(stack.back().sym.text);
 struct symbol {
   int32_t symbol = 0;
   absl::string_view text;
-  Lexer::Location location = Lexer::Location();
+  ParseLocationRange location = ParseLocationRange();
 };
 {{ end -}}
 

@@ -381,6 +381,8 @@ TEST(SimpleBuiltinFunctionTests, ExcludedBuiltinFunctionTests) {
   options.exclude_function_ids.insert(FN_MULTIPLY_BIGNUMERIC);
   options.exclude_function_ids.insert(FN_MULTIPLY_INTERVAL_INT64);
   options.exclude_function_ids.insert(FN_MULTIPLY_INT64_INTERVAL);
+  options.exclude_function_ids.insert(FN_MULTIPLY_INTERVAL_DOUBLE);
+  options.exclude_function_ids.insert(FN_MULTIPLY_DOUBLE_INTERVAL);
 
   // Remove all signatures for SUBTRACT.
   options.exclude_function_ids.insert(FN_SUBTRACT_DOUBLE);
@@ -808,6 +810,51 @@ TEST(SimpleFunctionTests, TestCheckArgumentConstraints) {
   GOOGLESQL_EXPECT_OK(constraints({InputArgumentType(proto_type)}, LanguageOptions()));
 }
 
+TEST(SimpleFunctionTests,
+     HideLegacyNetFunctionsForExternalModeWhenFeatureDisabled) {
+  GoogleSQLBuiltinFunctionOptions options;
+  for (int i = 0; i < 2; ++i) {
+    bool is_external_mode = (i == 1);
+    if (is_external_mode) {
+      options.language_options.set_product_mode(PRODUCT_EXTERNAL);
+    }
+
+    for (int j = 0; j < 2; ++j) {
+      bool allow_extended_public_net_functions = (i == 1);
+      if (allow_extended_public_net_functions) {
+        options.language_options.EnableLanguageFeature(
+            FEATURE_EXTENDED_PUBLIC_NET_FUNCTIONS);
+      } else {
+        options.language_options.DisableLanguageFeature(
+            FEATURE_EXTENDED_PUBLIC_NET_FUNCTIONS);
+      }
+      TypeFactory type_factory;
+      NameToFunctionMap functions;
+      NameToTypeMap types;
+      NameToTableValuedFunctionMap table_valued_functions;
+      GOOGLESQL_EXPECT_OK(GetBuiltinFunctionsAndTypes(options, type_factory, functions,
+                                            types, table_valued_functions));
+      bool disabled = is_external_mode && !allow_extended_public_net_functions;
+      EXPECT_EQ(disabled,
+                googlesql_base::FindOrNull(functions, "net.format_ip") == nullptr);
+      EXPECT_EQ(disabled,
+                googlesql_base::FindOrNull(functions, "net.parse_ip") == nullptr);
+      EXPECT_EQ(disabled,
+                googlesql_base::FindOrNull(functions, "net.format_packed_ip") == nullptr);
+      EXPECT_EQ(disabled,
+                googlesql_base::FindOrNull(functions, "net.parse_packed_ip") == nullptr);
+      EXPECT_EQ(disabled,
+                googlesql_base::FindOrNull(functions, "net.ip_in_net") == nullptr);
+      // NET.MAKE_NET uses INT32 type which is not available in external mode.
+      // So it is always hidden externally regardless of the
+      // FEATURE_EXTENDED_PUBLIC_NET_FUNCTIONS flag. After INT32 is made
+      // available in external mode, this test should be updated.
+      EXPECT_EQ(is_external_mode,
+                googlesql_base::FindOrNull(functions, "net.make_net") == nullptr);
+    }
+  }
+}
+
 TEST(SimpleFunctionTests, HideFunctionsForExternalMode) {
   TypeFactory type_factory;
   GoogleSQLBuiltinFunctionOptions options;
@@ -827,18 +874,6 @@ TEST(SimpleFunctionTests, HideFunctionsForExternalMode) {
     EXPECT_THAT(functions,
                 testing::Contains(testing::Key("normalize_and_casefold")));
 
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.format_ip") == nullptr);
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.parse_ip") == nullptr);
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.format_packed_ip") == nullptr);
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.parse_packed_ip") == nullptr);
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.ip_in_net") == nullptr);
-    EXPECT_EQ(is_external,
-              googlesql_base::FindOrNull(functions, "net.make_net") == nullptr);
     EXPECT_NE(nullptr, googlesql_base::FindOrNull(functions, "array_length"));
   }
 }
@@ -1489,9 +1524,7 @@ TEST(SimpleFunctionTests, TestGetAllAPI) {
   auto builtins1 = GetDefaultBuiltinFunctionsAndTypes();
   EXPECT_GE(builtins1.functions().size(), 0);
   // There shouldn't builtin TVFs.
-  // TODO b/436522497: Change it to EXPECT_GE once a GoogleSQL-builtin TVF is
-  // added.
-  EXPECT_EQ(builtins1.table_valued_functions().size(), 0);
+  EXPECT_GE(builtins1.table_valued_functions().size(), 1);
   // This will need changed when one of the language features that controls a
   // built-in enum is moved out of 'in_development'.
   EXPECT_GE(builtins1.types().size(), 0);

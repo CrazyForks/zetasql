@@ -1,0 +1,2378 @@
+[default language_features=MAXIMUM,+ARRAY_OF_ARRAY]
+[default enabled_ast_rewrites=DEFAULTS,+FLATTEN]
+
+SELECT FLATTEN([[1, 2], [3, 4]])
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |       +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#7]
+    |         +-expr_list=
+    |         | +-injected#7 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#3)
+    |         |           |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+#Path has successive positional access
+SELECT FLATTEN([[[1, 2, NULL], NULL], NULL, [[3, 4, NULL], NULL]]
+  [OFFSET(0)]
+  [OFFSET(1)])
+--
+
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<ARRAY<INT64>>, INT64) -> ARRAY<INT64>)
+    |     +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<ARRAY<ARRAY<INT64>>>, INT64) -> ARRAY<ARRAY<INT64>>)
+    |     | +-Literal(type=ARRAY<ARRAY<ARRAY<INT64>>>, value=[[[1, 2, NULL], NULL], NULL, [[3, 4, NULL], NULL]])
+    |     | +-Literal(type=INT64, value=0)
+    |     +-Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# FLATTEN on nested arrays with explicit depth.
+[language_features=MAXIMUM,+ARRAY_OF_ARRAY]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => {{NULL|1|0|2|3|-1|'s'|1.0}})
+--
+ALTERNATION GROUP: NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |     +-depth=
+    |       +-Literal(type=INT64, value=NULL, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#7]
+    |         +-expr_list=
+    |         | +-injected#7 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#3)
+    |         |           |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 1
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |     +-depth=
+    |       +-Literal(type=INT64, value=1, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#7]
+    |         +-expr_list=
+    |         | +-injected#7 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<INT64>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#3)
+    |         |           |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 0
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [3, 4]])
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 2
+--
+ERROR: FLATTEN depth (2) exceeds the number of available nested layers (1) [at 1:8]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => 2)
+       ^
+--
+ALTERNATION GROUP: 3
+--
+ERROR: FLATTEN depth (3) exceeds the number of available nested layers (1) [at 1:8]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => 3)
+       ^
+--
+ALTERNATION GROUP: -1
+--
+ERROR: FLATTEN depth must be non-negative, but got -1 [at 1:8]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => -1)
+       ^
+--
+ALTERNATION GROUP: 's'
+--
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<ARRAY<INT64>>, depth => STRING
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Named argument `depth`: Unable to coerce type STRING to expected type INT64 [at 1:8]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => 's')
+       ^
+--
+ALTERNATION GROUP: 1.0
+--
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<ARRAY<INT64>>, depth => DOUBLE
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Named argument `depth`: Unable to coerce type DOUBLE to expected type INT64 [at 1:8]
+SELECT FLATTEN([[1, 2], [3, 4]], depth => 1.0)
+       ^
+==
+
+# Depth checks take into account any array offset access
+SELECT
+  FLATTEN(arr.a[OFFSET(2)], depth => 3) AS depth_3
+FROM (
+  SELECT [[[
+    STRUCT([[[1, 2, 3]]] AS a),
+    STRUCT([[[4, 5]]] AS a)
+  ]]] AS arr
+)
+--
+ERROR: FLATTEN depth (3) exceeds the number of available nested layers (2) [at 2:3]
+  FLATTEN(arr.a[OFFSET(2)], depth => 3) AS depth_3
+  ^
+==
+
+# FLATTEN on array of structs with field access
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+  {x: [[[1, 2]], NULL, [[3, NULL]], ARRAY<ARRAY<INT64>>[[NULL]]]},
+  NULL,
+  {x: [[[NULL], [4]]]}
+].x)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |       +-GetStructField
+    |         +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         +-expr=
+    |         | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |         +-field_idx=0
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#11]
+    |         +-expr_list=
+    |         | +-injected#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#9]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-GetStructField
+    |         |           |   |   |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |   |   |   +-expr=
+    |         |           |   |   |   |   | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |   |   |   +-field_idx=0
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+    |         |           |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Same, but with explicit depth
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+  {x: [[[1, 2]], NULL, [[3, NULL]], ARRAY<ARRAY<INT64>>[[NULL]]]},
+  NULL,
+  {x: [[[NULL], [4]]]}
+].x,
+depth => {{NULL|0|1|2|3|4|-1|'s'|1.0}})
+--
+ALTERNATION GROUP: NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |     | +-GetStructField
+    |     |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |     |   +-field_idx=0
+    |     +-depth=
+    |       +-Literal(type=INT64, value=NULL, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#11]
+    |         +-expr_list=
+    |         | +-injected#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#9]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-GetStructField
+    |         |           |   |   |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |   |   |   +-expr=
+    |         |           |   |   |   |   | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |   |   |   +-field_idx=0
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+    |         |           |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 0
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |     | +-GetStructField
+    |     |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |     |   +-field_idx=0
+    |     +-depth=
+    |       +-Literal(type=INT64, value=0, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#6]
+    |         +-expr_list=
+    |         | +-injected#6 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>) -> ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ProjectScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5]
+    |         |           |   +-expr_list=
+    |         |           |   | +-injected#5 :=
+    |         |           |   |   +-GetStructField
+    |         |           |   |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |     +-expr=
+    |         |           |   |     | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |     +-field_idx=0
+    |         |           |   +-input_scan=
+    |         |           |     +-ArrayScan
+    |         |           |       +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |       +-array_expr_list=
+    |         |           |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |       +-element_column_list=[$flatten.injected#3]
+    |         |           |       +-array_offset_column=
+    |         |           |         +-ColumnHolder(column=$offset.injected#4)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 1
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |     | +-GetStructField
+    |     |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |     |   +-field_idx=0
+    |     +-depth=
+    |       +-Literal(type=INT64, value=1, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<ARRAY<INT64>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#7]
+    |         +-expr_list=
+    |         | +-injected#7 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<ARRAY<INT64>>>, ARRAY<ARRAY<ARRAY<INT64>>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<ARRAY<ARRAY<INT64>>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-GetStructField
+    |         |           |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |   +-expr=
+    |         |           |   |   | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |   +-field_idx=0
+    |         |           |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 2
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |     | +-GetStructField
+    |     |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |     |   +-field_idx=0
+    |     +-depth=
+    |       +-Literal(type=INT64, value=2, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<INT64>>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#9]
+    |         +-expr_list=
+    |         | +-injected#9 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<INT64>>, ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<INT64>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#7]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-GetStructField
+    |         |           |   |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |   |   +-expr=
+    |         |           |   |   |   | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |   |   +-field_idx=0
+    |         |           |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 3
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |     | +-GetStructField
+    |     |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>)
+    |     |   +-field_idx=0
+    |     +-depth=
+    |       +-Literal(type=INT64, value=3, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#11]
+    |         +-expr_list=
+    |         | +-injected#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#9]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-GetStructField
+    |         |           |   |   |   |   +-type=ARRAY<ARRAY<ARRAY<INT64>>>
+    |         |           |   |   |   |   +-expr=
+    |         |           |   |   |   |   | +-ColumnRef(type=STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten.injected#3)
+    |         |           |   |   |   |   +-field_idx=0
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+    |         |           |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>, value=[{x:[[[1, 2]], NULL, [[3, NULL]], [[NULL]]]}, NULL, {x:[[[NULL], [4]]]}], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: 4
+--
+ERROR: FLATTEN depth (4) exceeds the number of available nested layers (3) [at 1:8]
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+       ^
+--
+ALTERNATION GROUP: -1
+--
+ERROR: FLATTEN depth must be non-negative, but got -1 [at 1:8]
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+       ^
+--
+ALTERNATION GROUP: 's'
+--
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, depth => STRING
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Named argument `depth`: Unable to coerce type STRING to expected type INT64 [at 1:8]
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+       ^
+--
+ALTERNATION GROUP: 1.0
+--
+ERROR: No matching signature for function FLATTEN
+  Argument types: ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, depth => DOUBLE
+  Signature: FLATTEN(ARRAY<T1>, [depth => INT64])
+    Named argument `depth`: Unable to coerce type DOUBLE to expected type INT64 [at 1:8]
+SELECT FLATTEN(ARRAY<STRUCT<x ARRAY<ARRAY<ARRAY<INT64>>>>>[
+       ^
+==
+
+SELECT ARRAY_CONCAT([], [[]])
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:array_concat(ARRAY<ARRAY<INT64>>, repeated(1) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<INT64>>)
+    |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=[])
+    |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[]])
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT ARRAY_AGG(arr)
+FROM UNNEST([[1,2], [], [3,4]]) AS arr
+--
+QueryStmt
++-output_column_list=
+| +-$aggregate.$agg1#2 AS `$col1` [ARRAY<ARRAY<INT64>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$aggregate.$agg1#2]
+    +-input_scan=
+      +-AggregateScan
+        +-column_list=[$aggregate.$agg1#2]
+        +-input_scan=
+        | +-ArrayScan
+        |   +-column_list=[$array.arr#1]
+        |   +-array_expr_list=
+        |   | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [], [3, 4]])
+        |   +-element_column_list=[$array.arr#1]
+        +-aggregate_list=
+          +-$agg1#2 :=
+            +-AggregateFunctionCall(GoogleSQL:array_agg(ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+              +-ColumnRef(type=ARRAY<INT64>, column=$array.arr#1)
+==
+
+# TODO: reenable when annotations are ready in Java.
+# TODO: enable sql_builder once ARRAY<STRING COLLATE '...'> syntax
+# is allowed
+[no_java]
+[no_run_sqlbuilder]
+[language_features=MAXIMUM,+ARRAY_OF_ARRAY,+COLLATION_SUPPORT]
+SELECT ARRAY_ZIP([['a'], ['b']], [['ax', COLLATE('ay', 'und:ci')], NULL], (e1, e2) -> ARRAY_CONCAT(e1, e2))
+FROM UNNEST([[1,2], [], [3,4]]) AS arr
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#6<<{Collation:"und:ci"}>> AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#6<<{Collation:"und:ci"}>>]
+    +-expr_list=
+    | +-$col1#6 :=
+    |   +-FunctionCall(GoogleSQL:array_zip(ARRAY<ARRAY<STRING>> input_array_1, ARRAY<ARRAY<STRING>> input_array_2, FUNCTION<(ARRAY<STRING>, ARRAY<STRING>)->ARRAY<STRING>> transformation, optional(1) ENUM<ARRAY_ZIP_MODE> mode) -> ARRAY<ARRAY<STRING>>)
+    |     +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-Literal(type=ARRAY<ARRAY<STRING>>, value=[["a"], ["b"]])
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<STRING>) -> ARRAY<ARRAY<STRING>>)
+    |     |     +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |     |     +-FunctionCall(GoogleSQL:$make_array(repeated(2) STRING) -> ARRAY<STRING>)
+    |     |     | +-type_annotation_map=<{Collation:"und:ci"}>
+    |     |     | +-Literal(type=STRING, value="ax")
+    |     |     | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |     |     |   +-type_annotation_map={Collation:"und:ci"}
+    |     |     |   +-Literal(type=STRING, value="ay")
+    |     |     |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |     |     +-Literal(type=ARRAY<STRING>, value=NULL)
+    |     +-FunctionArgument
+    |     | +-inline_lambda=
+    |     |   +-InlineLambda
+    |     |     +-argument_list=$lambda_arg.[e1#4, e2#5]
+    |     |     +-body=
+    |     |       +-FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
+    |     |         +-type_annotation_map=<{Collation:"und:ci"}>
+    |     |         +-ColumnRef(type=ARRAY<STRING>, column=$lambda_arg.e1#4)
+    |     |         +-ColumnRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, column=$lambda_arg.e2#5<{Collation:"und:ci"}>)
+    |     +-FunctionArgument
+    |       +-expr=
+    |         +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    +-input_scan=
+      +-ArrayScan
+        +-array_expr_list=
+        | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [], [3, 4]])
+        +-element_column_list=[$array.arr#1]
+
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#6<<{Collation:"und:ci"}>> AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#6<<{Collation:"und:ci"}>>]
+    +-expr_list=
+    | +-$col1#6 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<STRING>>
+    |     +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$expr_subquery.$col1#26<<{Collation:"und:ci"}>>]
+    |         +-expr_list=
+    |         | +-$col1#26 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<STRING>>, ARRAY<ARRAY<STRING>>) -> ARRAY<ARRAY<STRING>>)
+    |         |     +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(2) BOOL) -> BOOL)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<STRING>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<STRING>>) -> BOOL)
+    |         |     | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>)
+    |         |     | +-FunctionCall(GoogleSQL:$is_null(ENUM<ARRAY_ZIP_MODE>) -> BOOL)
+    |         |     |   +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#9)
+    |         |     +-Literal(type=ARRAY<ARRAY<STRING>>, value=NULL)
+    |         |     +-FunctionCall(GoogleSQL:$case_with_value(ENUM<ARRAY_ZIP_MODE>, repeated(3) ENUM<ARRAY_ZIP_MODE>, repeated(3) ARRAY<ARRAY<STRING>>, ARRAY<ARRAY<STRING>>) -> ARRAY<ARRAY<STRING>>)
+    |         |       +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |       +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#9)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |         |       +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<STRING>>, ARRAY<ARRAY<STRING>>) -> ARRAY<ARRAY<STRING>>)
+    |         |       | +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |       | +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+    |         |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<STRING>>) -> INT64)
+    |         |       | | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7)
+    |         |       | | +-FunctionCall(GoogleSQL:array_length(ARRAY<ARRAY<STRING>>) -> INT64)
+    |         |       | |   +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>)
+    |         |       | +-Cast(ARRAY<ARRAY<STRING>> -> ARRAY<ARRAY<STRING>>)
+    |         |       | | +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<STRING>>)
+    |         |       | |   +-Literal(type=STRING, value="Unequal array length in ARRAY_ZIP using STRICT mode")
+    |         |       | +-SubqueryExpr
+    |         |       |   +-type=ARRAY<ARRAY<STRING>>
+    |         |       |   +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |       |   +-subquery_type=ARRAY
+    |         |       |   +-parameter_list=
+    |         |       |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7)
+    |         |       |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>)
+    |         |       |   +-subquery=
+    |         |       |     +-OrderByScan
+    |         |       |       +-column_list=[$expr_subquery.$col1#14<{Collation:"und:ci"}>]
+    |         |       |       +-is_ordered=TRUE
+    |         |       |       +-input_scan=
+    |         |       |       | +-ProjectScan
+    |         |       |       |   +-column_list=[$array.e1#10, $array_offset.offset#11, $array.e2#12<{Collation:"und:ci"}>, $array_offset.offset#13, $expr_subquery.$col1#14<{Collation:"und:ci"}>]
+    |         |       |       |   +-expr_list=
+    |         |       |       |   | +-$col1#14 :=
+    |         |       |       |   |   +-FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
+    |         |       |       |   |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |         |       |       |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e1#10)
+    |         |       |       |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e2#12<{Collation:"und:ci"}>)
+    |         |       |       |   +-input_scan=
+    |         |       |       |     +-ArrayScan
+    |         |       |       |       +-column_list=[$array.e1#10, $array_offset.offset#11, $array.e2#12<{Collation:"und:ci"}>, $array_offset.offset#13]
+    |         |       |       |       +-input_scan=
+    |         |       |       |       | +-ArrayScan
+    |         |       |       |       |   +-column_list=[$array.e1#10, $array_offset.offset#11]
+    |         |       |       |       |   +-array_expr_list=
+    |         |       |       |       |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7, is_correlated=TRUE)
+    |         |       |       |       |   +-element_column_list=[$array.e1#10]
+    |         |       |       |       |   +-array_offset_column=
+    |         |       |       |       |     +-ColumnHolder(column=$array_offset.offset#11)
+    |         |       |       |       +-array_expr_list=
+    |         |       |       |       | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>, is_correlated=TRUE)
+    |         |       |       |       +-element_column_list=[$array.e2#12<{Collation:"und:ci"}>]
+    |         |       |       |       +-array_offset_column=
+    |         |       |       |       | +-ColumnHolder(column=$array_offset.offset#13)
+    |         |       |       |       +-join_expr=
+    |         |       |       |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#11)
+    |         |       |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#13)
+    |         |       |       +-order_by_item_list=
+    |         |       |         +-OrderByItem
+    |         |       |           +-column_ref=
+    |         |       |             +-ColumnRef(type=INT64, column=$array_offset.offset#11)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=TRUNCATE)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<STRING>>
+    |         |       | +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |       | +-subquery_type=ARRAY
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7)
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>)
+    |         |       | +-subquery=
+    |         |       |   +-OrderByScan
+    |         |       |     +-column_list=[$expr_subquery.$col1#19<{Collation:"und:ci"}>]
+    |         |       |     +-is_ordered=TRUE
+    |         |       |     +-input_scan=
+    |         |       |     | +-ProjectScan
+    |         |       |     |   +-column_list=[$array.e1#15, $array_offset.offset#16, $array.e2#17<{Collation:"und:ci"}>, $array_offset.offset#18, $expr_subquery.$col1#19<{Collation:"und:ci"}>]
+    |         |       |     |   +-expr_list=
+    |         |       |     |   | +-$col1#19 :=
+    |         |       |     |   |   +-FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
+    |         |       |     |   |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e1#15)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e2#17<{Collation:"und:ci"}>)
+    |         |       |     |   +-input_scan=
+    |         |       |     |     +-ArrayScan
+    |         |       |     |       +-column_list=[$array.e1#15, $array_offset.offset#16, $array.e2#17<{Collation:"und:ci"}>, $array_offset.offset#18]
+    |         |       |     |       +-input_scan=
+    |         |       |     |       | +-ArrayScan
+    |         |       |     |       |   +-column_list=[$array.e1#15, $array_offset.offset#16]
+    |         |       |     |       |   +-array_expr_list=
+    |         |       |     |       |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7, is_correlated=TRUE)
+    |         |       |     |       |   +-element_column_list=[$array.e1#15]
+    |         |       |     |       |   +-array_offset_column=
+    |         |       |     |       |     +-ColumnHolder(column=$array_offset.offset#16)
+    |         |       |     |       +-array_expr_list=
+    |         |       |     |       | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>, is_correlated=TRUE)
+    |         |       |     |       +-element_column_list=[$array.e2#17<{Collation:"und:ci"}>]
+    |         |       |     |       +-array_offset_column=
+    |         |       |     |       | +-ColumnHolder(column=$array_offset.offset#18)
+    |         |       |     |       +-join_expr=
+    |         |       |     |         +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#16)
+    |         |       |     |           +-ColumnRef(type=INT64, column=$array_offset.offset#18)
+    |         |       |     +-order_by_item_list=
+    |         |       |       +-OrderByItem
+    |         |       |         +-column_ref=
+    |         |       |           +-ColumnRef(type=INT64, column=$array_offset.offset#16)
+    |         |       +-Literal(type=ENUM<ARRAY_ZIP_MODE>, value=PAD)
+    |         |       +-SubqueryExpr
+    |         |       | +-type=ARRAY<ARRAY<STRING>>
+    |         |       | +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |         |       | +-subquery_type=ARRAY
+    |         |       | +-parameter_list=
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7)
+    |         |       | | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>)
+    |         |       | +-subquery=
+    |         |       |   +-OrderByScan
+    |         |       |     +-column_list=[$expr_subquery.$col1#25<{Collation:"und:ci"}>]
+    |         |       |     +-is_ordered=TRUE
+    |         |       |     +-input_scan=
+    |         |       |     | +-ProjectScan
+    |         |       |     |   +-column_list=[$array.e1#20, $array_offset.offset#21, $array.e2#22<{Collation:"und:ci"}>, $array_offset.offset#23, $full_join.offset#24, $expr_subquery.$col1#25<{Collation:"und:ci"}>]
+    |         |       |     |   +-expr_list=
+    |         |       |     |   | +-$col1#25 :=
+    |         |       |     |   |   +-FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
+    |         |       |     |   |     +-type_annotation_map=<{Collation:"und:ci"}>
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e1#20)
+    |         |       |     |   |     +-ColumnRef(type=ARRAY<STRING>, column=$array.e2#22<{Collation:"und:ci"}>)
+    |         |       |     |   +-input_scan=
+    |         |       |     |     +-ProjectScan
+    |         |       |     |       +-column_list=[$array.e1#20, $array_offset.offset#21, $array.e2#22<{Collation:"und:ci"}>, $array_offset.offset#23, $full_join.offset#24]
+    |         |       |     |       +-expr_list=
+    |         |       |     |       | +-offset#24 :=
+    |         |       |     |       |   +-FunctionCall(GoogleSQL:coalesce(repeated(2) INT64) -> INT64)
+    |         |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#21)
+    |         |       |     |       |     +-ColumnRef(type=INT64, column=$array_offset.offset#23)
+    |         |       |     |       +-input_scan=
+    |         |       |     |         +-JoinScan
+    |         |       |     |           +-column_list=[$array.e1#20, $array_offset.offset#21, $array.e2#22<{Collation:"und:ci"}>, $array_offset.offset#23]
+    |         |       |     |           +-join_type=FULL
+    |         |       |     |           +-left_scan=
+    |         |       |     |           | +-ArrayScan
+    |         |       |     |           |   +-column_list=[$array.e1#20, $array_offset.offset#21]
+    |         |       |     |           |   +-array_expr_list=
+    |         |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, column=$subquery1.input_array_1#7, is_correlated=TRUE)
+    |         |       |     |           |   +-element_column_list=[$array.e1#20]
+    |         |       |     |           |   +-array_offset_column=
+    |         |       |     |           |     +-ColumnHolder(column=$array_offset.offset#21)
+    |         |       |     |           +-right_scan=
+    |         |       |     |           | +-ArrayScan
+    |         |       |     |           |   +-column_list=[$array.e2#22<{Collation:"und:ci"}>, $array_offset.offset#23]
+    |         |       |     |           |   +-array_expr_list=
+    |         |       |     |           |   | +-ColumnRef(type=ARRAY<ARRAY<STRING>>, type_annotation_map=<<{Collation:"und:ci"}>>, column=$subquery1.input_array_2#8<<{Collation:"und:ci"}>>, is_correlated=TRUE)
+    |         |       |     |           |   +-element_column_list=[$array.e2#22<{Collation:"und:ci"}>]
+    |         |       |     |           |   +-array_offset_column=
+    |         |       |     |           |     +-ColumnHolder(column=$array_offset.offset#23)
+    |         |       |     |           +-join_expr=
+    |         |       |     |           | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+    |         |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#21)
+    |         |       |     |           |   +-ColumnRef(type=INT64, column=$array_offset.offset#23)
+    |         |       |     |           +-has_using=TRUE
+    |         |       |     +-order_by_item_list=
+    |         |       |       +-OrderByItem
+    |         |       |         +-column_ref=
+    |         |       |           +-ColumnRef(type=INT64, column=$full_join.offset#24)
+    |         |       +-Cast(ARRAY<ARRAY<STRING>> -> ARRAY<ARRAY<STRING>>)
+    |         |         +-FunctionCall(GoogleSQL:error(STRING) -> ARRAY<ARRAY<STRING>>)
+    |         |           +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+    |         |             +-Literal(type=STRING, value="Unrecognized mode: ")
+    |         |             +-Cast(ENUM<ARRAY_ZIP_MODE> -> STRING)
+    |         |               +-ColumnRef(type=ENUM<ARRAY_ZIP_MODE>, column=$subquery1.mode#9)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=$subquery1.[input_array_1#7, input_array_2#8, mode#9]
+    |             +-expr_list=
+    |             | +-input_array_1#7 := Literal(type=ARRAY<ARRAY<STRING>>, value=[["a"], ["b"]])
+    |             | +-input_array_2#8 :=
+    |             | | +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<STRING>) -> ARRAY<ARRAY<STRING>>)
+    |             | |   +-type_annotation_map=<<{Collation:"und:ci"}>>
+    |             | |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) STRING) -> ARRAY<STRING>)
+    |             | |   | +-type_annotation_map=<{Collation:"und:ci"}>
+    |             | |   | +-Literal(type=STRING, value="ax")
+    |             | |   | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |             | |   |   +-type_annotation_map={Collation:"und:ci"}
+    |             | |   |   +-Literal(type=STRING, value="ay")
+    |             | |   |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |             | |   +-Literal(type=ARRAY<STRING>, value=NULL)
+    |             | +-mode#9 := Literal(type=ENUM<ARRAY_ZIP_MODE>, value=STRICT)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-ArrayScan
+        +-array_expr_list=
+        | +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[1, 2], [], [3, 4]])
+        +-element_column_list=[$array.arr#1]
+==
+
+SELECT FLATTEN([[  -- Outermost array
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[1, 2], [3]] AS f2
+        ),
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[4, 5]] AS f2
+        )
+      ] AS f1
+    ),
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[6]] AS f2
+        )
+      ] AS f1
+    )
+  ]]{{|.f1.f2}}) AS arr
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr#1 AS arr [ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr#1]
+    +-expr_list=
+    | +-arr#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>
+    |     +-expr=
+    |       +-Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr#1 AS arr [ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr#1]
+    +-expr_list=
+    | +-arr#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#7]
+    |         +-expr_list=
+    |         | +-injected#7 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>) -> ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#5]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$flatten.injected#3)
+    |         |           |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: .f1.f2
+--
+QueryStmt
++-output_column_list=
+| +-$query.arr#1 AS arr [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr#1]
+    +-expr_list=
+    | +-arr#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |     | +-Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |     +-get_field_list=
+    |       +-GetStructField
+    |       | +-type=ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>
+    |       | +-expr=
+    |       | | +-FlattenedArg(type=STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>)
+    |       | +-field_idx=0
+    |       +-GetStructField
+    |         +-type=ARRAY<ARRAY<INT64>>
+    |         +-expr=
+    |         | +-FlattenedArg(type=STRUCT<f2 ARRAY<ARRAY<INT64>>>)
+    |         +-field_idx=0
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.arr#1 AS arr [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.arr#1]
+    +-expr_list=
+    | +-arr#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#13]
+    |         +-expr_list=
+    |         | +-injected#13 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#11]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10, $flatten.injected#11, $offset.injected#12]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   |   +-input_scan=
+    |         |           |   |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$flatten.injected#3)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-GetStructField
+    |         |           |   |   |   |   +-type=ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>
+    |         |           |   |   |   |   +-expr=
+    |         |           |   |   |   |   | +-ColumnRef(type=STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>, column=$flatten.injected#5)
+    |         |           |   |   |   |   +-field_idx=0
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-GetStructField
+    |         |           |   |   |   +-type=ARRAY<ARRAY<INT64>>
+    |         |           |   |   |   +-expr=
+    |         |           |   |   |   | +-ColumnRef(type=STRUCT<f2 ARRAY<ARRAY<INT64>>>, column=$flatten.injected#7)
+    |         |           |   |   |   +-field_idx=0
+    |         |           |   |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#9)
+    |         |           |   +-element_column_list=[$flatten.injected#11]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#12)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#12)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+WITH T AS (
+  SELECT [[  -- Outermost array
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[1, 2], [3]] AS f2
+        ),
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[4, 5]] AS f2
+        )
+      ] AS f1
+    ),
+    STRUCT(  -- arr element
+      [  -- f1 array
+        STRUCT(  -- f1 element
+          ARRAY<ARRAY<INT64>>[[6]] AS f2
+        )
+      ] AS f1
+    )
+  ]] AS arr
+)
+SELECT FLATTEN(a.f1.f2) FROM T, {{t.arr|UNNEST(T.arr)}} a
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#4]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#4]
+        +-expr_list=
+        | +-$col1#4 :=
+        |   +-Flatten
+        |     +-type=ARRAY<INT64>
+        |     +-expr=
+        |     | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$array.a#3)
+        |     +-get_field_list=
+        |       +-GetStructField
+        |       | +-type=ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>
+        |       | +-expr=
+        |       | | +-FlattenedArg(type=STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>)
+        |       | +-field_idx=0
+        |       +-GetStructField
+        |         +-type=ARRAY<ARRAY<INT64>>
+        |         +-expr=
+        |         | +-FlattenedArg(type=STRUCT<f2 ARRAY<ARRAY<INT64>>>)
+        |         +-field_idx=0
+        +-input_scan=
+          +-ArrayScan
+            +-column_list=[T.arr#2, $array.a#3]
+            +-input_scan=
+            | +-WithRefScan(column_list=[T.arr#2], with_query_name="T")
+            +-array_expr_list=
+            | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=T.arr#2)
+            +-element_column_list=[$array.a#3]
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#4]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.arr#1]
+    |       +-expr_list=
+    |       | +-arr#1 := Literal(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, value=[[{f1:[{f2:[[1, 2], [3]]}, {f2:[[4, 5]]}]}, {f1:[{f2:[[6]]}]}]], has_explicit_type=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#4]
+        +-expr_list=
+        | +-$col1#4 :=
+        |   +-SubqueryExpr
+        |     +-type=ARRAY<INT64>
+        |     +-subquery_type=SCALAR
+        |     +-parameter_list=
+        |     | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$array.a#3)
+        |     +-subquery=
+        |       +-ProjectScan
+        |         +-column_list=[$with_expr.injected#14]
+        |         +-expr_list=
+        |         | +-injected#14 :=
+        |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+        |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>) -> BOOL)
+        |         |     | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$flatten_input.injected#5)
+        |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+        |         |     +-SubqueryExpr
+        |         |       +-type=ARRAY<INT64>
+        |         |       +-subquery_type=ARRAY
+        |         |       +-parameter_list=
+        |         |       | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$flatten_input.injected#5)
+        |         |       +-subquery=
+        |         |         +-OrderByScan
+        |         |           +-column_list=[$flatten.injected#12]
+        |         |           +-is_ordered=TRUE
+        |         |           +-input_scan=
+        |         |           | +-ArrayScan
+        |         |           |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8, $offset.injected#9, $flatten.injected#10, $offset.injected#11, $flatten.injected#12, $offset.injected#13]
+        |         |           |   +-input_scan=
+        |         |           |   | +-ArrayScan
+        |         |           |   |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8, $offset.injected#9, $flatten.injected#10, $offset.injected#11]
+        |         |           |   |   +-input_scan=
+        |         |           |   |   | +-ArrayScan
+        |         |           |   |   |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8, $offset.injected#9]
+        |         |           |   |   |   +-input_scan=
+        |         |           |   |   |   | +-ArrayScan
+        |         |           |   |   |   |   +-column_list=[$flatten.injected#6, $offset.injected#7]
+        |         |           |   |   |   |   +-array_expr_list=
+        |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$flatten_input.injected#5, is_correlated=TRUE)
+        |         |           |   |   |   |   +-element_column_list=[$flatten.injected#6]
+        |         |           |   |   |   |   +-array_offset_column=
+        |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#7)
+        |         |           |   |   |   +-array_expr_list=
+        |         |           |   |   |   | +-GetStructField
+        |         |           |   |   |   |   +-type=ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>
+        |         |           |   |   |   |   +-expr=
+        |         |           |   |   |   |   | +-ColumnRef(type=STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>, column=$flatten.injected#6)
+        |         |           |   |   |   |   +-field_idx=0
+        |         |           |   |   |   +-element_column_list=[$flatten.injected#8]
+        |         |           |   |   |   +-array_offset_column=
+        |         |           |   |   |     +-ColumnHolder(column=$offset.injected#9)
+        |         |           |   |   +-array_expr_list=
+        |         |           |   |   | +-GetStructField
+        |         |           |   |   |   +-type=ARRAY<ARRAY<INT64>>
+        |         |           |   |   |   +-expr=
+        |         |           |   |   |   | +-ColumnRef(type=STRUCT<f2 ARRAY<ARRAY<INT64>>>, column=$flatten.injected#8)
+        |         |           |   |   |   +-field_idx=0
+        |         |           |   |   +-element_column_list=[$flatten.injected#10]
+        |         |           |   |   +-array_offset_column=
+        |         |           |   |     +-ColumnHolder(column=$offset.injected#11)
+        |         |           |   +-array_expr_list=
+        |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#10)
+        |         |           |   +-element_column_list=[$flatten.injected#12]
+        |         |           |   +-array_offset_column=
+        |         |           |     +-ColumnHolder(column=$offset.injected#13)
+        |         |           +-order_by_item_list=
+        |         |             +-OrderByItem
+        |         |             | +-column_ref=
+        |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#7)
+        |         |             +-OrderByItem
+        |         |             | +-column_ref=
+        |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#9)
+        |         |             +-OrderByItem
+        |         |             | +-column_ref=
+        |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#11)
+        |         |             +-OrderByItem
+        |         |               +-column_ref=
+        |         |                 +-ColumnRef(type=INT64, column=$offset.injected#13)
+        |         +-input_scan=
+        |           +-ProjectScan
+        |             +-column_list=[$flatten_input.injected#5]
+        |             +-expr_list=
+        |             | +-injected#5 := ColumnRef(type=ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>, column=$array.a#3, is_correlated=TRUE)
+        |             +-input_scan=
+        |               +-SingleRowScan
+        +-input_scan=
+          +-ArrayScan
+            +-column_list=[T.arr#2, $array.a#3]
+            +-input_scan=
+            | +-WithRefScan(column_list=[T.arr#2], with_query_name="T")
+            +-array_expr_list=
+            | +-ColumnRef(type=ARRAY<ARRAY<STRUCT<f1 ARRAY<STRUCT<f2 ARRAY<ARRAY<INT64>>>>>>>, column=T.arr#2)
+            +-element_column_list=[$array.a#3]
+==
+
+SELECT FLATTEN([[[[1,2, NULL, 4], [NULL], NULL, [5, 6]]], NULL, [[[7, 8]]]])
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |       +-Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2, NULL, 4], [NULL], NULL, [5, 6]]], NULL, [[[7, 8]]]])
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#11]
+    |         +-expr_list=
+    |         | +-injected#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#9]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$flatten.injected#3)
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+    |         |           |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2, NULL, 4], [NULL], NULL, [5, 6]]], NULL, [[[7, 8]]]])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT FLATTEN([[[[1,2]], NULL, [[NULL]], [[NULL]]], [[[3,4], [NULL, 6]]], NULL, [[[7, 8], [NULL]]]])
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-Flatten
+    |     +-type=ARRAY<INT64>
+    |     +-expr=
+    |       +-Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2]], NULL, [[NULL]], [[NULL]]], [[[3, 4], [NULL, 6]]], NULL, [[[7, 8], [NULL]]]])
+    +-input_scan=
+      +-SingleRowScan
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<INT64>
+    |     +-subquery_type=SCALAR
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#11]
+    |         +-expr_list=
+    |         | +-injected#11 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2)
+    |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<INT64>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#9]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+    |         |           |   |   +-input_scan=
+    |         |           |   |   | +-ArrayScan
+    |         |           |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4, $flatten.injected#5, $offset.injected#6]
+    |         |           |   |   |   +-input_scan=
+    |         |           |   |   |   | +-ArrayScan
+    |         |           |   |   |   |   +-column_list=[$flatten.injected#3, $offset.injected#4]
+    |         |           |   |   |   |   +-array_expr_list=
+    |         |           |   |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, column=$flatten_input.injected#2, is_correlated=TRUE)
+    |         |           |   |   |   |   +-element_column_list=[$flatten.injected#3]
+    |         |           |   |   |   |   +-array_offset_column=
+    |         |           |   |   |   |     +-ColumnHolder(column=$offset.injected#4)
+    |         |           |   |   |   +-array_expr_list=
+    |         |           |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$flatten.injected#3)
+    |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+    |         |           |   |   |   +-array_offset_column=
+    |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+    |         |           |   |   +-element_column_list=[$flatten.injected#7]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+    |         |           |   +-element_column_list=[$flatten.injected#9]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#10)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#4)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#2]
+    |             +-expr_list=
+    |             | +-injected#2 := Literal(type=ARRAY<ARRAY<ARRAY<ARRAY<INT64>>>>, value=[[[[1, 2]], NULL, [[NULL]], [[NULL]]], [[[3, 4], [NULL, 6]]], NULL, [[[7, 8], [NULL]]]])
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-SingleRowScan
+==
+
+WITH T AS (SELECT [1, 2] AS col)
+SELECT FLATTEN([[[3, 4]], [T.col, [5]]]) FROM T
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.col#1]
+    |       +-expr_list=
+    |       | +-col#1 := Literal(type=ARRAY<INT64>, value=[1, 2])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#3]
+        +-expr_list=
+        | +-$col1#3 :=
+        |   +-Flatten
+        |     +-type=ARRAY<INT64>
+        |     +-expr=
+        |       +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+        |         +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[3, 4]])
+        |         +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+        |           +-ColumnRef(type=ARRAY<INT64>, column=T.col#2)
+        |           +-Literal(type=ARRAY<INT64>, value=[5])
+        +-input_scan=
+          +-WithRefScan(column_list=[T.col#2], with_query_name="T")
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="T"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[T.col#1]
+    |       +-expr_list=
+    |       | +-col#1 := Literal(type=ARRAY<INT64>, value=[1, 2])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#3]
+        +-expr_list=
+        | +-$col1#3 :=
+        |   +-SubqueryExpr
+        |     +-type=ARRAY<INT64>
+        |     +-subquery_type=SCALAR
+        |     +-parameter_list=
+        |     | +-ColumnRef(type=ARRAY<INT64>, column=T.col#2)
+        |     +-subquery=
+        |       +-ProjectScan
+        |         +-column_list=[$with_expr.injected#11]
+        |         +-expr_list=
+        |         | +-injected#11 :=
+        |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+        |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<ARRAY<ARRAY<INT64>>>) -> BOOL)
+        |         |     | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$flatten_input.injected#4)
+        |         |     +-Literal(type=ARRAY<INT64>, value=NULL)
+        |         |     +-SubqueryExpr
+        |         |       +-type=ARRAY<INT64>
+        |         |       +-subquery_type=ARRAY
+        |         |       +-parameter_list=
+        |         |       | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$flatten_input.injected#4)
+        |         |       +-subquery=
+        |         |         +-OrderByScan
+        |         |           +-column_list=[$flatten.injected#9]
+        |         |           +-is_ordered=TRUE
+        |         |           +-input_scan=
+        |         |           | +-ArrayScan
+        |         |           |   +-column_list=[$flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8, $flatten.injected#9, $offset.injected#10]
+        |         |           |   +-input_scan=
+        |         |           |   | +-ArrayScan
+        |         |           |   |   +-column_list=[$flatten.injected#5, $offset.injected#6, $flatten.injected#7, $offset.injected#8]
+        |         |           |   |   +-input_scan=
+        |         |           |   |   | +-ArrayScan
+        |         |           |   |   |   +-column_list=[$flatten.injected#5, $offset.injected#6]
+        |         |           |   |   |   +-array_expr_list=
+        |         |           |   |   |   | +-ColumnRef(type=ARRAY<ARRAY<ARRAY<INT64>>>, column=$flatten_input.injected#4, is_correlated=TRUE)
+        |         |           |   |   |   +-element_column_list=[$flatten.injected#5]
+        |         |           |   |   |   +-array_offset_column=
+        |         |           |   |   |     +-ColumnHolder(column=$offset.injected#6)
+        |         |           |   |   +-array_expr_list=
+        |         |           |   |   | +-ColumnRef(type=ARRAY<ARRAY<INT64>>, column=$flatten.injected#5)
+        |         |           |   |   +-element_column_list=[$flatten.injected#7]
+        |         |           |   |   +-array_offset_column=
+        |         |           |   |     +-ColumnHolder(column=$offset.injected#8)
+        |         |           |   +-array_expr_list=
+        |         |           |   | +-ColumnRef(type=ARRAY<INT64>, column=$flatten.injected#7)
+        |         |           |   +-element_column_list=[$flatten.injected#9]
+        |         |           |   +-array_offset_column=
+        |         |           |     +-ColumnHolder(column=$offset.injected#10)
+        |         |           +-order_by_item_list=
+        |         |             +-OrderByItem
+        |         |             | +-column_ref=
+        |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#6)
+        |         |             +-OrderByItem
+        |         |             | +-column_ref=
+        |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#8)
+        |         |             +-OrderByItem
+        |         |               +-column_ref=
+        |         |                 +-ColumnRef(type=INT64, column=$offset.injected#10)
+        |         +-input_scan=
+        |           +-ProjectScan
+        |             +-column_list=[$flatten_input.injected#4]
+        |             +-expr_list=
+        |             | +-injected#4 :=
+        |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<ARRAY<INT64>>) -> ARRAY<ARRAY<ARRAY<INT64>>>)
+        |             |     +-Literal(type=ARRAY<ARRAY<INT64>>, value=[[3, 4]])
+        |             |     +-FunctionCall(GoogleSQL:$make_array(repeated(2) ARRAY<INT64>) -> ARRAY<ARRAY<INT64>>)
+        |             |       +-ColumnRef(type=ARRAY<INT64>, column=T.col#2, is_correlated=TRUE)
+        |             |       +-Literal(type=ARRAY<INT64>, value=[5])
+        |             +-input_scan=
+        |               +-SingleRowScan
+        +-input_scan=
+          +-WithRefScan(column_list=[T.col#2], with_query_name="T")
+==
+
+# FLATTEN with proto repeated field.
+# Note that when depth is 0, if we didn't have the exception of wrapping the
+# final type in an extra ARRAY layer, we'd get ARRAY<STRING> instead of the
+# correct ARRAY<ARRAY<STRING>>.
+[default language_features=MAXIMUM,+ARRAY_OF_ARRAY]
+SELECT FLATTEN([KitchenSink, KitchenSink].repeated_string_val, depth => {{0|1|NULL}}) FROM TestTable
+--
+ALTERNATION GROUP: 0
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-Flatten
+    |     +-type=ARRAY<ARRAY<STRING>>
+    |     +-expr=
+    |     | +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-get_field_list=
+    |     | +-GetProtoField
+    |     |   +-type=ARRAY<STRING>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=PROTO<googlesql_test.KitchenSinkPB>)
+    |     |   +-field_descriptor=repeated_string_val
+    |     |   +-default_value=[]
+    |     +-depth=
+    |       +-Literal(type=INT64, value=0, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<ARRAY<STRING>>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<ARRAY<STRING>>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#9]
+    |         +-expr_list=
+    |         | +-injected#9 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<ARRAY<STRING>>, ARRAY<ARRAY<STRING>>) -> ARRAY<ARRAY<STRING>>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<PROTO<googlesql_test.KitchenSinkPB>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |     +-Literal(type=ARRAY<ARRAY<STRING>>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<ARRAY<STRING>>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#8]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ProjectScan
+    |         |           |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8]
+    |         |           |   +-expr_list=
+    |         |           |   | +-injected#8 :=
+    |         |           |   |   +-GetProtoField
+    |         |           |   |     +-type=ARRAY<STRING>
+    |         |           |   |     +-expr=
+    |         |           |   |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=$flatten.injected#6)
+    |         |           |   |     +-field_descriptor=repeated_string_val
+    |         |           |   |     +-default_value=[]
+    |         |           |   +-input_scan=
+    |         |           |     +-ArrayScan
+    |         |           |       +-column_list=[$flatten.injected#6, $offset.injected#7]
+    |         |           |       +-array_expr_list=
+    |         |           |       | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5, is_correlated=TRUE)
+    |         |           |       +-element_column_list=[$flatten.injected#6]
+    |         |           |       +-array_offset_column=
+    |         |           |         +-ColumnHolder(column=$offset.injected#7)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#7)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#5]
+    |             +-expr_list=
+    |             | +-injected#5 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+--
+ALTERNATION GROUP: 1
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-Flatten
+    |     +-type=ARRAY<STRING>
+    |     +-expr=
+    |     | +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-get_field_list=
+    |     | +-GetProtoField
+    |     |   +-type=ARRAY<STRING>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=PROTO<googlesql_test.KitchenSinkPB>)
+    |     |   +-field_descriptor=repeated_string_val
+    |     |   +-default_value=[]
+    |     +-depth=
+    |       +-Literal(type=INT64, value=1, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<STRING>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#10]
+    |         +-expr_list=
+    |         | +-injected#10 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRING>, ARRAY<STRING>) -> ARRAY<STRING>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<PROTO<googlesql_test.KitchenSinkPB>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |     +-Literal(type=ARRAY<STRING>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<STRING>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#8]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8, $offset.injected#9]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#6, $offset.injected#7]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#6]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#7)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-GetProtoField
+    |         |           |   |   +-type=ARRAY<STRING>
+    |         |           |   |   +-expr=
+    |         |           |   |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=$flatten.injected#6)
+    |         |           |   |   +-field_descriptor=repeated_string_val
+    |         |           |   |   +-default_value=[]
+    |         |           |   +-element_column_list=[$flatten.injected#8]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#9)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#7)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#9)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#5]
+    |             +-expr_list=
+    |             | +-injected#5 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+--
+ALTERNATION GROUP: NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-Flatten
+    |     +-type=ARRAY<STRING>
+    |     +-expr=
+    |     | +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     |   +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-get_field_list=
+    |     | +-GetProtoField
+    |     |   +-type=ARRAY<STRING>
+    |     |   +-expr=
+    |     |   | +-FlattenedArg(type=PROTO<googlesql_test.KitchenSinkPB>)
+    |     |   +-field_descriptor=repeated_string_val
+    |     |   +-default_value=[]
+    |     +-depth=
+    |       +-Literal(type=INT64, value=NULL, preserve_in_literal_remover=TRUE)
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$query.$col1#4 AS `$col1` [ARRAY<STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#4]
+    +-expr_list=
+    | +-$col1#4 :=
+    |   +-SubqueryExpr
+    |     +-type=ARRAY<STRING>
+    |     +-subquery_type=SCALAR
+    |     +-parameter_list=
+    |     | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3)
+    |     +-subquery=
+    |       +-ProjectScan
+    |         +-column_list=[$with_expr.injected#10]
+    |         +-expr_list=
+    |         | +-injected#10 :=
+    |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRING>, ARRAY<STRING>) -> ARRAY<STRING>)
+    |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<PROTO<googlesql_test.KitchenSinkPB>>) -> BOOL)
+    |         |     | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |     +-Literal(type=ARRAY<STRING>, value=NULL)
+    |         |     +-SubqueryExpr
+    |         |       +-type=ARRAY<STRING>
+    |         |       +-subquery_type=ARRAY
+    |         |       +-parameter_list=
+    |         |       | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5)
+    |         |       +-subquery=
+    |         |         +-OrderByScan
+    |         |           +-column_list=[$flatten.injected#8]
+    |         |           +-is_ordered=TRUE
+    |         |           +-input_scan=
+    |         |           | +-ArrayScan
+    |         |           |   +-column_list=[$flatten.injected#6, $offset.injected#7, $flatten.injected#8, $offset.injected#9]
+    |         |           |   +-input_scan=
+    |         |           |   | +-ArrayScan
+    |         |           |   |   +-column_list=[$flatten.injected#6, $offset.injected#7]
+    |         |           |   |   +-array_expr_list=
+    |         |           |   |   | +-ColumnRef(type=ARRAY<PROTO<googlesql_test.KitchenSinkPB>>, column=$flatten_input.injected#5, is_correlated=TRUE)
+    |         |           |   |   +-element_column_list=[$flatten.injected#6]
+    |         |           |   |   +-array_offset_column=
+    |         |           |   |     +-ColumnHolder(column=$offset.injected#7)
+    |         |           |   +-array_expr_list=
+    |         |           |   | +-GetProtoField
+    |         |           |   |   +-type=ARRAY<STRING>
+    |         |           |   |   +-expr=
+    |         |           |   |   | +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=$flatten.injected#6)
+    |         |           |   |   +-field_descriptor=repeated_string_val
+    |         |           |   |   +-default_value=[]
+    |         |           |   +-element_column_list=[$flatten.injected#8]
+    |         |           |   +-array_offset_column=
+    |         |           |     +-ColumnHolder(column=$offset.injected#9)
+    |         |           +-order_by_item_list=
+    |         |             +-OrderByItem
+    |         |             | +-column_ref=
+    |         |             |   +-ColumnRef(type=INT64, column=$offset.injected#7)
+    |         |             +-OrderByItem
+    |         |               +-column_ref=
+    |         |                 +-ColumnRef(type=INT64, column=$offset.injected#9)
+    |         +-input_scan=
+    |           +-ProjectScan
+    |             +-column_list=[$flatten_input.injected#5]
+    |             +-expr_list=
+    |             | +-injected#5 :=
+    |             |   +-FunctionCall(GoogleSQL:$make_array(repeated(2) PROTO<googlesql_test.KitchenSinkPB>) -> ARRAY<PROTO<googlesql_test.KitchenSinkPB>>)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             |     +-ColumnRef(type=PROTO<googlesql_test.KitchenSinkPB>, column=TestTable.KitchenSink#3, is_correlated=TRUE)
+    |             +-input_scan=
+    |               +-SingleRowScan
+    +-input_scan=
+      +-TableScan(column_list=[TestTable.KitchenSink#3], table=TestTable, column_index_list=[2])

@@ -29,6 +29,7 @@
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/time/time.h"

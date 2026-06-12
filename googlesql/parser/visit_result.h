@@ -19,9 +19,7 @@
 
 #include <functional>
 
-#include "absl/status/statusor.h"
-#include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
+#include "absl/status/status.h"
 
 namespace googlesql {
 

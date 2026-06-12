@@ -1,0 +1,11 @@
+# This module takes part in a test that imports a module with form
+# "IMPORT a.b.c" and the module file is looked up in a nested directory
+# at "a/b/c/c.sqlm", where the "a.b.c" resolves to a directory that
+# has a module file with the same name as the last entry of the directory.
+
+MODULE module_with_directory_name;
+
+CREATE PUBLIC FUNCTION fun1(a INT32)
+AS (
+  a
+);

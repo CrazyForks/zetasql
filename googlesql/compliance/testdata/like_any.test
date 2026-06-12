@@ -1067,3 +1067,121 @@ SELECT
   collate('Google', 'binary') LIKE ANY ('Goo_le', 'Test')
 --
 ARRAY<STRUCT<BOOL>>[{true}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_any_subquery_with_collation_ci_on_lhs]
+# Test "LIKE ANY" with a subquery where the LHS has collation.
+SELECT
+  Value,
+  collate(Value, 'und:ci') LIKE ANY (SELECT 'value1'),
+  collate(Value, 'und:ci') LIKE ANY (SELECT p FROM UNNEST(['VALUE1', 'VALUE2']) p),
+  collate(Value, 'und:ci') LIKE ANY (SELECT p FROM UNNEST(['VAL%', 'xxx']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL, NULL},
+  {"Value1", true, true, true},
+  {"Value2", false, true, true}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_any_subquery_with_collation_ci_on_lhs]
+# Test "NOT LIKE ANY" with a subquery where the LHS has collation.
+SELECT
+  Value,
+  collate(Value, 'und:ci') NOT LIKE ANY (SELECT 'VALUE1'),
+  collate(Value, 'und:ci') NOT LIKE ANY (SELECT p FROM UNNEST(['VALUE1', 'xxx']) p),
+  collate(Value, 'und:ci') NOT LIKE ANY (SELECT p FROM UNNEST(['VALUE1', 'VALUE2']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL, NULL},
+  {"Value1", false, true, true},
+  {"Value2", true, true, true}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_any_subquery_with_collation_ci_on_rhs]
+# Test "LIKE ANY" where the collation is introduced inside the subquery.
+SELECT
+  Value,
+  Value LIKE ANY (SELECT collate('vALUE1', 'und:ci')),
+  Value LIKE ANY (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'VALUE2']) p),
+  Value LIKE ANY (SELECT p FROM UNNEST([collate('VALUE%', 'und:ci'), 'xxx']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL, NULL},
+  {"Value1", true, true, true},
+  {"Value2", false, true, true}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_any_subquery_with_collation_ci_on_rhs]
+# Test "NOT LIKE ANY" where the collation is introduced inside the subquery.
+SELECT
+  Value,
+  Value NOT LIKE ANY (SELECT collate('vALUE1', 'und:ci')),
+  Value NOT LIKE ANY (SELECT collate(p, 'und:ci') FROM UNNEST(['value1', 'xxx']) p)
+FROM KeyValue ORDER BY Value;
+--
+ARRAY<STRUCT<Value STRING, BOOL, BOOL>>[known order:
+  {NULL, NULL, NULL},
+  {"Value1", false, true},
+  {"Value2", true, true}
+]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_any_subquery_with_mixed_collation]
+# Test "LIKE ANY" with collation on both LHS and inside the subquery.
+SELECT
+  collate('Google', 'und:ci') LIKE ANY (SELECT collate('GOOGLE', 'und:ci')),
+  collate('Google', 'und:ci') LIKE ANY (SELECT 'google'),
+  'Google' LIKE ANY (SELECT collate('GOOGLE', 'und:ci'))
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{true, true, true}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_any_subquery_with_collation_and_nulls]
+# Test "LIKE ANY" with collation and NULL elements returned by the subquery.
+SELECT
+  collate('abc', 'und:ci') LIKE ANY (SELECT p FROM UNNEST(['ABC', NULL]) p),
+  collate('abc', 'und:ci') LIKE ANY (SELECT p FROM UNNEST(['XYZ', NULL]) p),
+  collate(NULL, 'und:ci') LIKE ANY (SELECT p FROM UNNEST(['ABC', 'abc']) p)
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{true, NULL, NULL}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_any_subquery_with_collation_and_nulls]
+# Test "NOT LIKE ANY" with collation and NULL elements returned by the subquery.
+SELECT
+  collate('abc', 'und:ci') NOT LIKE ANY (SELECT p FROM UNNEST(['ABC', NULL]) p),
+  collate('abc', 'und:ci') NOT LIKE ANY (SELECT p FROM UNNEST(['XYZ', NULL]) p),
+  collate('abc', 'und:ci') NOT LIKE ANY (SELECT p FROM UNNEST([CAST(NULL AS STRING)]) p)
+--
+ARRAY<STRUCT<BOOL, BOOL, BOOL>>[{NULL, true, NULL}]
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=like_any_subquery_collation_underscore_error]
+# Runtime error when '_' wildcard in a subquery pattern and collation is present in the LHS.
+SELECT
+  collate('Google', 'und:ci') LIKE ANY (SELECT 'G__gle')
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle
+==
+
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,LIKE_ANY_SOME_ALL,LIKE_ANY_SOME_ALL_SUBQUERY]
+[name=not_like_any_subquery_collation_underscore_error]
+# Runtime error when '_' wildcard in a subquery pattern and collation is present in the RHS.
+SELECT
+  'Google' NOT LIKE ANY (SELECT collate('G__gle', 'und:ci'))
+--
+ERROR: generic::out_of_range: LIKE pattern has '_' which is not allowed when its operands have collation: G__gle

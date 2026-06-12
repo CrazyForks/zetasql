@@ -34,16 +34,17 @@
 #include "googlesql/base/check.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/endian.h"
 #include "re2/re2.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -59,7 +60,7 @@ std::string ToString(int64_t value) {
   uint64_t v = value;
   if (value < 0) {
     v = 0 - v;  // MSVC 2013 errors on unary negation of unsigned.
-    s += "-";
+    s += '-';
   }
   if (v < int64_t{1000}) {
     absl::StrAppendFormat(&s, "%d", v);
@@ -92,7 +93,7 @@ template <typename T>
 void UnalignedLoadAndAugmentPtr(T* value, const char** data) {
   // Note that the whole if-else block can be simplified to the following:
   // *value = googlesql_base::LittleEndian::Load<T>(*data);
-  // Unfortunately, GoogleSQL OSS does not have the generic Load<T> function.
+  // Unfortunately, GoogleSQL does not have the generic Load<T> function.
   // That's why Load32 and Load64 functions are used.
   if constexpr (std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>) {
     *value = static_cast<T>(googlesql_base::LittleEndian::Load32(*data));
@@ -203,6 +204,54 @@ absl::StatusOr<IntervalValue> IntervalValue::operator*(int64_t value) const {
   }
   return IntervalValue::FromMonthsDaysNanos(months, days,
                                             static_cast<__int128>(nanos));
+}
+
+absl::StatusOr<IntervalValue> IntervalValue::Multiply(
+    double value, bool round_to_micros) const {
+  constexpr absl::string_view kOverflowErrorMsg =
+      "Interval overflow during multiplication";
+
+  if (!std::isfinite(value)) {
+    return absl::OutOfRangeError(kOverflowErrorMsg);
+  }
+
+  double months_double = static_cast<double>(get_months()) * value;
+  double months_int_part;
+  double months_frac_part = std::modf(months_double, &months_int_part);
+
+  if (months_int_part > kMaxMonths || months_int_part < kMinMonths) {
+    return ::googlesql_base::OutOfRangeErrorBuilder()
+           << "Interval field months is out of range, valid range is from "
+           << absl::int128(kMinMonths) << " to " << absl::int128(kMaxMonths);
+  }
+  int64_t months = static_cast<int64_t>(months_int_part);
+
+  double days_double =
+      static_cast<double>(get_days()) * value + months_frac_part * kDaysInMonth;
+  double days_int_part;
+  double days_frac_part = std::modf(days_double, &days_int_part);
+
+  if (days_int_part > kMaxDays || days_int_part < kMinDays) {
+    return ::googlesql_base::OutOfRangeErrorBuilder()
+           << "Interval field days is out of range, valid range is from "
+           << absl::int128(kMinDays) << " to " << absl::int128(kMaxDays);
+  }
+  int64_t days = static_cast<int64_t>(days_int_part);
+
+  double nanos_double = static_cast<double>(get_nanos()) * value +
+                        days_frac_part * static_cast<double>(kNanosInDay);
+
+  if (nanos_double > kMaxNanos || nanos_double < kMinNanos) {
+    return ::googlesql_base::OutOfRangeErrorBuilder()
+           << "Interval field nanos is out of range, valid range is from "
+           << absl::int128(kMinNanos) << " to " << absl::int128(kMaxNanos);
+  }
+  __int128 nanos = static_cast<__int128>(nanos_double);
+  if (round_to_micros) {
+    int64_t micros_value = nanos / kNanosInMicro;
+    return FromMonthsDaysMicros(months, days, micros_value);
+  }
+  return IntervalValue::FromMonthsDaysNanos(months, days, nanos);
 }
 
 absl::StatusOr<IntervalValue> IntervalValue::Divide(
@@ -343,10 +392,8 @@ IntervalValue::SumAggregator::DeserializeFromProtoBytes(
 
 std::string IntervalValue::SumAggregator::DebugString() const {
   return absl::StrCat(
-      "IntervalValue::SumAggregator (months=",
-      Int128ToString(months_),
-      ", days=", Int128ToString(days_),
-      ", nanos=", nanos_.ToString(), ")");
+      "IntervalValue::SumAggregator (months=", Int128ToString(months_),
+      ", days=", Int128ToString(days_), ", nanos=", nanos_.ToString(), ")");
 }
 
 void IntervalValue::SumAggregator::MergeWith(const SumAggregator& other) {
@@ -870,7 +917,7 @@ absl::StatusOr<IntervalValue> IntervalValue::ParseFromString(
     }
     p = c;
   }
-#define SCD(s, c, d) ((s)*100 + (c)*10 + d)
+#define SCD(s, c, d) ((s) * 100 + (c) * 10 + d)
   using functions::DAY;
   using functions::HOUR;
   using functions::MINUTE;

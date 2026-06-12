@@ -38,6 +38,7 @@
 #include "googlesql/tools/formatter/internal/range_utils.h"
 #include "googlesql/tools/formatter/internal/token.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -45,7 +46,6 @@
 #include "absl/strings/string_view.h"
 #include "unicode/unistr.h"
 #include "unicode/utypes.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql::formatter::internal {
 

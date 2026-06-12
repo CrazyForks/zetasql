@@ -1,0 +1,15 @@
+# Constant evaluation is disabled until the reference implementation supports
+# UDFs.
+[no_input_is_module_contents]
+IMPORT MODULE
+    googlesql.testdata.modules.named_constant_referencing_udf;
+--
+PRIVATE Lazy_resolution_function:udf
+  (INT32 a) -> INT64
+
+Templated_SQL_Function:udf_templated
+  (ANY TYPE a) -> ANY TYPE
+
+CONSTANT named_constant_udf=Int64(12340) (INT64)
+
+CONSTANT named_constant_udf_templated=Int64(123400) (INT64)

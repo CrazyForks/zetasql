@@ -19,7 +19,6 @@
 #include <string>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/types/array_type.h"
@@ -176,6 +175,25 @@ TEST(CheckStringFormat, TestUnsupportedType) {
   EXPECT_THAT(CheckStringFormatUtf8ArgumentTypes("%t", {graph_element_type},
                                                  ProductMode::PRODUCT_EXTERNAL),
               StatusIs(absl::StatusCode::kUnimplemented));
+}
+
+TEST(CheckStringFormat, UnsupportedForDeclarativeTypes) {
+  TypeFactory type_factory;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(const Type* declarative_type,
+                       type_factory.MakeDeclarativeType(
+                           DeclarativeTypeDescriptor()
+                               .set_type_id({"NS", "T1"})
+                               .set_display_name("t1")
+                               .set_backing_type(type_factory.get_int64())));
+  EXPECT_THAT(CheckStringFormatUtf8ArgumentTypes("%t", {declarative_type},
+                                                 ProductMode::PRODUCT_EXTERNAL),
+              StatusIs(absl::StatusCode::kUnimplemented));
+  std::string output;
+  bool is_null;
+  EXPECT_THAT(
+      StringFormatUtf8("%t", {Value::Null(declarative_type)},
+                       ProductMode::PRODUCT_EXTERNAL, &output, &is_null),
+      StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace functions

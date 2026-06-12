@@ -351,6 +351,8 @@ public class AnnotationMap {
         return "TimestampPrecision";
       case SAMPLE_ANNOTATION:
         return "SampleAnnotation";
+      case IS_VERSIONED:
+        return "IsVersioned";
       case MAX_BUILTIN_ANNOTATION_KIND:
         return "MaxBuiltinAnnotationKind";
     }
@@ -367,6 +369,9 @@ public class AnnotationMap {
 
     /** Annotation ID for TimestampPrecisionAnnotation. */
     TIMESTAMP_PRECISION(3),
+
+    /** Annotation ID for IsVersionedAnnotation (Version-Aware DML). */
+    IS_VERSIONED(4),
 
     /** Annotation ID up to kMaxBuiltinAnnotationKind are reserved for built-in annotations. */
     MAX_BUILTIN_ANNOTATION_KIND(10000);

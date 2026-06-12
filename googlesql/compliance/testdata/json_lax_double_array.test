@@ -154,4 +154,3 @@ SELECT LAX_DOUBLE_ARRAY(JSON '[null, true, 1, "1", "foo", {"a": 1}, [1]]');
 ARRAY<STRUCT<ARRAY<>>>[
   {ARRAY<DOUBLE>[known order:NULL, NULL, 1, 1, NULL, NULL, NULL]}
 ]
-==

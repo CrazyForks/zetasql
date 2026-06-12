@@ -1,0 +1,198 @@
+[language_features=NONE,+PIPES]
+FROM TimeseriesTable
+|> ALIGN (
+  TIMESTAMP ts_col
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+  PARTITION BY borg_job, borg_task_num
+)
+--
+ERROR: ALIGN operator is not supported [at 2:4]
+|> ALIGN (
+   ^
+==
+
+[default language_features=NONE,+ALIGN_OPERATOR,+INTERVAL_TYPE,+PIPES]
+# `timestamp` column is not present in TimeseriesTable
+FROM TimeseriesTable
+|> ALIGN (
+  PERIOD INTERVAL 1 MINUTE
+)
+--
+ERROR: ALIGN requires a column named 'timestamp' when TIMESTAMP expression is not provided [at 3:4]
+|> ALIGN (
+   ^
+==
+
+# `timestamp` column is present in TimeseriesTableWithTimestampColumn
+FROM TimeseriesTableWithTimestampColumn
+|> ALIGN (
+  PERIOD INTERVAL 1 MINUTE
+)
+--
+QueryStmt
++-output_column_list=
+| +-$align.aligned_timestamp#6 AS timestamp [TIMESTAMP]
++-query=
+  +-AlignScan
+    +-column_list=[$align.aligned_timestamp#6]
+    +-input_scan=
+    | +-TableScan(column_list=[TimeseriesTableWithTimestampColumn.timestamp#3], table=TimeseriesTableWithTimestampColumn, column_index_list=[2])
+    +-timestamp_column=
+    | +-ColumnRef(type=TIMESTAMP, column=TimeseriesTableWithTimestampColumn.timestamp#3)
+    +-period=
+    | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+    |   +-Literal(type=INT64, value=1)
+    |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+    +-aligned_timestamp_column=$align.aligned_timestamp#6
+==
+
+# Typical query with all supported clauses.
+FROM TimeseriesTable
+|> ALIGN (
+  TIMESTAMP ts_col
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN TIMESTAMP('2000-01-01 00:00:00+00')
+  PARTITION BY borg_job, borg_task_num + 1 as task_num
+)
+--
+QueryStmt
++-output_column_list=
+| +-$align.borg_job#6 AS borg_job [STRING]
+| +-$align.task_num#7 AS task_num [INT64]
+| +-$align.aligned_timestamp#8 AS ts_col [TIMESTAMP]
++-query=
+  +-AlignScan
+    +-column_list=$align.[borg_job#6, task_num#7, aligned_timestamp#8]
+    +-input_scan=
+    | +-ProjectScan
+    |   +-column_list=[TimeseriesTable.borg_job#1, TimeseriesTable.borg_task_num#2, TimeseriesTable.ts_col#3, $align.borg_job#6, $align.task_num#7]
+    |   +-expr_list=
+    |   | +-borg_job#6 := ColumnRef(type=STRING, column=TimeseriesTable.borg_job#1)
+    |   | +-task_num#7 :=
+    |   |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+    |   |     +-ColumnRef(type=INT64, column=TimeseriesTable.borg_task_num#2)
+    |   |     +-Literal(type=INT64, value=1)
+    |   +-input_scan=
+    |     +-TableScan(column_list=TimeseriesTable.[borg_job#1, borg_task_num#2, ts_col#3], table=TimeseriesTable, column_index_list=[0, 1, 2])
+    +-timestamp_column=
+    | +-ColumnRef(type=TIMESTAMP, column=TimeseriesTable.ts_col#3)
+    +-period=
+    | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+    |   +-Literal(type=INT64, value=1)
+    |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+    +-origin=
+    | +-FunctionCall(GoogleSQL:timestamp(STRING, optional(0) STRING) -> TIMESTAMP)
+    |   +-Literal(type=STRING, value="2000-01-01 00:00:00+00")
+    +-partition_by_list=
+    | +-ColumnRef(type=STRING, column=$align.borg_job#6)
+    | +-ColumnRef(type=INT64, column=$align.task_num#7)
+    +-aligned_timestamp_column=$align.aligned_timestamp#8
+==
+
+# TODO: b/513155223 - Support OUTPUT WITHIN clause.
+FROM TimeseriesTable
+|> ALIGN (
+  TIMESTAMP ts_col
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN TIMESTAMP('2000-01-01')
+  OUTPUT WITHIN 1 PERIOD PRECEDING
+)
+--
+ERROR: OUTPUT WITHIN clause is not supported [at 6:17]
+  OUTPUT WITHIN 1 PERIOD PRECEDING
+                ^
+==
+
+# TODO: b/500603925 - Support METRICS clause.
+FROM TimeseriesTable
+|> ALIGN (
+  TIMESTAMP ts_col
+  PERIOD INTERVAL 1 MINUTE
+  ORIGIN TIMESTAMP('2000-01-01')
+  METRICS SUM(requests) WITHIN (1 PERIOD PRECEDING) AS total_requests
+)
+--
+ERROR: METRICS clause is not supported [at 6:3]
+  METRICS SUM(requests) WITHIN (1 PERIOD PRECEDING) AS total_requests
+  ^
+==
+
+# Correlated columns are allowed
+FROM (
+  SELECT INTERVAL 1 MINUTE AS a_col,
+         TIMESTAMP('2000-01-01 00:00:00+00') AS b_col
+)
+|> WHERE EXISTS(
+    FROM TimeseriesTable
+    |> ALIGN (
+        TIMESTAMP ts_col + a_col
+        PERIOD a_col
+        ORIGIN b_col
+        PARTITION BY b_col AS b, ts_col + a_col AS t, borg_job, borg_task_num + 1 as task_num
+    )
+)
+--
+QueryStmt
++-output_column_list=
+| +-$subquery1.a_col#1 AS a_col [INTERVAL]
+| +-$subquery1.b_col#2 AS b_col [TIMESTAMP]
++-query=
+  +-FilterScan
+    +-column_list=$subquery1.[a_col#1, b_col#2]
+    +-input_scan=
+    | +-ProjectScan
+    |   +-column_list=$subquery1.[a_col#1, b_col#2]
+    |   +-expr_list=
+    |   | +-a_col#1 :=
+    |   | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+    |   | |   +-Literal(type=INT64, value=1)
+    |   | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+    |   | +-b_col#2 :=
+    |   |   +-FunctionCall(GoogleSQL:timestamp(STRING, optional(0) STRING) -> TIMESTAMP)
+    |   |     +-Literal(type=STRING, value="2000-01-01 00:00:00+00")
+    |   +-input_scan=
+    |     +-SingleRowScan
+    +-filter_expr=
+      +-SubqueryExpr
+        +-type=BOOL
+        +-subquery_type=EXISTS
+        +-parameter_list=
+        | +-ColumnRef(type=INTERVAL, column=$subquery1.a_col#1)
+        | +-ColumnRef(type=TIMESTAMP, column=$subquery1.b_col#2)
+        +-subquery=
+          +-AlignScan
+            +-column_list=$align.[b#9, t#10, borg_job#11, task_num#12]
+            +-input_scan=
+            | +-ProjectScan
+            |   +-column_list=[TimeseriesTable.borg_job#3, TimeseriesTable.borg_task_num#4, TimeseriesTable.ts_col#5, $align.timestamp#8, $align.b#9, $align.t#10, $align.borg_job#11, $align.task_num#12]
+            |   +-expr_list=
+            |   | +-timestamp#8 :=
+            |   | | +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |   | |   +-ColumnRef(type=TIMESTAMP, column=TimeseriesTable.ts_col#5)
+            |   | |   +-ColumnRef(type=INTERVAL, column=$subquery1.a_col#1, is_correlated=TRUE)
+            |   | +-b#9 := ColumnRef(type=TIMESTAMP, column=$subquery1.b_col#2, is_correlated=TRUE)
+            |   | +-t#10 :=
+            |   | | +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |   | |   +-ColumnRef(type=TIMESTAMP, column=TimeseriesTable.ts_col#5)
+            |   | |   +-ColumnRef(type=INTERVAL, column=$subquery1.a_col#1, is_correlated=TRUE)
+            |   | +-borg_job#11 := ColumnRef(type=STRING, column=TimeseriesTable.borg_job#3)
+            |   | +-task_num#12 :=
+            |   |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+            |   |     +-ColumnRef(type=INT64, column=TimeseriesTable.borg_task_num#4)
+            |   |     +-Literal(type=INT64, value=1)
+            |   +-input_scan=
+            |     +-TableScan(column_list=TimeseriesTable.[borg_job#3, borg_task_num#4, ts_col#5], table=TimeseriesTable, column_index_list=[0, 1, 2])
+            +-timestamp_column=
+            | +-ColumnRef(type=TIMESTAMP, column=$align.timestamp#8)
+            +-period=
+            | +-ColumnRef(type=INTERVAL, column=$subquery1.a_col#1, is_correlated=TRUE)
+            +-origin=
+            | +-ColumnRef(type=TIMESTAMP, column=$subquery1.b_col#2, is_correlated=TRUE)
+            +-partition_by_list=
+            | +-ColumnRef(type=TIMESTAMP, column=$align.b#9)
+            | +-ColumnRef(type=TIMESTAMP, column=$align.t#10)
+            | +-ColumnRef(type=STRING, column=$align.borg_job#11)
+            | +-ColumnRef(type=INT64, column=$align.task_num#12)
+            +-aligned_timestamp_column=$align.aligned_timestamp#13
+==

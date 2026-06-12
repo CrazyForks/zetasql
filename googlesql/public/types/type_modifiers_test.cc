@@ -16,11 +16,21 @@
 
 #include "googlesql/public/types/type_modifiers.h"
 
+#include <cstdint>
 #include <memory>
+#include <utility>
 
+#include "googlesql/public/types/annotation.h"
+#include "googlesql/public/types/collation.h"
+#include "googlesql/public/types/simple_value.h"
+#include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/type_parameters.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+
+using ::absl_testing::IsOkAndHolds;
 
 namespace googlesql {
 
@@ -28,6 +38,7 @@ TEST(TypeModifiersTest, Creation) {
   {
     // Test creating empty TypeModifiers.
     TypeModifiers type_modifiers;
+    EXPECT_TRUE(type_modifiers.type_parameters().IsTopLevelEmpty());
     EXPECT_TRUE(type_modifiers.type_parameters().IsEmpty());
     EXPECT_TRUE(type_modifiers.collation().Empty());
 
@@ -118,6 +129,70 @@ TEST(TypeModifiersTest, Creation) {
 
     EXPECT_EQ(type_modifiers.DebugString(),
               "type_parameters:(max_length=1000), collation:[und:ci]");
+  }
+}
+
+static absl::StatusOr<TypeModifiers>
+CreateTypeModifiersForStructWithTimestampPrecision(int64_t precision) {
+  TimestampTypeParametersProto timestamp_type_parameters_proto;
+  timestamp_type_parameters_proto.set_precision(precision);
+  GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters ts_type_params_precision,
+                   TypeParameters::MakeTimestampTypeParameters(
+                       timestamp_type_parameters_proto));
+  return TypeModifiers::MakeTypeModifiers(
+      TypeParameters::MakeTypeParametersWithChildList(
+          {TypeParameters(), std::move(ts_type_params_precision)}),
+      Collation());
+}
+
+TEST(TypeModifiersTest, EqualsWithDefaultTimestampPrecision) {
+  TypeModifiers type_modifiers1;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeModifiers type_modifiers2,
+                       CreateTypeModifiersForStructWithTimestampPrecision(6));
+
+  EXPECT_FALSE(type_modifiers1.Equals(type_modifiers2));
+
+  EXPECT_TRUE(type_modifiers1.EqualsWithDefaultTimestampPrecision(
+      type_modifiers2, /*default_timestamp_precision=*/6));
+  EXPECT_FALSE(type_modifiers1.EqualsWithDefaultTimestampPrecision(
+      type_modifiers2, /*default_timestamp_precision=*/3));
+}
+
+TEST(TypeModifiersTest, GetChild) {
+  // Test empty TypeModifiers.
+  {
+    TypeModifiers empty_type_modifiers;
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeModifiers child, empty_type_modifiers.GetChild(0));
+    EXPECT_TRUE(child.IsEmpty());
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(child, empty_type_modifiers.GetChild(100));
+    EXPECT_TRUE(child.IsEmpty());
+  }
+
+  // Test non-empty TypeModifiers with children.
+  {
+    StringTypeParametersProto string_type_param_proto;
+    string_type_param_proto.set_max_length(100);
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        TypeParameters string_type_param,
+        TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+
+    TypeParameters struct_type_params =
+        TypeParameters::MakeTypeParametersWithChildList(
+            {string_type_param, TypeParameters()});
+
+    TypeModifiers type_modifiers =
+        TypeModifiers::MakeTypeModifiers(struct_type_params, Collation());
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeModifiers child0, type_modifiers.GetChild(0));
+    EXPECT_FALSE(child0.IsEmpty());
+    EXPECT_TRUE(child0.type_parameters().Equals(string_type_param));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeModifiers child1, type_modifiers.GetChild(1));
+    EXPECT_TRUE(child1.IsEmpty());
+
+    // Test out of bounds.
+    EXPECT_FALSE(type_modifiers.GetChild(2).ok());
   }
 }
 

@@ -108,7 +108,7 @@ TEST(AnalyzerTestOptions, EnabledRewrites__GarbageEntryError) {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Rewrite list should always start with one of "
                                  "ALL, ALL_MINUS_DEV, DEFAULTS, "
-                                 "DEFAULTS_MINUS_DEV, NONE")));
+                                 "DEFAULTS_PLUS_DEV, NONE")));
 }
 
 TEST(AnalyzerTestOptions, EnabledRewrites__IncludedRewritePrefixError) {

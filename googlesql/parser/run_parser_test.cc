@@ -17,16 +17,16 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stack>
 #include <string>
 #include <vector>
 
-#include "googlesql/base/logging.h"
+#include "googlesql/common/errors.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/parser/ast_node_kind.h"
-#include "googlesql/parser/deidentify.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parse_tree_visitor.h"
 #include "googlesql/parser/parser.h"
@@ -44,10 +44,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
 #include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -60,12 +64,9 @@
 #include "file_based_test_driver/file_based_test_driver.h"
 #include "file_based_test_driver/run_test_case_result.h"
 #include "file_based_test_driver/test_case_options.h"
-#include "googlesql/base/source_location.h"
-#include "googlesql/base/edit_distance.h"
 #include "re2/re2.h"
-#include "googlesql/base/status.h"
+#include "googlesql/base/edit_distance.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(std::string, test_file, "", "location of test data file.");
 
@@ -105,6 +106,7 @@ class RunParserTest : public ::testing::Test {
       "supported_generic_sub_entity_types";
   // Indicates that QUALIFY is a reserved keyword.
   const std::string kQualifyReserved = "qualify_reserved";
+  const std::string kReserveAlign = "reserve_align";
   const std::string kReserveMatchRecognize = "reserve_match_recognize";
   // Reserves the GRAPH_TABLE keyword.
   const std::string kReserveGraphTable = "reserve_graph_table";
@@ -128,6 +130,7 @@ class RunParserTest : public ::testing::Test {
       test_case_options_.RegisterBool(kTestGetParseTokens, true);
       test_case_options_.RegisterBool(kTestUnparse, true);
       test_case_options_.RegisterBool(kQualifyReserved, true);
+      test_case_options_.RegisterBool(kReserveAlign, true);
       test_case_options_.RegisterBool(kReserveMatchRecognize, true);
       test_case_options_.RegisterBool(kReserveGraphTable, false);
       test_case_options_.RegisterString(kSupportedGenericEntityTypes, "");
@@ -624,6 +627,9 @@ class RunParserTest : public ::testing::Test {
     if (test_case_options_.GetBool(kQualifyReserved)) {
       GOOGLESQL_EXPECT_OK(language_options_->EnableReservableKeyword("QUALIFY"));
     }
+    if (test_case_options_.GetBool(kReserveAlign)) {
+      GOOGLESQL_EXPECT_OK(language_options_->EnableReservableKeyword("ALIGN"));
+    }
     if (test_case_options_.GetBool(kReserveMatchRecognize)) {
       GOOGLESQL_EXPECT_OK(language_options_->EnableReservableKeyword("MATCH_RECOGNIZE"));
     }
@@ -858,7 +864,7 @@ class RunParserTest : public ::testing::Test {
           // right shift token and should not be printed as "> >".
           if (last_token.has_value() &&
               !IsAdjacentPrecedingToken(*last_token, parse_token)) {
-            rebuilt += " ";
+            rebuilt += ' ';
           }
           rebuilt += parse_token.GetSQL();
           last_token = parse_token;
@@ -886,26 +892,6 @@ class RunParserTest : public ::testing::Test {
         }
       }
     }
-  }
-
-  void TestDeidentifiedConsistency(absl::string_view test_case,
-                                   absl::string_view unparsed) {
-    // The deidentified SQL should be the same independent of how many times it
-    // was unparsed or deidentified.
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto parser_options1, GetParserOptions());
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
-        std::string deidentified_unparsed,
-        parser::DeidentifySQLIdentifiersAndLiterals(unparsed, parser_options1));
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto parser_options2, GetParserOptions());
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::string deidentified_deidentified,
-                         parser::DeidentifySQLIdentifiersAndLiterals(
-                             deidentified_unparsed, parser_options2));
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto parser_options3, GetParserOptions());
-    GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::string test_case_deidentified,
-                         parser::DeidentifySQLIdentifiersAndLiterals(
-                             test_case, parser_options3));
-    EXPECT_EQ(deidentified_unparsed, test_case_deidentified);
-    EXPECT_EQ(deidentified_deidentified, test_case_deidentified);
   }
 
   void TestUnparsing(absl::string_view test_case, absl::string_view mode,
@@ -942,10 +928,6 @@ class RunParserTest : public ::testing::Test {
           << test_case << "\nTree for original sql :\n"
           << orig_string << "\nTree for unparsed sql:\n"
           << from_unparse_string;
-    }
-
-    if (mode == "statement") {
-      TestDeidentifiedConsistency(test_case, unparsed);
     }
   }
 

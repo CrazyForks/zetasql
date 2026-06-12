@@ -15,6 +15,7 @@
 //
 
 #include "googlesql/base/compact_reference_counted.h"
+#include <cstddef>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

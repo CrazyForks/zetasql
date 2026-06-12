@@ -544,6 +544,84 @@ static absl::Status SaveToImpl(
   return absl::OkStatus();
 }
 
+static std::string ToStringImpl(const AnnotationMap* annotation_map) {
+  return annotation_map->DebugString();
+}
+
+static absl::Status SaveToImpl(
+    const AnnotationMap* annotation_map,
+    FileDescriptorSetMap* file_descriptor_set_map,
+    AnnotationMapProto* proto) {
+  if (annotation_map != nullptr && !annotation_map->Empty()) {
+    GOOGLESQL_RETURN_IF_ERROR(annotation_map->Serialize(proto));
+  }
+  return absl::OkStatus();
+}
+
+template<>
+absl::StatusOr<const AnnotationMap*>
+    RestoreFromImpl(
+        const AnnotationMapProto& proto,
+        const ResolvedNode::RestoreParams& params) {
+  const AnnotationMap* annotation_map = nullptr;
+  if (proto.annotations_size() > 0
+      || proto.has_array_element()
+      || proto.struct_fields_size() > 0) {
+    GOOGLESQL_RETURN_IF_ERROR(
+        params.type_factory->DeserializeAnnotationMap(proto,
+                                                      &annotation_map));
+  }
+  return annotation_map;
+}
+
+static std::string ToStringImpl(const TypeParameters& type_parameters) {
+  return type_parameters.DebugString();
+}
+
+static absl::Status SaveToImpl(
+    const TypeParameters& type_parameters,
+    FileDescriptorSetMap* file_descriptor_set_map,
+    TypeParametersProto* proto) {
+  if (!type_parameters.IsEmpty()) {
+    GOOGLESQL_RETURN_IF_ERROR(type_parameters.Serialize(proto));
+  }
+  return absl::OkStatus();
+}
+
+template<>
+absl::StatusOr<TypeParameters>
+    RestoreFromImpl(
+        const TypeParametersProto& proto,
+        const ResolvedNode::RestoreParams& params) {
+  return TypeParameters::Deserialize(proto);
+}
+
+static std::string ToStringImpl(const TypeModifiers& type_modifiers) {
+  return type_modifiers.DebugString();
+}
+
+static absl::Status SaveToImpl(
+    const TypeModifiers& type_modifiers,
+    FileDescriptorSetMap* file_descriptor_set_map,
+    TypeModifiersProto* proto) {
+  if (!type_modifiers.IsEmpty()) {
+    GOOGLESQL_RETURN_IF_ERROR(type_modifiers.Serialize(proto));
+  }
+  return absl::OkStatus();
+}
+
+template<>
+absl::StatusOr<TypeModifiers>
+    RestoreFromImpl(
+        const TypeModifiersProto& proto,
+        const ResolvedNode::RestoreParams& params) {
+  return TypeModifiers::Deserialize(proto);
+}
+
+static std::string ToStringImpl(const PropertyGraph* property_graph) {
+  return property_graph == nullptr ? "<null>" : property_graph->FullName();
+}
+
 // The RestoreFrom functions reverse the effect of the SaveTo functions.
 template<>
 absl::StatusOr<const Table*> RestoreFromImpl(
@@ -974,6 +1052,12 @@ static absl::Status SaveToImpl(
       GOOGLESQL_RETURN_IF_ERROR(SaveToImpl(
           arg_type.type(), file_descriptor_set_map,
           arg_proto->mutable_scalar_argument()->mutable_type()));
+      GOOGLESQL_ASSIGN_OR_RETURN(AnnotatedType annotated_type,
+                       arg.GetScalarArgAnnotatedType());
+      GOOGLESQL_RETURN_IF_ERROR(SaveToImpl(
+        annotated_type.annotation_map,
+        file_descriptor_set_map,
+        arg_proto->mutable_scalar_argument()->mutable_annotation_map()));
       if (arg_type.literal_value() != nullptr) {
         GOOGLESQL_RETURN_IF_ERROR(SaveToImpl(
             *arg_type.literal_value(), file_descriptor_set_map,
@@ -1041,15 +1125,18 @@ absl::StatusOr<std::shared_ptr<TVFSignature>> RestoreFromImpl(
       input_args.push_back(TVFInputArgumentType(TVFGraphArgument(graph)));
     } else {
       const ValueWithTypeProto& scalar_arg = argument.scalar_argument();
+      GOOGLESQL_ASSIGN_OR_RETURN(
+        const AnnotationMap* annotation_map,
+        RestoreFromImpl<const AnnotationMap*>(scalar_arg.annotation_map(), params));
       if (scalar_arg.has_value()) {
         GOOGLESQL_ASSIGN_OR_RETURN(const Value value,
                          RestoreFromImpl<Value>(scalar_arg, params));
-        input_args.push_back(TVFInputArgumentType(InputArgumentType(value)));
+        input_args.push_back(TVFInputArgumentType(InputArgumentType(value, annotation_map)));
       } else {
         GOOGLESQL_ASSIGN_OR_RETURN(
             const Type* type,
             RestoreFromImpl<const Type*>(scalar_arg.type(), params));
-        input_args.push_back(TVFInputArgumentType(InputArgumentType(type)));
+        input_args.push_back(TVFInputArgumentType(InputArgumentType(AnnotatedType(type, annotation_map))));
       }
     }
   }
@@ -1115,85 +1202,6 @@ absl::StatusOr<ResolvedCollation>
         const ResolvedNode::RestoreParams& params) {
   return ResolvedCollation::Deserialize(proto);
 }
-
-static std::string ToStringImpl(const AnnotationMap* annotation_map) {
-  return annotation_map->DebugString();
-}
-
-static absl::Status SaveToImpl(
-    const AnnotationMap* annotation_map,
-    FileDescriptorSetMap* file_descriptor_set_map,
-    AnnotationMapProto* proto) {
-  if (annotation_map != nullptr && !annotation_map->Empty()) {
-    GOOGLESQL_RETURN_IF_ERROR(annotation_map->Serialize(proto));
-  }
-  return absl::OkStatus();
-}
-
-template<>
-absl::StatusOr<const AnnotationMap*>
-    RestoreFromImpl(
-        const AnnotationMapProto& proto,
-        const ResolvedNode::RestoreParams& params) {
-  const AnnotationMap* annotation_map = nullptr;
-  if (proto.annotations_size() > 0
-      || proto.has_array_element()
-      || proto.struct_fields_size() > 0) {
-    GOOGLESQL_RETURN_IF_ERROR(
-        params.type_factory->DeserializeAnnotationMap(proto,
-                                                      &annotation_map));
-  }
-  return annotation_map;
-}
-
-static std::string ToStringImpl(const TypeParameters& type_parameters) {
-  return type_parameters.DebugString();
-}
-
-static absl::Status SaveToImpl(
-    const TypeParameters& type_parameters,
-    FileDescriptorSetMap* file_descriptor_set_map,
-    TypeParametersProto* proto) {
-  if (!type_parameters.IsEmpty()) {
-    GOOGLESQL_RETURN_IF_ERROR(type_parameters.Serialize(proto));
-  }
-  return absl::OkStatus();
-}
-
-template<>
-absl::StatusOr<TypeParameters>
-    RestoreFromImpl(
-        const TypeParametersProto& proto,
-        const ResolvedNode::RestoreParams& params) {
-  return TypeParameters::Deserialize(proto);
-}
-
-static std::string ToStringImpl(const TypeModifiers& type_modifiers) {
-  return type_modifiers.DebugString();
-}
-
-static absl::Status SaveToImpl(
-    const TypeModifiers& type_modifiers,
-    FileDescriptorSetMap* file_descriptor_set_map,
-    TypeModifiersProto* proto) {
-  if (!type_modifiers.IsEmpty()) {
-    GOOGLESQL_RETURN_IF_ERROR(type_modifiers.Serialize(proto));
-  }
-  return absl::OkStatus();
-}
-
-template<>
-absl::StatusOr<TypeModifiers>
-    RestoreFromImpl(
-        const TypeModifiersProto& proto,
-        const ResolvedNode::RestoreParams& params) {
-  return TypeModifiers::Deserialize(proto);
-}
-
-static std::string ToStringImpl(const PropertyGraph* property_graph) {
-  return property_graph == nullptr ? "<null>" : property_graph->FullName();
-}
-
 
 static absl::Status SaveToImpl(
     const PropertyGraph* property_graph,
@@ -1421,12 +1429,8 @@ const ResolvedNodeKind {{node.name}}::TYPE;
 {{node.extra_enum_defs}}
 
 {{node.name}}::~{{node.name}}() {
-  {% set ns = namespace(has_vector_or_ptr=
-      (node.fields | selectattr('is_node_vector') | list | length > 0) or
-      (node.fields | selectattr('is_node_ptr') | list | length > 0)
-  ) %}
-  {% if ns.has_vector_or_ptr %}
-  {% endif %}
+  # if node.has_node_fields
+  # endif
 }
 
 absl::Status {{node.name}}::SaveTo(
@@ -1595,7 +1599,7 @@ absl::StatusOr<std::unique_ptr<{{node.name}}>> {{node.name}}::RestoreFrom(
 
 # endif
 
-# if node.fields
+# if node.has_node_fields
 void {{node.name}}::GetChildNodes(
     std::vector<const ResolvedNode*>* child_nodes) const {
   SUPER::GetChildNodes(child_nodes);
@@ -1640,6 +1644,7 @@ absl::Status {{node.name}}::Accept(ResolvedASTVisitor* visitor) const {
   return visitor->Visit{{node.name}}(this);
 }
 
+# if node.has_visitable_fields
 absl::Status {{node.name}}::ChildrenAccept(ResolvedASTVisitor* visitor) const {
   GOOGLESQL_RETURN_IF_ERROR(SUPER::ChildrenAccept(visitor));
  # for field in node.fields
@@ -1651,10 +1656,20 @@ absl::Status {{node.name}}::ChildrenAccept(ResolvedASTVisitor* visitor) const {
   for (const auto& elem : {{field.member_name}}) {
     GOOGLESQL_RETURN_IF_ERROR(elem.get()->Accept(visitor));
   }
+  # elif field.is_visitable_scalar
+   # if field.is_vector
+  for (const auto& elem : {{field.member_name}}) {
+    GOOGLESQL_RETURN_IF_ERROR(visitor->DefaultVisit(elem));
+  }
+   # else
+  GOOGLESQL_RETURN_IF_ERROR(visitor->DefaultVisit({{field.member_name}}));
+   # endif
   # endif
  # endfor
   return absl::OkStatus();
 }
+
+# endif
 
 # if node.fields and not node.use_custom_debug_string
 void {{node.name}}::CollectDebugStringFields(

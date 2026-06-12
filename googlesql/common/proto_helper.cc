@@ -28,11 +28,11 @@
 #include "googlesql/common/errors.h"
 #include "googlesql/common/thread_stack.h"
 #include "absl/strings/str_cat.h"
+#include "googlesql/base/status_macros.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

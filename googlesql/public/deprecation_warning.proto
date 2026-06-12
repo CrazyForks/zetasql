@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+
 // LINT: LEGACY_NAMES
 
 syntax = "proto2";
@@ -90,6 +91,21 @@ message DeprecationWarning {
     // and instead leaked from its inputs.
     // See b/448431895.
     BUGGY_COLLATION_LEAK_IN_ARRAY_CONSTRUCTOR = 13;
+
+    // Indicates that the query specified collation on values inside PIVOT IN
+    // list, which is ignored.
+    // See b/510325084.
+    PIVOT_VALUE_HAS_COLLATION = 14;
+
+    // Indicates that the query specified annotations other than collation on
+    // values inside PIVOT IN list, which is ignored.
+    // See b/510325084.
+    PIVOT_VALUE_HAS_OTHER_ANNOTATIONS = 15;
+
+    // Indicates that the query specified a timestamp precision on values
+    // inside PIVOT IN list that differs from the default, which is ignored.
+    // See b/510325084.
+    PIVOT_VALUE_HAS_TIMESTAMP_PRECISION = 16;
   }
 
   optional Kind kind = 1;

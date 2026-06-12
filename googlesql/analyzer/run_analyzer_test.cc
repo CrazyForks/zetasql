@@ -29,7 +29,6 @@
 #include <vector>
 
 #include "googlesql/base/atomic_sequence_num.h"
-#include "googlesql/base/logging.h"
 #include "googlesql/base/enum_utils.h"
 #include "googlesql/analyzer/analyzer_output_mutator.h"
 #include "googlesql/analyzer/analyzer_test_options.h"
@@ -105,8 +104,10 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
 #include "absl/functional/bind_front.h"
+#include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -123,10 +124,9 @@
 #include "file_based_test_driver/run_test_case_result.h"
 #include "file_based_test_driver/test_case_options.h"
 #include "google/protobuf/text_format.h"
-#include "googlesql/base/map_util.h"
 #include "re2/re2.h"
+#include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 ABSL_FLAG(std::string, test_file, "", "location of test data file.");
 
@@ -319,7 +319,9 @@ absl::StatusOr<std::unique_ptr<AnalyzerOutput>> CopyAnalyzerOutput(
 
   GOOGLESQL_RET_CHECK(ret) << "No resolved AST in AnalyzerOutput";
 
-  AnalyzerOutputMutator(ret).mutable_runtime_info() = output.runtime_info();
+  AnalyzerOutputMutator mutator(ret);
+  mutator.mutable_runtime_info() = output.runtime_info();
+  mutator.TakeOwnership(output.owned_functions());
   return ret;
 }
 
@@ -994,6 +996,8 @@ class AnalyzerTestRunner {
     // options.
     std::unique_ptr<PreparedExpressionConstantEvaluator> constant_evaluator =
         nullptr;
+    ABSL_LOG(INFO) << "kUseConstantEvaluator: "
+              << test_case_options_.GetBool(kUseConstantEvaluator);
     if (test_case_options_.GetBool(kUseConstantEvaluator)) {
       constant_evaluator =
           std::make_unique<PreparedExpressionConstantEvaluator>(
@@ -1277,7 +1281,8 @@ class AnalyzerTestRunner {
     const TemplatedSQLFunctionCall* sql_function_call = nullptr;
     std::string signature_string = "";
     if (node->node_kind() == RESOLVED_FUNCTION_CALL) {
-      const auto* function_call = static_cast<const ResolvedFunctionCall*>(node);
+      const auto* function_call =
+          static_cast<const ResolvedFunctionCall*>(node);
       GOOGLESQL_RET_CHECK(
           function_call->function_call_info()->Is<TemplatedSQLFunctionCall>())
           << function_call->function_call_info()->DebugString();
@@ -1458,15 +1463,18 @@ class AnalyzerTestRunner {
       test_result->AddTestOutput(AddFailure(
           "FAILED extracting statement kind. GetNextStatementProperties "
           "failed to find any possible kind."));
-    } else if (resolved_statement->node_kind() ==
-                   RESOLVED_GENERALIZED_QUERY_STMT &&
+    } else if ((resolved_statement->node_kind() ==
+                    RESOLVED_GENERALIZED_QUERY_STMT ||
+                resolved_statement->node_kind() ==
+                    RESOLVED_TERMINAL_QUERY_STMT) &&
                extracted_statement_properties.node_kind ==
                    RESOLVED_QUERY_STMT) {
-      // This case is allowed because ResolvedGeneralizedQueryStmt is an
-      // expected form for some complex ASTQueryStatement patterns.
-      // e.g. If we have a query containing pipe FORK, the statement is
-      // detected as a QueryStmt based on the prefix, but resolved to a
-      // GeneralizedQueryStmt.
+      // This case is allowed because ResolvedGeneralizedQueryStmt and
+      // ResolvedTerminalQueryStmt are expected forms for some complex
+      // ASTQueryStatement patterns.
+      // e.g. If we have a query containing pipe FORK or FINISH, the statement
+      // is detected as a QueryStmt based on the prefix, but resolved to a
+      // GeneralizedQueryStmt or TerminalQueryStmt.
     } else if (resolved_statement->node_kind() ==
                RESOLVED_ALTER_TABLE_SET_OPTIONS_STMT) {
       // TODO: AST_ALTER_TABLE_STATEMENT sometimes will return
@@ -2183,7 +2191,7 @@ class AnalyzerTestRunner {
     } else if (orig_status != strict_status) {
       if (test_case_options_.GetBool(kShowStrictMode)) {
         // We don't show these errors all the time because the majority
-        // of our test queries fail in stict mode.
+        // of our test queries fail in strict mode.
         test_result->AddTestOutput(
             absl::StrCat("STRICT MODE ERROR: ", FormatError(strict_status)));
       }
@@ -2239,7 +2247,30 @@ class AnalyzerTestRunner {
 
     std::vector<const google::protobuf::DescriptorPool*> pools;
     for (const auto& elem : map) pools.push_back(elem.first);
-    ResolvedNode::RestoreParams restore_params(pools, catalog, type_factory,
+
+    // If there are owned functions (e.g., proxies for function-typed UDF
+    // parameters), we need to make them available to the deserializer so that
+    // pointers in the AST can be re-linked. We create a temporary catalog
+    // containing these functions and wrap it with the original catalog using
+    // a MultiCatalog. This MultiCatalog is only used for the duration of
+    // this RestoreFrom call.
+    std::unique_ptr<MultiCatalog> multi_catalog;
+    Catalog* restoration_catalog = catalog;
+    std::unique_ptr<SimpleCatalog> owned_functions_catalog;
+    if (!orig_output.owned_functions().empty()) {
+      owned_functions_catalog =
+          std::make_unique<SimpleCatalog>("owned_functions", type_factory);
+      for (const auto& func : orig_output.owned_functions()) {
+        owned_functions_catalog->AddFunction(func.get());
+      }
+      GOOGLESQL_ASSERT_OK(MultiCatalog::Create("restoration_catalog",
+                                     {owned_functions_catalog.get(), catalog},
+                                     &multi_catalog));
+      restoration_catalog = multi_catalog.get();
+    }
+
+    ResolvedNode::RestoreParams restore_params(pools, restoration_catalog,
+                                               type_factory,
                                                options.id_string_pool().get());
 
     auto restored = ResolvedStatement::RestoreFrom(proto, restore_params);
@@ -2307,6 +2338,14 @@ class AnalyzerTestRunner {
                CompareOutputColumnList(
                    output_query_stmt->output_column_list(),
                    sqlbuilder_query_stmt->output_column_list());
+      }
+      case RESOLVED_TERMINAL_QUERY_STMT: {
+        const ResolvedTerminalQueryStmt* output_query_stmt =
+            output_stmt->GetAs<ResolvedTerminalQueryStmt>();
+        const ResolvedTerminalQueryStmt* sqlbuilder_query_stmt =
+            sqlbuilder_stmt->GetAs<ResolvedTerminalQueryStmt>();
+        return CompareNode(output_query_stmt->query(),
+                           sqlbuilder_query_stmt->query());
       }
       case RESOLVED_DELETE_STMT: {
         const ResolvedDeleteStmt* output_delete_stmt =
@@ -2402,6 +2441,23 @@ class AnalyzerTestRunner {
                CompareOptionList(output_create_stmt->option_list(),
                                  sqlbuilder_create_stmt->option_list());
       }
+      case RESOLVED_CREATE_LIVE_TABLE_STMT: {
+        const ResolvedCreateLiveTableStmt* output_create_stmt =
+            output_stmt->GetAs<ResolvedCreateLiveTableStmt>();
+        const ResolvedCreateLiveTableStmt* sqlbuilder_create_stmt =
+            sqlbuilder_stmt->GetAs<ResolvedCreateLiveTableStmt>();
+        return CompareNode(output_create_stmt->query(),
+                           sqlbuilder_create_stmt->query()) &&
+               CompareOutputColumnList(
+                   output_create_stmt->output_column_list(),
+                   sqlbuilder_create_stmt->output_column_list()) &&
+               CompareColumnDefinitionList(
+                   output_create_stmt->column_definition_list(),
+                   sqlbuilder_create_stmt->column_definition_list()) &&
+               CompareOptionList(output_create_stmt->option_list(),
+                                 sqlbuilder_create_stmt->option_list());
+      }
+
       case RESOLVED_CLONE_DATA_STMT: {
         const ResolvedCloneDataStmt* resolved =
             output_stmt->GetAs<ResolvedCloneDataStmt>();
@@ -2470,6 +2526,9 @@ class AnalyzerTestRunner {
                    output_create_stmt->from_files_option_list(),
                    sqlbuilder_create_stmt->from_files_option_list());
       }
+      case RESOLVED_CREATE_FUNCTION_STMT: {
+        return CompareNode(output_stmt, sqlbuilder_stmt);
+      }
       default:
         ABSL_LOG(ERROR) << "Statement type " << sqlbuilder_stmt->node_kind_string()
                    << " not supported";
@@ -2523,6 +2582,10 @@ class AnalyzerTestRunner {
         // is always broken right now because of http://b/36682469.
         //   output_query_stmt->query()->is_ordered() ==
         //   sqlbuilder_query_stmt->query()->is_ordered();
+      }
+      case RESOLVED_TERMINAL_QUERY_STMT: {
+        // There's no output table, so these outputs are all equivalent.
+        return true;
       }
       case RESOLVED_CREATE_INDEX_STMT: {
         const ResolvedCreateIndexStmt* output_create_stmt =
@@ -2718,6 +2781,7 @@ class AnalyzerTestRunner {
       case RESOLVED_CREATE_VIEW_STMT:
       case RESOLVED_CREATE_ENTITY_STMT:
       case RESOLVED_CREATE_SEQUENCE_STMT:
+      case RESOLVED_CREATE_LIVE_TABLE_STMT:
       case RESOLVED_DELETE_STMT:
       case RESOLVED_DESCRIBE_STMT:
       case RESOLVED_DROP_FUNCTION_STMT:
@@ -3131,6 +3195,16 @@ class AnalyzerTestRunner {
         // started unless ResolvedQueryStmt is also enabled.
         options.mutable_language()->AddSupportedStatementKind(
             RESOLVED_QUERY_STMT);
+        // Assume that we also support terminal queries (queries with no output)
+        // if we support generalized queries.
+        options.mutable_language()->AddSupportedStatementKind(
+            RESOLVED_TERMINAL_QUERY_STMT);
+        break;
+      } else if (kind == RESOLVED_TERMINAL_QUERY_STMT) {
+        // ResolvedTerminalQueryStmt comes out for queries, which can't be
+        // started unless ResolvedQueryStmt is also enabled.
+        options.mutable_language()->AddSupportedStatementKind(
+            RESOLVED_QUERY_STMT);
         break;
       } else if (kind == RESOLVED_SUBPIPELINE_STMT) {
         // ResolvedSubpipelineStmt can also include generalized pipe operators
@@ -3493,9 +3567,20 @@ class AnalyzerTestRunner {
     bool sqlbuilder_tree_matches_original_tree = false;
     // Re-analyzing the query should never fail.
     if (!re_analyze_status.ok()) {
+      std::string status_string = absl::StrCat(re_analyze_status);
+      static constexpr LazyRE2 kPathRegex = {
+          R"((?m)^([a-zA-Z0-9_/.-]+):[0-9]+$)"};
+      RE2::GlobalReplace(&status_string, *kPathRegex, "\\1:X");
+      // Normalize header lines so that "==" isn't confused with the file based
+      // test driver's separator.
+      static constexpr LazyRE2 kHeaderRegex = {R"((?m)^=== (.*) ===\s*$)"};
+      RE2::GlobalReplace(&status_string, *kHeaderRegex, "~~~ \\1 ~~~");
       *result_string = absl::StrCat(
-          "ERROR while analyzing SQLBuilder output: ", re_analyze_status,
+          "ERROR while analyzing SQLBuilder output: ", status_string,
           "\n[SQLBUILDER SQL]\n", formatted_sql);
+      if (test_case_options_.GetBool(kReproReanalyzeFailure)) {
+        return;
+      }
       FAIL() << *result_string;
     }
 

@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
@@ -80,6 +81,7 @@ proto_library(
         "//googlesql/public:parse_location_range_proto",
         "//googlesql/public:parse_resume_location_proto",
         "//googlesql/public:simple_table_proto",
+        "//googlesql/public:type_modifiers_proto",
         "//googlesql/public:type_proto",
         "//googlesql/public:value_proto",
         "//googlesql/resolved_ast:resolved_ast_enums_proto",
@@ -113,6 +115,21 @@ cc_proto_library(
 java_proto_library(
     name = "internal_fix_suggestion_java_proto",
     deps = [":internal_fix_suggestion_proto"],
+)
+
+proto_library(
+    name = "kmeans_options_proto",
+    srcs = ["kmeans_options.proto"],
+)
+
+cc_proto_library(
+    name = "kmeans_options_cc_proto",
+    deps = [":kmeans_options_proto"],
+)
+
+java_proto_library(
+    name = "kmeans_options_java_proto",
+    deps = [":kmeans_options_proto"],
 )
 
 proto_library(

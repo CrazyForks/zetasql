@@ -40,12 +40,12 @@
 #include "absl/functional/bind_front.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -187,7 +187,6 @@ void GetGraphFunctions(TypeFactory* type_factory,
   const Type* bool_type = type_factory->get_bool();
   const Type* string_type = type_factory->get_string();
   const Type* int64_type = type_factory->get_int64();
-  const Type* json_type = type_factory->get_json();
   const ArrayType* string_array_type = types::StringArrayType();
 
   InsertFunction(
@@ -214,6 +213,8 @@ void GetGraphFunctions(TypeFactory* type_factory,
           .set_get_sql_callback(
               absl::bind_front(&InfixFunctionSQL, "IS DESTINATION OF")));
 
+  bool supports_safe_same = options.language_options.LanguageFeatureEnabled(
+      FEATURE_SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT);
   // TODO: ALL_DIFFERENT(node, edge) does not work for now because
   // we don't support supertype between node and edge, though the standard
   // doesn't explicitly disable that.
@@ -224,7 +225,7 @@ void GetGraphFunctions(TypeFactory* type_factory,
         FN_ALL_DIFFERENT_GRAPH_ELEMENT}},
       FunctionOptions()
           .AddRequiredLanguageFeature(LanguageFeature::FEATURE_SQL_GRAPH)
-          .set_supports_safe_error_mode(false)
+          .set_supports_safe_error_mode(supports_safe_same)
           .set_sql_name("ALL_DIFFERENT")
           .set_pre_resolution_argument_constraint(
               absl::bind_front(&CheckMinArgs, "ALL_DIFFERENT", 2)));
@@ -239,7 +240,7 @@ void GetGraphFunctions(TypeFactory* type_factory,
         FN_SAME_GRAPH_ELEMENT}},
       FunctionOptions()
           .AddRequiredLanguageFeature(LanguageFeature::FEATURE_SQL_GRAPH)
-          .set_supports_safe_error_mode(false)
+          .set_supports_safe_error_mode(supports_safe_same)
           .set_sql_name("SAME")
           .set_pre_resolution_argument_constraint(
               absl::bind_front(&CheckMinArgs, "SAME", 2)));

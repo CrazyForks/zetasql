@@ -39,6 +39,7 @@
 #include "googlesql/base/case.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -46,7 +47,6 @@
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -77,7 +77,7 @@ bool IsSameLiteral(const ResolvedLiteral* a, const ResolvedLiteral* b) {
 
 absl::StatusOr<std::string> GenerateParameterName(
     const ResolvedLiteral* literal, const AnalyzerOptions& analyzer_options,
-    const ParameterNameOverrideCallback& override_callback,
+    const LiteralReplacementOptions& literal_replacement_options,
     GeneratedParameterMap* generated_parameters, int* index) {
   GOOGLESQL_RET_CHECK(generated_parameters != nullptr);
   const QueryParametersMap& parameters = analyzer_options.query_parameters();
@@ -86,8 +86,9 @@ absl::StatusOr<std::string> GenerateParameterName(
     return googlesql_base::ContainsKey(parameters, absl::AsciiStrToLower(param_name)) ||
            generated_parameters->contains(param_name);
   };
-  if (override_callback != nullptr) {
-    std::optional<std::string> name = override_callback(literal);
+  if (literal_replacement_options.parameter_name_override_callback != nullptr) {
+    std::optional<std::string> name =
+        literal_replacement_options.parameter_name_override_callback(literal);
     if (name.has_value()) {
       if (has_conflict(*name)) {
         return googlesql_base::InvalidArgumentErrorBuilder()
@@ -103,7 +104,10 @@ absl::StatusOr<std::string> GenerateParameterName(
   std::string param_name;
   do {
     // User parameters are less likely to start with underscores.
-    param_name = absl::StrCat("_p", (*index)++, "_", type_name);
+    param_name = absl::StrCat("_p", (*index)++);
+    if (literal_replacement_options.include_type_in_parameter_name) {
+      absl::StrAppend(&param_name, "_", type_name);
+    }
   } while (has_conflict(param_name));
   return param_name;
 }
@@ -261,7 +265,8 @@ absl::Status ReplaceLiteralsByParameters(
         option->value()->GetParseLocationRangeOrNULL() != nullptr) {
       const ResolvedLiteral* option_literal =
           option->value()->GetAs<ResolvedLiteral>();
-      if (literal_replacement_options.ignored_option_names.contains(
+      if (literal_replacement_options.ignore_all_options ||
+          literal_replacement_options.ignored_option_names.contains(
               option->name())) {
         ignore_literals.insert(option_literal);
       }
@@ -326,12 +331,10 @@ absl::Status ReplaceLiteralsByParameters(
     GOOGLESQL_RET_CHECK(prefix_offset == 0 || prefix_offset < last_offset)
         << "Parse locations of literals are broken:"
         << "\nQuery: " << sql << "\nResolved AST: " << stmt->DebugString();
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        parameter_name,
-        GenerateParameterName(
-            literal, analyzer_options,
-            literal_replacement_options.parameter_name_override_callback,
-            generated_parameters, &parameter_index));
+    GOOGLESQL_ASSIGN_OR_RETURN(parameter_name,
+                     GenerateParameterName(
+                         literal, analyzer_options, literal_replacement_options,
+                         generated_parameters, &parameter_index));
 
     absl::StrAppend(result_sql,
                     sql.substr(prefix_offset, first_offset - prefix_offset),

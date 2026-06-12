@@ -26,8 +26,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/bytes/fd_reader.h"
-#include "riegeli/csv/csv_reader.h"
 #include "googlesql/base/status_macros.h"
+#include "riegeli/csv/csv_reader.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 

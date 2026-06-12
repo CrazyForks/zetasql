@@ -57,6 +57,7 @@
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/cord.h"
@@ -66,7 +67,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/clock.h"
 
 using ::std::nullopt;
@@ -195,7 +196,7 @@ class CreateIteratorTest : public ::testing::Test {
     proto.set_int64_key_2(10 * i);
 
     absl::Cord bytes;
-    ABSL_CHECK(proto.SerializeToCord(&bytes));
+    ABSL_CHECK(proto.SerializeToString(&bytes));
     return Value::Proto(proto_type_, bytes);
   }
 
@@ -371,7 +372,8 @@ TEST(BuiltinTableValuedFunction, RelationalOpEvalTestWithValue) {
       std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
       BuiltinTableValuedFunction::CreateCall(
           FunctionKind::kInvalid, std::move(arguments),
-          std::move(output_columns), std::move(variables), nullptr));
+          std::move(output_columns), std::move(variables), nullptr,
+          /*output_column_indices=*/{0}));
 
   GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));
 
@@ -457,7 +459,8 @@ TEST(BuiltinTableValuedFunction, RelationalOpEvalTestWithRelation) {
       std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
       BuiltinTableValuedFunction::CreateCall(
           FunctionKind::kInvalid, std::move(arguments),
-          std::move(output_columns), std::move(output_variables), nullptr));
+          std::move(output_columns), std::move(output_variables), nullptr,
+          /*output_column_indices=*/{0}));
 
   GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));
 
@@ -479,6 +482,96 @@ TEST(BuiltinTableValuedFunction, RelationalOpEvalTestWithRelation) {
   }
   std::vector<Value> expected_values = {Value::StringValue("hello"),
                                         Value::StringValue("world")};
+  EXPECT_EQ(values, expected_values);
+}
+
+// When column pruning is enabled (by default), a TVFScan's column_list and
+// column_index_list may be pruned of unused columns. This tests that the
+// Reference Implementation can match the output from the TVF to the expected
+// column_list of the TVFScan, and output the correct column(s) when there are
+// column pruning and duplicate column names.
+TEST(BuiltinTableValuedFunction,
+     RelationalOpEvalTestWithDuplicateColumnsAndPruning) {
+  BuiltinFunctionRegistry::RegisterTableValuedFunction(
+      {FunctionKind::kInvalid},
+      [](FunctionKind kind) { return new BasicTestTVF(kind); });
+
+  std::vector<TupleData> tuples;
+
+  // First tuple
+  TupleData tuple1(/*num_slots=*/2);
+  TupleSlot* slot11 = tuple1.mutable_slot(0);
+  slot11->SetValue(Value::StringValue("hello"));
+  TupleSlot* slot12 = tuple1.mutable_slot(1);
+  slot12->SetValue(Value::StringValue("world"));
+  tuples.push_back(tuple1);
+
+  // Second tuple
+  TupleData tuple2(/*num_slots=*/2);
+  TupleSlot* slot21 = tuple2.mutable_slot(0);
+  slot21->SetValue(Value::StringValue("foo"));
+  TupleSlot* slot22 = tuple2.mutable_slot(1);
+  slot22->SetValue(Value::StringValue("bar"));
+  tuples.push_back(tuple2);
+
+  std::vector<VariableId> variables;
+  VariableId var1 = VariableId("col1_1");
+  variables.push_back(var1);
+  VariableId var2 = VariableId("col1_2");
+  variables.push_back(var2);
+
+  std::vector<TvfInputRelation::TvfInputRelationColumn> columns;
+  columns.push_back({
+      .name = "col1",
+      .type = types::StringType(),
+      .variable = var1,
+  });
+  columns.push_back({
+      .name = "col1",
+      .type = types::StringType(),
+      .variable = var2,
+  });
+
+  std::vector<TvfAlgebraArgument> arguments;
+  arguments.push_back({.relation = TvfInputRelation{
+                           .relational_op = std::make_unique<TestRelationalOp>(
+                               variables, tuples, /*preserves_order=*/true),
+                           .columns = columns}});
+
+  std::vector<TVFSchemaColumn> output_columns;
+  output_columns.push_back(TVFSchemaColumn("col1", types::StringType()));
+
+  // Only output the second column.
+  std::vector<VariableId> output_variables;
+  output_variables.push_back(var2);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
+      BuiltinTableValuedFunction::CreateCall(
+          FunctionKind::kInvalid, std::move(arguments),
+          std::move(output_columns), std::move(output_variables), nullptr,
+          /*output_column_indices=*/{1}));  // the second col1 (var2).
+
+  GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));
+
+  EvaluationContext context((EvaluationOptions()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<TupleIterator> iter,
+                       call_expr->CreateIterator({}, 0, &context));
+
+  ASSERT_EQ(iter->Schema().num_variables(), 1);
+  EXPECT_EQ(iter->Schema().variable(0), var2);
+
+  std::vector<Value> values;
+  while (true) {
+    TupleData* data = iter->Next();
+    if (data == nullptr) {
+      break;
+    }
+    EXPECT_EQ(data->num_slots(), 1);
+    values.push_back(data->slot(0).value());
+  }
+  std::vector<Value> expected_values = {Value::StringValue("world"),
+                                        Value::StringValue("bar")};
   EXPECT_EQ(values, expected_values);
 }
 

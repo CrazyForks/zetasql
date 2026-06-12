@@ -80,6 +80,7 @@
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -91,7 +92,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace {
@@ -1026,15 +1026,17 @@ class InnerAggregateListRewriterVisitor : public ResolvedASTDeepCopyVisitor {
     } else {
       GOOGLESQL_RET_CHECK(node->Is<ResolvedDeferredComputedColumn>());
       const ResolvedColumn& old_column = node->column();
-      static_cast<ResolvedDeferredComputedColumn*>(col)->set_column(ReplaceColumn(
-          old_column, old_column.name() + "_partial", col->expr()->type()));
+      static_cast<ResolvedDeferredComputedColumn*>(col)->set_column(
+          ReplaceColumn(old_column, old_column.name() + "_partial",
+                        col->expr()->type()));
 
       const ResolvedColumn& old_side_effect_column =
           node->GetAs<ResolvedDeferredComputedColumn>()->side_effect_column();
-      static_cast<ResolvedDeferredComputedColumn*>(col)->set_side_effect_column(
-          ReplaceColumn(old_side_effect_column,
-                        old_side_effect_column.name() + "_partial",
-                        old_side_effect_column.type()));
+      static_cast<ResolvedDeferredComputedColumn*>(col)
+          ->set_side_effect_column(
+              ReplaceColumn(old_side_effect_column,
+                            old_side_effect_column.name() + "_partial",
+                            old_side_effect_column.type()));
     }
 
     return absl::OkStatus();
@@ -5394,7 +5396,9 @@ absl::StatusOr<std::unique_ptr<const ResolvedNode>> RewriteHelper(
     TypeFactory& type_factory) {
   options.CreateDefaultArenasIfNotSet();
 
-  Resolver resolver(&catalog, &type_factory, &options);
+  AnalyzerOutputProperties analyzer_output_properties;
+  Resolver resolver(&catalog, &type_factory, &options,
+                    analyzer_output_properties);
   // The fresh resolver needs to be reset to initialize internal state before
   // use. We can use an empty SQL string because we aren't resolving a query,
   // we are just using the resolver to help resolve function calls from the

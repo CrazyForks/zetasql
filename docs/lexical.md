@@ -175,17 +175,14 @@ mytable
 
 ## Column names
 
-A column name represents the name of a column in a table.
-
-+ Column names can be quoted identifiers or unquoted identifiers.
-+ If unquoted, identifiers support dashed identifiers when referenced in a
-  `FROM` or `TABLE` clause.
+A column name represents the name of a column in a table. Column names can be
+quoted identifiers or unquoted identifiers.
 
 Examples:
 
 ```none
 columnA
-column-a
+`column-a`
 `287column`
 ```
 
@@ -703,8 +700,8 @@ Examples:
 [1, 2, 3]
 ['x', 'y', 'xy']
 ARRAY[1, 2, 3]
-ARRAY<string>['x', 'y', 'xy']
-ARRAY<int64>[]
+ARRAY<STRING>['x', 'y', 'xy']
+ARRAY<INT64>[]
 []
 ```
 

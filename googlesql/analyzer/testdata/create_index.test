@@ -1733,3 +1733,296 @@ CREATE VECTOR INDEX index0 ON KeyValue(key) PARTITION BY col_not_exist options()
 ERROR: Unrecognized name: col_not_exist [at 1:58]
 CREATE VECTOR INDEX index0 ON KeyValue(key) PARTITION BY col_not_exist options()
                                                          ^
+==
+
+[language_features=NONE,+CREATE_INDEX_PARTITION_BY]
+[show_sqlbuilder_output]
+CREATE VECTOR INDEX index6 ON KeyValue(Key)
+PARTITION BY Value
+OPTIONS(x=1);
+--
+CreateIndexStmt
++-name_path=index6
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
++-is_unique=FALSE
++-is_vector=TRUE
++-index_item_list=
+| +-IndexItem
+|   +-column_ref=
+|   | +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+|   +-descending=FALSE
++-partition_by_list=
+| +-ColumnRef(type=STRING, column=KeyValue.Value#2)
++-option_list=
+  +-x := Literal(type=INT64, value=1)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+CREATE VECTOR INDEX index6 ON KeyValue(Key)
+PARTITION BY Value
+OPTIONS(x = 1);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+CREATE VECTOR INDEX index6 ON KeyValue(Key)
+PARTITION BY Value
+OPTIONS(x = 1);
+
+==
+
+[language_features=NONE]
+CREATE {{|OR REPLACE}} AI INDEX {{|IF NOT EXISTS}} index1 ON KeyValue(Value);
+--
+ALTERNATION GROUP: <empty>
+--
+CreateIndexStmt
++-name_path=index1
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=[KeyValue.Value#2], table=KeyValue, column_index_list=[1])
++-is_unique=FALSE
++-is_ai=TRUE
++-index_item_list=
+  +-IndexItem
+    +-column_ref=
+    | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+    +-descending=FALSE
+--
+ALTERNATION GROUP: IF NOT EXISTS
+--
+CreateIndexStmt
++-name_path=index1
++-create_mode=CREATE_IF_NOT_EXISTS
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=[KeyValue.Value#2], table=KeyValue, column_index_list=[1])
++-is_unique=FALSE
++-is_ai=TRUE
++-index_item_list=
+  +-IndexItem
+    +-column_ref=
+    | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+    +-descending=FALSE
+--
+ALTERNATION GROUP: OR REPLACE,
+--
+CreateIndexStmt
++-name_path=index1
++-create_mode=CREATE_OR_REPLACE
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=[KeyValue.Value#2], table=KeyValue, column_index_list=[1])
++-is_unique=FALSE
++-is_ai=TRUE
++-index_item_list=
+  +-IndexItem
+    +-column_ref=
+    | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+    +-descending=FALSE
+--
+ALTERNATION GROUP: OR REPLACE,IF NOT EXISTS
+--
+ERROR: CREATE INDEX cannot have both OR REPLACE and IF NOT EXISTS [at 1:1]
+CREATE OR REPLACE AI INDEX IF NOT EXISTS index1 ON KeyValue(Value);
+^
+==
+
+[language_features=NONE]
+CREATE AI INDEX index2 ON KeyValue(AUTO COLUMNS);
+--
+CreateIndexStmt
++-name_path=index2
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(table=KeyValue)
++-is_unique=FALSE
++-is_ai=TRUE
++-index_auto_columns=TRUE
+==
+
+[language_features=NONE]
+CREATE AI INDEX index3 ON KeyValue(Key, Value) WITH CONNECTION {{connection1|DEFAULT}};
+--
+ALTERNATION GROUP: connection1
+--
+CreateIndexStmt
++-name_path=index3
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
++-is_unique=FALSE
++-is_ai=TRUE
++-index_item_list=
+| +-IndexItem
+| | +-column_ref=
+| | | +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+| | +-descending=FALSE
+| +-IndexItem
+|   +-column_ref=
+|   | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+|   +-descending=FALSE
++-connection=
+  +-Connection(connection=connection1)
+--
+ALTERNATION GROUP: DEFAULT
+--
+CreateIndexStmt
++-name_path=index3
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
++-is_unique=FALSE
++-is_ai=TRUE
++-index_item_list=
+| +-IndexItem
+| | +-column_ref=
+| | | +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+| | +-descending=FALSE
+| +-IndexItem
+|   +-column_ref=
+|   | +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+|   +-descending=FALSE
++-connection=
+  +-Connection(connection=$connection_default)
+==
+
+[language_features=NONE]
+[show_sqlbuilder_output]
+CREATE AI INDEX index4 ON KeyValue(AUTO COLUMNS)
+WITH CONNECTION connection1
+OPTIONS(y=2);
+--
+CreateIndexStmt
++-name_path=index4
++-table_name_path=KeyValue
++-table_scan=
+| +-TableScan(table=KeyValue)
++-is_unique=FALSE
++-is_ai=TRUE
++-index_auto_columns=TRUE
++-connection=
+| +-Connection(connection=connection1)
++-option_list=
+  +-y := Literal(type=INT64, value=2)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+CREATE AI INDEX index4 ON KeyValue(AUTO COLUMNS)
+WITH CONNECTION connection1
+OPTIONS(y = 2);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+CREATE AI INDEX index4 ON KeyValue(AUTO COLUMNS)
+WITH CONNECTION connection1
+OPTIONS(y = 2);
+==
+
+[language_features=NONE]
+CREATE AI INDEX index5 ON KeyValue(Key DESC);
+--
+ERROR: Key expression with ASC or DESC option for CREATE AI INDEX is not allowed [at 1:36]
+CREATE AI INDEX index5 ON KeyValue(Key DESC);
+                                   ^
+==
+
+# ALL COLUMNS not supported for default, VECTOR, and AI index.
+[language_features=NONE]
+CREATE {{|VECTOR|AI}} INDEX i1 ON KeyValue(ALL COLUMNS);
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: 'ALL COLUMNS' is not a supported index key expression for CREATE INDEX statement [at 1:29]
+CREATE  INDEX i1 ON KeyValue(ALL COLUMNS);
+                            ^
+--
+ALTERNATION GROUP: VECTOR
+--
+ERROR: 'ALL COLUMNS' is not a supported index key expression for CREATE VECTOR INDEX statement [at 1:35]
+CREATE VECTOR INDEX i1 ON KeyValue(ALL COLUMNS);
+                                  ^
+--
+ALTERNATION GROUP: AI
+--
+ERROR: 'ALL COLUMNS' is not a supported index key expression for CREATE AI INDEX statement [at 1:31]
+CREATE AI INDEX i1 ON KeyValue(ALL COLUMNS);
+                              ^
+==
+
+# AUTO COLUMNS not supported for default, SEARCH, and VECTOR index.
+[language_features=NONE]
+CREATE {{|SEARCH|VECTOR}} INDEX i1 ON KeyValue(AUTO COLUMNS);
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: 'AUTO COLUMNS' is not a supported index key expression for CREATE INDEX statement [at 1:29]
+CREATE  INDEX i1 ON KeyValue(AUTO COLUMNS);
+                            ^
+--
+ALTERNATION GROUP: SEARCH
+--
+ERROR: 'AUTO COLUMNS' is not a supported index key expression for CREATE SEARCH INDEX statement [at 1:35]
+CREATE SEARCH INDEX i1 ON KeyValue(AUTO COLUMNS);
+                                  ^
+--
+ALTERNATION GROUP: VECTOR
+--
+ERROR: 'AUTO COLUMNS' is not a supported index key expression for CREATE VECTOR INDEX statement [at 1:35]
+CREATE VECTOR INDEX i1 ON KeyValue(AUTO COLUMNS);
+                                  ^
+==
+
+# PARTITION BY not supported for default, SEARCH, and AI index.
+[language_features=NONE,+CREATE_INDEX_PARTITION_BY]
+CREATE {{|SEARCH|AI}} INDEX i1 ON KeyValue(Value) PARTITION BY Key;
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: PARTITION BY is not supported for CREATE INDEX. [at 1:37]
+CREATE  INDEX i1 ON KeyValue(Value) PARTITION BY Key;
+                                    ^
+--
+ALTERNATION GROUP: SEARCH
+--
+ERROR: PARTITION BY is not supported for CREATE SEARCH INDEX. [at 1:43]
+CREATE SEARCH INDEX i1 ON KeyValue(Value) PARTITION BY Key;
+                                          ^
+--
+ALTERNATION GROUP: AI
+--
+ERROR: PARTITION BY is not supported for CREATE AI INDEX. [at 1:39]
+CREATE AI INDEX i1 ON KeyValue(Value) PARTITION BY Key;
+                                      ^
+==
+
+# WITH CONNECTION not supported for default, SEARCH, and VECTOR index.
+[language_features=NONE]
+CREATE {{|SEARCH|VECTOR}} INDEX i1 ON KeyValue(Value) WITH CONNECTION c1;
+--
+ALTERNATION GROUP: <empty>
+--
+ERROR: WITH CONNECTION is not supported for CREATE INDEX statement [at 1:37]
+CREATE  INDEX i1 ON KeyValue(Value) WITH CONNECTION c1;
+                                    ^
+--
+ALTERNATION GROUP: SEARCH
+--
+ERROR: WITH CONNECTION is not supported for CREATE SEARCH INDEX statement [at 1:43]
+CREATE SEARCH INDEX i1 ON KeyValue(Value) WITH CONNECTION c1;
+                                          ^
+--
+ALTERNATION GROUP: VECTOR
+--
+ERROR: WITH CONNECTION is not supported for CREATE VECTOR INDEX statement [at 1:43]
+CREATE VECTOR INDEX i1 ON KeyValue(Value) WITH CONNECTION c1;
+                                          ^
+==
+
+[language_features=NONE]
+CREATE AI INDEX index_multi_auto ON KeyValue(AUTO COLUMNS, Value);
+--
+ERROR: Syntax error: Expected ")" but got "," [at 1:58]
+CREATE AI INDEX index_multi_auto ON KeyValue(AUTO COLUMNS, Value);
+                                                         ^

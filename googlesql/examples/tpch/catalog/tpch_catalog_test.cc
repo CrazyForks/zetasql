@@ -144,38 +144,36 @@ TEST_P(TpchMakeAndReadTest, WithSemanticGraph) {
     EXPECT_EQ(table->GetColumn(3)->Name(), "O_TOTALPRICE");
     EXPECT_EQ(table->GetColumn(3)->GetType()->DebugString(), "DOUBLE");
     if (with_semantic_graph) {
-      // Order.LineItems is a ROW join from Order.O_CUSTKEY to
+      // Order.Customer is a TABLE type for a join from Order.O_CUSTKEY to
       // Customer.C_CUSTKEY.
       EXPECT_TRUE(table->GetColumn(9)->IsPseudoColumn());
       EXPECT_EQ(table->GetColumn(9)->Name(), "Customer");
       const Type* type = table->GetColumn(9)->GetType();
-      EXPECT_EQ(type->DebugString(), "ROW<Customer (join)>");
-      EXPECT_TRUE(type->IsSingleRow());
-      const RowType* row_type = type->AsRow();
-      EXPECT_TRUE(row_type->IsJoin());
-      EXPECT_EQ(row_type->bound_source_table(), table);
-      EXPECT_EQ(row_type->bound_source_columns().size(), 1);
-      EXPECT_EQ(row_type->bound_columns().size(), 1);
-      EXPECT_EQ(row_type->bound_source_columns()[0]->Name(), "O_CUSTKEY");
-      EXPECT_EQ(row_type->bound_columns()[0]->Name(), "C_CUSTKEY");
-      EXPECT_EQ(row_type->element_type()->DebugString(), "ROW<Customer>");
+      EXPECT_EQ(type->DebugString(), "TABLE UNIQUE<ROW<Customer>>");
+      EXPECT_TRUE(type->IsSingleRowTable());
+      const TableRefType* table_type = type->AsTableRefType();
+      EXPECT_EQ(table_type->bound_source_table(), table);
+      EXPECT_EQ(table_type->bound_source_columns().size(), 1);
+      EXPECT_EQ(table_type->bound_columns().size(), 1);
+      EXPECT_EQ(table_type->bound_source_columns()[0]->Name(), "O_CUSTKEY");
+      EXPECT_EQ(table_type->bound_columns()[0]->Name(), "C_CUSTKEY");
+      EXPECT_EQ(table_type->element_type()->DebugString(), "ROW<Customer>");
 
-      // Order.LineItems is a MULTIROW<LineItem> join from Order.O_ORDERKEY to
+      // Order.LineItems is a TABLE type for a join from Order.O_ORDERKEY to
       // LineItem.L_ORDERKEY.
       EXPECT_TRUE(table->GetColumn(10)->IsPseudoColumn());
       EXPECT_EQ(table->GetColumn(10)->Name(), "LineItems");
       type = table->GetColumn(10)->GetType();
-      EXPECT_EQ(type->DebugString(), "MULTIROW<LineItem (join)>");
-      EXPECT_TRUE(type->IsMultiRow());
-      EXPECT_TRUE(type->AsRow()->IsJoin());
-      row_type = type->AsRow();
-      EXPECT_TRUE(row_type->IsJoin());
-      EXPECT_EQ(row_type->bound_source_table(), table);
-      EXPECT_EQ(row_type->bound_source_columns().size(), 1);
-      EXPECT_EQ(row_type->bound_columns().size(), 1);
-      EXPECT_EQ(row_type->bound_source_columns()[0]->Name(), "O_ORDERKEY");
-      EXPECT_EQ(row_type->bound_columns()[0]->Name(), "L_ORDERKEY");
-      EXPECT_EQ(row_type->element_type()->DebugString(), "ROW<LineItem>");
+      EXPECT_EQ(type->DebugString(), "TABLE<ROW<LineItem>>");
+      EXPECT_TRUE(type->IsMultiRowTable());
+      table_type = type->AsTableRefType();
+      EXPECT_TRUE(table_type->IsTable());
+      EXPECT_EQ(table_type->bound_source_table(), table);
+      EXPECT_EQ(table_type->bound_source_columns().size(), 1);
+      EXPECT_EQ(table_type->bound_columns().size(), 1);
+      EXPECT_EQ(table_type->bound_source_columns()[0]->Name(), "O_ORDERKEY");
+      EXPECT_EQ(table_type->bound_columns()[0]->Name(), "L_ORDERKEY");
+      EXPECT_EQ(table_type->element_type()->DebugString(), "ROW<LineItem>");
     }
 
     // Check reading content from all the tables works, and we get the

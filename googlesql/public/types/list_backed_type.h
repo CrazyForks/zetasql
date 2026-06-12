@@ -22,6 +22,7 @@
 
 #include "googlesql/public/types/container_type.h"
 #include "googlesql/public/types/type.h"
+#include "googlesql/public/types/value_representations.h"
 
 namespace googlesql {
 
@@ -36,6 +37,12 @@ class ListBackedType : public ContainerType {
  protected:
   ListBackedType(const TypeFactoryBase* factory, TypeKind kind)
       : ContainerType(factory, kind) {}
+
+  uint64_t GetValueContentExternallyAllocatedByteSize(
+      const ValueContent& value) const override {
+    return value.GetAs<internal::ValueContentOrderedListRef*>()
+        ->physical_byte_size();
+  }
 
   friend struct MultisetValueContentContainerElementHasher;
   friend struct HashableValueContentContainerElementIgnoringFloat;

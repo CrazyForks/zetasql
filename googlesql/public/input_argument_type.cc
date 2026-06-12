@@ -26,11 +26,13 @@
 #include "googlesql/base/logging.h"
 #include "googlesql/public/strings.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
 #include "absl/base/no_destructor.h"
+#include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -83,29 +85,37 @@ bool InputArgumentTypeLess::operator()(const InputArgumentType& type1,
 }
 
 bool InputArgumentType::operator==(const InputArgumentType& rhs) const {
-  const bool types_equal =
-      (type_ == nullptr && rhs.type_ == nullptr) ||
-      (type_ != nullptr && rhs.type_ != nullptr && type_->Equals(rhs.type_));
+  const bool types_equal = (type() == nullptr && rhs.type() == nullptr) ||
+                           (type() != nullptr && rhs.type() != nullptr &&
+                            type()->Equals(rhs.type()));
   return category_ == rhs.category_ && types_equal &&
          is_literal_null() == rhs.is_literal_null() &&
          is_literal_empty_array() == rhs.is_literal_empty_array();
 }
 
 InputArgumentType::InputArgumentType(const Value& literal_value,
+                                     const AnnotationMap* annotation_map,
                                      bool is_default_argument_value)
-    : type_(literal_value.type()),
-      category_(kTypedLiteral),
+    : category_(kTypedLiteral),
       is_default_argument_value_(is_default_argument_value) {
   EnsureData().literal_value = literal_value;
+  EnsureData().annotated_type =
+      AnnotatedType(literal_value.type(), annotation_map);
   is_literal_for_constness_ = true;
   if (literal_value.type()->IsStruct()) {
+    const StructAnnotationMap* struct_annotation_map =
+        annotation_map == nullptr ? nullptr : annotation_map->AsStructMap();
     if (literal_value.is_null()) {
       // This is a NULL struct, so its field InputArgumentTypes are the
       // struct's field types.
-      for (const StructType::StructField& struct_field :
-           literal_value.type()->AsStruct()->fields()) {
-        EnsureData().field_types.push_back(
-            InputArgumentType(struct_field.type));
+      for (int i = 0; i < literal_value.type()->AsStruct()->num_fields(); ++i) {
+        const StructType::StructField& struct_field =
+            literal_value.type()->AsStruct()->field(i);
+        const AnnotationMap* field_annotation_map =
+            struct_annotation_map == nullptr ? nullptr
+                                             : struct_annotation_map->field(i);
+        EnsureData().field_types.push_back(InputArgumentType(
+            AnnotatedType(struct_field.type, field_annotation_map)));
       }
     } else {
       for (const Value& field_value : literal_value.fields()) {
@@ -115,19 +125,29 @@ InputArgumentType::InputArgumentType(const Value& literal_value,
   }
 }
 
-InputArgumentType::InputArgumentType(const Type* type, bool is_query_parameter,
+InputArgumentType::InputArgumentType(AnnotatedType annotated_type,
+                                     bool is_query_parameter,
                                      bool is_literal_for_constness)
-    : type_(type),
-      category_(is_query_parameter ? kTypedParameter : kTypedExpression),
+    : category_(is_query_parameter ? kTypedParameter : kTypedExpression),
       is_literal_for_constness_(is_literal_for_constness) {
+  EnsureData().annotated_type = annotated_type;
+  const auto& [type, annotation_map] = annotated_type;
   ABSL_DCHECK(type != nullptr);
   if (type->IsStruct()) {
-    for (const StructType::StructField& struct_field :
-         type->AsStruct()->fields()) {
+    const StructAnnotationMap* struct_annotation_map =
+        annotation_map == nullptr ? nullptr : annotation_map->AsStructMap();
+    for (int i = 0; i < type->AsStruct()->num_fields(); ++i) {
+      const StructType::StructField& struct_field = type->AsStruct()->field(i);
+
       // The struct itself might be a parameter, but its fields should not
       // coerce like parameters.
-      EnsureData().field_types.push_back(
-          InputArgumentType(struct_field.type, false /* is_query_parameter */));
+      const AnnotationMap* field_annotation_map =
+          struct_annotation_map == nullptr ? nullptr
+                                           : struct_annotation_map->field(i);
+
+      EnsureData().field_types.push_back(InputArgumentType(
+          AnnotatedType(struct_field.type, field_annotation_map),
+          /*is_query_parameter=*/false));
     }
   }
 }
@@ -138,16 +158,15 @@ InputArgumentType::InputArgumentType(absl::StatusOr<Value> constant_value)
   ABSL_DCHECK(!absl::IsResourceExhausted(constant_value.status()));
   ABSL_DCHECK(!absl::IsOutOfRange(constant_value.status()));
   if (!constant_value.ok()) {
-    type_ = types::Int64Type();
+    EnsureData().annotated_type = AnnotatedType(types::Int64Type());
   } else {
-    type_ = constant_value->type();
+    EnsureData().annotated_type = AnnotatedType(constant_value->type());
     EnsureData().constant_value = std::move(constant_value);
   }
 }
 
 InputArgumentType::InputArgumentType(const InputArgumentType& other)
-    : type_(other.type_),
-      category_(other.category_),
+    : category_(other.category_),
       is_default_argument_value_(other.is_default_argument_value_),
       is_pipe_input_table_(other.is_pipe_input_table_),
       is_chained_function_call_input_(other.is_chained_function_call_input_),
@@ -160,7 +179,6 @@ InputArgumentType::InputArgumentType(const InputArgumentType& other)
 InputArgumentType& InputArgumentType::operator=(
     const InputArgumentType& other) {
   if (this != &other) {
-    type_ = other.type_;
     category_ = other.category_;
     is_default_argument_value_ = other.is_default_argument_value_;
     is_pipe_input_table_ = other.is_pipe_input_table_;
@@ -272,8 +290,11 @@ std::string InputArgumentType::DebugString(bool verbose) const {
   if (is_chained_function_call_input_) {
     absl::StrAppend(&prefix, "chained_function_call_input ");
   }
-  if (type_ != nullptr) {
-    absl::StrAppend(&prefix, type_->DebugString());
+  if (type() != nullptr) {
+    absl::StrAppend(&prefix, type()->DebugString());
+  }
+  if (annotation_map() != nullptr) {
+    absl::StrAppend(&prefix, " ", annotation_map()->DebugString());
   }
   return prefix;
 }
@@ -356,15 +377,15 @@ InputArgumentType InputArgumentType::GraphInputArgumentType() {
 
 InputArgumentType InputArgumentType::LambdaInputArgumentType() {
   InputArgumentType type;
+  type.EnsureData().annotated_type = AnnotatedType(nullptr);
   type.category_ = kLambda;
-  type.type_ = nullptr;
   return type;
 }
 
 InputArgumentType InputArgumentType::SequenceInputArgumentType() {
   InputArgumentType type;
+  type.EnsureData().annotated_type = AnnotatedType(nullptr);
   type.category_ = kSequence;
-  type.type_ = nullptr;
   return type;
 }
 

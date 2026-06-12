@@ -271,7 +271,7 @@ QueryStmt
             |   |       +-Literal(type=STRING, value="int_a_int_b", has_explicit_type=TRUE)
             |   +-element_column_list=[unpivot_array_0.unpivot_unnest#14]
             +-filter_expr=
-              +-FunctionCall(GoogleSQL:$or(repeated(2) BOOL) -> BOOL)
+              +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
                 +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
                 | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
                 |   +-GetStructField
@@ -493,7 +493,7 @@ QueryStmt
             |   |       +-Literal(type=STRING, value="Label", has_explicit_type=TRUE)
             |   +-element_column_list=[unpivot_array_0.unpivot_unnest#14]
             +-filter_expr=
-              +-FunctionCall(GoogleSQL:$or(repeated(2) BOOL) -> BOOL)
+              +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
                 +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
                 | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
                 |   +-GetStructField
@@ -840,7 +840,7 @@ WITH t AS (
   ) AS s2
 ) SELECT * FROM t UNPIVOT(x FOR y IN(s1,s2));
 --
-ERROR: The datatype of column does not match with other datatypes in the IN clause. Expected STRUCT, Found STRUCT [at 10:41]
+ERROR: The datatype of column does not match other datatypes in the IN clause. Expected STRUCT<a INT64, b INT64>, Found STRUCT<c INT64, d INT64> [at 10:41]
 ) SELECT * FROM t UNPIVOT(x FOR y IN(s1,s2));
                                         ^
 ==
@@ -854,7 +854,7 @@ WITH t AS (
     2 AS INT32) AS s2
 ) SELECT * FROM t UNPIVOT(x FOR y IN(s1,s2));
 --
-ERROR: The datatype of column does not match with other datatypes in the IN clause. Expected INT64, Found INT32 [at 6:41]
+ERROR: The datatype of column does not match other datatypes in the IN clause. Expected INT64, Found INT32 [at 6:41]
 ) SELECT * FROM t UNPIVOT(x FOR y IN(s1,s2));
                                         ^
 ==
@@ -1460,7 +1460,7 @@ QueryStmt
             |   |       +-Literal(type=STRING, value="int_c_int_d", has_explicit_type=TRUE)
             |   +-element_column_list=[unpivot_array_0.unpivot_unnest#12]
             +-filter_expr=
-              +-FunctionCall(GoogleSQL:$or(repeated(2) BOOL) -> BOOL)
+              +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
                 +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
                 | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
                 |   +-GetStructField
@@ -1573,7 +1573,7 @@ QueryStmt
             |   |       +-Literal(type=STRING, value="int_b_string_b", has_explicit_type=TRUE)
             |   +-element_column_list=[unpivot_array_0.unpivot_unnest#12]
             +-filter_expr=
-              +-FunctionCall(GoogleSQL:$or(repeated(2) BOOL) -> BOOL)
+              +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
                 +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
                 | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
                 |   +-GetStructField
@@ -1594,7 +1594,7 @@ QueryStmt
 # clause.
 SELECT * FROM MultipleColumns UNPIVOT(x for y in (int_a, string_a, int_b));
 --
-ERROR: The datatype of column does not match with other datatypes in the IN clause. Expected INT64, Found STRING [at 1:58]
+ERROR: The datatype of column does not match other datatypes in the IN clause. Expected INT64, Found STRING [at 1:58]
 SELECT * FROM MultipleColumns UNPIVOT(x for y in (int_a, string_a, int_b));
                                                          ^
 ==
@@ -1603,7 +1603,7 @@ SELECT * FROM MultipleColumns UNPIVOT(x for y in (int_a, string_a, int_b));
 # columns group in IN clause.
 SELECT * FROM MultipleColumns UNPIVOT((x,y) for z in ((int_a, int_b), (string_a, string_b)));
 --
-ERROR: The datatype of column does not match with other datatypes in the IN clause. Expected INT64, Found STRING [at 1:72]
+ERROR: The datatype of column does not match other datatypes in the IN clause. Expected INT64, Found STRING [at 1:72]
 ...UNPIVOT((x,y) for z in ((int_a, int_b), (string_a, string_b)));
                                             ^
 ==
@@ -1621,7 +1621,7 @@ SELECT * FROM MultipleColumns UNPIVOT((x,y) for z in ((int_a, int_b), (int_c)));
 # are different.
 SELECT * FROM MultipleColumns UNPIVOT(x for z in ((int_a, int_b)));
 --
-ERROR: The number of new columns introduced as value columns must be the same as the number of columns in the column groups of UNPIVOT IN clause [at 1:39]
+ERROR: The number of output value columns does not match the number of columns in each column group of the UNPIVOT IN clause [at 1:39]
 SELECT * FROM MultipleColumns UNPIVOT(x for z in ((int_a, int_b)));
                                       ^
 ==
@@ -2112,7 +2112,7 @@ QueryStmt
             |   |       +-Literal(type=STRING, value="int_a_int_b", has_explicit_type=TRUE)
             |   +-element_column_list=[unpivot_array_0.unpivot_unnest#14]
             +-filter_expr=
-              +-FunctionCall(GoogleSQL:$or(repeated(2) BOOL) -> BOOL)
+              +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
                 +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
                 | +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
                 |   +-GetStructField
@@ -2816,3 +2816,165 @@ UNPIVOT(a for b in (c)) AS x;
 ERROR: UNPIVOT is not allowed with array scans [at 2:1]
 UNPIVOT(a for b in (c)) AS x;
 ^
+
+==
+
+# UNPIVOT with collation on input columns
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTS]
+SELECT * FROM (SELECT string_ci, COLLATE(string_binary, 'und:ci') AS string_binary_ci, struct_with_string_ci, array_with_string_ci FROM CollatedTable)
+UNPIVOT(val FOR k IN (string_ci AS 'ci', string_binary_ci AS 'bin'));
+--
+ERROR: Collation "und:ci" in UNPIVOT IN clause is not supported [at 2:23]
+UNPIVOT(val FOR k IN (string_ci AS 'ci', string_binary_ci AS 'bin'));
+                      ^
+
+==
+
+# UNPIVOT with collation on projected columns
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTS]
+SELECT string_ci FROM CollatedTable
+UNPIVOT(val FOR k IN (string_binary AS 'bin'));
+--
+ERROR: Collation "binary" in UNPIVOT IN clause is not supported [at 2:23]
+UNPIVOT(val FOR k IN (string_binary AS 'bin'));
+                      ^
+
+
+
+
+==
+
+# UNPIVOT with collation on preserved (implicit grouping) columns
+# This test reproduces the behavior mentioned in CL 834 of pivot.test.
+[language_features=MAXIMUM,+COLLATION_SUPPORT]
+[enabled_ast_rewrites=DEFAULTS]
+WITH t AS (
+  SELECT collate('a', 'und:ci') AS A, 1 AS b, 2 AS c
+)
+SELECT *
+FROM t UNPIVOT(val FOR k IN (b, c));
+--
+QueryStmt
++-output_column_list=
+| +-$unpivot.A#9{Collation:"und:ci"} AS A [STRING]
+| +-$unpivot.val#7 AS val [INT64]
+| +-$unpivot.k#8 AS k [STRING]
++-query=
+  +-WithScan
+    +-column_list=$unpivot.[A#9, val#7, k#8]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[A#1, b#2, c#3]
+    |       +-expr_list=
+    |       | +-A#1 :=
+    |       | | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       | |   +-type_annotation_map={Collation:"und:ci"}
+    |       | |   +-Literal(type=STRING, value="a")
+    |       | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       | +-b#2 := Literal(type=INT64, value=1)
+    |       | +-c#3 := Literal(type=INT64, value=2)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=$unpivot.[A#9, val#7, k#8]
+        +-input_scan=
+          +-UnpivotScan
+            +-column_list=$unpivot.[A#9, val#7, k#8]
+            +-input_scan=
+            | +-WithRefScan(column_list=t.[A#4, b#5, c#6], with_query_name="t")
+            +-value_column_list=[$unpivot.val#7]
+            +-label_column=$unpivot.k#8
+            +-label_list=
+            | +-Literal(type=STRING, value="b")
+            | +-Literal(type=STRING, value="c")
+            +-unpivot_arg_list=
+            | +-UnpivotArg
+            | | +-column_list=
+            | |   +-ColumnRef(type=INT64, column=t.b#5)
+            | +-UnpivotArg
+            |   +-column_list=
+            |     +-ColumnRef(type=INT64, column=t.c#6)
+            +-projected_input_column_list=
+            | +-A#9 := ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.A#4{Collation:"und:ci"})
+            +-include_nulls=FALSE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-$unpivot.A#9{Collation:"und:ci"} AS A [STRING]
+| +-$unpivot.val#7 AS val [INT64]
+| +-$unpivot.k#8 AS k [STRING]
++-query=
+  +-WithScan
+    +-column_list=$unpivot.[A#9, val#7, k#8]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[A#1, b#2, c#3]
+    |       +-expr_list=
+    |       | +-A#1 :=
+    |       | | +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       | |   +-type_annotation_map={Collation:"und:ci"}
+    |       | |   +-Literal(type=STRING, value="a")
+    |       | |   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       | +-b#2 := Literal(type=INT64, value=1)
+    |       | +-c#3 := Literal(type=INT64, value=2)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=$unpivot.[A#9, val#7, k#8]
+        +-input_scan=
+          +-ProjectScan
+            +-column_list=$unpivot.[A#9, val#7, k#8]
+            +-expr_list=
+            | +-A#9 := ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=t.A#4{Collation:"und:ci"})
+            | +-val#7 :=
+            | | +-GetStructField
+            | |   +-type=INT64
+            | |   +-expr=
+            | |   | +-ColumnRef(type=STRUCT<val INT64, k STRING>, column=unpivot_array_0.unpivot_unnest#10)
+            | |   +-field_idx=0
+            | +-k#8 :=
+            |   +-GetStructField
+            |     +-type=STRING
+            |     +-expr=
+            |     | +-ColumnRef(type=STRUCT<val INT64, k STRING>, column=unpivot_array_0.unpivot_unnest#10)
+            |     +-field_idx=1
+            +-input_scan=
+              +-FilterScan
+                +-column_list=[t.A#4{Collation:"und:ci"}, t.b#5, t.c#6, unpivot_array_0.unpivot_unnest#10]
+                +-input_scan=
+                | +-ArrayScan
+                |   +-column_list=[t.A#4{Collation:"und:ci"}, t.b#5, t.c#6, unpivot_array_0.unpivot_unnest#10]
+                |   +-input_scan=
+                |   | +-WithRefScan(column_list=t.[A#4, b#5, c#6], with_query_name="t")
+                |   +-array_expr_list=
+                |   | +-FunctionCall(GoogleSQL:$make_array(repeated(2) STRUCT<val INT64, k STRING>) -> ARRAY<STRUCT<val INT64, k STRING>>)
+                |   |   +-MakeStruct
+                |   |   | +-type=STRUCT<val INT64, k STRING>
+                |   |   | +-field_list=
+                |   |   |   +-ColumnRef(type=INT64, column=t.b#5)
+                |   |   |   +-Literal(type=STRING, value="b", has_explicit_type=TRUE)
+                |   |   +-MakeStruct
+                |   |     +-type=STRUCT<val INT64, k STRING>
+                |   |     +-field_list=
+                |   |       +-ColumnRef(type=INT64, column=t.c#6)
+                |   |       +-Literal(type=STRING, value="c", has_explicit_type=TRUE)
+                |   +-element_column_list=[unpivot_array_0.unpivot_unnest#10]
+                +-filter_expr=
+                  +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+                    +-FunctionCall(GoogleSQL:$is_null(INT64) -> BOOL)
+                      +-GetStructField
+                        +-type=INT64
+                        +-expr=
+                        | +-ColumnRef(type=STRUCT<val INT64, k STRING>, column=unpivot_array_0.unpivot_unnest#10)
+                        +-field_idx=0

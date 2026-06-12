@@ -1,7 +1,5 @@
 [default reserve_graph_table]
 [default required_features=SQL_GRAPH,SQL_GRAPH_ADVANCED_QUERY,SQL_GRAPH_EXPOSE_GRAPH_ELEMENT]
-[load_proto_files=googlesql/testdata/test_schema.proto]
-[load_proto_names=googlesql_test.KitchenSinkPB]
 [prepare_database]
 CREATE TABLE person AS
 (SELECT 1 AS id, "name1" AS name) UNION ALL

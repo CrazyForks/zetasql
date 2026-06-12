@@ -13,7 +13,7 @@ ERROR: Pipe TEE not supported [at 2:1]
 # statement kinds are enabled.
 # TODO SQLBuilder doesn't work for pipe TEE yet.
 [default no_run_sqlbuilder]
-[default language_features=NONE,+PIPES,+PIPE_TEE,+PIPE_FORK,+PIPE_IF,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+WITH_ON_SUBQUERY,+PIPE_STATIC_DESCRIBE,+PIPE_LOG,+PIPE_CREATE_TABLE,+PIPE_EXPORT_DATA]
+[default language_features=NONE,+PIPES,+PIPE_TEE,+PIPE_FORK,+PIPE_IF,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+WITH_ON_SUBQUERY,+PIPE_STATIC_DESCRIBE,+PIPE_LOG,+PIPE_CREATE_TABLE,+PIPE_EXPORT_DATA,+PIPE_FINISH]
 [supported_statement_kinds={{QUERY|GENERALIZED_QUERY|QUERY,GENERALIZED_QUERY|INSERT}}]
 FROM KeyValue
 |> TEE ()
@@ -2608,3 +2608,141 @@ MultiStmt
     | +-KeyValue.Value#2 AS Value [STRING]
     +-query=
       +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$tee_cte_1")
+==
+
+# TEE with a FINISH in the TEE.
+FROM KeyValue
+|> TEE (
+   |> WHERE key < 100
+   |> FINISH
+  )
+--
+GeneralizedQueryStmt
++-output_schema=
+| +-OutputSchema
+|   +-output_column_list=
+|     +-KeyValue.Key#1 AS Key [INT64]
+|     +-KeyValue.Value#2 AS Value [STRING]
++-query=
+  +-PipeTeeScan
+    +-column_list=KeyValue.[Key#1, Value#2]
+    +-input_scan=
+    | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+    +-subpipeline_list=
+      +-GeneralizedQuerySubpipeline
+        +-subpipeline=
+          +-Subpipeline
+            +-scan=
+              +-FinishScan
+                +-input_scan=
+                  +-FilterScan
+                    +-column_list=KeyValue.[Key#1, Value#2]
+                    +-input_scan=
+                    | +-SubpipelineInputScan(column_list=KeyValue.[Key#1, Value#2])
+                    +-filter_expr=
+                      +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+                        +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+                        +-Literal(type=INT64, value=100)
+
+
+[REWRITTEN AST]
+MultiStmt
++-statement_list=
+  +-CreateWithEntryStmt
+  | +-with_entry=
+  |   +-WithEntry
+  |     +-with_query_name="$tee_cte_1"
+  |     +-with_subquery=
+  |       +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+  +-TerminalQueryStmt
+  | +-query=
+  |   +-FinishScan
+  |     +-input_scan=
+  |       +-FilterScan
+  |         +-column_list=KeyValue.[Key#1, Value#2]
+  |         +-input_scan=
+  |         | +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$tee_cte_1")
+  |         +-filter_expr=
+  |           +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+  |             +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+  |             +-Literal(type=INT64, value=100)
+  +-QueryStmt
+    +-output_column_list=
+    | +-KeyValue.Key#1 AS Key [INT64]
+    | +-KeyValue.Value#2 AS Value [STRING]
+    +-query=
+      +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$tee_cte_1")
+==
+
+# TEE with a FINISH in the TEE and after the TEE.
+FROM KeyValue
+|> TEE (
+   |> WHERE key < 100
+   |> FINISH
+  )
+|> WHERE value IS NULL
+|> FINISH
+--
+GeneralizedQueryStmt
++-query=
+  +-FinishScan
+    +-input_scan=
+      +-FilterScan
+        +-column_list=KeyValue.[Key#1, Value#2]
+        +-input_scan=
+        | +-PipeTeeScan
+        |   +-column_list=KeyValue.[Key#1, Value#2]
+        |   +-input_scan=
+        |   | +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+        |   +-subpipeline_list=
+        |     +-GeneralizedQuerySubpipeline
+        |       +-subpipeline=
+        |         +-Subpipeline
+        |           +-scan=
+        |             +-FinishScan
+        |               +-input_scan=
+        |                 +-FilterScan
+        |                   +-column_list=KeyValue.[Key#1, Value#2]
+        |                   +-input_scan=
+        |                   | +-SubpipelineInputScan(column_list=KeyValue.[Key#1, Value#2])
+        |                   +-filter_expr=
+        |                     +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+        |                       +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+        |                       +-Literal(type=INT64, value=100)
+        +-filter_expr=
+          +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+            +-ColumnRef(type=STRING, column=KeyValue.Value#2)
+
+
+[REWRITTEN AST]
+MultiStmt
++-statement_list=
+  +-CreateWithEntryStmt
+  | +-with_entry=
+  |   +-WithEntry
+  |     +-with_query_name="$tee_cte_1"
+  |     +-with_subquery=
+  |       +-TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
+  +-TerminalQueryStmt
+  | +-query=
+  |   +-FinishScan
+  |     +-input_scan=
+  |       +-FilterScan
+  |         +-column_list=KeyValue.[Key#1, Value#2]
+  |         +-input_scan=
+  |         | +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$tee_cte_1")
+  |         +-filter_expr=
+  |           +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+  |             +-ColumnRef(type=INT64, column=KeyValue.Key#1)
+  |             +-Literal(type=INT64, value=100)
+  +-TerminalQueryStmt
+    +-query=
+      +-FinishScan
+        +-input_scan=
+          +-FilterScan
+            +-column_list=KeyValue.[Key#1, Value#2]
+            +-input_scan=
+            | +-WithRefScan(column_list=KeyValue.[Key#1, Value#2], with_query_name="$tee_cte_1")
+            +-filter_expr=
+              +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
+                +-ColumnRef(type=STRING, column=KeyValue.Value#2)

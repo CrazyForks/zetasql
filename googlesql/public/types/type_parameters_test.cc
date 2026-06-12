@@ -16,19 +16,31 @@
 
 #include "googlesql/public/types/type_parameters.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "googlesql/public/functions/rounding_mode.pb.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/type_parameters.pb.h"
+#include "googlesql/public/types/annotation.h"
+#include "googlesql/public/types/simple_value.h"
+#include "googlesql/public/types/struct_type.h"
+#include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/testdata/test_schema.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "googlesql/base/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
+
+using ::absl_testing::IsOkAndHolds;
 
 namespace googlesql {
 namespace {
@@ -147,9 +159,14 @@ TEST(TypeParameters, TypeParametersWithSetChildList) {
   child_list.push_back(numeric_child);
 
   EXPECT_TRUE(params.IsEmpty());
+  EXPECT_TRUE(params.IsTopLevelEmpty());
+
   params.set_child_list(child_list);
   EXPECT_FALSE(params.IsEmpty());
   EXPECT_FALSE(params.child_list().empty());
+  // However, the top-level itself is still empty
+  EXPECT_TRUE(params.IsTopLevelEmpty());
+
   EXPECT_EQ(params.num_children(), 3);
   EXPECT_EQ(params.child(1).string_type_parameters().max_length(), 10);
   EXPECT_EQ(params.child(2).numeric_type_parameters().precision(), 10);
@@ -592,6 +609,32 @@ TEST(TypeParameters, MatchTypeParametersNestedStructType) {
 
   EXPECT_TRUE(nested_struct_params.MatchType(nested_struct_type));
   EXPECT_FALSE(nested_struct_params.MatchType(child_struct_type));
+}
+
+static absl::StatusOr<TypeParameters>
+CreateTypeParametersForStructWithTimestampPrecision(int64_t precision) {
+  TimestampTypeParametersProto timestamp_type_parameters_proto;
+  timestamp_type_parameters_proto.set_precision(precision);
+  GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters ts_type_params_precision,
+                   TypeParameters::MakeTimestampTypeParameters(
+                       timestamp_type_parameters_proto));
+  return TypeParameters::MakeTypeParametersWithChildList(
+      {TypeParameters(), std::move(ts_type_params_precision)});
+}
+
+TEST(TypeParametersTest, EqualsWithDefaultTimestampPrecision) {
+  TypeParameters type_parameters1;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(TypeParameters type_parameters2,
+                       CreateTypeParametersForStructWithTimestampPrecision(6));
+
+  EXPECT_FALSE(type_parameters1.Equals(type_parameters2));
+  EXPECT_FALSE(type_parameters1.Equals(
+      type_parameters2, /*default_timestamp_precision=*/std::nullopt));
+
+  EXPECT_TRUE(type_parameters1.Equals(type_parameters2,
+                                      /*default_timestamp_precision=*/6));
+  EXPECT_FALSE(type_parameters1.Equals(type_parameters2,
+                                       /*default_timestamp_precision=*/3));
 }
 
 }  // namespace

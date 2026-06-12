@@ -35,6 +35,7 @@
 #include "googlesql/public/value.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -44,8 +45,8 @@
 #include "absl/strings/substitute.h"
 #include "re2/re2.h"
 // TODO : Remove copybara strip after the bug is fixed.
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 // Format a numeric type value into a string with a format sting.
 // For the spec, see (broken link).

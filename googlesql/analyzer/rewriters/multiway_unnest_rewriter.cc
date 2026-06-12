@@ -46,11 +46,11 @@
 #include "googlesql/base/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -361,7 +361,8 @@ class MultiwayUnnestRewriteVisitor : public ResolvedASTRewriteVisitor {
 
   absl::StatusOr<std::unique_ptr<const ResolvedExpr>> BuildStrictCheckExpr(
       absl::Span<const std::unique_ptr<const ResolvedColumnRef>> array_lens,
-      const ResolvedColumn& mode) {
+      const ResolvedColumn& mode,
+      std::unique_ptr<const ResolvedExpr> array_subquery) {
     // mode = 'STRICT'
     GOOGLESQL_ASSIGN_OR_RETURN(
         std::unique_ptr<const ResolvedExpr> equal,
@@ -389,19 +390,19 @@ class MultiwayUnnestRewriteVisitor : public ResolvedASTRewriteVisitor {
     GOOGLESQL_ASSIGN_OR_RETURN(
         std::unique_ptr<const ResolvedExpr> error,
         fn_builder_.Error(
-            "Unnested arrays under STRICT mode must have equal lengths"));
+            "Unnested arrays under STRICT mode must have equal lengths",
+            array_subquery->type()));
 
     // IF(mode = 'STRICT' AND
     //      LEAST(arr1_len, arr2_len ) !=
     //      GREATEST(arr1_len, arr2_len ),
     //    ERROR('strict'),
-    //    NULL)
+    //    { array_subquery })
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> condition,
                      fn_builder_.And(MakeNodeVector(std::move(equal),
                                                     std::move(not_equal))));
-    return fn_builder_.If(
-        std::move(condition), std::move(error),
-        MakeResolvedLiteral(types::Int64Type(), Value::NullInt64()));
+    return fn_builder_.If(std::move(condition), std::move(error),
+                          std::move(array_subquery));
   }
 
   absl::StatusOr<std::unique_ptr<const ResolvedExpr>> BuildResultLengthEpxr(
@@ -507,14 +508,6 @@ class MultiwayUnnestRewriteVisitor : public ResolvedASTRewriteVisitor {
     assignment_list.push_back(
         MakeResolvedComputedColumn(mode_col, std::move(mode_expr)));
 
-    // `strict_check` expr
-    ResolvedColumn strict_check_col = column_factory_.MakeCol(
-        "$with_expr", "strict_check", types::Int64Type());
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedExpr> strict_check_expr,
-                     BuildStrictCheckExpr(array_lens, mode_col));
-    assignment_list.push_back(MakeResolvedComputedColumn(
-        strict_check_col, std::move(strict_check_expr)));
-
     // `result_len` expr
     ResolvedColumn result_len_col =
         column_factory_.MakeCol("$with_expr", "result_len", types::Int64Type());
@@ -531,10 +524,16 @@ class MultiwayUnnestRewriteVisitor : public ResolvedASTRewriteVisitor {
     const Type* array_type = array_subquery->type();
     const AnnotationMap* array_annotation_map =
         array_subquery->type_annotation_map();
+
+    // `strict_check` expr
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<const ResolvedExpr> strict_check_expr,
+        BuildStrictCheckExpr(array_lens, mode_col, std::move(array_subquery)));
+
     return ResolvedWithExprBuilder()
         .set_type(array_type)
         .set_type_annotation_map(array_annotation_map)
-        .set_expr(std::move(array_subquery))
+        .set_expr(std::move(strict_check_expr))
         .set_assignment_list(std::move(assignment_list))
         .Build();
   }

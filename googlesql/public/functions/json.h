@@ -628,15 +628,26 @@ absl::Status JsonAppendArrayElement(
     const Value& value, const LanguageOptions& language_options,
     bool canonicalize_zero, bool append_each_element = true);
 
+enum class JsonMismatchType {
+  kNone,
+  kObjectFieldMismatch,
+  kArrayIndexMismatch,
+};
+
+// A struct to hold information about failures in JsonSet.
+struct JsonSetFailureDetails {
+  JsonMismatchType mismatch_type = JsonMismatchType::kNone;
+};
+
 // Replaces data in `input` pointed to by `path_iterator` with `value`. If
 // `create_if_missing` is set to true and the path does not exist or points
 // to a JSON 'null' in the `input` it is recursively created. If
 // `create_if_missing` is set to false, set operations for non-existent paths
 // are ignored.
 //
-// If the set operation is invalid, the operation is ignored, and the function
-// does nothing. An operation is invalid if there is a type mismatch between
-// tokens in path and `input`. For example:
+// If the set operation is invalid, and `error_on_type_mismatch` is false, the
+// operation is ignored, and the function does nothing. An operation is invalid
+// if there is a type mismatch between tokens in path and `input`. For example:
 // JsonSet(JSON '{"a": [1]}', "$.a.b", 2, ...)
 // The expected type of subpath "$.a" is an object but JSON token at subpath is
 // an array.
@@ -672,13 +683,20 @@ absl::Status JsonAppendArrayElement(
 //
 // If `canonicalize_zero` is true, the sign on a signed zero is removed when
 // converting a numeric type to JSON.
+//
+// If `error_on_type_mismatch` is true, then invalid operations will return an
+// error instead of doing nothing. This is added due to the inclusion of
+// (broken link). Additional error details can be obtained by
+// providing a pointer to a JsonSetFailureDetails struct.
 // TODO : remove canonicalize_zero flag when all
 // engines have rolled out this new behavior.
 absl::Status JsonSet(JSONValueRef input,
                      json_internal::StrictJSONPathIterator& path_iterator,
                      const Value& value, bool create_if_missing,
                      const LanguageOptions& language_options,
-                     bool canonicalize_zero);
+                     bool canonicalize_zero,
+                     bool error_on_type_mismatch = false,
+                     JsonSetFailureDetails* failure_details = nullptr);
 
 // Cleans up `input` by removing JSON 'null' and optionally empty containers
 // from the JSON subtree pointed to by `path_iterator`.  If `path_iterator`
@@ -854,7 +872,8 @@ absl::StatusOr<JSONValue> JsonQueryLax(
 // Switching the tareget as JSON '[{"a":1},{"b":3}]' will return true.
 //
 // See (broken link) for full details.
-bool JsonContains(JSONValueConstRef input, JSONValueConstRef target);
+bool JsonContains(JSONValueConstRef input, JSONValueConstRef target,
+                  bool compare_numbers_in_decimal = false);
 
 // Options for JsonKeys functions.
 //

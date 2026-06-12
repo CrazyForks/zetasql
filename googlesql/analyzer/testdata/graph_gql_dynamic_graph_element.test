@@ -77,8 +77,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Person AS a_3
   ) AS aml_1;
@@ -89,8 +88,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Person AS a_3
   ) AS aml_1
@@ -190,8 +188,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Entity AS a_3
   ) AS aml_dynamic_1;
@@ -202,8 +199,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Entity AS a_3
   ) AS aml_dynamic_1
@@ -276,8 +272,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Entity AS a_3
   ) AS aml_dynamic_multi_1;
@@ -288,8 +283,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED Entity AS a_3
   ) AS aml_dynamic_multi_1
@@ -387,8 +381,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED DynamicLabelUnknown AS a_3
   ) AS aml_dynamic_1;
@@ -399,8 +392,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED DynamicLabelUnknown AS a_3
   ) AS aml_dynamic_1
@@ -471,8 +463,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED DynamicLabelUnknown AS a_3
   ) AS aml_dynamic_multi_1;
@@ -483,8 +474,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED DynamicLabelUnknown AS a_3
   ) AS aml_dynamic_multi_1
@@ -572,8 +562,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_1;
@@ -584,8 +573,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_1
@@ -665,8 +653,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -677,8 +664,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_multi_1
@@ -766,8 +752,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown & Entity) AS a_3
   ) AS aml_dynamic_1;
@@ -778,8 +763,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown & Entity) AS a_3
   ) AS aml_dynamic_1
@@ -859,8 +843,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown & Entity) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -871,8 +854,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown & Entity) AS a_3
   ) AS aml_dynamic_multi_1
@@ -956,8 +938,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(% | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_1;
@@ -968,8 +949,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(% | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_1
@@ -1049,8 +1029,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(Entity | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_1;
@@ -1061,8 +1040,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(Entity | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_1
@@ -1138,8 +1116,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(% | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -1150,8 +1127,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(% | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_multi_1
@@ -1231,8 +1207,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(Entity | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -1243,8 +1218,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(Entity | DynamicLabelUnknown) AS a_3
   ) AS aml_dynamic_multi_1
@@ -1329,8 +1303,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | %) AS a_3
   ) AS aml_dynamic_1;
@@ -1341,8 +1314,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | %) AS a_3
   ) AS aml_dynamic_1
@@ -1422,8 +1394,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_1;
@@ -1434,8 +1405,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_1
@@ -1511,8 +1481,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | %) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -1523,8 +1492,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | %) AS a_3
   ) AS aml_dynamic_multi_1
@@ -1604,8 +1572,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -1616,8 +1583,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown | Entity) AS a_3
   ) AS aml_dynamic_multi_1
@@ -1714,8 +1680,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)) AS a_3
   ) AS aml_dynamic_1;
@@ -1726,8 +1691,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)) AS a_3
   ) AS aml_dynamic_1
@@ -1816,8 +1780,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -1828,8 +1791,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       a_2 IS LABELED(DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)) AS a_3
   ) AS aml_dynamic_multi_1
@@ -1905,8 +1867,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS ! Dynamic1)
+      (a_2 IS ! Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1;
@@ -1917,8 +1878,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS ! Dynamic1)
+      (a_2 IS ! Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1
@@ -1982,8 +1942,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS ! DynamicGraphNode)
+      (a_2 IS ! DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1;
@@ -1994,8 +1953,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS ! DynamicGraphNode)
+      (a_2 IS ! DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1
@@ -2053,8 +2011,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS Dynamic1)
+      (a_2 IS Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1;
@@ -2065,8 +2022,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS Dynamic1)
+      (a_2 IS Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1
@@ -2126,8 +2082,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicGraphNode)
+      (a_2 IS DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1;
@@ -2138,8 +2093,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicGraphNode)
+      (a_2 IS DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_1
@@ -2201,8 +2155,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! Dynamic1)
+      (a_2 IS ! Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -2213,8 +2166,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! Dynamic1)
+      (a_2 IS ! Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -2276,8 +2228,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! DynamicGraphNode)
+      (a_2 IS ! DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -2288,8 +2239,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! DynamicGraphNode)
+      (a_2 IS ! DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -2347,8 +2297,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS Dynamic1)
+      (a_2 IS Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -2359,8 +2308,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS Dynamic1)
+      (a_2 IS Dynamic1)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -2418,8 +2366,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicGraphNode)
+      (a_2 IS DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -2430,8 +2377,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicGraphNode)
+      (a_2 IS DynamicGraphNode)
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -2525,12 +2471,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1;
@@ -2541,12 +2484,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1
@@ -2635,12 +2575,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1;
@@ -2651,12 +2588,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1
@@ -2739,12 +2673,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1;
@@ -2755,12 +2686,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1
@@ -2845,12 +2773,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1;
@@ -2861,12 +2786,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_1
@@ -2953,12 +2875,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1;
@@ -2969,12 +2888,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1
@@ -3061,12 +2977,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1;
@@ -3077,12 +2990,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS ! DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS ! DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1
@@ -3165,12 +3075,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1;
@@ -3181,12 +3088,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS Dynamic1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS Dynamic1]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1
@@ -3269,12 +3173,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1;
@@ -3285,12 +3186,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicGraphEdge]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicGraphEdge]->
+      (a_4 IS (% | ! %))
     RETURN
       1 AS a_5
   ) AS aml_dynamic_multi_1
@@ -3381,8 +3279,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -3393,8 +3290,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -3477,8 +3373,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -3489,8 +3384,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -3573,8 +3467,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -3585,8 +3478,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -3669,8 +3561,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -3681,8 +3572,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
+      (a_2 IS (DynamicLabelUnknown |(Dynamic1 & ! Dynamic2)))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -3761,8 +3651,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | %))
+      (a_2 IS (DynamicLabelUnknown | %))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -3773,8 +3662,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | %))
+      (a_2 IS (DynamicLabelUnknown | %))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -3848,8 +3736,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | Entity))
+      (a_2 IS (DynamicLabelUnknown | Entity))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -3860,8 +3747,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | Entity))
+      (a_2 IS (DynamicLabelUnknown | Entity))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -3931,8 +3817,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | %))
+      (a_2 IS (DynamicLabelUnknown | %))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -3943,8 +3828,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | %))
+      (a_2 IS (DynamicLabelUnknown | %))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -4018,8 +3902,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | Entity))
+      (a_2 IS (DynamicLabelUnknown | Entity))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -4030,8 +3913,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (DynamicLabelUnknown | Entity))
+      (a_2 IS (DynamicLabelUnknown | Entity))
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -4118,8 +4000,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person
+      (a_2 IS Person
       WHERE
         (a_2.age) = CAST(10 AS UINT32))
     RETURN
@@ -4132,8 +4013,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person
+      (a_2 IS Person
       WHERE
         (a_2.age) = CAST(10 AS UINT32))
     RETURN
@@ -4220,8 +4100,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS Entity
+      (a_2 IS Entity
       WHERE
         (a_2.code) = 10)
     RETURN
@@ -4234,8 +4113,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS Entity
+      (a_2 IS Entity
       WHERE
         (a_2.code) = 10)
     RETURN
@@ -4314,8 +4192,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS Entity
+      (a_2 IS Entity
       WHERE
         (a_2.code) = 10)
     RETURN
@@ -4328,8 +4205,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS Entity
+      (a_2 IS Entity
       WHERE
         (a_2.code) = 10)
     RETURN
@@ -4414,8 +4290,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! DynamicGraphNode { dynamic_property1 : 10 })
+      (a_2 IS ! DynamicGraphNode { dynamic_property1 : 10 })
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -4426,8 +4301,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS ! DynamicGraphNode { dynamic_property1 : 10 })
+      (a_2 IS ! DynamicGraphNode { dynamic_property1 : 10 })
     RETURN
       1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -4506,8 +4380,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4518,8 +4391,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -4589,8 +4461,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4601,8 +4472,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -4672,8 +4542,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4684,8 +4553,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -4755,8 +4623,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4767,8 +4634,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -4838,8 +4704,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4850,8 +4715,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -4921,8 +4785,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -4933,8 +4796,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -5004,8 +4866,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc" })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc" })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -5016,8 +4877,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc" })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc" })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -5087,8 +4947,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5099,8 +4958,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5170,8 +5028,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5182,8 +5039,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5253,8 +5109,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5265,8 +5120,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5336,8 +5190,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5348,8 +5201,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64) })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5419,8 +5271,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5431,8 +5282,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5502,8 +5352,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5514,8 +5363,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5585,8 +5433,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc" })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc" })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -5597,8 +5444,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc" })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc" })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -5669,25 +5515,18 @@ QueryStmt
 [SQLBUILDER_TARGET_SYNTAX_MODE standard]
 [SQLBUILDER_OUTPUT]
 SELECT
-  graphtablescan_5.a_3 AS dynamic_property1,
-  graphtablescan_5.a_4 AS total
+  aml_dynamic_1.a_3 AS dynamic_property1,
+  aml_dynamic_1.a_4 AS total
 FROM
-  (
-    SELECT
-      aml_dynamic_1.a_4 AS a_4,
-      aml_dynamic_1.a_3 AS a_3
-    FROM
-      GRAPH_TABLE(
-        aml_dynamic
-        MATCH
-          (a_2
-          IS DynamicLabel1)
-        RETURN
-          a_2.dynamic_property1 AS a_3,
-          COUNT(*) AS a_4
-        GROUP BY a_3
-      ) AS aml_dynamic_1
-  ) AS graphtablescan_5;
+  GRAPH_TABLE(
+    aml_dynamic
+    MATCH
+      (a_2 IS DynamicLabel1)
+    RETURN
+      a_2.dynamic_property1 AS a_3,
+      COUNT(*) AS a_4
+    GROUP BY a_3
+  ) AS aml_dynamic_1;
 
 [SQLBUILDER_TARGET_SYNTAX_MODE pipe]
 [SQLBUILDER_OUTPUT]
@@ -5695,20 +5534,15 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3,
       COUNT(*) AS a_4
     GROUP BY a_3
   ) AS aml_dynamic_1
 |> SELECT
-     aml_dynamic_1.a_4 AS a_4,
-     aml_dynamic_1.a_3 AS a_3
-|> AS graphtablescan_5
-|> SELECT
-     graphtablescan_5.a_3 AS dynamic_property1,
-     graphtablescan_5.a_4 AS total;
+     aml_dynamic_1.a_3 AS dynamic_property1,
+     aml_dynamic_1.a_4 AS total;
 --
 ALTERNATION GROUPS:
     -[n:DynamicLabel1]->,
@@ -5792,29 +5626,20 @@ QueryStmt
 [SQLBUILDER_TARGET_SYNTAX_MODE standard]
 [SQLBUILDER_OUTPUT]
 SELECT
-  graphtablescan_7.a_5 AS dynamic_property1,
-  graphtablescan_7.a_6 AS total
+  aml_dynamic_1.a_5 AS dynamic_property1,
+  aml_dynamic_1.a_6 AS total
 FROM
-  (
-    SELECT
-      aml_dynamic_1.a_6 AS a_6,
-      aml_dynamic_1.a_5 AS a_5
-    FROM
-      GRAPH_TABLE(
-        aml_dynamic
-        MATCH
-          (a_2
-          IS (% | ! %))
-          -[a_3
-          IS DynamicLabel1]->
-          (a_4
-          IS (% | ! %))
-        RETURN
-          a_3.dynamic_property1 AS a_5,
-          COUNT(*) AS a_6
-        GROUP BY a_5
-      ) AS aml_dynamic_1
-  ) AS graphtablescan_7;
+  GRAPH_TABLE(
+    aml_dynamic
+    MATCH
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
+    RETURN
+      a_3.dynamic_property1 AS a_5,
+      COUNT(*) AS a_6
+    GROUP BY a_5
+  ) AS aml_dynamic_1;
 
 [SQLBUILDER_TARGET_SYNTAX_MODE pipe]
 [SQLBUILDER_OUTPUT]
@@ -5822,24 +5647,17 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicLabel1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
     RETURN
       a_3.dynamic_property1 AS a_5,
       COUNT(*) AS a_6
     GROUP BY a_5
   ) AS aml_dynamic_1
 |> SELECT
-     aml_dynamic_1.a_6 AS a_6,
-     aml_dynamic_1.a_5 AS a_5
-|> AS graphtablescan_7
-|> SELECT
-     graphtablescan_7.a_5 AS dynamic_property1,
-     graphtablescan_7.a_6 AS total;
+     aml_dynamic_1.a_5 AS dynamic_property1,
+     aml_dynamic_1.a_6 AS total;
 ==
 
 # Order by dynamic property. Regression test for b/408015891.
@@ -5922,8 +5740,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
     ORDER BY a_2.dynamic_property1
@@ -5935,8 +5752,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
     ORDER BY a_2.dynamic_property1
@@ -5997,13 +5813,7 @@ QueryStmt
                 |   |   +-input_scan=
                 |   |     +-GraphRefScan(column_list=[$element_table.n#1])
                 |   +-group_by_list=
-                |     +-dynamic_property1#3 :=
-                |       +-GraphGetElementProperty
-                |         +-type=JSON
-                |         +-expr=
-                |         | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.n#1)
-                |         +-property_name=
-                |           +-Literal(type=STRING, value="dynamic_property1", has_explicit_type=TRUE)
+                |     +-dynamic_property1#3 := ColumnRef(type=JSON, column=$pre_groupby.dynamic_property1#2)
                 +-order_by_item_list=
                   +-OrderByItem
                     +-column_ref=
@@ -6017,8 +5827,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN DISTINCT
       a_2.dynamic_property1 AS a_3
     ORDER BY a_3
@@ -6030,8 +5839,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN DISTINCT
       a_2.dynamic_property1 AS a_3
     ORDER BY a_3
@@ -6137,12 +5945,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicLabel1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
     RETURN
       a_3.dynamic_property1 AS a_5
     ORDER BY a_3.dynamic_property1
@@ -6154,12 +5959,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicLabel1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
     RETURN
       a_3.dynamic_property1 AS a_5
     ORDER BY a_3.dynamic_property1
@@ -6245,13 +6047,7 @@ QueryStmt
                 |   |   +-input_scan=
                 |   |     +-GraphRefScan(column_list=$element_table.[$element1#1, n#2, $element2#3])
                 |   +-group_by_list=
-                |     +-dynamic_property1#5 :=
-                |       +-GraphGetElementProperty
-                |         +-type=JSON
-                |         +-expr=
-                |         | +-ColumnRef(type=GRAPH_EDGE(aml_dynamic)<category STRING, dst_id INT64, edgeJsonProp JSON, edgeLabelCol STRING, id INT64, DYNAMIC>, column=$element_table.n#2)
-                |         +-property_name=
-                |           +-Literal(type=STRING, value="dynamic_property1", has_explicit_type=TRUE)
+                |     +-dynamic_property1#5 := ColumnRef(type=JSON, column=$pre_groupby.dynamic_property1#4)
                 +-order_by_item_list=
                   +-OrderByItem
                     +-column_ref=
@@ -6265,12 +6061,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicLabel1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_3.dynamic_property1 AS a_5
     ORDER BY a_5
@@ -6282,12 +6075,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS DynamicLabel1]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS DynamicLabel1]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_3.dynamic_property1 AS a_5
     ORDER BY a_5
@@ -6390,8 +6180,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6402,8 +6191,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6483,8 +6271,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6495,8 +6282,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6576,8 +6362,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6588,8 +6373,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6669,8 +6453,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6681,8 +6464,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6762,8 +6544,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6774,8 +6555,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6855,8 +6635,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6867,8 +6646,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -6948,8 +6726,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1;
@@ -6960,8 +6737,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_1
@@ -7041,8 +6817,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7053,8 +6828,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : 10, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7134,8 +6908,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7146,8 +6919,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_bool, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7227,8 +6999,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7239,8 +7010,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_int32, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7320,8 +7090,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7332,8 +7101,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : CAST(10 AS UINT64), code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7413,8 +7181,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7425,8 +7192,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_float, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7506,8 +7272,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7518,8 +7283,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : @test_param_double, code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7599,8 +7363,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7611,8 +7374,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
+      (a_2 IS DynamicLabel1 { dynamic_property1 : "abc", code : 10 })
     RETURN
       a_2.code AS a_3
   ) AS aml_dynamic_multi_1
@@ -7684,8 +7446,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
   ) AS aml_dynamic_1;
@@ -7696,8 +7457,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
   ) AS aml_dynamic_1
@@ -7761,8 +7521,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
   ) AS aml_dynamic_multi_1;
@@ -7773,8 +7532,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS DynamicLabel1)
+      (a_2 IS DynamicLabel1)
     RETURN
       a_2.dynamic_property1 AS a_3
   ) AS aml_dynamic_multi_1
@@ -7878,8 +7636,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     COLUMNS(
       a_2.age AS a_3,
       a_2.birthday AS a_4,
@@ -7895,8 +7652,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     COLUMNS(
       a_2.age AS a_3,
       a_2.birthday AS a_4,
@@ -8005,8 +7761,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
   ) AS aml_1;
 
 [SQLBUILDER_TARGET_SYNTAX_MODE pipe]
@@ -8015,8 +7770,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
   ) AS aml_1
 |> SELECT
      a_2.age AS age,
@@ -8123,8 +7877,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %) { dynamic_property1 : 10 })
+      (a_2 IS (% | ! %) { dynamic_property1 : 10 })
     RETURN
       LABELS(a_2) AS a_3
   ) AS aml_dynamic_1;
@@ -8135,8 +7888,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %) { dynamic_property1 : 10 })
+      (a_2 IS (% | ! %) { dynamic_property1 : 10 })
     RETURN
       LABELS(a_2) AS a_3
   ) AS aml_dynamic_1
@@ -8206,8 +7958,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %) { dynamic_property1 : 10 })
+      (a_2 IS (% | ! %) { dynamic_property1 : 10 })
     RETURN
       LABELS(a_2) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -8218,8 +7969,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %) { dynamic_property1 : 10 })
+      (a_2 IS (% | ! %) { dynamic_property1 : 10 })
     RETURN
       LABELS(a_2) AS a_3
   ) AS aml_dynamic_multi_1
@@ -8296,8 +8046,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, code) AS a_3
   ) AS aml_dynamic_1;
@@ -8308,8 +8057,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, code) AS a_3
   ) AS aml_dynamic_1
@@ -8375,8 +8123,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, code) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -8387,8 +8134,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, code) AS a_3
   ) AS aml_dynamic_multi_1
@@ -8462,8 +8208,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, dynamic_property1) AS a_3
   ) AS aml_dynamic_1;
@@ -8474,8 +8219,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, dynamic_property1) AS a_3
   ) AS aml_dynamic_1
@@ -8541,8 +8285,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, dynamic_property1) AS a_3
   ) AS aml_dynamic_multi_1;
@@ -8553,8 +8296,7 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
     RETURN
       PROPERTY_EXISTS(a_2, dynamic_property1) AS a_3
   ) AS aml_dynamic_multi_1
@@ -8658,12 +8400,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -8675,12 +8414,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -8785,12 +8521,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -8802,12 +8535,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -8904,12 +8634,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -8921,12 +8648,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       PROPERTY_NAMES(a_2) AS a_5,
       PROPERTY_NAMES(a_3) AS a_6
@@ -9037,12 +8761,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TO_JSON(a_2, stringify_wide_numbers  => false) AS a_5,
       TO_JSON(a_3, stringify_wide_numbers  => false) AS a_6
@@ -9054,12 +8775,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TO_JSON(a_2, stringify_wide_numbers  => false) AS a_5,
       TO_JSON(a_3, stringify_wide_numbers  => false) AS a_6
@@ -9158,12 +8876,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TO_JSON(a_2, stringify_wide_numbers  => false) AS a_5,
       TO_JSON(a_3, stringify_wide_numbers  => false) AS a_6
@@ -9175,12 +8890,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TO_JSON(a_2, stringify_wide_numbers  => false) AS a_5,
       TO_JSON(a_3, stringify_wide_numbers  => false) AS a_6
@@ -9289,12 +9001,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TYPEOF(a_2) AS a_5,
       TYPEOF(a_3) AS a_6
@@ -9306,12 +9015,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TYPEOF(a_2) AS a_5,
       TYPEOF(a_3) AS a_6
@@ -9408,12 +9114,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TYPEOF(a_2) AS a_5,
       TYPEOF(a_3) AS a_6
@@ -9425,12 +9128,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic_multi
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       TYPEOF(a_2) AS a_5,
       TYPEOF(a_3) AS a_6
@@ -9541,12 +9241,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_2.dynamic_property AS a_5
   ) AS aml_dynamic_1;
@@ -9557,12 +9254,9 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_2.dynamic_property AS a_5
   ) AS aml_dynamic_1
@@ -9763,22 +9457,16 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_3
-      IS (% | ! %))
-      -[a_4
-      IS (% | ! %)]->
-      (a_5
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
+      -[a_4 IS (% | ! %)]->
+      (a_5 IS (% | ! %))
     RETURN
       a_4 AS a_2
     UNION ALL
     MATCH
-      (a_6
-      IS (% | ! %))
-      -[a_7
-      IS CONNECTION]->
-      (a_8
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
+      -[a_7 IS CONNECTION]->
+      (a_8 IS (% | ! %))
     RETURN
       a_7 AS a_2
     NEXT
@@ -9793,22 +9481,16 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_3
-      IS (% | ! %))
-      -[a_4
-      IS (% | ! %)]->
-      (a_5
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
+      -[a_4 IS (% | ! %)]->
+      (a_5 IS (% | ! %))
     RETURN
       a_4 AS a_2
     UNION ALL
     MATCH
-      (a_6
-      IS (% | ! %))
-      -[a_7
-      IS CONNECTION]->
-      (a_8
-      IS (% | ! %))
+      (a_6 IS (% | ! %))
+      -[a_7 IS CONNECTION]->
+      (a_8 IS (% | ! %))
     RETURN
       a_7 AS a_2
     NEXT
@@ -9948,14 +9630,12 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_3
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
     RETURN
       a_3 AS a_2
     UNION ALL
     MATCH
-      (a_4
-      IS Entity)
+      (a_4 IS Entity)
     RETURN
       a_4 AS a_2
     NEXT
@@ -9970,14 +9650,12 @@ FROM
   GRAPH_TABLE(
     aml_dynamic
     MATCH
-      (a_3
-      IS (% | ! %))
+      (a_3 IS (% | ! %))
     RETURN
       a_3 AS a_2
     UNION ALL
     MATCH
-      (a_4
-      IS Entity)
+      (a_4 IS Entity)
     RETURN
       a_4 AS a_2
     NEXT

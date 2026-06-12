@@ -45,6 +45,7 @@
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -56,7 +57,6 @@
 #include "single_include/nlohmann/json.hpp"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -596,6 +596,7 @@ std::optional<JSONValueConstRef> JSONValueConstRef::GetMemberIfExists(
 std::vector<std::pair<absl::string_view, JSONValueConstRef>>
 JSONValueConstRef::GetMembers() const {
   std::vector<std::pair<absl::string_view, JSONValueConstRef>> members;
+  members.reserve(impl_->value.size());
   for (auto& member : impl_->value.items()) {
     members.push_back(
         {member.key(),
@@ -619,6 +620,7 @@ JSONValueConstRef JSONValueConstRef::GetArrayElement(size_t index) const {
 
 std::vector<JSONValueConstRef> JSONValueConstRef::GetArrayElements() const {
   std::vector<JSONValueConstRef> elements;
+  elements.reserve(impl_->value.size());
   for (auto& element : impl_->value) {
     elements.emplace_back(
         JSONValueConstRef(reinterpret_cast<const JSONValue::Impl*>(&element)));
@@ -859,59 +861,13 @@ absl::partial_ordering JsonCompareNumber(Int x, double y) {
   Int y_whole_int = static_cast<Int>(y_whole);
   constexpr double kZero = 0.0;
 
-  // When c++20 is available, we can use the following instead:
-  // return std::tie(x, kZero) <=> std::tie(y_whole_int, y_frac);
-  //
-  // C++17 equivalent:
-  if (x < y_whole_int) {
-    return absl::partial_ordering::less;
-  }
-  if (x > y_whole_int) {
-    return absl::partial_ordering::greater;
-  }
-  // At this point, x must be equal to y_whole_int.
-  // Now compare the second elements of the tuple.
-  if (y_frac > kZero) {
-    return absl::partial_ordering::less;
-  }
-  if (y_frac < kZero) {
-    return absl::partial_ordering::greater;
-  }
-  // Both parts are equal.
-  return absl::partial_ordering::equivalent;
+  return std::tie(x, kZero) <=> std::tie(y_whole_int, y_frac);
 }
 
 template <typename Int, typename = std::enable_if_t<std::is_integral_v<Int>>>
 absl::partial_ordering JsonCompareNumber(double x, Int y) {
-  // When c++20 is available, we can use the following instead:
-  // return 0 <=> JsonCompareNumber(y, x);
-  //
   // Reverse the order of the arguments.
-  absl::partial_ordering reversed_result = JsonCompareNumber(y, x);
-  if (reversed_result == absl::partial_ordering::less) {
-    return absl::partial_ordering::greater;
-  } else if (reversed_result == absl::partial_ordering::greater) {
-    return absl::partial_ordering::less;
-  }
-  // equivalent and unordered remain the same
-  return reversed_result;
-}
-
-// TODO: Remove this method and directly use <=> once on C++20.
-template <typename Type>
-absl::partial_ordering spaceship_operator(const Type& x, const Type& y) {
-#if defined(__cpp_impl_three_way_comparison) && \
-    __cpp_impl_three_way_comparison >= 201907L
-  return x <=> y;
-#else
-  if (x < y) {
-    return absl::partial_ordering::less;
-  } else if (x > y) {
-    return absl::partial_ordering::greater;
-  } else {
-    return absl::partial_ordering::equivalent;
-  }
-#endif
+  return 0 <=> JsonCompareNumber(y, x);
 }
 
 absl::partial_ordering CompareNlohmannJSON(const JSON& lhs, const JSON& rhs) {
@@ -942,14 +898,14 @@ absl::partial_ordering CompareNlohmannJSON(const JSON& lhs, const JSON& rhs) {
   auto rhs_type_ord = type_ord(rhs.type());
   if (lhs_type_ord != rhs_type_ord) {
     // Mismatched types are ordered per `type_ord`.
-    return spaceship_operator(lhs_type_ord, rhs_type_ord);
+    return lhs_type_ord <=> rhs_type_ord;
   }
 
   // The nlohmann comparisons are trustworthy for identical scalar types. We
   // will handle mismatched number types below. Since objects and arrays may
   // contain numbers we must also handle them ourselves.
   if (lhs.type() == rhs.type() && !lhs.is_object() && !lhs.is_array()) {
-    return spaceship_operator(lhs, rhs);
+    return lhs <=> rhs;
   }
 
   if (lhs.is_number()) {
@@ -969,14 +925,14 @@ absl::partial_ordering CompareNlohmannJSON(const JSON& lhs, const JSON& rhs) {
         return absl::partial_ordering::less;
       }
       uint64_t rhs_n = rhs.get<uint64_t>();
-      return spaceship_operator<uint64_t>(static_cast<uint64_t>(lhs_n), rhs_n);
+      return static_cast<uint64_t>(lhs_n) <=> rhs_n;
     } else if (lhs.is_number_unsigned() && is_signed_integer(rhs)) {
       int64_t rhs_n = rhs.get<int64_t>();
       if (rhs_n < 0) {
         return absl::partial_ordering::greater;
       }
       uint64_t lhs_n = lhs.get<uint64_t>();
-      return spaceship_operator<uint64_t>(lhs_n, static_cast<uint64_t>(rhs_n));
+      return lhs_n <=> static_cast<uint64_t>(rhs_n);
     }
 
     // Mixed number comparison with a double value.
@@ -1002,92 +958,39 @@ absl::partial_ordering CompareNlohmannJSON(const JSON& lhs, const JSON& rhs) {
     // the order based on the comparison of those two elements (using these
     // JSON comparison rules recursively). If one array's elements form a
     // prefix of the other's, the longer array is considered greater.
-    //
-    // TODO: Replace with std::lexicographical_compare_three_way
-    // once on C++20
     const auto& lhs_arr = lhs.get_ref<const JSON::array_t&>();
     const auto& rhs_arr = rhs.get_ref<const JSON::array_t&>();
-    auto lhs_iter = lhs_arr.begin();
-    auto rhs_iter = rhs_arr.begin();
-    while (lhs_iter != lhs_arr.end() && rhs_iter != rhs_arr.end()) {
-      auto result = CompareNlohmannJSON(*lhs_iter, *rhs_iter);
-      if (result != absl::partial_ordering::equivalent) {
-        return result;
-      }
-      ++lhs_iter;
-      ++rhs_iter;
-    }
-    if (lhs_iter != lhs_arr.end()) {
-      return absl::partial_ordering::greater;
-    }
-    if (rhs_iter != rhs_arr.end()) {
-      return absl::partial_ordering::less;
-    }
-    return absl::partial_ordering::equivalent;
+    return std::lexicographical_compare_three_way(
+        lhs_arr.begin(), lhs_arr.end(), rhs_arr.begin(), rhs_arr.end(),
+        [](const JSON& lhs, const JSON& rhs) {
+          return CompareNlohmannJSON(lhs, rhs);
+        });
   }
   ABSL_DCHECK(lhs.is_object());
   // Compare the members of the two objects in lexicographical key order.
-  //
-  // TODO: Replace with std::lexicographical_compare_three_way
-  // once on C++20
   const auto& lhs_items = lhs.get_ref<const JSON::object_t&>();
   const auto& rhs_items = rhs.get_ref<const JSON::object_t&>();
-  auto lhs_iter = lhs_items.begin();
-  auto rhs_iter = rhs_items.begin();
-  while (lhs_iter != lhs_items.end() && rhs_iter != rhs_items.end()) {
-    auto key_result = spaceship_operator(lhs_iter->first, rhs_iter->first);
-    if (key_result != absl::partial_ordering::equivalent) {
-      return key_result;
-    }
-    auto result = CompareNlohmannJSON(lhs_iter->second, rhs_iter->second);
-    if (result != absl::partial_ordering::equivalent) {
-      return result;
-    }
-    ++lhs_iter;
-    ++rhs_iter;
-  }
-  if (lhs_iter != lhs_items.end()) {
-    return absl::partial_ordering::greater;
-  }
-  if (rhs_iter != rhs_items.end()) {
-    return absl::partial_ordering::less;
-  }
-  return absl::partial_ordering::equivalent;
+  return std::lexicographical_compare_three_way(
+      lhs_items.begin(), lhs_items.end(), rhs_items.begin(), rhs_items.end(),
+      [](const JSON::object_t::value_type& lhs,
+         const JSON::object_t::value_type& rhs) -> absl::partial_ordering {
+        auto key_result = lhs.first <=> rhs.first;
+        if (std::is_neq(key_result)) {
+          return key_result;
+        }
+        return CompareNlohmannJSON(lhs.second, rhs.second);
+      });
 }
 
 }  // namespace
 
-absl::partial_ordering spaceship_operator(JSONValueConstRef lhs,
-                                          JSONValueConstRef rhs) {
+absl::partial_ordering operator<=>(JSONValueConstRef lhs,
+                                   JSONValueConstRef rhs) {
   return CompareNlohmannJSON(lhs.impl_->value, rhs.impl_->value);
 }
 
 bool operator==(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  return spaceship_operator(lhs, rhs) == absl::partial_ordering::equivalent;
-}
-
-bool operator!=(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  return spaceship_operator(lhs, rhs) != absl::partial_ordering::equivalent;
-}
-
-bool operator<(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  return spaceship_operator(lhs, rhs) == absl::partial_ordering::less;
-}
-
-bool operator>(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  return spaceship_operator(lhs, rhs) == absl::partial_ordering::greater;
-}
-
-bool operator<=(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  auto result = spaceship_operator(lhs, rhs);
-  return result == absl::partial_ordering::less ||
-         result == absl::partial_ordering::equivalent;
-}
-
-bool operator>=(JSONValueConstRef lhs, JSONValueConstRef rhs) {
-  auto result = spaceship_operator(lhs, rhs);
-  return result == absl::partial_ordering::greater ||
-         result == absl::partial_ordering::equivalent;
+  return std::is_eq(lhs <=> rhs);
 }
 
 JSONValueRef::JSONValueRef(JSONValue::Impl* impl)
@@ -1110,6 +1013,7 @@ std::optional<JSONValueRef> JSONValueRef::GetMemberIfExists(
 std::vector<std::pair<absl::string_view, JSONValueRef>>
 JSONValueRef::GetMembers() {
   std::vector<std::pair<absl::string_view, JSONValueRef>> members;
+  members.reserve(impl_->value.size());
   for (auto& member : impl_->value.items()) {
     members.push_back(
         {member.key(),
@@ -1131,6 +1035,7 @@ JSONValueRef JSONValueRef::GetArrayElement(size_t index) {
 
 std::vector<JSONValueRef> JSONValueRef::GetArrayElements() {
   std::vector<JSONValueRef> elements;
+  elements.reserve(impl_->value.size());
   for (auto& element : impl_->value) {
     elements.emplace_back(
         JSONValueRef(reinterpret_cast<JSONValue::Impl*>(&element)));

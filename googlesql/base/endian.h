@@ -20,6 +20,7 @@
 
 // The following guarantees declaration of the byte swap functions
 #include <sys/types.h>
+#include "absl/log/log.h"
 #ifdef _MSC_VER
 #include <stdlib.h>  // NOLINT(build/include)
 #elif defined(__APPLE__)

@@ -37,6 +37,7 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -44,7 +45,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -323,7 +323,7 @@ void ExtractArguments(const T& args, const FunctionSignature& signature,
 std::vector<ArgumentInfo> ExtractArgumentInfos(
     const ResolvedFunctionCall& node, const FunctionSignature& signature,
     int num_leading_non_repeated_args,
-    const std::vector<int>& repeated_arg_indices) {
+    absl::Span<const int> repeated_arg_indices) {
   std::vector<ArgumentInfo> arguments;
   bool uses_generic_args = !node.generic_argument_list().empty();
 

@@ -36,12 +36,12 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -52,12 +52,9 @@ class MapFunctionVisitor : public ResolvedASTDeepCopyVisitor {
       : catalog_(unfiltered_catalog),
         type_factory_(type_factory),
         analyzer_options_(analyzer_options) {
-    if (!analyzer_options.language().LanguageFeatureEnabled(
-            FEATURE_DISABLE_VALIDATE_REWRITERS_REFER_TO_BUILTINS)) {
-      builtin_catalog_.emplace("builtin_catalog", unfiltered_catalog);
-      builtin_catalog_->set_allow_types(true);
-      catalog_ = *builtin_catalog_;
-    }
+    builtin_catalog_.emplace("builtin_catalog", unfiltered_catalog);
+    builtin_catalog_->set_allow_types(true);
+    catalog_ = *builtin_catalog_;
   }
 
   absl::Status VisitResolvedFunctionCall(

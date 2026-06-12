@@ -28,6 +28,7 @@
 #include "googlesql/base/logging.h"
 #include "googlesql/common/builtin_function_internal.h"
 #include "googlesql/common/errors.h"
+#include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/catalog.h"
@@ -45,20 +46,21 @@
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/value.h"
 #include "googlesql/base/case.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "googlesql/base/status_builder.h"
 #include "googlesql/base/map_util.h"
-#include "googlesql/base/no_destructor.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -738,7 +740,7 @@ absl::Status CheckExtractPostResolutionArguments(
 
     using DateTimePartSet = absl::flat_hash_set<functions::DateTimestampPart>;
     if (arguments[0].type()->IsDate()) {
-      static googlesql_base::NoDestructor<DateTimePartSet> valid_parts(DateTimePartSet(
+      static absl::NoDestructor<DateTimePartSet> valid_parts(DateTimePartSet(
           {functions::YEAR, functions::ISOYEAR, functions::QUARTER,
            functions::MONTH, functions::WEEK, functions::WEEK_MONDAY,
            functions::WEEK_TUESDAY, functions::WEEK_WEDNESDAY,
@@ -752,7 +754,7 @@ absl::Status CheckExtractPostResolutionArguments(
       }
     }
     if (arguments[0].type()->IsTime()) {
-      static googlesql_base::NoDestructor<DateTimePartSet> valid_parts(
+      static absl::NoDestructor<DateTimePartSet> valid_parts(
           DateTimePartSet({functions::NANOSECOND, functions::MICROSECOND,
                            functions::MILLISECOND, functions::SECOND,
                            functions::MINUTE, functions::HOUR}));
@@ -1001,15 +1003,29 @@ absl::Status CheckIsSupportedKeyType(
   }
 
   // Check the key type for string literals.
+  std::set<std::string> active_key_types = supported_key_types;
+  // TODO: b/513333509 - Add support for FPE_FF1 to all of the keys functions.
+  if (language_options.LanguageFeatureEnabled(FEATURE_FPE_NEW_KEYSET) &&
+      function_name == "KEYS.NEW_KEYSET") {
+    active_key_types.insert("FPE_FF1");
+  }
   const std::string& key_type = argument.literal_value()->string_value();
-  if (!googlesql_base::ContainsKey(supported_key_types, key_type)) {
+  if (function_name == "KEYS.NEW_KEYSET" && arguments.size() == 2) {
+    if (key_type == "AEAD_AES_GCM_256" ||
+        key_type == "DETERMINISTIC_AEAD_AES_SIV_CMAC_256") {
+      return MakeSqlError()
+             << "Metadata argument is not supported for key type '" << key_type
+             << "'";
+    }
+  }
+  if (!googlesql_base::ContainsKey(active_key_types, key_type)) {
     const std::string key_type_list =
-        supported_key_types.size() == 1
-            ? absl::StrCat("'", *supported_key_types.begin(), "'")
+        active_key_types.size() == 1
+            ? absl::StrCat("'", *active_key_types.begin(), "'")
             : absl::StrCat(
                   "one of ",
                   absl::StrJoin(
-                      supported_key_types, ", ",
+                      active_key_types, ", ",
                       [](std::string* out, const absl::string_view key_type) {
                         absl::StrAppend(out, "'", key_type, "'");
                       }));
@@ -1285,8 +1301,11 @@ absl::Status CheckGreatestLeastArguments(
 absl::Status CheckArrayAggArguments(
     const std::vector<InputArgumentType>& arguments,
     const LanguageOptions& language_options) {
+  if (language_options.LanguageFeatureEnabled(FEATURE_ARRAY_OF_ARRAY)) {
+    return absl::OkStatus();
+  }
   int bad_argument_idx;
-  if (!ArgumentsArrayType(arguments, false /* is_array */, &bad_argument_idx)) {
+  if (!ArgumentsArrayType(arguments, /*is_array=*/false, &bad_argument_idx)) {
     return MakeSqlError() << "The argument to ARRAY_AGG must not be an array "
                           << "type but was "
                           << arguments[bad_argument_idx].DebugString();
@@ -1298,7 +1317,7 @@ absl::Status CheckArrayConcatArguments(
     const std::vector<InputArgumentType>& arguments,
     const LanguageOptions& language_options) {
   int bad_argument_idx;
-  if (!ArgumentsArrayType(arguments, true /* is_array */, &bad_argument_idx)) {
+  if (!ArgumentsArrayType(arguments, /*is_array=*/true, &bad_argument_idx)) {
     return MakeSqlError()
            << "The argument to ARRAY_CONCAT (or ARRAY_CONCAT_AGG) "
            << "must be an array type but was "
@@ -1539,9 +1558,7 @@ absl::StatusOr<const Type*> ComputeResultTypeForTopStruct(
   GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeStructType(
       {{"value", arguments[0].type()}, {field2_name, arguments[1].type()}},
       &element_type));
-  const Type* result_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeArrayType(element_type, &result_type));
-  return result_type;
+  return type_factory->MakeArrayType(element_type, analyzer_options.language());
 }
 
 // Compute the result type for ST_NEAREST_NEIGHBORS.
@@ -1558,9 +1575,7 @@ absl::StatusOr<const Type*> ComputeResultTypeForNearestNeighborsStruct(
   GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeStructType(
       {{"neighbor", arguments[0].type()}, {"distance", types::DoubleType()}},
       &element_type));
-  const Type* result_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeArrayType(element_type, &result_type));
-  return result_type;
+  return type_factory->MakeArrayType(element_type, analyzer_options.language());
 }
 
 static bool FunctionIsDisabled(const GoogleSQLBuiltinFunctionOptions& options,

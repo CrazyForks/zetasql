@@ -88,12 +88,14 @@ class SimpleCatalog : public EnumerableCatalog {
 
   std::string FullName() const override { return name_; }
 
+  using Catalog::GetTable;
   absl::Status GetTable(const std::string& name, const Table** table,
-                        const FindOptions& options = FindOptions()) override
+                        const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetModel;
   absl::Status GetModel(const std::string& name, const Model** model,
-                        const FindOptions& options = FindOptions()) override
+                        const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
   absl::Status GetConnection(const std::string& name,
@@ -105,37 +107,39 @@ class SimpleCatalog : public EnumerableCatalog {
                            const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetFunction;
   absl::Status GetFunction(const std::string& name, const Function** function,
-                           const FindOptions& options = FindOptions()) override
+                           const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::Status GetTableValuedFunction(
-      const std::string& name, const TableValuedFunction** function,
-      const FindOptions& options = FindOptions()) override
+  using Catalog::GetTableValuedFunction;
+  absl::Status GetTableValuedFunction(const std::string& name,
+                                      const TableValuedFunction** function,
+                                      const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::Status GetProcedure(
-      const std::string& name, const Procedure** procedure,
-      const FindOptions& options = FindOptions()) override;
+  using Catalog::GetProcedure;
+  absl::Status GetProcedure(const std::string& name,
+                            const Procedure** procedure,
+                            const FindOptions& options) override
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetType;
   absl::Status GetType(const std::string& name, const Type** type,
-                       const FindOptions& options = FindOptions()) override
+                       const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetCatalog;
   absl::Status GetCatalog(const std::string& name, Catalog** catalog,
-                          const FindOptions& options = FindOptions()) override
+                          const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetConstant;
   absl::Status GetConstant(const std::string& name, const Constant** constant,
-                           const FindOptions& options = FindOptions()) override
+                           const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::Status GetPropertyGraph(absl::string_view name,
-                                const PropertyGraph*& property_graph)
-      ABSL_LOCKS_EXCLUDED(mutex_) {
-    return GetPropertyGraph(name, property_graph, FindOptions());
-  }
-
+  using Catalog::GetPropertyGraph;
   absl::Status GetPropertyGraph(absl::string_view name,
                                 const PropertyGraph*& property_graph,
                                 const FindOptions& options) override
@@ -513,10 +517,10 @@ class SimpleCatalog : public EnumerableCatalog {
   // removing built-in functions, engine-defined functions, user-defined
   // functions or some combination. It also doesn't respect its own
   // documentation reguarding which subcatalogs it removes from. Given the
-  // uncertanty around what this function is supposed to do, and a failure to
+  // uncertainty around what this function is supposed to do, and a failure to
   // find callsites that make it clear, this is deprecated in favor of
-  // 'RemoveTableFunctions'.
-  ABSL_DEPRECATED("Use RemoveTableFunctions")
+  // 'RemoveTableValuedFunctions'.
+  ABSL_DEPRECATED("Use RemoveTableValuedFunctions")
   void ClearTableValuedFunctions() ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Deserialize SimpleCatalog from proto. Types will be deserialized using

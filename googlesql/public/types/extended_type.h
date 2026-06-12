@@ -70,10 +70,6 @@ class ExtendedType : public Type {
   // type cast.
   absl::StatusOr<std::string> TypeNameWithModifiers(
       const TypeModifiers& type_modifiers, ProductMode mode) const override;
-
-  std::string CapitalizedName() const override {
-    return ShortTypeName(ProductMode::PRODUCT_EXTERNAL);
-  }
 };
 
 }  // namespace googlesql

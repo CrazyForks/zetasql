@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <functional>
 #include <iterator>
 #include <type_traits>

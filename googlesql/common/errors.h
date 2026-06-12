@@ -70,8 +70,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/status_builder.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace googlesql {
 

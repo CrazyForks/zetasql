@@ -38,6 +38,7 @@
 #include "googlesql/public/uuid_value.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -46,9 +47,9 @@
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
+#include "googlesql/base/status_builder.h"
 #include "google/protobuf/dynamic_message.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 namespace functions {
@@ -279,7 +280,7 @@ void JsonFromString(absl::string_view value, std::string* output) {
 void JsonFromBytes(absl::string_view value, std::string* output,
                    bool quote_output_string) {
   std::string tmp;
-  absl::Base64Escape(value, &tmp);
+  tmp = absl::Base64Escape(value);
   if (quote_output_string) {
     absl::StrAppend(output, "\"", tmp, "\"");
   } else {

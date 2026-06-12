@@ -18,7 +18,7 @@
 package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
 import com.google.googlesql.GoogleSQLOptions.LanguageFeature;
 import com.google.googlesql.GoogleSQLOptions.LanguageVersion;
@@ -91,14 +91,11 @@ public class LanguageOptionsTest {
     options.enableLanguageFeature(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(1);
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS)).isTrue();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isFalse();
+    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_TABLESAMPLE)).isFalse();
 
     Set<LanguageFeature> features = new HashSet<>();
     options.setEnabledLanguageFeatures(features);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(0);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS))
         .isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
@@ -107,10 +104,10 @@ public class LanguageOptionsTest {
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ORDER_BY_COLLATE)).isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_WITH_ON_SUBQUERY)).isFalse();
 
+    // Updating the Set does not affect the language features.
     features.add(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(0);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isFalse();
+
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS))
         .isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
@@ -121,8 +118,6 @@ public class LanguageOptionsTest {
 
     options.setEnabledLanguageFeatures(features);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(1);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS)).isTrue();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
         .isFalse();
@@ -130,34 +125,19 @@ public class LanguageOptionsTest {
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ORDER_BY_COLLATE)).isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_WITH_ON_SUBQUERY)).isFalse();
 
-    features.add(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT);
+    features.add(LanguageFeature.FEATURE_TABLESAMPLE);
     options.setEnabledLanguageFeatures(features);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(2);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isTrue();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS)).isTrue();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
         .isFalse();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_TABLESAMPLE)).isFalse();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ORDER_BY_COLLATE)).isFalse();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_WITH_ON_SUBQUERY)).isFalse();
-
-    features.add(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT);
-    options.setEnabledLanguageFeatures(features);
-    assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(2);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isTrue();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS)).isTrue();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
-        .isFalse();
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_TABLESAMPLE)).isFalse();
+    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_TABLESAMPLE)).isTrue();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ORDER_BY_COLLATE)).isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_WITH_ON_SUBQUERY)).isFalse();
 
     options.disableAllLanguageFeatures();
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isEqualTo(0);
-    assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_DISALLOW_GROUP_BY_FLOAT))
-        .isFalse();
+
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_ANALYTIC_FUNCTIONS))
         .isFalse();
     assertThat(options.languageFeatureEnabled(LanguageFeature.FEATURE_SELECT_STAR_EXCEPT_REPLACE))
@@ -182,11 +162,11 @@ public class LanguageOptionsTest {
     options.setLanguageVersion(LanguageVersion.VERSION_CURRENT);
     assertThat(options.serialize().getEnabledLanguageFeaturesCount()).isGreaterThan(0);
 
-    try {
-      options.setLanguageVersion(LanguageVersion.__LanguageVersion__switch_must_have_a_default__);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            options.setLanguageVersion(
+                LanguageVersion.__LanguageVersion__switch_must_have_a_default__));
   }
 
   @Test

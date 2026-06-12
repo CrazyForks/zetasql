@@ -17,11 +17,11 @@
 #include "googlesql/public/language_options.h"
 
 #include <cstddef>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
@@ -29,14 +29,12 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "re2/re2.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql {
 
 using ::testing::ContainerEq;
-using ::testing::Contains;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
 using ::testing::Not;
@@ -102,7 +100,7 @@ TEST(LanguageOptions, GetLanguageFeaturesForVersion) {
               IsEmpty());
 
   EXPECT_TRUE(LanguageOptions::GetLanguageFeaturesForVersion(VERSION_CURRENT)
-                  .contains(FEATURE_V_1_1_ORDER_BY_COLLATE));
+                  .contains(FEATURE_ORDER_BY_COLLATE));
   EXPECT_FALSE(LanguageOptions::GetLanguageFeaturesForVersion(VERSION_CURRENT)
                    .contains(FEATURE_TABLESAMPLE));
 
@@ -110,9 +108,8 @@ TEST(LanguageOptions, GetLanguageFeaturesForVersion) {
       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_CURRENT);
 
   // Now do some sanity checks on LanguageVersions vs LanguageFeatures.
-  // This is done using the enum names, assuming the existing conventions are
-  // followed.  We check that VERSION_x_y will include all features
-  // FEATURE_V_a_b where (a,b) <= (x,y).
+  // LanguageVersion should include all features under that version, and that
+  // under lesser versions. LanguageVersion emums are ordered.
   for (const LanguageVersion version :
        GetEnumValues<LanguageVersion>(LanguageVersion_descriptor())) {
     if (version == LANGUAGE_VERSION_UNSPECIFIED || version == VERSION_CURRENT ||
@@ -120,22 +117,17 @@ TEST(LanguageOptions, GetLanguageFeaturesForVersion) {
       continue;
     }
 
+    // Make sure LanguageVersion enums match expected format.
     const std::string version_name = LanguageVersion_Name(version);
     EXPECT_EQ("VERSION_", version_name.substr(0, 8));
-    const std::string version_suffix =
-        absl::StrCat(version_name.substr(8), "_");
 
+    // Make sure the result from `GetLanguageFeaturesForVersion(X)` matches the
+    // features with the option `language_version = (<=X)`.
     LanguageOptions::LanguageFeatureSet computed_features;
-    int previous_feature = -1;
     for (int i = 0; i < LanguageFeature_descriptor()->value_count(); ++i) {
       const google::protobuf::EnumValueDescriptor* value_desc =
           LanguageFeature_descriptor()->value(i);
       auto feature = static_cast<LanguageFeature>(value_desc->number());
-      if (feature == previous_feature) {
-        // This is an alias.
-        continue;
-      }
-      previous_feature = feature;
       const LanguageFeatureOptions& options =
           value_desc->options().GetExtension(language_feature_options);
       if (!options.ideally_enabled()) {
@@ -146,7 +138,6 @@ TEST(LanguageOptions, GetLanguageFeaturesForVersion) {
       if (options.in_development()) {
         continue;
       }
-      const std::string feature_name = LanguageFeature_Name(feature);
       if (options.has_language_version() &&
           options.language_version() <= version) {
         computed_features.insert(feature);
@@ -170,160 +161,66 @@ TEST(LanguageOptions, GetLanguageFeaturesForVersion) {
 }
 
 namespace {
-// This test actually overlaps quite a bit with the previous test, but
-// is checking subtally different constraints. In particular, we check in this
-// case that the tag number ranges associated with each version are respected
-// by the features and that each feature in the associated tag range is
-// named and grouped appropriately. The previous test doesn't consider the tag
-// numbers.
 struct VersionDetails {
   LanguageVersion version_num;
-  std::string feature_name_prefix;
-  int tag_lower_bound;  // inclusive
-  int tag_upper_bound;  // exclusive
   absl::flat_hash_set<LanguageFeature> features;
+  std::optional<size_t> expected_num_features;  // Set for frozen versions.
 };
 
 std::vector<VersionDetails> GetKnownVersionDetails() {
   return {
-      {VERSION_1_0, "FEATURE_V_1_0_", 10000, 11000,
-       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_0)},
-      {VERSION_1_1, "FEATURE_V_1_1_", 11000, 12000,
-       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_1)},
-      {VERSION_1_2, "FEATURE_V_1_2_", 12000, 13000,
-       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_2)},
-      {VERSION_1_3, "FEATURE_V_1_3_", 13000, 14000,
-       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_3)},
-      {VERSION_1_4, "FEATURE_V_1_4_", 14000, 15000,
-       LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_4)},
+      {VERSION_1_0, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_0),
+       0},
+      {VERSION_1_1, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_1),
+       11},
+      {VERSION_1_2, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_2),
+       22},
+      {VERSION_1_3, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_3),
+       64},
+      {VERSION_1_4, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_4),
+       148},
+      {VERSION_1_5, LanguageOptions::GetLanguageFeaturesForVersion(VERSION_1_5),
+       std::nullopt},
   };
 }
 }  // namespace
 
-TEST(LanguageOptions, LanguageFeaturesVersionTagRangeIntegrity) {
+TEST(LanguageOptions, LanguageFeaturesKnownVersions) {
+  // Ensure that the number of versions in the LanguageVersion enum matches the
+  // test data from GetKnownVersionDetails().
   std::vector<VersionDetails> known_versions = GetKnownVersionDetails();
-
   int num_versions = LanguageVersion_descriptor()->value_count();
   num_versions--;  // VERSION_CURRENT
   num_versions--;  // LANGUAGE_VERSION_UNSPECIFIED
   num_versions--;  // Do not use this in a switch
   EXPECT_EQ(num_versions, known_versions.size())
       << "Did you add a version and forget to update language_options_test?";
+}
 
-  // Count expected features for EnableMaximumLanguageFeatures[ForDevelopment].
+TEST(LanguageOptions, LanguageFeaturesEnableMax) {
+  // Test that EnableMaximumLanguageFeatures[ForDevelopment] functions enable
+  // the correct number of features.
   int num_max_features = 0;
   int num_max_dev_features = 0;
-
-  absl::flat_hash_set<LanguageFeature> seen_features;
-
   for (int i = 0; i < LanguageFeature_descriptor()->value_count(); ++i) {
     const google::protobuf::EnumValueDescriptor* value_desc =
         LanguageFeature_descriptor()->value(i);
     int tag_number = value_desc->number();
-    absl::string_view name = value_desc->name();
-    LanguageFeature feature = static_cast<LanguageFeature>(tag_number);
-
-    EXPECT_FALSE(seen_features.contains(feature))
-        << "Duplicate tag number " << tag_number << " on feature " << name;
-    seen_features.insert(feature);
-
+    if (static_cast<LanguageFeature>(tag_number) ==
+        __LanguageFeature__switch_must_have_a_default__) {
+      continue;
+    }
     const LanguageFeatureOptions& options =
         value_desc->options().GetExtension(language_feature_options);
     const bool ideally_enabled = options.ideally_enabled();
     const bool in_development = options.in_development();
-
-    if (feature != __LanguageFeature__switch_must_have_a_default__) {
-      if (ideally_enabled) {
-        ++num_max_dev_features;
-        if (!in_development) {
-          ++num_max_features;
-        }
-      }
-
-      EXPECT_THAT(name, StartsWith("FEATURE_"));
-      EXPECT_THAT(name, Not(StartsWith("FEATURE_V_")))
-          << "Primary (non-alias) feature names should not include version "
-             "numbers like FEATURE_V_1_x";
-    }
-
-    bool found_version = false;
-    LanguageVersion found_version_number = VERSION_CURRENT;
-    for (const VersionDetails& version : known_versions) {
-      if (tag_number < version.tag_upper_bound &&
-          tag_number >= version.tag_lower_bound) {
-        EXPECT_TRUE(!found_version);
-        found_version = true;
-        found_version_number = version.version_num;
-        if (ideally_enabled && !in_development) {
-          EXPECT_THAT(version.features, Contains(feature));
-        } else {
-          EXPECT_THAT(version.features, Not(Contains(feature)));
-        }
-        if (options.has_language_version()) {
-          EXPECT_EQ(options.language_version(), version.version_num)
-              << "Bad version_num tag on enum " << name;
-        }
-      } else {
-        if (found_version) {
-          // Two features were in development when V 1.3 was "frozen".
-          // TODO: Remove once features are not in development.
-          bool in_development_exception =
-              tag_number == 13027 || tag_number == 13038 || tag_number == 13021;
-          EXPECT_TRUE(!in_development || in_development_exception) << name;
-        }
-        if (found_version && ideally_enabled && !in_development) {
-          // This feature was in a previous version and should still be
-          // included.
-          EXPECT_THAT(version.features, Contains(feature));
-        } else {
-          EXPECT_THAT(version.features, Not(Contains(feature)));
-        }
-        EXPECT_THAT(name, Not(StartsWith(version.feature_name_prefix)));
-      }
-    }
-    if (options.has_language_version()) {
-      EXPECT_TRUE(found_version) << "Version not found for " << name;
-      EXPECT_EQ(found_version_number, options.language_version());
-    }
-
-    // Check if we have an alias for this feature.
-    // The alias must immediately follow the primary definition for that tag.
-    if (i + 1 < LanguageFeature_descriptor()->value_count()) {
-      const google::protobuf::EnumValueDescriptor* next_value_desc =
-          LanguageFeature_descriptor()->value(i + 1);
-      int next_tag_number = next_value_desc->number();
-      if (next_tag_number == tag_number) {
-        absl::string_view next_name = next_value_desc->name();
-        EXPECT_THAT(next_name, StartsWith("FEATURE_V_"));
-        EXPECT_TRUE(options.has_language_version())
-            << "Only versioned features should have aliases: " << next_name
-            << " wtih tag " << tag_number;
-        std::string modified_name = std::string(next_name);
-        EXPECT_TRUE(RE2::Replace(&modified_name, "_V_1_[0-9]", ""))
-            << "Enum name " << name << " does not have a version number?";
-        EXPECT_EQ(modified_name, name)
-            << "Expected enum alias " << next_name
-            << " to be a versioned alias of enum " << name << " for tag number "
-            << tag_number;
-        EXPECT_FALSE(
-            next_value_desc->options().HasExtension(language_feature_options))
-            << "Alias enum " << next_name << " with tag " << tag_number
-            << " should not have its own options";
-        EXPECT_TRUE(next_value_desc->options().deprecated())
-            << "Alias enum " << next_name << " with tag " << tag_number
-            << " should be marked deprecated";
-        // Tag 14100 was the highest one with version number in the name when
-        // we stopped putting versions in names.
-        EXPECT_LE(tag_number, 14100)
-            << "Newly added LanguageFeature enum " << next_name << " with tag "
-            << tag_number << " should not have a versioned alias";
-
-        // Skip over the alias enum entry since it's already checked.
-        ++i;
+    if (ideally_enabled) {
+      ++num_max_dev_features;
+      if (!in_development) {
+        ++num_max_features;
       }
     }
   }
-
   {
     LanguageOptions options;
     options.EnableMaximumLanguageFeatures();
@@ -337,34 +234,82 @@ TEST(LanguageOptions, LanguageFeaturesVersionTagRangeIntegrity) {
   }
 }
 
+TEST(LanguageOptions, LanguageFeaturesNaming) {
+  for (int i = 0; i < LanguageFeature_descriptor()->value_count(); ++i) {
+    const google::protobuf::EnumValueDescriptor* value_desc =
+        LanguageFeature_descriptor()->value(i);
+    int tag_number = value_desc->number();
+    absl::string_view name = value_desc->name();
+    if (static_cast<LanguageFeature>(tag_number) ==
+        __LanguageFeature__switch_must_have_a_default__) {
+      continue;
+    }
+    EXPECT_THAT(name, StartsWith("FEATURE_"));
+    EXPECT_THAT(name, Not(StartsWith("FEATURE_V_")))
+        << "Feature names should not include version numbers like "
+        << "FEATURE_V_1_x";
+  }
+}
+
+TEST(LanguageOptions, LanguageFeaturesInDevelopmentFrozenVersion) {
+  // Features marked in_development=true cannot have a frozen version.
+  std::vector<VersionDetails> known_versions = GetKnownVersionDetails();
+  LanguageVersion unfrozen_version;
+  for (const VersionDetails& v : GetKnownVersionDetails()) {
+    if (!v.expected_num_features.has_value()) {
+      unfrozen_version = v.version_num;
+    }
+  }
+
+  for (int i = 0; i < LanguageFeature_descriptor()->value_count(); ++i) {
+    const google::protobuf::EnumValueDescriptor* value_desc =
+        LanguageFeature_descriptor()->value(i);
+    int tag_number = value_desc->number();
+    absl::string_view name = value_desc->name();
+    const LanguageFeatureOptions& options =
+        value_desc->options().GetExtension(language_feature_options);
+    const bool in_development = options.in_development();
+
+    if (!options.has_language_version()) {
+      continue;
+    }
+    const LanguageVersion version = options.language_version();
+
+    EXPECT_TRUE(!in_development || version == unfrozen_version ||
+                version <= VERSION_CURRENT)
+        << "Feature " << name << " with tag " << tag_number
+        << " is in_development, and associated with a frozen version. If the "
+        << "feature is intended to be versioned, increment it to the "
+        << "unfrozen version (currently VERSION_1_5).";
+  }
+}
+
 TEST(LanguageOptions, MaximumFeatures) {
   const LanguageOptions options = LanguageOptions::MaximumFeatures();
 
   // Some features that are ideally enabled and released.
   EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ANALYTIC_FUNCTIONS));
   EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_ROLLUP));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_ORDER_BY_COLLATE));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_GROUP_BY_STRUCT));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_GROUP_BY_ARRAY));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ORDER_BY_COLLATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_STRUCT));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_ARRAY));
   EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_SELECT_STAR_EXCEPT_REPLACE));
+      options.LanguageFeatureEnabled(FEATURE_SELECT_STAR_EXCEPT_REPLACE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ORDER_BY_IN_AGGREGATE));
   EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_ORDER_BY_IN_AGGREGATE));
-  EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_CAST_DIFFERENT_ARRAY_TYPES));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_ARRAY_EQUALITY));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_LIMIT_IN_AGGREGATE));
-  EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_HAVING_IN_AGGREGATE));
+      options.LanguageFeatureEnabled(FEATURE_CAST_DIFFERENT_ARRAY_TYPES));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ARRAY_EQUALITY));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_LIMIT_IN_AGGREGATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_HAVING_IN_AGGREGATE));
   EXPECT_TRUE(options.LanguageFeatureEnabled(
-      FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_ANALYTIC));
+      FEATURE_NULL_HANDLING_MODIFIER_IN_ANALYTIC));
   EXPECT_TRUE(options.LanguageFeatureEnabled(
-      FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_AGGREGATE));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_CIVIL_TIME));
+      FEATURE_NULL_HANDLING_MODIFIER_IN_AGGREGATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_CIVIL_TIME));
 
   // Some features that are released but not ideally enabled.
-  EXPECT_FALSE(options.LanguageFeatureEnabled(FEATURE_DISALLOW_GROUP_BY_FLOAT));
-
+  EXPECT_FALSE(
+      options.LanguageFeatureEnabled(FEATURE_DISALLOW_NULL_PRIMARY_KEYS));
   EXPECT_FALSE(options.LanguageFeatureEnabled(FEATURE_TEST_IDEALLY_DISABLED));
 
   // A feature that is ideally enabled but under development.
@@ -386,28 +331,26 @@ TEST(LanguageOptions, EnableMaximumLanguageFeaturesForDevelopment) {
   // Some features that are ideally enabled and released.
   EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ANALYTIC_FUNCTIONS));
   EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_ROLLUP));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_ORDER_BY_COLLATE));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_GROUP_BY_STRUCT));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_GROUP_BY_ARRAY));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ORDER_BY_COLLATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_STRUCT));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_GROUP_BY_ARRAY));
   EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_SELECT_STAR_EXCEPT_REPLACE));
+      options.LanguageFeatureEnabled(FEATURE_SELECT_STAR_EXCEPT_REPLACE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ORDER_BY_IN_AGGREGATE));
   EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_ORDER_BY_IN_AGGREGATE));
-  EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_CAST_DIFFERENT_ARRAY_TYPES));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_ARRAY_EQUALITY));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_1_LIMIT_IN_AGGREGATE));
-  EXPECT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_HAVING_IN_AGGREGATE));
+      options.LanguageFeatureEnabled(FEATURE_CAST_DIFFERENT_ARRAY_TYPES));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_ARRAY_EQUALITY));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_LIMIT_IN_AGGREGATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_HAVING_IN_AGGREGATE));
   EXPECT_TRUE(options.LanguageFeatureEnabled(
-      FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_ANALYTIC));
+      FEATURE_NULL_HANDLING_MODIFIER_IN_ANALYTIC));
   EXPECT_TRUE(options.LanguageFeatureEnabled(
-      FEATURE_V_1_1_NULL_HANDLING_MODIFIER_IN_AGGREGATE));
-  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_V_1_2_CIVIL_TIME));
+      FEATURE_NULL_HANDLING_MODIFIER_IN_AGGREGATE));
+  EXPECT_TRUE(options.LanguageFeatureEnabled(FEATURE_CIVIL_TIME));
 
   // Some features that are released but not ideally enabled.
-  EXPECT_FALSE(options.LanguageFeatureEnabled(FEATURE_DISALLOW_GROUP_BY_FLOAT));
-
+  EXPECT_FALSE(
+      options.LanguageFeatureEnabled(FEATURE_DISALLOW_NULL_PRIMARY_KEYS));
   EXPECT_FALSE(options.LanguageFeatureEnabled(FEATURE_TEST_IDEALLY_DISABLED));
 
   // A feature that is ideally enabled but under development.
@@ -423,6 +366,7 @@ TEST(LanguageOptions, EnableMaximumLanguageFeaturesForDevelopment) {
 }
 
 TEST(LanguageOptions, FeatureSetSubsetting) {
+  // Test that VERSION_x_y is a superset of all features of lower versions.
   std::vector<LanguageOptions::LanguageFeatureSet> feature_sets;
   LanguageOptions opts;
   opts.EnableMaximumLanguageFeaturesForDevelopment();
@@ -450,7 +394,7 @@ TEST(LanguageOptions, Serialization) {
   proto.set_product_mode(PRODUCT_EXTERNAL);
   proto.set_name_resolution_mode(NAME_RESOLUTION_STRICT);
   proto.set_error_on_deprecated_syntax(true);
-  proto.add_enabled_language_features(FEATURE_V_1_1_SELECT_STAR_EXCEPT_REPLACE);
+  proto.add_enabled_language_features(FEATURE_SELECT_STAR_EXCEPT_REPLACE);
   proto.add_enabled_language_features(FEATURE_TABLESAMPLE);
   proto.add_supported_statement_kinds(RESOLVED_EXPLAIN_STMT);
   proto.add_supported_generic_entity_types("NEW_TYPE");
@@ -462,9 +406,9 @@ TEST(LanguageOptions, Serialization) {
   ASSERT_EQ(NAME_RESOLUTION_STRICT, options.name_resolution_mode());
   ASSERT_TRUE(options.error_on_deprecated_syntax());
   ASSERT_TRUE(
-      options.LanguageFeatureEnabled(FEATURE_V_1_1_SELECT_STAR_EXCEPT_REPLACE));
+      options.LanguageFeatureEnabled(FEATURE_SELECT_STAR_EXCEPT_REPLACE));
   ASSERT_TRUE(options.LanguageFeatureEnabled(FEATURE_TABLESAMPLE));
-  ASSERT_FALSE(options.LanguageFeatureEnabled(FEATURE_V_1_1_ORDER_BY_COLLATE));
+  ASSERT_FALSE(options.LanguageFeatureEnabled(FEATURE_ORDER_BY_COLLATE));
   ASSERT_TRUE(options.SupportsStatementKind(RESOLVED_EXPLAIN_STMT));
   ASSERT_FALSE(options.SupportsStatementKind(RESOLVED_QUERY_STMT));
   ASSERT_TRUE(options.GenericEntityTypeSupported("NEW_TYPE"));
@@ -498,7 +442,7 @@ TEST(LanguageOptions, GetEnabledLanguageFeaturesAsString) {
   options.EnableLanguageFeature(FEATURE_ANALYTIC_FUNCTIONS);
   EXPECT_EQ("FEATURE_ANALYTIC_FUNCTIONS, FEATURE_TABLESAMPLE",
             options.GetEnabledLanguageFeaturesAsString());
-  options.EnableLanguageFeature(FEATURE_V_1_2_CIVIL_TIME);
+  options.EnableLanguageFeature(FEATURE_CIVIL_TIME);
   EXPECT_EQ(
       "FEATURE_ANALYTIC_FUNCTIONS, FEATURE_CIVIL_TIME, FEATURE_TABLESAMPLE",
       options.GetEnabledLanguageFeaturesAsString());

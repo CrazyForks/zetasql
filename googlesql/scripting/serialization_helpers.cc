@@ -36,11 +36,11 @@
 #include "googlesql/scripting/script_executor_state.pb.h"
 #include "googlesql/scripting/type_aliases.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

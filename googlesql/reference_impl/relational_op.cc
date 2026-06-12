@@ -31,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/common/graph_element_utils.h"
 #include "googlesql/common/internal_value.h"
 #include "googlesql/common/thread_stack.h"
 #include "googlesql/public/cast.h"
@@ -39,6 +40,7 @@
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/functions/arithmetics.h"
 #include "googlesql/public/functions/array_zip_mode.pb.h"
+#include "googlesql/public/functions/range.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/sql_tvf.h"
@@ -65,6 +67,7 @@
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -73,7 +76,6 @@
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_builder.h"
-#include "googlesql/base/status_macros.h"
 
 using googlesql::values::Bool;
 using googlesql::values::Int64;
@@ -900,11 +902,13 @@ TableValuedFunctionCallExpr::Create(
     std::vector<TvfAlgebraArgument> arguments,
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
-    std::shared_ptr<FunctionSignature> function_call_signature) {
+    std::shared_ptr<FunctionSignature> function_call_signature,
+    std::vector<int> output_column_indices) {
   GOOGLESQL_RET_CHECK(function != nullptr);
   return absl::WrapUnique(new TableValuedFunctionCallExpr(
       std::move(function), std::move(arguments), std::move(output_columns),
-      std::move(variables), std::move(function_call_signature)));
+      std::move(variables), std::move(function_call_signature),
+      std::move(output_column_indices)));
 }
 
 TableValuedFunctionCallExpr::TableValuedFunctionCallExpr(
@@ -912,12 +916,14 @@ TableValuedFunctionCallExpr::TableValuedFunctionCallExpr(
     std::vector<TvfAlgebraArgument> arguments,
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
-    std::shared_ptr<FunctionSignature> function_call_signature)
+    std::shared_ptr<FunctionSignature> function_call_signature,
+    std::vector<int> output_column_indices)
     : function_(std::move(function)),
       arguments_(std::move(arguments)),
       output_columns_(std::move(output_columns)),
       variables_(std::move(variables)),
-      function_call_signature_(std::move(function_call_signature)) {};
+      function_call_signature_(std::move(function_call_signature)),
+      output_column_indices_(std::move(output_column_indices)) {};
 
 absl::Status TableValuedFunctionCallExpr::SetSchemasForEvaluation(
     absl::Span<const TupleSchema* const> params_schemas) {
@@ -981,23 +987,21 @@ TableValuedFunctionCallExpr::CreateIterator(
                                  std::move(function_call_signature_),
                                  child_context.get()));
 
-  // Since there is no algebrizer nodes for `ProjectScan`.
-  // The tvf tuple iterator adapter must ensure that tuple slots match
-  // to correct output columns if `evaluator_table_iterator` produce more output
-  // columns than were selected.
+  // Validate the output column indices before passing them to the
+  // EvaluatorTVFTupleIterator.
+  // The ResolvedTVFScan's column_list can be a subset of the TVF's
+  // output schema (such as the case when column pruning is enabled). We use
+  // `output_column_indices_` (from ResolvedTVFScan's column_index_list) to
+  // specify which columns from the TVF's full output schema are required.  We
+  // assume that the 'evaluator_table_iterator' returns columns in the same
+  // positional order as defined in the TVF's output schema, and that the
+  // ResolvedTVFScan's column_index_list matches with the TVF's output schema.
   std::vector<int64_t> tuple_indexes;
-  for (int i = 0; i < output_columns_.size(); ++i) {
-    int64_t tuple_index = -1;
-    for (int j = 0; j < evaluator_table_iterator->NumColumns(); ++j) {
-      if (output_columns_[i].name ==
-          evaluator_table_iterator->GetColumnName(j)) {
-        tuple_index = j;
-        break;
-      }
-    }
-    GOOGLESQL_RET_CHECK_GE(tuple_index, 0)
-        << " TVF iterator does not produce output column "
-        << output_columns_[i].name;
+  tuple_indexes.reserve(output_column_indices_.size());
+  for (int tuple_index : output_column_indices_) {
+    GOOGLESQL_RET_CHECK_GE(tuple_index, 0);
+    GOOGLESQL_RET_CHECK_LT(tuple_index, evaluator_table_iterator->NumColumns())
+        << " TVF iterator does not produce output column index " << tuple_index;
     tuple_indexes.push_back(tuple_index);
   }
 
@@ -1285,10 +1289,9 @@ absl::Status SortOp::SetSchemasForEvaluation(
   for (KeyArg* key : mutable_keys()) {
     GOOGLESQL_RETURN_IF_ERROR(key->mutable_value_expr()->SetSchemasForEvaluation(
         ConcatSpans(params_schemas, {input_schema.get()})));
-
-    ValueExpr* collation = key->mutable_collation();
-    if (collation != nullptr) {
-      GOOGLESQL_RETURN_IF_ERROR(collation->SetSchemasForEvaluation(params_schemas));
+    if (key->collation_name() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(key->mutable_collation_name()->SetSchemasForEvaluation(
+          params_schemas));
     }
   }
   for (ExprArg* value : mutable_values()) {
@@ -5347,18 +5350,6 @@ absl::StatusOr<std::unique_ptr<TupleIterator>> LoopOp::CreateIterator(
 // -------------------------------------------------------
 // GraphPathOp
 // -------------------------------------------------------
-static bool IsRestrictivePathMode(ResolvedGraphPathMode::PathMode path_mode) {
-  return path_mode == ResolvedGraphPathMode::SIMPLE ||
-         path_mode == ResolvedGraphPathMode::ACYCLIC ||
-         path_mode == ResolvedGraphPathMode::TRAIL;
-}
-
-static bool HasSearchPrefix(
-    ResolvedGraphPathSearchPrefix::PathSearchPrefixType prefix_type) {
-  return prefix_type !=
-         ResolvedGraphPathSearchPrefix::PATH_SEARCH_PREFIX_TYPE_UNSPECIFIED;
-}
-
 absl::StatusOr<std::unique_ptr<GraphPathOp>> GraphPathOp::Create(
     std::vector<GraphPathFactorOpInfo> path_factor_ops, VariableId path,
     const GraphPathType* path_type, VariableId cost, const Type* cost_type,
@@ -6234,7 +6225,7 @@ class GraphPathTupleIterator : public TupleIterator {
   }
 
   absl::StatusOr<PathFactorsWithCost> GetPathFactorsWithCost(
-      const std::vector<FactorAndCost>& factors_with_costs) {
+      absl::Span<const FactorAndCost> factors_with_costs) {
     int64_t len = 0;
     std::optional<Value> total_cost;
     std::vector<Value> path_factors;
@@ -6490,6 +6481,7 @@ absl::StatusOr<std::unique_ptr<TupleIterator>> GraphPathOp::CreateIterator(
 // -------------------------------------------------------
 absl::StatusOr<std::unique_ptr<QuantifiedGraphPathOp>>
 QuantifiedGraphPathOp::Create(
+    std::unique_ptr<RelationalOp> starting_node_op,
     std::unique_ptr<RelationalOp> path_primary_op, VariablesInfo variables,
     std::unique_ptr<ValueExpr> lower_bound,
     std::unique_ptr<ValueExpr> upper_bound, const GraphPathType* path_type,
@@ -6516,18 +6508,20 @@ QuantifiedGraphPathOp::Create(
     GOOGLESQL_RET_CHECK(path_prefix_info->path_count->output_type()->IsInteger());
   }
   return absl::WrapUnique(new QuantifiedGraphPathOp(
-      std::move(path_primary_op), std::move(variables), std::move(lower_bound),
-      std::move(upper_bound), path_type, cost_type,
-      std::move(path_prefix_info)));
+      std::move(starting_node_op), std::move(path_primary_op),
+      std::move(variables), std::move(lower_bound), std::move(upper_bound),
+      path_type, cost_type, std::move(path_prefix_info)));
 }
 
 QuantifiedGraphPathOp::QuantifiedGraphPathOp(
+    std::unique_ptr<RelationalOp> starting_node_op,
     std::unique_ptr<RelationalOp> path_primary_op, VariablesInfo variables,
     std::unique_ptr<ValueExpr> lower_bound,
     std::unique_ptr<ValueExpr> upper_bound, const GraphPathType* path_type,
     const Type* cost_type,
     std::unique_ptr<GraphPathPrefixInfo> path_prefix_info)
-    : path_primary_op_(std::move(path_primary_op)),
+    : starting_node_op_(std::move(starting_node_op)),
+      path_primary_op_(std::move(path_primary_op)),
       path_type_(path_type),
       cost_type_(cost_type),
       path_prefix_info_(std::move(path_prefix_info)),
@@ -6567,7 +6561,13 @@ std::string QuantifiedGraphPathOp::DebugInternal(const std::string& indent,
       "QuantifiedGraphPathOp(", path_mode_str, path_prefix_str, path_count_str,
       path_var_str, indent_input,
       "lower_bound=", lower_bound_->DebugInternal(indent, verbose),
-      upper_bound_str, indent_input, "path_primary_op=",
+      upper_bound_str,
+      starting_node_op_ == nullptr
+          ? ""
+          : absl::StrCat(indent_input, "starting_node_op=",
+                         starting_node_op_->DebugInternal(indent + kIndentSpace,
+                                                          verbose)),
+      indent_input, "path_primary_op=",
       path_primary_op_->DebugInternal(indent + kIndentSpace, verbose), ")");
 }
 
@@ -6579,6 +6579,9 @@ absl::Status QuantifiedGraphPathOp::SetSchemasForEvaluation(
   }
   if (path_count() != nullptr) {
     GOOGLESQL_RETURN_IF_ERROR(path_count()->SetSchemasForEvaluation(params_schemas));
+  }
+  if (starting_node_op_ != nullptr) {
+    GOOGLESQL_RETURN_IF_ERROR(starting_node_op_->SetSchemasForEvaluation(params_schemas));
   }
   GOOGLESQL_RETURN_IF_ERROR(path_primary_op_->SetSchemasForEvaluation(params_schemas));
   return absl::OkStatus();
@@ -6622,16 +6625,19 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
   static absl::StatusOr<std::unique_ptr<TupleIterator>> Create(
       absl::Span<const TupleData* const> params,
       std::unique_ptr<TupleSchema> output_schema, int num_extra_slots,
+      std::unique_ptr<TupleIterator> starting_node_iterator,
       std::unique_ptr<TupleIterator> path_primary_iterator, int64_t lower_bound,
       int64_t upper_bound,
       std::vector<QuantifiedGraphPathOp::GroupVariableInfo> group_variable_info,
       const GraphPathType* path_type, const Type* cost_type,
       GraphPathPrefixEvalContext prefix_context, EvaluationContext* context) {
+    GOOGLESQL_RET_CHECK((lower_bound == 0) == (starting_node_iterator != nullptr))
+        << "starting node iterator is only populated when lower bound is 0.";
     return absl::WrapUnique(new QuantifiedGraphPathTupleIterator(
         params, std::move(output_schema), num_extra_slots,
-        std::move(path_primary_iterator), lower_bound, upper_bound,
-        std::move(group_variable_info), path_type, cost_type,
-        std::move(prefix_context), context));
+        std::move(starting_node_iterator), std::move(path_primary_iterator),
+        lower_bound, upper_bound, std::move(group_variable_info), path_type,
+        cost_type, std::move(prefix_context), context));
   }
 
   // Represents a single hop of `path_primary_iterator` given a starting node.
@@ -6677,30 +6683,27 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
   }
 
   static absl::StatusOr<PathFactorsWithCost> GetPathFactorsWithCost(
-      const PathState& current_path, const OneHopData& next_hop,
-      const std::vector<QuantifiedGraphPathOp::GroupVariableInfo>&
-          group_variable_info,
-      const std::vector<std::vector<Value>>& new_group_variables,
-      std::optional<Value> new_total_cost) {
+      const PathState& current_path,
+      absl::Span<const QuantifiedGraphPathOp::GroupVariableInfo>
+          group_variable_info) {
     int len = 0;
     std::vector<Value> path_factors;
     path_factors.push_back(current_path.head);
-    for (int idx = 0; idx < new_group_variables.size(); ++idx) {
+    for (int idx = 0; idx < current_path.group_variables.size(); ++idx) {
       GOOGLESQL_ASSIGN_OR_RETURN(Value array,
                        Value::MakeArray(group_variable_info[idx].array_type,
-                                        new_group_variables[idx]));
+                                        current_path.group_variables[idx]));
       path_factors.push_back(std::move(array));
 
       const GraphElementType* element_type =
           group_variable_info[idx].array_type->element_type()->AsGraphElement();
       if (element_type->IsEdge()) {
-        len += new_group_variables[idx].size();
+        len += current_path.group_variables[idx].size();
       }
     }
-    path_factors.push_back(next_hop.destination);
-
+    path_factors.push_back(current_path.tail);
     return PathFactorsWithCost{.path_factors = std::move(path_factors),
-                               .total_cost = new_total_cost,
+                               .total_cost = current_path.total_cost,
                                .path_length = Value::Int64(len)};
   }
 
@@ -6731,10 +6734,28 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
       }
       precomputed_paths_single_iteration_[head_value.GetIdentifier()].push_back(
           {tail_value, std::move(group_variables), std::move(cost)});
-      starting_nodes_.insert(head_value);
+      if (lower_bound_ > 0) {
+        // Only if lower_bound_ is larger than 0, we populate starting nodes
+        // directly from the head of the path primary.
+        starting_nodes_.insert(head_value);
+      }
       tuple = path_primary_iterator_->Next();
     }
-    return path_primary_iterator_->Status();
+    GOOGLESQL_RETURN_IF_ERROR(path_primary_iterator_->Status());
+
+    // If lower bound is zero, populate starting nodes from the starting node
+    // iterator.
+    if (lower_bound_ == 0) {
+      // populate starting
+      TupleData* tuple = starting_nodes_iterator_->Next();
+      while (tuple != nullptr) {
+        // starting node iterator populate a single node value.
+        starting_nodes_.insert(tuple->slot(0).value());
+        tuple = starting_nodes_iterator_->Next();
+      }
+      GOOGLESQL_RETURN_IF_ERROR(starting_nodes_iterator_->Status());
+    }
+    return absl::OkStatus();
   }
 
   // Materialize quantified paths by performing a BFS using neighbor info map
@@ -6765,8 +6786,41 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
     // 1. are within the quantified bounds;
     // 2. satisfy path mode or path search prefix constraints.
     while (!queue.empty()) {
+      GOOGLESQL_RETURN_IF_ERROR(
+          PeriodicallyVerifyNotAborted(context_, ++num_steps_computed_));
       PathState current_path = std::move(queue.front());
       queue.pop();
+
+      if (current_path.iteration <= upper_bound_ &&
+          current_path.iteration >= lower_bound_) {
+        GOOGLESQL_ASSIGN_OR_RETURN(
+            PathFactorsWithCost path_factors_with_cost,
+            GetPathFactorsWithCost(current_path, group_variable_info_));
+
+        GOOGLESQL_ASSIGN_OR_RETURN(bool should_keep_path,
+                         ShouldKeepPath(path_factors_with_cost, prefix_context_,
+                                        *path_priority_queue));
+        // If the path violates the path prefix, we disregard it from the
+        // result set and do not need to enqueue it for the next iteration.
+        if (!should_keep_path) {
+          // This means either:
+          // 1) the path we are getting already violates path mode
+          // 2) we already have enough valid paths in the priority queue that is
+          // cheaper (shorter) or equally cheap, so no need to expand the path
+          // from this candidate any more.
+          // Note the assumption here is length or cost of a path is
+          // non-negative.
+          continue;
+        }
+        // Temporarily stores the materialized paths grouped by the values of
+        // the head and tail node pairs.
+        GOOGLESQL_RETURN_IF_ERROR(path_priority_queue->Push(path_factors_with_cost));
+      }
+
+      // Populate next hops when when haven't hit the upper_bound yet.
+      if (current_path.iteration >= upper_bound_) {
+        continue;
+      }
 
       auto it = precomputed_paths_single_iteration_.find(
           current_path.tail.GetIdentifier());
@@ -6791,40 +6845,15 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
                                            next_hop.cost.value()},
                                           cost_type_, context_));
         }
-        int iteration = current_path.iteration + 1;
-        if (iteration <= upper_bound_ && iteration >= lower_bound_) {
-          GOOGLESQL_ASSIGN_OR_RETURN(PathFactorsWithCost path_factors_with_cost,
-                           GetPathFactorsWithCost(
-                               current_path, next_hop, group_variable_info_,
-                               new_group_variables, new_total_cost));
-
-          GOOGLESQL_ASSIGN_OR_RETURN(
-              bool should_keep_path,
-              ShouldKeepPath(path_factors_with_cost, prefix_context_,
-                             *path_priority_queue));
-          // If the path violates the path prefix, we disregard it from the
-          // result set and do not need to enqueue it for the next iteration.
-          if (!should_keep_path) {
-            continue;
-          }
-
-          // Temporarily stores the materialized paths grouped by the values of
-          // the head and tail node pairs.
-          GOOGLESQL_RETURN_IF_ERROR(path_priority_queue->Push(path_factors_with_cost));
+        PathState next_path;
+        next_path.iteration = current_path.iteration + 1;
+        next_path.head = current_path.head;
+        next_path.tail = next_hop.destination;
+        next_path.group_variables = std::move(new_group_variables);
+        if (cost_type_) {
+          next_path.total_cost = new_total_cost.value();
         }
-
-        // If not at the final iteration, queue values for the next iteration.
-        if (iteration < upper_bound_) {
-          PathState next_path;
-          next_path.iteration = iteration;
-          next_path.head = current_path.head;
-          next_path.tail = next_hop.destination;
-          next_path.group_variables = std::move(new_group_variables);
-          if (cost_type_) {
-            next_path.total_cost = new_total_cost.value();
-          }
-          queue.push(std::move(next_path));
-        }
+        queue.push(std::move(next_path));
       }
     }
 
@@ -6899,6 +6928,10 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
         "QuantifiedGraphPathTupleIterator: ", "path_primary iterator: ",
         (path_primary_iterator_ != nullptr
              ? path_primary_iterator_->DebugString()
+             : "nullptr"),
+        " starting nodes iterator: ",
+        (starting_nodes_iterator_ != nullptr
+             ? starting_nodes_iterator_->DebugString()
              : "nullptr"));
   }
 
@@ -6906,6 +6939,7 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
   QuantifiedGraphPathTupleIterator(
       absl::Span<const TupleData* const> params,
       std::unique_ptr<TupleSchema> output_schema, int num_extra_slots,
+      std::unique_ptr<TupleIterator> starting_nodes_iterator,
       std::unique_ptr<TupleIterator> path_primary_iterator, int64_t lower_bound,
       int64_t upper_bound,
       std::vector<QuantifiedGraphPathOp::GroupVariableInfo> group_variable_info,
@@ -6913,6 +6947,7 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
       GraphPathPrefixEvalContext prefix_context, EvaluationContext* context)
       : params_(params.begin(), params.end()),
         output_schema_(std::move(output_schema)),
+        starting_nodes_iterator_(std::move(starting_nodes_iterator)),
         path_primary_iterator_(std::move(path_primary_iterator)),
         lower_bound_(lower_bound),
         upper_bound_(upper_bound),
@@ -6929,8 +6964,10 @@ class QuantifiedGraphPathTupleIterator : public TupleIterator {
   const std::vector<const TupleData*> params_;
   std::unique_ptr<const TupleSchema> output_schema_;
 
+  std::unique_ptr<TupleIterator> starting_nodes_iterator_;
   std::unique_ptr<TupleIterator> path_primary_iterator_;
   int num_results_consumed_ = 0;
+  uint64_t num_steps_computed_ = 0;
 
   TupleData output_tuple_;
 
@@ -7004,12 +7041,7 @@ QuantifiedGraphPathOp::CreateIterator(absl::Span<const TupleData* const> params,
     }
 
     lower_bound_val = bound_slot.value().int64_value();
-    if (lower_bound_val == 0) {
-      // TODO: Add support for 0-th iteration
-      return absl::UnimplementedError(
-          "QuantifiedGraphPathOp for a lower bound of 0 is not yet "
-          "implemented.");
-    } else if (lower_bound_val < 0) {
+    if (lower_bound_val < 0) {
       return absl::Status(absl::StatusCode::kOutOfRange,
                           "Lower bound must be non-negative.");
     }
@@ -7037,12 +7069,19 @@ QuantifiedGraphPathOp::CreateIterator(absl::Span<const TupleData* const> params,
   GOOGLESQL_ASSIGN_OR_RETURN(
       std::unique_ptr<TupleIterator> path_primary_iterator,
       path_primary_op_->CreateIterator(params, /*num_extra_slots=*/0, context));
+  std::unique_ptr<TupleIterator> starting_node_iterator;
+  if (lower_bound_val == 0) {
+    GOOGLESQL_ASSIGN_OR_RETURN(starting_node_iterator,
+                     starting_node_op_->CreateIterator(
+                         params, /*num_extra_slots=*/0, context));
+  }
   GOOGLESQL_ASSIGN_OR_RETURN(
       std::unique_ptr<TupleIterator> quantified_path_iter,
       QuantifiedGraphPathTupleIterator::Create(
           params, CreateOutputSchema(), num_extra_slots,
-          std::move(path_primary_iterator), lower_bound_val, upper_bound_val,
-          variables_.group_variables, path_type_, cost_type_,
+          std::move(starting_node_iterator), std::move(path_primary_iterator),
+          lower_bound_val, upper_bound_val, variables_.group_variables,
+          path_type_, cost_type_,
           GraphPathPrefixEvalContext{
               .path_mode = path_mode(),
               .path_search_prefix_type = path_search_prefix_type(),
@@ -7331,6 +7370,92 @@ const RelationalOp* BarrierScanOp::input() const {
 }
 
 RelationalOp* BarrierScanOp::mutable_input() {
+  return GetMutableArg(kInput)->mutable_node()->AsMutableRelationalOp();
+}
+
+namespace {
+
+// FinishTupleIterator consumes all rows from the input iterator and returns
+// no rows.
+class FinishTupleIterator : public TupleIterator {
+ public:
+  explicit FinishTupleIterator(std::unique_ptr<TupleIterator> input_iterator)
+      : input_iterator_(std::move(input_iterator)), schema_({}) {}
+
+  const TupleSchema& Schema() const override { return schema_; }
+
+  TupleData* Next() override {
+    if (first_call_) {
+      first_call_ = false;
+      while (input_iterator_->Next() != nullptr) {
+      }
+      status_ = input_iterator_->Status();
+    }
+    return nullptr;
+  }
+
+  absl::Status Status() const override { return status_; }
+
+  std::string DebugString() const override {
+    return FinishOp::GetIteratorDebugString(input_iterator_->DebugString());
+  }
+
+ private:
+  std::unique_ptr<TupleIterator> input_iterator_;
+  absl::Status status_;
+  bool first_call_ = true;
+  TupleSchema schema_;
+};
+
+}  // namespace
+
+std::string FinishOp::GetIteratorDebugString(
+    absl::string_view input_iterator_debug_string) {
+  return absl::StrCat("FinishTupleIterator(", input_iterator_debug_string, ")");
+}
+
+absl::StatusOr<std::unique_ptr<FinishOp>> FinishOp::Create(
+    std::unique_ptr<RelationalOp> input) {
+  return absl::WrapUnique(new FinishOp(std::move(input)));
+}
+
+absl::Status FinishOp::SetSchemasForEvaluation(
+    absl::Span<const TupleSchema* const> params_schemas) {
+  GOOGLESQL_RETURN_IF_ERROR(mutable_input()->SetSchemasForEvaluation(params_schemas));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<TupleIterator>> FinishOp::CreateIterator(
+    absl::Span<const TupleData* const> params, int num_extra_slots,
+    EvaluationContext* context) const {
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<TupleIterator> iter,
+                   input()->CreateIterator(params, num_extra_slots, context));
+  return std::make_unique<FinishTupleIterator>(std::move(iter));
+}
+
+std::unique_ptr<TupleSchema> FinishOp::CreateOutputSchema() const {
+  return std::make_unique<TupleSchema>(std::vector<VariableId>{});
+}
+
+std::string FinishOp::DebugInternal(const std::string& indent,
+                                    bool verbose) const {
+  return absl::StrCat("FinishOp(",
+                      ArgDebugString({"input"}, {k1}, indent, verbose), ")");
+}
+
+FinishOp::FinishOp(std::unique_ptr<RelationalOp> input) {
+  SetArg(kInput, std::make_unique<RelationalArg>(std::move(input)));
+}
+
+std::string FinishOp::IteratorDebugString() const {
+  return FinishOp::GetIteratorDebugString(input()->IteratorDebugString());
+}
+
+const RelationalOp* FinishOp::input() const {
+  return GetArg(kInput)->node()->AsRelationalOp();
+}
+
+RelationalOp* FinishOp::mutable_input() {
   return GetMutableArg(kInput)->mutable_node()->AsMutableRelationalOp();
 }
 

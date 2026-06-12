@@ -25,7 +25,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.errorprone.annotations.InlineMe;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.googlesql.FunctionProtos.TVFRelationColumnProto;
 import com.google.googlesql.FunctionProtos.TVFRelationProto;
@@ -188,16 +187,6 @@ public class TableValuedFunction implements Serializable {
     return group.equals(Function.GOOGLESQL_FUNCTION_GROUP_NAME);
   }
 
-  /**
-   * @deprecated Use {@link #getFunctionSignatures()} instead. This function only returns the first
-   *     signature of the TVF.
-   */
-  @InlineMe(replacement = "this.getFunctionSignatures().get(0)")
-  @Deprecated
-  public final FunctionSignature getFunctionSignature() {
-    return getFunctionSignatures().get(0);
-  }
-
   public ImmutableList<FunctionSignature> getFunctionSignatures() {
     return signatures;
   }
@@ -264,31 +253,10 @@ public class TableValuedFunction implements Serializable {
   public static class FixedOutputSchemaTVF extends TableValuedFunction {
     private final TVFRelation outputSchema;
 
-    @InlineMe(
-        replacement = "this(namePath, ImmutableList.of(signature), outputSchema)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public FixedOutputSchemaTVF(
-        ImmutableList<String> namePath, FunctionSignature signature, TVFRelation outputSchema) {
-      this(namePath, ImmutableList.of(signature), outputSchema);
-    }
-
     public FixedOutputSchemaTVF(
         List<String> namePath, List<FunctionSignature> signatures, TVFRelation outputSchema) {
       this(
           namePath, signatures, outputSchema, TableValuedFunctionOptionsProto.getDefaultInstance());
-    }
-
-    @InlineMe(
-        replacement = "this(namePath, ImmutableList.of(signature), outputSchema, options)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public FixedOutputSchemaTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        TVFRelation outputSchema,
-        TableValuedFunctionOptionsProto options) {
-      this(namePath, ImmutableList.of(signature), outputSchema, options);
     }
 
     public FixedOutputSchemaTVF(
@@ -339,15 +307,6 @@ public class TableValuedFunction implements Serializable {
    */
   public static class ForwardInputSchemaToOutputSchemaTVF extends TableValuedFunction {
 
-    @InlineMe(
-        replacement = "this(namePath, ImmutableList.of(signature))",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaTVF(
-        ImmutableList<String> namePath, FunctionSignature signature) {
-      this(namePath, ImmutableList.of(signature));
-    }
-
     public ForwardInputSchemaToOutputSchemaTVF(
         List<String> namePath, List<FunctionSignature> signatures) {
       this(
@@ -358,34 +317,11 @@ public class TableValuedFunction implements Serializable {
           TableValuedFunctionOptionsProto.getDefaultInstance());
     }
 
-    @InlineMe(
-        replacement = "this(namePath, ImmutableList.of(signature), options)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        TableValuedFunctionOptionsProto options) {
-      this(namePath, ImmutableList.of(signature), options);
-    }
-
     public ForwardInputSchemaToOutputSchemaTVF(
         List<String> namePath,
         List<FunctionSignature> signatures,
         TableValuedFunctionOptionsProto options) {
       this(namePath, signatures, /* customContext= */ null, /* volatility= */ null, options);
-    }
-
-    @InlineMe(
-        replacement = "this(namePath, ImmutableList.of(signature), customContext, volatility)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        @Nullable String customContext,
-        @Nullable Volatility volatility) {
-      this(namePath, ImmutableList.of(signature), customContext, volatility);
     }
 
     public ForwardInputSchemaToOutputSchemaTVF(
@@ -399,20 +335,6 @@ public class TableValuedFunction implements Serializable {
           customContext,
           volatility,
           TableValuedFunctionOptionsProto.getDefaultInstance());
-    }
-
-    @InlineMe(
-        replacement =
-            "this(namePath, ImmutableList.of(signature), customContext, volatility, options)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        @Nullable String customContext,
-        @Nullable Volatility volatility,
-        TableValuedFunctionOptionsProto options) {
-      this(namePath, ImmutableList.of(signature), customContext, volatility, options);
     }
 
     public ForwardInputSchemaToOutputSchemaTVF(
@@ -463,7 +385,7 @@ public class TableValuedFunction implements Serializable {
    * defer this work until later when the function is called with concrete argument types.
    */
   // TODO - Support multiple signatures in TemplatedSQLTVFs.
-  public static class TemplatedSQLTVF extends TableValuedFunction {
+  public static final class TemplatedSQLTVF extends TableValuedFunction {
     private final ImmutableList<String> argumentNames;
     private final ParseResumeLocation parseResumeLocation;
 
@@ -539,19 +461,6 @@ public class TableValuedFunction implements Serializable {
    */
   public static class ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF
       extends TableValuedFunction {
-    @InlineMe(
-        replacement =
-            "this(namePath, ImmutableList.of(signature), columns, customContext, volatility)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        ImmutableList<TVFRelation.Column> columns,
-        @Nullable String customContext,
-        @Nullable Volatility volatility) {
-      this(namePath, ImmutableList.of(signature), columns, customContext, volatility);
-    }
 
     public ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
         List<String> namePath,
@@ -566,22 +475,6 @@ public class TableValuedFunction implements Serializable {
           customContext,
           volatility,
           TableValuedFunctionOptionsProto.getDefaultInstance());
-    }
-
-    @InlineMe(
-        replacement =
-            "this(namePath, ImmutableList.of(signature), columns, customContext, volatility,"
-                + " options)",
-        imports = "com.google.common.collect.ImmutableList")
-    @Deprecated
-    public ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
-        ImmutableList<String> namePath,
-        FunctionSignature signature,
-        ImmutableList<TVFRelation.Column> columns,
-        @Nullable String customContext,
-        @Nullable Volatility volatility,
-        TableValuedFunctionOptionsProto options) {
-      this(namePath, ImmutableList.of(signature), columns, customContext, volatility, options);
     }
 
     public ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(

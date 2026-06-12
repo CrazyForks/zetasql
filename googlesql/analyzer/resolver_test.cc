@@ -55,11 +55,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -111,7 +111,8 @@ class ResolverTest : public ::testing::Test {
     sample_catalog_ = std::make_unique<SampleCatalog>(
         analyzer_options_.language(), &type_factory_);
     resolver_ = std::make_unique<Resolver>(sample_catalog_->catalog(),
-                                           &type_factory_, &analyzer_options_);
+                                           &type_factory_, &analyzer_options_,
+                                           analyzer_output_properties_);
     // Initialize the resolver state, which is necessary because the tests do
     // not necessarily call the public methods that call Reset().
     resolver_->Reset("" /* sql */);
@@ -122,8 +123,10 @@ class ResolverTest : public ::testing::Test {
   // Resets 'resolver_' with a new Catalog.  Does not take ownership of
   // 'catalog'.
   void ResetResolver(Catalog* catalog) {
+    analyzer_output_properties_ = AnalyzerOutputProperties();
     resolver_ =
-        std::make_unique<Resolver>(catalog, &type_factory_, &analyzer_options_);
+        std::make_unique<Resolver>(catalog, &type_factory_, &analyzer_options_,
+                                   analyzer_output_properties_);
     resolver_->Reset("" /* sql */);
   }
 
@@ -201,12 +204,13 @@ class ResolverTest : public ::testing::Test {
         << "Query: " << query
         << "\nParsed/Unparsed expression: " << Unparse(parsed_expression);
     if (error_template.empty()) {
-      GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
-          parsed_expression, target_type, mode, &resolved_expression));
+      GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(parsed_expression,
+                                                  target_type, TypeModifiers(),
+                                                  mode, &resolved_expression));
     } else {
-      GOOGLESQL_RETURN_IF_ERROR(
-          resolver_->CoerceExprToType(parsed_expression, target_type, mode,
-                                      error_template, &resolved_expression));
+      GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
+          parsed_expression, target_type, TypeModifiers(), mode, error_template,
+          &resolved_expression));
     }
     return resolved_expression;
   }
@@ -508,6 +512,7 @@ class ResolverTest : public ::testing::Test {
   TypeFactory type_factory_;
   std::unique_ptr<SampleCatalog> sample_catalog_;
   AnalyzerOptions analyzer_options_;
+  AnalyzerOutputProperties analyzer_output_properties_;
   std::unique_ptr<Resolver> resolver_;
   std::unique_ptr<const NameScope> name_scope_;
   // Save the parser output so that memories are not freed when we use them in

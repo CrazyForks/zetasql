@@ -56,12 +56,6 @@ enum class ParserMode {
   // No mode token is returned. Comments are preserved. This is used for
   // formatting.
   kTokenizerPreserveComments,
-
-  // Similar to kTokenizer mode in that its used for raw tokenization of
-  // everything between the macro name and closing semi-colon. This disables
-  // some token disambiguation and error production that occurs in the lexer
-  // that might be wrong to apply to macros before they are expanded.
-  kMacroBody,
 };
 
 // Controls whether and how macros are expanded during parsing.

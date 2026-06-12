@@ -39,11 +39,11 @@
 #include "absl/functional/bind_front.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -156,9 +156,7 @@ static absl::StatusOr<const Type*> ComputeMapEntriesFunctionResultType(
                                GetMapValueType(input_argument.type()))},
       &struct_type));
 
-  const Type* array_type;
-  GOOGLESQL_RET_CHECK_OK(type_factory->MakeArrayType(struct_type, &array_type));
-  return array_type;
+  return type_factory->MakeArrayType(struct_type, analyzer_options.language());
 }
 
 static inline absl::StatusOr<const MapType*> GetMapTypeFromInputArg(

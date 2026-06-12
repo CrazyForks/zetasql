@@ -26,8 +26,9 @@
 #include "absl/base/macros.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "googlesql/base/status_macros.h"
+#include "absl/status/statusor.h"
+#include "googlesql/base/status_builder.h"
 
 namespace googlesql {
 
@@ -263,6 +264,11 @@ class IntervalValue final {
   // Multiply by integer operator
   absl::StatusOr<IntervalValue> operator*(int64_t v) const;
 
+  // Multiply by double operator
+  absl::StatusOr<IntervalValue> operator*(double v) const {
+    return Multiply(v, /*round_to_micros=*/false);
+  }
+
   // Divide by integer operator
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   absl::StatusOr<IntervalValue> operator/(int64_t v) const {
@@ -275,8 +281,13 @@ class IntervalValue final {
     return (*this) * v;
   }
 
+  // Multiply by the given double.
+  // When `round_to_micros` is true, do a rounding towards zero on trailing
+  // nanos precision digits.
+  absl::StatusOr<IntervalValue> Multiply(double v, bool round_to_micros) const;
+
   // Divide by the given integer.
-  // When <round_to_micros> is true, do a rounding towards zero on trailing
+  // When `round_to_micros` is true, do a rounding towards zero on trailing
   // nanos precision digits. When the second argument is not set, its default
   // value is false.
   absl::StatusOr<IntervalValue> Divide(int64_t v, bool round_to_micros) const;

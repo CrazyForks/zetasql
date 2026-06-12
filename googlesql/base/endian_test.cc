@@ -18,7 +18,9 @@
 #include "googlesql/base/endian.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <ios>
 #include <limits>
 #include <random>
 #include <vector>

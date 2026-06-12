@@ -46,10 +46,15 @@ namespace googlesql {
 //
 // 'CREATE TABLE FUNCTION ... AS <sql query>'
 //
+// This class is marked `final` because the behavior of a SQL function is fully
+// determined by its definition (otherwise, inliners wouldn't be consistent or
+// correct). If any virtual functions are added to the superclass, we want to
+// avoid any subclasses potentially changing behaviors.
+//
 // The current implementation only supports a single table function signature.
 // TODO - Extend this implementation to support multiple different
 // signatures (differing number and/or names of arguments).
-class SQLTableValuedFunction : public TableValuedFunction {
+class SQLTableValuedFunction final : public TableValuedFunction {
  public:
   // Creates a SQLTableValuedFunction from the resolved
   // <create_tvf_statement>.  Returns an error if the

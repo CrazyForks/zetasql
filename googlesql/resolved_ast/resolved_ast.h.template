@@ -110,7 +110,9 @@ class {{node.name}} {{node.class_final}} : public {{node.parent}} {
   ~{{node.name}}() {{node.override_or_final}};
 
   absl::Status Accept(ResolvedASTVisitor* visitor) const {{node.override_or_final}};
+  # if node.has_visitable_fields
   absl::Status ChildrenAccept(ResolvedASTVisitor* visitor) const {{node.override_or_final}};
+  # endif
 
 # if not node.is_abstract
   ResolvedNodeKind node_kind() const {{node.override_or_final}} { return {{node.enum_name}}; }
@@ -158,7 +160,7 @@ class {{node.name}} {{node.class_final}} : public {{node.parent}} {
       const {{node.proto_field_type}}& proto,
       const ResolvedNode::RestoreParams& params);
 
-# if node.fields
+# if node.has_node_fields
   void GetChildNodes(
       std::vector<const ResolvedNode*>* child_nodes)
           const {{node.override_or_final}};

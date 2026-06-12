@@ -14,6 +14,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -22,9 +23,14 @@ load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//googlesql/resolved_ast:build_rules.bzl", "gen_resolved_ast_files")
 
-DEFAULT_VISIBILITY = ["//googlesql:googlesql_implementation"]
-
 package(default_visibility = ["//googlesql/base:googlesql_implementation"])
+
+package_group(
+    name = "default_visibility",
+    includes = [
+        "//googlesql:googlesql_implementation",
+    ],
+)
 
 py_binary(
     name = "gen_resolved_ast",
@@ -192,6 +198,10 @@ cc_library(
     ],
 )
 
+# This is the preferred interface for implementing code which rewrites Resolved ASTs. Be sure to
+# read the class comments in `googlesql/resolved_ast/resolved_ast_rewrite_visitor.h.template` for
+# important details on how to use this interface correctly. Reference usages of this interface in
+# `googlesql/analyzer/rewriters/` for examples.
 cc_library(
     name = "resolved_ast_rewrite_visitor",
     srcs = [
@@ -692,21 +702,23 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":column_factory",
+        ":make_node_vector",
         ":resolved_ast",
         ":resolved_ast_builder",
         ":resolved_ast_enums_cc_proto",
         ":resolved_ast_rewrite_visitor",
         "//googlesql/analyzer:annotation_propagator",
         "//googlesql/base:check",
-        "//googlesql/base:logging",
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
+        "//googlesql/common:errors",
         "//googlesql/public:analyzer_options",
         "//googlesql/public:builtin_function_cc_proto",
         "//googlesql/public:catalog",
         "//googlesql/public:coercer",
         "//googlesql/public:function",
         "//googlesql/public:function_cc_proto",
+        "//googlesql/public:interval_value",
         "//googlesql/public:numeric_value",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:type_cc_proto",
@@ -739,12 +751,14 @@ cc_test(
         "//googlesql/base:ret_check",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
-        "//googlesql/public:analyzer",
         "//googlesql/public:analyzer_options",
-        "//googlesql/public:analyzer_output",
+        "//googlesql/public:builtin_function_cc_proto",
         "//googlesql/public:builtin_function_options",
+        "//googlesql/public:function",
         "//googlesql/public:function_headers",
         "//googlesql/public:id_string",
+        "//googlesql/public:interval_value",
+        "//googlesql/public:interval_value_test_util",
         "//googlesql/public:numeric_value",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:simple_catalog",
@@ -754,7 +768,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -769,7 +783,6 @@ cc_test(
         ":resolved_ast_enums_cc_proto",
         ":test_utils",
         ":validator",
-        "//googlesql/base:no_destructor",
         "//googlesql/base:status",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
@@ -779,15 +792,21 @@ cc_test(
         "//googlesql/public:function_cc_proto",
         "//googlesql/public:function_headers",
         "//googlesql/public:id_string",
+        "//googlesql/public:interval_value",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
+        "//googlesql/public:parse_resume_location",
         "//googlesql/public:simple_catalog",
+        "//googlesql/public:templated_sql_function",
+        "//googlesql/public:templated_sql_tvf",
         "//googlesql/public:value",
         "//googlesql/public/types",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
     ],
 )
 

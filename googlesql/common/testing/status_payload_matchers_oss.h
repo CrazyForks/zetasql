@@ -52,12 +52,12 @@
 #include <string>
 #include <type_traits>
 
-#include "google/protobuf/descriptor.h"
 #include "googlesql/common/status_payload_utils.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/testing/status_matchers.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql {
 namespace testing {
@@ -122,9 +122,8 @@ template <typename T>
 using IsMessageType = std::is_base_of<::google::protobuf::Message, T>;
 
 template <typename PayloadProtoType>
-class PayloadMatcher<
-    PayloadProtoType,
-    absl::enable_if_t<IsMessageType<PayloadProtoType>::value>> {
+class PayloadMatcher<PayloadProtoType,
+                     std::enable_if_t<IsMessageType<PayloadProtoType>::value>> {
  public:
   using PayloadProtoMatcher = ::testing::Matcher<PayloadProtoType>;
 

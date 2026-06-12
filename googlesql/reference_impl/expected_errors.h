@@ -30,6 +30,11 @@ namespace googlesql {
 std::unique_ptr<MatcherCollection<absl::Status>>
 ReferenceExpectedErrorMatcher(std::string matcher_name);
 
+// Produces matcher for expected errors that indicate result too large/resource
+// limits in the reference implementation.
+std::unique_ptr<MatcherCollection<absl::Status>>
+ReferenceResultTooLargeErrorMatcher(std::string matcher_name);
+
 }  // namespace googlesql
 
 #endif  // GOOGLESQL_REFERENCE_IMPL_EXPECTED_ERRORS_H_

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 #include "googlesql/base/time_proto_util.h"
+#include <cstdint>
 
 #include "google/protobuf/timestamp.pb.h"
 #include "absl/status/status.h"

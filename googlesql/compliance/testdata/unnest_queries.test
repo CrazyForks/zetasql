@@ -172,7 +172,6 @@ ResolvedNodeKind:Expression:RESOLVED_LITERAL
 ResolvedNodeKind:Scan:RESOLVED_ARRAY_SCAN
 ResolvedNodeKind:Scan:RESOLVED_PROJECT_SCAN
 ResolvedNodeKind:Statement:RESOLVED_QUERY_STMT
-Special:InDevelopment
 Special:LegacyBehavior
 TimeResolution:Any
 TypeKind:TYPE_ARRAY

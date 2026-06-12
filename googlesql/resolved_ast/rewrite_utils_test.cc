@@ -16,6 +16,7 @@
 
 #include "googlesql/resolved_ast/rewrite_utils.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,14 +25,18 @@
 #include "googlesql/base/atomic_sequence_num.h"
 #include "googlesql/base/testing/status_matchers.h"
 #include "googlesql/public/analyzer_options.h"
+#include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/builtin_function_options.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/id_string.h"
+#include "googlesql/public/interval_value.h"
+#include "googlesql/public/interval_value_test_util.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/proto/type_annotation.pb.h"
 #include "googlesql/public/simple_catalog.h"
+#include "googlesql/public/table_valued_function.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/simple_type.h"
 #include "googlesql/public/types/type.h"
@@ -49,6 +54,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 
@@ -70,7 +77,9 @@ TEST(RewriteUtilsTest, CopyAndReplaceColumns) {
   ColumnFactory factory(0, &sequence);
   SimpleTable table("tab", {{"col", types::Int64Type()}});
   std::unique_ptr<ResolvedScan> input = MakeResolvedTableScan(
-      {factory.MakeCol("t", "c", types::Int64Type())}, &table, nullptr);
+      /*column_list=*/{factory.MakeCol("t", "c", types::Int64Type())},
+      /*table=*/&table,
+      /*for_system_time_expr=*/nullptr);
   EXPECT_EQ(input->column_list(0).column_id(), 1);
 
   // Copy 'input' several times. The first time a new column is allocated but
@@ -97,12 +106,117 @@ TEST(RewriteUtilsTest, CopyAndReplaceColumns) {
   }
 }
 
+TEST(RewriteUtilsTest, GetMaxColumnId) {
+  googlesql_base::SequenceNumber sequence;
+  ColumnFactory factory(0, &sequence);
+
+  ResolvedColumn col1 = factory.MakeCol("t", "c1", types::Int64Type());  // id 1
+  ResolvedColumn col2 = factory.MakeCol("t", "c2", types::Int64Type());  // id 2
+
+  auto column_ref1 =
+      MakeResolvedColumnRef(types::Int64Type(), col1, /*is_correlated=*/false);
+  auto column_ref2 =
+      MakeResolvedColumnRef(types::Int64Type(), col2, /*is_correlated=*/false);
+
+  // Scan with col1
+  auto scan = MakeResolvedTableScan({col1}, /*table=*/nullptr,
+                                    /*for_system_time_expr=*/nullptr);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(int max_id, GetMaxColumnId(scan.get()));
+  EXPECT_EQ(max_id, 1);
+
+  // Expression with col1
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(max_id, GetMaxColumnId(column_ref1.get()));
+  EXPECT_EQ(max_id, 1);
+
+  // Expression with col2
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(max_id, GetMaxColumnId(column_ref2.get()));
+  EXPECT_EQ(max_id, 2);
+
+  // Computed column with both
+  auto computed = MakeResolvedComputedColumn(col1, std::move(column_ref2));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(max_id, GetMaxColumnId(computed.get()));
+  EXPECT_EQ(max_id, 2);
+}
+
+TEST(RewriteUtilsTest, ContainsResolvedColumnVisitor) {
+  googlesql_base::SequenceNumber sequence;
+  ColumnFactory factory(0, &sequence);
+  ResolvedColumn col = factory.MakeCol("t", "c", types::Int64Type());
+
+  // Test scan with a ResolvedColumn.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto scan = MakeResolvedTableScan({col}, /*table=*/nullptr,
+                                      /*for_system_time_expr=*/nullptr);
+    GOOGLESQL_ASSERT_OK(scan->Accept(&visitor));
+    EXPECT_TRUE(visitor.ContainsResolvedColumn());
+    EXPECT_FALSE(visitor.ContainsResolvedExpressionColumn());
+  }
+
+  // Test ResolvedColumnRef containing a ResolvedColumn.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto column_ref =
+        MakeResolvedColumnRef(types::Int64Type(), col, /*is_correlated=*/false);
+    GOOGLESQL_ASSERT_OK(column_ref->Accept(&visitor));
+    EXPECT_TRUE(visitor.ContainsResolvedColumn());
+    EXPECT_FALSE(visitor.ContainsResolvedExpressionColumn());
+  }
+
+  // Test literal which has no columns.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto literal = MakeResolvedLiteral(Value::Int64(1));
+    GOOGLESQL_ASSERT_OK(literal->Accept(&visitor));
+    EXPECT_FALSE(visitor.ContainsResolvedColumn());
+    EXPECT_FALSE(visitor.ContainsResolvedExpressionColumn());
+  }
+
+  // Test ResolvedExpressionColumn.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto expr_col = MakeResolvedExpressionColumn(types::Int64Type(), "name");
+    GOOGLESQL_ASSERT_OK(expr_col->Accept(&visitor));
+    EXPECT_FALSE(visitor.ContainsResolvedColumn());
+    EXPECT_TRUE(visitor.ContainsResolvedExpressionColumn());
+  }
+}
+
+TEST(RewriteUtilsTest, ContainsResolvedColumnVisitorVisitAll) {
+  googlesql_base::SequenceNumber sequence;
+  ColumnFactory factory(0, &sequence);
+  ResolvedColumn col = factory.MakeCol("t", "c", types::Int64Type());
+
+  // Test VisitAll with a ResolvedColumn.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto scan = MakeResolvedTableScan({col}, /*table=*/nullptr,
+                                      /*for_system_time_expr=*/nullptr);
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto result, visitor.VisitAll(std::move(scan)));
+    EXPECT_TRUE(visitor.ContainsResolvedColumn());
+    EXPECT_FALSE(visitor.ContainsResolvedExpressionColumn());
+    EXPECT_NE(result, nullptr);
+  }
+
+  // Test VisitAll with a ResolvedExpressionColumn.
+  {
+    ContainsResolvedColumnVisitor visitor;
+    auto expr_col = MakeResolvedExpressionColumn(types::Int64Type(), "name");
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto result, visitor.VisitAll(std::move(expr_col)));
+    EXPECT_FALSE(visitor.ContainsResolvedColumn());
+    EXPECT_TRUE(visitor.ContainsResolvedExpressionColumn());
+    EXPECT_NE(result, nullptr);
+  }
+}
+
 TEST(RewriteUtilsTest, ShallowCopyAndReplaceAllColumns) {
   googlesql_base::SequenceNumber sequence;
   ColumnFactory factory(0, &sequence);
   SimpleTable table("tab", {{"col", types::Int64Type()}});
   std::unique_ptr<const ResolvedTableScan> input = MakeResolvedTableScan(
-      {factory.MakeCol("t", "c", types::Int64Type())}, &table, nullptr);
+      /*column_list=*/{factory.MakeCol("t", "c", types::Int64Type())},
+      /*table=*/&table,
+      /*for_system_time_expr=*/nullptr);
   EXPECT_EQ(input->column_list(0).column_id(), 1);
 
   // Shallow copy `input` several times, feeding the output of each iteration
@@ -122,10 +236,11 @@ TEST(RewriteUtilsTest, ShallowCopyAndReplaceSpecifiedColumns) {
   googlesql_base::SequenceNumber sequence;
   ColumnFactory factory(0, &sequence);
   SimpleTable table("tab", {{"col", types::Int64Type()}});
-  std::unique_ptr<const ResolvedTableScan> input =
-      MakeResolvedTableScan({factory.MakeCol("t", "c1", types::Int64Type()),
-                             factory.MakeCol("t", "c2", types::StringType())},
-                            &table, nullptr);
+  std::unique_ptr<const ResolvedTableScan> input = MakeResolvedTableScan(
+      /*column_list=*/{factory.MakeCol("t", "c1", types::Int64Type()),
+                       factory.MakeCol("t", "c2", types::StringType())},
+      /*table=*/&table,
+      /*for_system_time_expr=*/nullptr);
   EXPECT_EQ(input->column_list(0).column_id(), 1);
 
   // Rewrite `input` several times. When the map is empty, it should be a no-op.
@@ -188,10 +303,10 @@ TEST(RewriteUtilsTest, RemoveUnusedColumnRefs) {
 
   std::unique_ptr<const ResolvedExpr> filter_expr =
       MakeResolvedColumnRef(type, colb, /*is_correlated=*/true);
-  std::unique_ptr<const ResolvedScan> filter_scan =
-      MakeResolvedFilterScan(/*column_list=*/{},
-                             /*input_scan=*/std::move(single_row_scan),
-                             /*filter_expr=*/std::move(filter_expr));
+  std::unique_ptr<const ResolvedScan> filter_scan = MakeResolvedFilterScan(
+      /*column_list=*/{},
+      /*input_scan=*/std::move(single_row_scan),
+      /*filter_expr=*/std::move(filter_expr));
 
   column_refs.emplace_back(
       MakeResolvedColumnRef(type, cola, /*is_correlated=*/true));
@@ -401,6 +516,10 @@ static AnalyzerOptions MakeAnalyzerOptions() {
       LanguageFeature::FEATURE_COLLATION_SUPPORT);
   options.mutable_language()->EnableLanguageFeature(
       LanguageFeature::FEATURE_ANNOTATION_FRAMEWORK);
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_TIME_BUCKET_FUNCTIONS);
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_INTERVAL_TYPE);
   return options;
 }
 
@@ -575,6 +694,19 @@ FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
 )"));
 }
 
+TEST_F(FunctionCallBuilderTest, NullIfErrorTest) {
+  std::unique_ptr<ResolvedExpr> input =
+      MakeResolvedLiteral(types::StringType(), Value::StringValue("test"),
+                          /*has_explicit_type=*/true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<const ResolvedExpr> nulliferror_fn,
+                       fn_builder_.NullIfError(std::move(input)));
+  EXPECT_EQ(nulliferror_fn->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:nulliferror(STRING) -> STRING)
++-Literal(type=STRING, value="test", has_explicit_type=TRUE)
+)"));
+}
+
 TEST_F(FunctionCallBuilderTest, EqualTest) {
   std::unique_ptr<ResolvedExpr> input =
       MakeResolvedLiteral(types::StringType(), Value::StringValue("true"),
@@ -706,8 +838,26 @@ TEST_F(FunctionCallBuilderTest, GreaterOrEqualTypeDoesNotSupportOrdering) {
               StatusIs(absl::StatusCode::kInternal));
 }
 
+TEST_F(FunctionCallBuilderTest, AdditionTestForInt64) {
+  // Test the `$add(INT64, INT64) -> INT64` builtin signature.
+  std::unique_ptr<ResolvedExpr> input1 =
+      MakeResolvedLiteral(types::Int64Type(), Value::Int64(1),
+                          /*has_explicit_type=*/true);
+  std::unique_ptr<ResolvedExpr> input2 =
+      MakeResolvedLiteral(types::Int64Type(), Value::Int64(2),
+                          /*has_explicit_type=*/true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<const ResolvedExpr> function,
+                       fn_builder_.Add(std::move(input1), std::move(input2)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
++-Literal(type=INT64, value=1, has_explicit_type=TRUE)
++-Literal(type=INT64, value=2, has_explicit_type=TRUE)
+)"));
+}
+
 TEST_F(FunctionCallBuilderTest, SubtractionTestForInt64) {
-  // Int64 - Int64 is a built-in signature type in the `SimpleCatalog`.
+  // Test the `$subtract(INT64, INT64) -> INT64` builtin signature.
   std::unique_ptr<ResolvedExpr> input1 =
       MakeResolvedLiteral(types::Int64Type(), Value::Int64(1),
                           /*has_explicit_type=*/true);
@@ -1639,9 +1789,12 @@ TEST_F(FunctionCallBuilderTest, CountDistinctGetProtoTest) {
   auto field_descriptor =
       ResolvedColumnProto::descriptor()->FindFieldByName("column_id");
   auto column = MakeResolvedGetProtoField(
-      types::Int64Type(), std::move(column_ref), field_descriptor,
-      googlesql::Value(),
-      /*get_has_bit=*/false, FieldFormat::DEFAULT_FORMAT,
+      /*type=*/types::Int64Type(),
+      /*expr=*/std::move(column_ref),
+      /*field_descriptor=*/field_descriptor,
+      /*default_value=*/googlesql::Value(),
+      /*get_has_bit=*/false,
+      /*format=*/FieldFormat::DEFAULT_FORMAT,
       /*return_default_value_when_unset=*/false);
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<const ResolvedExpr> function,
@@ -1745,6 +1898,59 @@ FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
 )"));
 }
 
+TEST_F(FunctionCallBuilderTest, InArray) {
+  const ArrayType* array_of_strings;
+  GOOGLESQL_ASSERT_OK(
+      type_factory_.MakeArrayType(types::StringType(), &array_of_strings));
+  auto array = MakeResolvedColumnRef(array_of_strings, ResolvedColumn(), false);
+  auto search = MakeResolvedLiteral(Value::String("search"));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> function,
+      fn_builder_.InArray(std::move(search), std::move(array)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:$in_array(STRING, ARRAY<STRING>) -> BOOL)
++-Literal(type=STRING, value="search")
++-ColumnRef(type=ARRAY<STRING>, column=.#-1)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, ArrayIncludesAll) {
+  const ArrayType* array_of_strings;
+  GOOGLESQL_ASSERT_OK(
+      type_factory_.MakeArrayType(types::StringType(), &array_of_strings));
+  auto array = MakeResolvedColumnRef(array_of_strings, ResolvedColumn(), false);
+  auto search = MakeResolvedLiteral(array_of_strings,
+                                    googlesql::values::StringArray({"search"}));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> function,
+      fn_builder_.ArrayIncludesAll(std::move(array), std::move(search)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:array_includes_all(ARRAY<STRING> array_to_search, ARRAY<STRING> search_values) -> BOOL)
++-ColumnRef(type=ARRAY<STRING>, column=.#-1)
++-Literal(type=ARRAY<STRING>, value=["search"])
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, ArrayIncludesAny) {
+  const ArrayType* array_of_strings;
+  GOOGLESQL_ASSERT_OK(
+      type_factory_.MakeArrayType(types::StringType(), &array_of_strings));
+  auto array = MakeResolvedColumnRef(array_of_strings, ResolvedColumn(), false);
+  auto search = MakeResolvedLiteral(array_of_strings,
+                                    googlesql::values::StringArray({"search"}));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> function,
+      fn_builder_.ArrayIncludesAny(std::move(array), std::move(search)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:array_includes_any(ARRAY<STRING> array_to_search, ARRAY<STRING> search_values) -> BOOL)
++-ColumnRef(type=ARRAY<STRING>, column=.#-1)
++-Literal(type=ARRAY<STRING>, value=["search"])
+)"));
+}
+
 TEST_F(FunctionCallBuilderTest, ArrayToString) {
   const ArrayType* array_of_strings;
   GOOGLESQL_ASSERT_OK(
@@ -1759,6 +1965,21 @@ TEST_F(FunctionCallBuilderTest, ArrayToString) {
 FunctionCall(GoogleSQL:array_to_string(ARRAY<STRING>, STRING) -> STRING)
 +-ColumnRef(type=ARRAY<STRING>, column=.#-1)
 +-Literal(type=STRING, value="delimiter")
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, RegexpContainsString) {
+  auto value =
+      MakeResolvedColumnRef(types::StringType(), ResolvedColumn(), false);
+  auto regexp = MakeResolvedLiteral(Value::String("regexp"));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> function,
+      fn_builder_.RegexpContainsString(std::move(value), std::move(regexp)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:regexp_contains(STRING, STRING) -> BOOL)
++-ColumnRef(type=STRING, column=.#-1)
++-Literal(type=STRING, value="regexp")
 )"));
 }
 
@@ -2105,6 +2326,240 @@ FunctionCall(GoogleSQL:hll_count.extract(INT64) -> INT64)
 )"));
 }
 
+TEST_F(FunctionCallBuilderTest, TimestampBucketTestTwoArgs) {
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(MakeResolvedLiteral(
+      types::TimestampType(),
+      Value::Timestamp(
+          absl::FromUnixSeconds(1728864000)),  // 2024-10-14 00:00:00 UTC
+      /*has_explicit_type=*/true));
+  args.push_back(MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(interval_testing::Hours(1)),
+      /*has_explicit_type=*/true));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<const ResolvedExpr> function,
+                       fn_builder_.TimestampBucket(std::move(args)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL) -> TIMESTAMP)
++-Literal(type=TIMESTAMP, value=2024-10-14 00:00:00+00, has_explicit_type=TRUE)
++-Literal(type=INTERVAL, value=0-0 0 1:0:0, has_explicit_type=TRUE)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, TimestampBucketTestThreeArgs) {
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(MakeResolvedLiteral(
+      types::TimestampType(),
+      Value::Timestamp(
+          absl::FromUnixSeconds(1728864000)),  // 2024-10-14 00:00:00 UTC
+      /*has_explicit_type=*/true));
+  args.push_back(MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(interval_testing::Hours(1)),
+      /*has_explicit_type=*/true));
+  args.push_back(
+      MakeResolvedLiteral(types::TimestampType(),
+                          Value::Timestamp(absl::FromUnixSeconds(0)),  // Epoch
+                          /*has_explicit_type=*/true));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<const ResolvedExpr> function,
+                       fn_builder_.TimestampBucket(std::move(args)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
++-Literal(type=TIMESTAMP, value=2024-10-14 00:00:00+00, has_explicit_type=TRUE)
++-Literal(type=INTERVAL, value=0-0 0 1:0:0, has_explicit_type=TRUE)
++-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00, has_explicit_type=TRUE)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, TimestampBucketTestWrongArgCount) {
+  std::vector<std::unique_ptr<const ResolvedExpr>> args;
+  args.push_back(
+      MakeResolvedLiteral(types::TimestampType(),
+                          Value::Timestamp(absl::FromUnixSeconds(1728864000)),
+                          /*has_explicit_type=*/true));
+
+  EXPECT_THAT(
+      fn_builder_.TimestampBucket(std::move(args)),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("arguments.size() == 2 || arguments.size() == 3")));
+}
+
+TEST_F(FunctionCallBuilderTest, ExtractFromIntervalTest) {
+  std::unique_ptr<const ResolvedExpr> interval_expr = MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(interval_testing::Months(13)),
+      /*has_explicit_type=*/true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> function,
+      fn_builder_.Extract(std::move(interval_expr), functions::YEAR));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
++-Literal(type=INTERVAL, value=1-1 0 0:0:0, has_explicit_type=TRUE)
++-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=YEAR)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, GenerateTimestampArrayWithDatePartTest) {
+  std::unique_ptr<const ResolvedExpr> start_timestamp = MakeResolvedLiteral(
+      types::TimestampType(),
+      Value::Timestamp(absl::FromUnixSeconds(1728864000)),  // 2024-10-14
+      /*has_explicit_type=*/true);
+  std::unique_ptr<const ResolvedExpr> end_timestamp = MakeResolvedLiteral(
+      types::TimestampType(),
+      Value::Timestamp(absl::FromUnixSeconds(1729036800)),  // 2024-10-16
+      /*has_explicit_type=*/true);
+  std::unique_ptr<const ResolvedExpr> step =
+      MakeResolvedLiteral(types::Int64Type(), Value::Int64(1),
+                          /*has_explicit_type=*/true);
+  const EnumType* date_part_enum_type = types::DatePartEnumType();
+  std::unique_ptr<const ResolvedExpr> date_part = MakeResolvedLiteral(
+      date_part_enum_type, Value::Enum(date_part_enum_type, functions::DAY));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<const ResolvedExpr> function,
+                       fn_builder_.GenerateTimestampArrayWithDatePart(
+                           std::move(start_timestamp), std::move(end_timestamp),
+                           std::move(step), std::move(date_part)));
+  EXPECT_EQ(function->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:generate_timestamp_array(TIMESTAMP, TIMESTAMP, INT64, ENUM<googlesql.functions.DateTimestampPart>) -> ARRAY<TIMESTAMP>)
++-Literal(type=TIMESTAMP, value=2024-10-14 00:00:00+00, has_explicit_type=TRUE)
++-Literal(type=TIMESTAMP, value=2024-10-16 00:00:00+00, has_explicit_type=TRUE)
++-Literal(type=INT64, value=1, has_explicit_type=TRUE)
++-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, IntervalToNanosComplex) {
+  // Test with the following interval: 1 day, 2 hours, 3 minutes, 4 seconds, 5
+  // milliseconds, 6 nanoseconds
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(IntervalValue complex_interval,
+                       IntervalValue::FromDays(1));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(complex_interval,
+                       complex_interval + interval_testing::Hours(2));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(complex_interval,
+                       complex_interval + interval_testing::Minutes(3));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(complex_interval,
+                       complex_interval + interval_testing::Seconds(4));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(complex_interval,
+                       complex_interval + interval_testing::Nanos(5000006));
+
+  std::unique_ptr<const ResolvedExpr> interval_expr = MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(complex_interval), true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> nanos_expr,
+      fn_builder_.IntervalToNanos(std::move(interval_expr), "TEST_FUNC"));
+
+  EXPECT_TRUE(nanos_expr->type()->IsInt64());
+  EXPECT_EQ(nanos_expr->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
++-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+| +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+| | +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+| | | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+| | | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MONTH)
+| | +-Literal(type=INT64, value=0)
+| +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+|   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+|   | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+|   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=YEAR)
+|   +-Literal(type=INT64, value=0)
++-FunctionCall(GoogleSQL:error(STRING) -> INT64)
+| +-Literal(type=STRING, value="Intervals with MONTH or YEAR parts are not supported in TEST_FUNC.")
++-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | | | | +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | | | | | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+  | | | | | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+  | | | | +-Literal(type=INT64, value=86400000000000)
+  | | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | | |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | | |   | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+  | | |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+  | | |   +-Literal(type=INT64, value=3600000000000)
+  | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | |   | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+  | |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+  | |   +-Literal(type=INT64, value=60000000000)
+  | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  |   | +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+  |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=SECOND)
+  |   +-Literal(type=INT64, value=1000000000)
+  +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+    +-Literal(type=INTERVAL, value=0-0 1 2:3:4.005000006, has_explicit_type=TRUE)
+    +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=NANOSECOND)
+)"));
+}
+
+TEST_F(FunctionCallBuilderTest, IntervalToNanosZero) {
+  std::unique_ptr<const ResolvedExpr> interval_expr = MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(IntervalValue()), true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> nanos_expr,
+      fn_builder_.IntervalToNanos(std::move(interval_expr), "TEST_FUNC"));
+
+  EXPECT_TRUE(nanos_expr->type()->IsInt64());
+}
+
+TEST_F(FunctionCallBuilderTest, IntervalToNanosNegative) {
+  IntervalValue negative_interval = interval_testing::Days(-1);
+  std::unique_ptr<const ResolvedExpr> interval_expr = MakeResolvedLiteral(
+      types::IntervalType(), Value::Interval(negative_interval), true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedExpr> nanos_expr,
+      fn_builder_.IntervalToNanos(std::move(interval_expr), "TEST_FUNC"));
+
+  EXPECT_EQ(nanos_expr->DebugString(), absl::StripLeadingAsciiWhitespace(R"(
+FunctionCall(GoogleSQL:if(BOOL, INT64, INT64) -> INT64)
++-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
+| +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+| | +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+| | | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+| | | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MONTH)
+| | +-Literal(type=INT64, value=0)
+| +-FunctionCall(GoogleSQL:$not_equal(INT64, INT64) -> BOOL)
+|   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+|   | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+|   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=YEAR)
+|   +-Literal(type=INT64, value=0)
++-FunctionCall(GoogleSQL:error(STRING) -> INT64)
+| +-Literal(type=STRING, value="Intervals with MONTH or YEAR parts are not supported in TEST_FUNC.")
++-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+  | | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | | | | +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | | | | | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+  | | | | | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+  | | | | +-Literal(type=INT64, value=86400000000000)
+  | | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | | |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | | |   | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+  | | |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+  | | |   +-Literal(type=INT64, value=3600000000000)
+  | | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  | |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  | |   | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+  | |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+  | |   +-Literal(type=INT64, value=60000000000)
+  | +-FunctionCall(GoogleSQL:$multiply(INT64, INT64) -> INT64)
+  |   +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+  |   | +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+  |   | +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=SECOND)
+  |   +-Literal(type=INT64, value=1000000000)
+  +-FunctionCall(GoogleSQL:$extract(INTERVAL, ENUM<googlesql.functions.DateTimestampPart>) -> INT64)
+    +-Literal(type=INTERVAL, value=0-0 -1 0:0:0, has_explicit_type=TRUE)
+    +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=NANOSECOND)
+)"));
+}
+
 class ValidateArgumentsDoNotContainCorrelationTest : public ::testing::Test {
  protected:
   ValidateArgumentsDoNotContainCorrelationTest()
@@ -2187,12 +2642,17 @@ TEST_F(ValidateArgumentsDoNotContainCorrelationTest,
       /*parameter_list=*/std::move(parameter_list),
       /*in_expr=*/nullptr,
       MakeResolvedProjectScan(
-          {y_b}, {},
+          /*column_list=*/{y_b},
+          /*expr_list=*/{},
+          /*input_scan=*/
           MakeResolvedFilterScan(
-              {y_a, y_b},
-              MakeResolvedTableScan({y_a, y_b}, /*table=*/nullptr,
-                                    /*for_system_time_expr=*/nullptr),
-              std::move(filter_expr))));
+              /*column_list=*/{y_a, y_b},
+              /*input_scan=*/
+              MakeResolvedTableScan(
+                  /*column_list=*/{y_a, y_b},
+                  /*table=*/nullptr,
+                  /*for_system_time_expr=*/nullptr),
+              /*filter_expr=*/std::move(filter_expr))));
 
   GOOGLESQL_EXPECT_OK(ValidateArgumentsDoNotContainCorrelation(
       dummy_tvf_scan_.get(), "MY_FUNC", {subquery.get()}));
@@ -2246,6 +2706,322 @@ TEST_F(ValidateArgumentsDoNotContainCorrelationTest,
 
   GOOGLESQL_EXPECT_OK(ValidateArgumentsDoNotContainCorrelation(dummy_tvf_scan_.get(),
                                                      "MY_FUNC", {expr.get()}));
+}
+
+class TvfFakes : public TableValuedFunction {
+ public:
+  explicit TvfFakes(absl::string_view name)
+      : TableValuedFunction(
+            {std::string(name)},
+            FunctionSignature(
+                FunctionArgumentType::RelationWithSchema(
+                    TVFRelation({}),
+                    /*extra_relation_input_columns_allowed=*/false),
+                {}, /*non existing signature id*/ (int64_t)123456789)) {}
+
+  absl::Status Resolve(
+      const AnalyzerOptions* analyzer_options,
+      const std::vector<TVFInputArgumentType>& actual_arguments,
+      const FunctionSignature& concrete_signature, Catalog* catalog,
+      TypeFactory* type_factory,
+      std::shared_ptr<TVFSignature>* tvf_signature) const override {
+    *tvf_signature =
+        std::make_shared<TVFSignature>(actual_arguments, TVFRelation({}));
+    return absl::OkStatus();
+  }
+};
+
+class TVFUtilsTest : public ::testing::Test {
+ protected:
+  TVFUtilsTest()
+      : column_factory_(0, &pool_, &seq_), catalog_("test_catalog") {}
+
+  void SetUp() override {
+    analyzer_options_.mutable_language()->EnableLanguageFeature(
+        LanguageFeature::FEATURE_TUMBLE_HOP_TVFS);
+    analyzer_options_.mutable_language()->EnableLanguageFeature(
+        LanguageFeature::FEATURE_INTERVAL_TYPE);
+    catalog_.AddBuiltinFunctions(
+        BuiltinFunctionOptions(analyzer_options_.language()));
+    type_factory_.get_int64();
+    type_factory_.get_string();
+    types::TimestampType();
+  }
+
+  TypeFactory type_factory_;
+  IdStringPool pool_;
+  googlesql_base::SequenceNumber seq_;
+  ColumnFactory column_factory_;
+  SimpleCatalog catalog_;
+  AnalyzerOptions analyzer_options_;
+};
+
+TEST_F(TVFUtilsTest, ValidateTvfIsBuiltinAndSignatureMatches_Success) {
+  const TableValuedFunction* tvf = nullptr;
+  GOOGLESQL_ASSERT_OK(catalog_.FindTableValuedFunction({"TUMBLE"}, &tvf));
+  ASSERT_NE(tvf, nullptr);
+
+  const FunctionSignature* function_signature = tvf->GetSignature(0);
+  ASSERT_NE(function_signature, nullptr);
+  ASSERT_EQ(function_signature->context_id(), FunctionSignatureId::FN_TUMBLE);
+
+  std::shared_ptr<TVFSignature> tvf_signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{}, TVFRelation({}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/tvf,
+      /*signature=*/tvf_signature,
+      /*argument_list=*/{},
+      /*column_index_list=*/{},
+      /*alias=*/"fake_tvf",
+      /*function_call_signature=*/nullptr);
+
+  GOOGLESQL_EXPECT_OK(ValidateTvfIsBuiltinAndSignatureMatches(
+      tvf_scan.get(), "TUMBLE", FunctionSignatureId::FN_TUMBLE));
+}
+
+TEST_F(TVFUtilsTest, ValidateTvfIsBuiltinAndSignatureMatches_NotBuiltin) {
+  TvfFakes tvf_fake("non_builtin_tvf");
+
+  std::shared_ptr<TVFSignature> signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{}, TVFRelation({}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/&tvf_fake,
+      /*signature=*/signature,
+      /*argument_list=*/{},
+      /*column_index_list=*/{},
+      /*alias=*/"fake_tvf",
+      /*function_call_signature=*/nullptr);
+
+  EXPECT_THAT(ValidateTvfIsBuiltinAndSignatureMatches(
+                  tvf_scan.get(), "MY_TVF", FunctionSignatureId::FN_TUMBLE),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("TVF is not a GoogleSQL builtin")));
+}
+
+TEST_F(TVFUtilsTest, ValidateTvfIsBuiltinAndSignatureMatches_WrongSignatureId) {
+  const TableValuedFunction* tvf = nullptr;
+  GOOGLESQL_ASSERT_OK(catalog_.FindTableValuedFunction({"TUMBLE"}, &tvf));
+  ASSERT_NE(tvf, nullptr);
+
+  const FunctionSignature* function_signature = tvf->GetSignature(0);
+  ASSERT_NE(function_signature, nullptr);
+
+  std::shared_ptr<TVFSignature> tvf_signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{}, TVFRelation({}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/tvf,
+      /*signature=*/tvf_signature,
+      /*argument_list=*/{},
+      /*column_index_list=*/{},
+      /*alias=*/"tumble_tvf",
+      /*function_call_signature=*/nullptr);
+
+  EXPECT_THAT(ValidateTvfIsBuiltinAndSignatureMatches(
+                  tvf_scan.get(), "TUMBLE", FunctionSignatureId::FN_HOP),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("TVF signature for TUMBLE is not supported")));
+}
+
+TEST_F(TVFUtilsTest, FindAndValidateTimestampColumnInScan_Success) {
+  ResolvedColumn ts_col =
+      column_factory_.MakeCol("input", "time_col", types::TimestampType());
+  ResolvedColumn other_col =
+      column_factory_.MakeCol("input", "val", type_factory_.get_int64());
+  auto input_scan = MakeResolvedSingleRowScan({ts_col, other_col});
+
+  std::vector<std::unique_ptr<const ResolvedTVFArgument>> arguments;
+  arguments.push_back(MakeResolvedTVFArgument(
+      /*expr=*/MakeResolvedLiteral(types::StringType(),
+                                   Value::String("time_col")),
+      /*scan=*/nullptr,
+      /*model=*/nullptr,
+      /*connection=*/nullptr,
+      /*descriptor_arg=*/nullptr,
+      /*argument_column_list=*/{}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/nullptr,
+      /*signature=*/nullptr,
+      /*argument_list=*/std::move(arguments),
+      /*column_index_list=*/{},
+      /*alias=*/"test_tvf",
+      /*function_call_signature=*/nullptr);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const ResolvedColumn* found_col,
+      FindAndValidateTimestampColumnInScan(*tvf_scan->argument_list()[0],
+                                           "time_col", *input_scan, "MY_TVF",
+                                           ProductMode::PRODUCT_INTERNAL));
+  EXPECT_EQ(found_col->name(), "time_col");
+  EXPECT_TRUE(found_col->type()->IsTimestamp());
+}
+
+TEST_F(TVFUtilsTest, FindAndValidateTimestampColumnInScan_AmbiguousTsColumn) {
+  ResolvedColumn ts_col =
+      column_factory_.MakeCol("input", "time_col", types::TimestampType());
+  ResolvedColumn other_col =
+      column_factory_.MakeCol("input", "time_col", type_factory_.get_int64());
+  auto input_scan = MakeResolvedSingleRowScan({ts_col, other_col});
+
+  std::vector<std::unique_ptr<const ResolvedTVFArgument>> arguments;
+  arguments.push_back(MakeResolvedTVFArgument(
+      /*expr=*/MakeResolvedLiteral(types::StringType(),
+                                   Value::String("time_col")),
+      /*scan=*/nullptr,
+      /*model=*/nullptr,
+      /*connection=*/nullptr,
+      /*descriptor_arg=*/nullptr,
+      /*argument_column_list=*/{}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/nullptr,
+      /*signature=*/nullptr,
+      /*argument_list=*/std::move(arguments),
+      /*column_index_list=*/{},
+      /*alias=*/"test_tvf",
+      /*function_call_signature=*/nullptr);
+
+  EXPECT_THAT(FindAndValidateTimestampColumnInScan(
+                  *tvf_scan->argument_list()[0], "time_col", *input_scan,
+                  "MY_TVF", ProductMode::PRODUCT_INTERNAL),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is ambiguous in the input table")));
+}
+
+TEST_F(TVFUtilsTest, FindAndValidateTimestampColumnInScan_NotFound) {
+  ResolvedColumn other_col =
+      column_factory_.MakeCol("input", "val", type_factory_.get_int64());
+  auto input_scan = MakeResolvedSingleRowScan({other_col});
+
+  std::vector<std::unique_ptr<const ResolvedTVFArgument>> arguments;
+  arguments.push_back(MakeResolvedTVFArgument(
+      /*expr=*/MakeResolvedLiteral(types::StringType(),
+                                   Value::String("time_col")),
+      /*scan=*/nullptr,
+      /*model=*/nullptr,
+      /*connection=*/nullptr,
+      /*descriptor_arg=*/nullptr,
+      /*argument_column_list=*/{}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/nullptr,
+      /*signature=*/nullptr,
+      /*argument_list=*/std::move(arguments),
+      /*column_index_list=*/{},
+      /*alias=*/"test_tvf",
+      /*function_call_signature=*/nullptr);
+
+  EXPECT_THAT(FindAndValidateTimestampColumnInScan(
+                  *tvf_scan->argument_list()[0], "time_col", *input_scan,
+                  "MY_TVF", ProductMode::PRODUCT_INTERNAL),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Timestamp column 'time_col' not found")));
+}
+
+TEST_F(TVFUtilsTest, FindAndValidateTimestampColumnInScan_WrongType) {
+  ResolvedColumn ts_col = column_factory_.MakeCol(
+      "input", "time_col", type_factory_.get_string());  // Wrong type
+  auto input_scan = MakeResolvedSingleRowScan({ts_col});
+
+  std::vector<std::unique_ptr<const ResolvedTVFArgument>> arguments;
+  arguments.push_back(MakeResolvedTVFArgument(
+      /*expr=*/MakeResolvedLiteral(types::StringType(),
+                                   Value::String("time_col")),
+      /*scan=*/nullptr,
+      /*model=*/nullptr,
+      /*connection=*/nullptr,
+      /*descriptor_arg=*/nullptr,
+      /*argument_column_list=*/{}));
+
+  auto tvf_scan = MakeResolvedTVFScan(
+      /*column_list=*/{},
+      /*tvf=*/nullptr,
+      /*signature=*/nullptr,
+      /*argument_list=*/std::move(arguments),
+      /*column_index_list=*/{},
+      /*alias=*/"test_tvf",
+      /*function_call_signature=*/nullptr);
+
+  EXPECT_THAT(
+      FindAndValidateTimestampColumnInScan(*tvf_scan->argument_list()[0],
+                                           "time_col", *input_scan, "MY_TVF",
+                                           ProductMode::PRODUCT_INTERNAL),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("must be of type TIMESTAMP, but column 'time_col' has "
+                         "type STRING")));
+}
+
+TEST_F(TVFUtilsTest, CreateCteColumnSubquerySelectsCorrectColumn) {
+  std::string cte_name = "my_cte";
+  ResolvedColumn col1 =
+      column_factory_.MakeCol(cte_name, "a", type_factory_.get_int64());
+  ResolvedColumn col2 =
+      column_factory_.MakeCol(cte_name, "b", types::TimestampType());
+  ResolvedColumnList cte_cols = {col1, col2};
+
+  // Test selecting the second column (index 1), which is a TIMESTAMP.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedSubqueryExpr> timestamp_col_subquery,
+      CreateCteColumnSubquery(column_factory_, cte_name, cte_cols, 1));
+
+  ASSERT_NE(timestamp_col_subquery, nullptr);
+  EXPECT_TRUE(timestamp_col_subquery->type()->IsTimestamp());
+  EXPECT_EQ(timestamp_col_subquery->subquery_type(),
+            ResolvedSubqueryExpr::SCALAR);
+
+  const std::string expected_debug_string = R"(
+SubqueryExpr
++-type=TIMESTAMP
++-subquery_type=SCALAR
++-subquery=
+  +-ProjectScan
+    +-column_list=[my_cte.b#5]
+    +-expr_list=
+    | +-b#5 := ColumnRef(type=TIMESTAMP, column=my_cte.b#4)
+    +-input_scan=
+      +-WithRefScan(column_list=my_cte.[a#3, b#4], with_query_name="my_cte")
+)";
+  EXPECT_EQ(absl::StripLeadingAsciiWhitespace(expected_debug_string),
+            timestamp_col_subquery->DebugString());
+}
+
+TEST_F(TVFUtilsTest, CreateCteColumnSubqueryGeneratesNewColumnIds) {
+  std::string cte_name = "my_cte";
+  ResolvedColumn col1 =
+      column_factory_.MakeCol(cte_name, "a", type_factory_.get_int64());
+  ResolvedColumn col2 =
+      column_factory_.MakeCol(cte_name, "b", types::TimestampType());
+  ResolvedColumnList cte_cols = {col1, col2};
+
+  // Select the first column (index 0).
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedSubqueryExpr> subquery1,
+      CreateCteColumnSubquery(column_factory_, cte_name, cte_cols, 0));
+
+  // Select the first column again. Because the column factory allocates new IDs
+  // on each call, the resulting AST should be different.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<const ResolvedSubqueryExpr> subquery2,
+      CreateCteColumnSubquery(column_factory_, cte_name, cte_cols, 0));
+
+  ASSERT_NE(subquery1, nullptr);
+  ASSERT_NE(subquery2, nullptr);
+  EXPECT_TRUE(subquery1->type()->IsInt64());
+  EXPECT_TRUE(subquery2->type()->IsInt64());
+
+  // The debug strings should differ because the column IDs generated by the
+  // column factory during the second call (#6, #7, #8) will be different
+  // from the first call (#3, #4, #5).
+  EXPECT_NE(subquery1->DebugString(), subquery2->DebugString());
 }
 
 }  // namespace

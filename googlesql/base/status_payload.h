@@ -17,6 +17,7 @@
 #ifndef THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_STATUS_PAYLOAD_H_
 #define THIRD_PARTY_GOOGLESQL_GOOGLESQL_BASE_STATUS_PAYLOAD_H_
 
+#include <string>
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"

@@ -51,6 +51,8 @@ import com.google.googlesql.TableRefProto;
 import com.google.googlesql.TableValuedFunction;
 import com.google.googlesql.TableValuedFunctionRefProto;
 import com.google.googlesql.TypeFactory;
+import java.util.HashMap;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 /** Deserializes objects in the ResolvedAST which require catalog lookup */
@@ -59,6 +61,11 @@ public final class DeserializationHelper extends AbstractDeserializationHelper {
   // A reference to a SimpleCatalog is necessary to deserialize scalar functions and tables. These
   // should only be encountered in ASTs compiled from queries on catalogs.
   private final SimpleCatalog catalog;
+
+  // A cache for ephemeral FunctionTypedParameter objects that are reconstructed on-the-fly
+  // during deserialization.
+  private final Map<String, Function.FunctionTypedParameter> functionTypedParameterCache =
+      new HashMap<>();
 
   public DeserializationHelper(
       TypeFactory typeFactory,
@@ -81,7 +88,27 @@ public final class DeserializationHelper extends AbstractDeserializationHelper {
 
   @Override
   Function deserialize(FunctionRefProto proto) {
-    return checkNotNull(catalog.getFunctionByFullName(proto.getName()));
+    String fullName = proto.getName();
+    if (fullName.startsWith(Function.FunctionTypedParameter.FUNCTION_TYPED_PARAMETER_GROUP + ":")) {
+      // Reconstruct or retrieve a cached proxy FunctionTypedParameter.
+      // The name in proto is group:name, e.g. "FUNCTION_TYPED_PARAMETER:foo".
+      //
+      // Note: We do not deserialize the function signature here (passing an empty
+      // list below). These proxy functions are only needed for propagating
+      // parameters during analysis, and the analyzer does not need to maintain
+      // full proxy functions for lambdas in the resolved AST, especially since we
+      // plan to inline all lambdas.
+      Function.FunctionTypedParameter cached = functionTypedParameterCache.get(fullName);
+      if (cached != null) {
+        return cached;
+      }
+      String shortName = fullName.substring(fullName.indexOf(':') + 1);
+      Function.FunctionTypedParameter functionTypedParameter =
+          new Function.FunctionTypedParameter(ImmutableList.of(shortName), ImmutableList.of());
+      functionTypedParameterCache.put(fullName, functionTypedParameter);
+      return functionTypedParameter;
+    }
+    return checkNotNull(catalog.getFunctionByFullName(fullName));
   }
 
   @Override

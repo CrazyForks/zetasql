@@ -46,8 +46,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { id : 10 })
+      (a IS Person { id : 10 })
     RETURN
       a.name
   )
@@ -103,8 +102,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { id : 10, country : "USA" })
+      (a IS Person { id : 10, country : "USA" })
     RETURN
       a.name
   )
@@ -160,8 +158,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { id : a.age + 10 })
+      (a IS Person { id : a.age + 10 })
     RETURN
       a.name
   )
@@ -214,8 +211,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { id : 10 + 20 })
+      (a IS Person { id : 10 + 20 })
     RETURN
       a.name
   )
@@ -284,12 +280,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (p
-      IS Person)
-      -[o
-      IS Owns { since : 2023 }]->
-      (a
-      IS Account)
+      (p IS Person)
+      -[o IS Owns { since : 2023 }]->
+      (a IS Account)
     RETURN
       p.name,
       a.balance
@@ -371,12 +364,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (p
-      IS Person { id : 10, country : "USA" })
-      -[o
-      IS Owns { since : 2023, location : "MTV" }]->
-      (a
-      IS Account)
+      (p IS Person { id : 10, country : "USA" })
+      -[o IS Owns { since : 2023, location : "MTV" }]->
+      (a IS Account)
     RETURN
       p.name,
       a.balance
@@ -446,8 +436,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { proto_property : NEW x {
+      (a IS Person { proto_property : NEW x {
         foo : "blah",
         bar : 3
       } })
@@ -504,8 +493,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a
-      IS Person { `$col1` : "property_value" })
+      (a IS Person { `$col1` : "property_value" })
     RETURN
       a.name
   )
@@ -542,10 +530,64 @@ select * from graph_table(aml
   RETURN a.name
 )
 --
-ERROR: Syntax error: Expected ")" but got "{" [at 2:36]
-  MATCH (a IS Person WHERE a.id=20 {id: 10})
-                                   ^
+QueryStatement [0-92] [select * from...ETURN a.name )]
+  Query [0-92] [select * from...ETURN a.name )]
+    Select [0-92] [select * from...ETURN a.name )]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-92] [from graph_table...RN a.name )]
+        GraphTableQuery [14-92] [graph_table...RETURN a.name )]
+          PathExpression [26-29] [aml]
+            Identifier(aml) [26-29] [aml]
+          GqlOperatorList [32-90] [MATCH (a IS...RETURN a.name]
+            GqlOperatorList [32-90] [MATCH (a IS...RETURN a.name]
+              GqlMatch [32-74] [MATCH (a IS...{id: 10})]
+                GraphPattern [38-74] [(a IS Person...{id: 10})]
+                  GraphPathPattern [38-74] [(a IS Person...{id: 10})]
+                    GraphNodePattern [38-74] [(a IS Person...{id: 10})]
+                      GraphElementPatternFiller [39-73] [a IS Person...20 {id: 10}]
+                        Identifier(a) [39-40] [a]
+                        GraphLabelFilter [41-50] [IS Person]
+                          GraphElementLabel [44-50] [Person]
+                            Identifier(Person) [44-50] [Person]
+                        WhereClause [51-73] [WHERE a.id=20 {id: 10}]
+                          BinaryExpression(=) [57-73] [a.id=20 {id: 10}]
+                            PathExpression [57-61] [a.id]
+                              Identifier(a) [57-58] [a]
+                              Identifier(id) [59-61] [id]
+                            BracedConstructorExtendedExpr [62-73] [20 {id: 10}]
+                              IntLiteral(20) [62-64] [20]
+                              BracedConstructor [65-73] [{id: 10}]
+                                BracedConstructorField [66-72] [id: 10]
+                                  BracedConstructorLhs [66-68] [id]
+                                    PathExpression [66-68] [id]
+                                      Identifier(id) [66-68] [id]
+                                  BracedConstructorFieldValue [70-72] [10]
+                                    IntLiteral(10) [70-72] [10]
+              GqlReturn [77-90] [RETURN a.name]
+                Select [84-90] [a.name]
+                  SelectList [84-90] [a.name]
+                    SelectColumn [84-90] [a.name]
+                      PathExpression [84-90] [a.name]
+                        Identifier(a) [84-85] [a]
+                        Identifier(name) [86-90] [name]
 
+--
+SELECT
+  *
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a IS Person
+      WHERE
+        a.id = 20 {
+          id : 10
+        })
+    RETURN
+      a.name
+  )
 ==
 
 # GQL property specification: property specification (put first) and where
@@ -657,8 +699,7 @@ FROM
     MATCH
       (p)
       -[o]->
-      (@{ FORCE_INDEX = _BASE_TABLE } a
-      IS Person { prop : @prop })
+      (@{ FORCE_INDEX = _BASE_TABLE } a IS Person { prop : @prop })
     RETURN
       p.name,
       a.balance

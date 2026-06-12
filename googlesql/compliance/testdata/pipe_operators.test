@@ -291,6 +291,30 @@ FROM KeyValue
 ARRAY<STRUCT<value STRING, INT64>>[known order:{"value1", 2}, {"value2", 1}]
 ==
 
+[name=pipe_aggregate_mixed_expression]
+FROM KeyValue
+|> AGGREGATE SUM(key) + key AS val
+   GROUP BY key
+--
+ARRAY<STRUCT<key INT64, val INT64>>[unknown order:{2, 4}, {1, 2}, {3, 6}]
+==
+
+[name=pipe_aggregate_correlated_subquery]
+FROM KeyValue
+|> AGGREGATE
+     SUM(key) + (
+       SELECT SUM(t2.key)
+       FROM KeyValue t2
+       WHERE t2.value = KeyValue.value
+     ) AS val
+   GROUP BY value
+--
+ARRAY<STRUCT<value STRING, val INT64>>[unknown order:
+  {"value2", 4},
+  {"value1", 8}
+]
+==
+
 [name=pipe_distinct]
 FROM KeyValue
 |> DISTINCT

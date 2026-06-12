@@ -37,6 +37,7 @@ TestDriver* GetComplianceTestDriver() {
   options.EnableLanguageFeature(FEATURE_COLLATION_SUPPORT);
   options.AddSupportedStatementKind(RESOLVED_GENERALIZED_QUERY_STMT);
   options.AddSupportedStatementKind(RESOLVED_GENERALIZED_QUERY_SUBPIPELINE);
+  options.AddSupportedStatementKind(RESOLVED_TERMINAL_QUERY_STMT);
   return new ReferenceDriver(options, absl::GetFlag(FLAGS_rewrites));
 }
 

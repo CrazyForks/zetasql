@@ -26,9 +26,9 @@
 #include "googlesql/public/types/value_representations.h"
 #include "googlesql/public/value.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 

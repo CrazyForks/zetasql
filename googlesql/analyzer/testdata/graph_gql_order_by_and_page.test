@@ -2478,8 +2478,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY a_2.birthday
     RETURN
       a_2.birthday AS a_3
@@ -2491,8 +2490,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY a_2.birthday
     RETURN
       a_2.birthday AS a_3
@@ -2610,12 +2608,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.birthday, a_4.balance DESC
     RETURN
       a_2.birthday AS a_5,
@@ -2628,12 +2623,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.birthday, a_4.balance DESC
     RETURN
       a_2.birthday AS a_5,
@@ -2757,12 +2749,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.name COLLATE "en_US" NULLS FIRST, a_4.balance DESC NULLS LAST
     RETURN
       a_2.birthday AS a_5,
@@ -2775,12 +2764,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.name COLLATE "en_US" NULLS FIRST, a_4.balance DESC NULLS LAST
     RETURN
       a_2.birthday AS a_5,
@@ -2879,8 +2865,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY a_2.name
     OFFSET 10 LIMIT 20
     RETURN
@@ -2893,8 +2878,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY a_2.name
     OFFSET 10 LIMIT 20
     RETURN
@@ -3022,12 +3006,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.name
     ORDER BY a_4.balance
     RETURN
@@ -3041,12 +3022,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     ORDER BY a_2.name
     ORDER BY a_4.balance
     RETURN
@@ -3126,8 +3104,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 20
     RETURN
       a_2.name AS a_3
@@ -3139,8 +3116,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 20
     RETURN
       a_2.name AS a_3
@@ -3223,8 +3199,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3236,8 +3211,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3307,8 +3281,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3320,8 +3293,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3407,8 +3379,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 4611686018427387903
     RETURN
       a_2.name AS a_3
@@ -3420,8 +3391,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 4611686018427387903
     RETURN
       a_2.name AS a_3
@@ -3491,8 +3461,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3504,8 +3473,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10
     RETURN
       a_2.name AS a_3
@@ -3598,8 +3566,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 4611686018427387903
     LIMIT 5
     RETURN
@@ -3612,8 +3579,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 4611686018427387903
     LIMIT 5
     RETURN
@@ -3690,8 +3656,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 5
     RETURN
       a_2.name AS a_3
@@ -3703,8 +3668,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     OFFSET 10 LIMIT 5
     RETURN
       a_2.name AS a_3
@@ -3809,8 +3773,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY (LENGTH(a_2.name)) * CAST(a_2.age AS INT64) DESC
     RETURN
       a_2.name AS a_3,
@@ -3823,8 +3786,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     ORDER BY (LENGTH(a_2.name)) * CAST(a_2.age AS INT64) DESC
     RETURN
       a_2.name AS a_3,
@@ -3913,8 +3875,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     ORDER BY a_2.name
@@ -3926,8 +3887,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     ORDER BY a_2.name
@@ -4043,12 +4003,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4061,12 +4018,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4189,12 +4143,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4207,12 +4158,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4309,8 +4257,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     ORDER BY a_2.name OFFSET 10 LIMIT 20
@@ -4322,8 +4269,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     ORDER BY a_2.name OFFSET 10 LIMIT 20
@@ -4447,12 +4393,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4470,12 +4413,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_4.balance AS a_6
@@ -4558,8 +4498,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     OFFSET 10 LIMIT 20
@@ -4571,8 +4510,7 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
+      (a_2 IS Person)
     RETURN
       a_2.name AS a_3
     OFFSET 10 LIMIT 20
@@ -4686,12 +4624,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_2.age AS a_6,
@@ -4705,12 +4640,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       a_2.age AS a_6,
@@ -4843,33 +4775,23 @@ QueryStmt
 [SQLBUILDER_TARGET_SYNTAX_MODE standard]
 [SQLBUILDER_OUTPUT]
 SELECT
-  projectscan_8.a_5 AS name,
-  projectscan_8.a_6 AS age,
-  projectscan_8.a_7 AS balance
+  aml_1.a_5 AS name,
+  aml_1.a_6 AS age,
+  aml_1.a_7 AS balance
 FROM
-  (
-    SELECT
-      aml_1.a_6 AS a_6,
-      aml_1.a_7 AS a_7,
-      aml_1.a_5 AS a_5
-    FROM
-      GRAPH_TABLE(
-        aml
-        MATCH
-          (a_2
-          IS Person)
-          -[a_3
-          IS Transfer]->
-          (a_4
-          IS Account)
-        RETURN
-          a_2.name AS a_5,
-          AVG(CAST(a_2.age AS UINT64)) AS a_6,
-          SUM(a_4.balance) AS a_7
-        GROUP BY a_5
-        ORDER BY (CAST(LENGTH(a_2.name) AS DOUBLE) * (AVG(CAST(a_2.age AS UINT64)))) * CAST(SUM(a_4.balance) AS DOUBLE) DESC
-      ) AS aml_1
-  ) AS projectscan_8;
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
+    RETURN
+      a_2.name AS a_5,
+      AVG(CAST(a_2.age AS UINT64)) AS a_6,
+      SUM(a_4.balance) AS a_7
+    GROUP BY a_5
+    ORDER BY (CAST(LENGTH(a_2.name) AS DOUBLE) * (AVG(CAST(a_2.age AS UINT64)))) * CAST(SUM(a_4.balance) AS DOUBLE) DESC
+  ) AS aml_1;
 
 [SQLBUILDER_TARGET_SYNTAX_MODE pipe]
 [SQLBUILDER_OUTPUT]
@@ -4877,12 +4799,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS Person)
-      -[a_3
-      IS Transfer]->
-      (a_4
-      IS Account)
+      (a_2 IS Person)
+      -[a_3 IS Transfer]->
+      (a_4 IS Account)
     RETURN
       a_2.name AS a_5,
       AVG(CAST(a_2.age AS UINT64)) AS a_6,
@@ -4891,14 +4810,9 @@ FROM
     ORDER BY (CAST(LENGTH(a_2.name) AS DOUBLE) * (AVG(CAST(a_2.age AS UINT64)))) * CAST(SUM(a_4.balance) AS DOUBLE) DESC
   ) AS aml_1
 |> SELECT
-     aml_1.a_6 AS a_6,
-     aml_1.a_7 AS a_7,
-     aml_1.a_5 AS a_5
-|> AS projectscan_8
-|> SELECT
-     projectscan_8.a_5 AS name,
-     projectscan_8.a_6 AS age,
-     projectscan_8.a_7 AS balance;
+     aml_1.a_5 AS name,
+     aml_1.a_6 AS age,
+     aml_1.a_7 AS balance;
 ==
 
 # ORDER BY clause on RETURN statement when anonymous variables exist.
@@ -5011,12 +4925,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       a_2.name AS a_5
     ORDER BY a_2.name
@@ -5028,12 +4939,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN
       a_2.name AS a_5
     ORDER BY a_2.name
@@ -5147,12 +5055,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_2.name AS a_5
     ORDER BY a_5
@@ -5164,12 +5069,9 @@ FROM
   GRAPH_TABLE(
     aml
     MATCH
-      (a_2
-      IS (% | ! %))
-      -[a_3
-      IS (% | ! %)]->
-      (a_4
-      IS (% | ! %))
+      (a_2 IS (% | ! %))
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS (% | ! %))
     RETURN DISTINCT
       a_2.name AS a_5
     ORDER BY a_5

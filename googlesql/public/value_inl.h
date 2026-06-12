@@ -62,16 +62,16 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/message.h"
+#include "googlesql/base/status_macros.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/map_view.h"
 #include "googlesql/base/compact_reference_counted.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
 inline uint64_t GetVectorValuesPhysicalByteSize(
-    const std::vector<Value>& values) {
+    absl::Span<const Value> values) {
   uint64_t size = sizeof(std::vector<Value>);
   for (const Value& value : values) {
     size += value.physical_byte_size();
@@ -254,7 +254,9 @@ class Value::GraphElementValue final
   // element type, with the given `name`; otherwise, returns an error.
   absl::StatusOr<Value> FindPropertyByName(const std::string& name) const {
     int index;
-    if (type_->HasField(name, &index) == Type::HAS_FIELD) {
+    GOOGLESQL_ASSIGN_OR_RETURN(Type::FindFieldResult find_result, type_->FindField(name));
+    index = find_result.field_id;
+    if (find_result.has_field == Type::HAS_FIELD) {
       Value property_value = properties_.values().at(index);
       if (property_value.is_valid()) {
         return property_value;
@@ -1061,7 +1063,7 @@ inline const Value::GraphElementValue* Value::graph_element_value() const {
   ABSL_CHECK_EQ(metadata_.type_kind(), TYPE_GRAPH_ELEMENT)  // Crash ok
       << "Not a graph element value";
   ABSL_CHECK(!is_null()) << "Null value";  // Crash ok
-  return static_cast<const Value::GraphElementValue*>(container_ptr_->value());
+  return static_cast<const GraphElementValue*>(container_ptr_->value());
 }
 
 inline bool Value::IsNode() const { return graph_element_value()->IsNode(); }
@@ -1146,7 +1148,7 @@ inline const Value::GraphPathValue* Value::graph_path_value() const {
   ABSL_CHECK_EQ(metadata_.type_kind(), TYPE_GRAPH_PATH)  // Crash ok
       << "Not a graph path value";
   ABSL_CHECK(!is_null()) << "Null value";  // Crash ok
-  return static_cast<const Value::GraphPathValue*>(container_ptr_->value());
+  return static_cast<const GraphPathValue*>(container_ptr_->value());
 }
 
 inline int Value::num_graph_elements() const {
@@ -1410,7 +1412,7 @@ inline Value Proto(const ProtoType* proto_type, absl::Cord value) {
 }
 inline Value Proto(const ProtoType* proto_type, const google::protobuf::Message& msg) {
   absl::Cord bytes;
-  ABSL_CHECK(msg.SerializeToCord(&bytes));
+  ABSL_CHECK(msg.SerializeToString(&bytes));
   return Value::Proto(proto_type, std::move(bytes));
 }
 inline Value EmptyArray(const ArrayType* type) {

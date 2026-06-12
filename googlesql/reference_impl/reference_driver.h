@@ -48,8 +48,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "google/protobuf/descriptor.h"
 #include "googlesql/base/ret_check.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql {
 
@@ -100,17 +100,9 @@ class ReferenceDriver : public TestDriver {
     // an engine being tested, but not when it is being used as a reference.
     //
     // When functioning as a reference, the reference implementation can handle
-    // all primary keys modes. When running as an engine being tested, the
-    // ExecuteStatement API is invoked which does not include the primary key
-    // mode.
-    //
-    // TODO: b/228246501 - Get reference implementation tests running against
-    //   all primary key modes so that DML features are propperly reported in
-    //   (broken link). To do this, we need to add to the TestDriver
-    //   API a way to signal that the engine can take different
-    //   language features or different primary key modes as well as APIs to
-    //   set and reset those fields.
-    return primary_key_mode != PrimaryKeyMode::DEFAULT;
+    // all primary keys modes. The test base should set the primary key mode
+    // needed by each test before calling this function.
+    return primary_key_mode != current_primary_key_mode_;
   }
 
   LanguageOptions GetSupportedLanguageOptions() override {
@@ -160,6 +152,10 @@ class ReferenceDriver : public TestDriver {
   // functions are available and how they behave.
   // This can be called between ExecuteQuery calls to change options.
   void SetLanguageOptions(const LanguageOptions& options);
+
+  void SetPrimaryKeyMode(PrimaryKeyMode primary_key_mode) {
+    current_primary_key_mode_ = primary_key_mode;
+  }
 
   // Add some SQL constants to the catalog owned by this test driver. The
   // argument is a collection of "CREATE TEMP CONSTANT" statements.
@@ -330,6 +326,7 @@ class ReferenceDriver : public TestDriver {
 
   friend class ReferenceDriverStatementEvaluator;
   LanguageOptions language_options_;
+  PrimaryKeyMode current_primary_key_mode_ = PrimaryKeyMode::DEFAULT;
   absl::btree_set<ResolvedASTRewrite> enabled_rewrites_;
   std::vector<TableInfo> tables_;
 

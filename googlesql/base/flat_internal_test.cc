@@ -15,6 +15,9 @@
 //
 
 #include "googlesql/base/flat_internal.h"
+#include <functional>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

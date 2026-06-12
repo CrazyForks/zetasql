@@ -77,6 +77,7 @@ final class BuiltinDescriptorPool {
           .importFileDescriptor(RangeSessionizeMode.getDescriptor().getFile())
           .importFileDescriptor(RankType.getDescriptor().getFile())
           .importFileDescriptor(Duration.getDescriptor().getFile())
+          .importFileDescriptor(KMeansOptions.getDescriptor().getFile())
           .build();
 
   public static DescriptorPool getInstance() {

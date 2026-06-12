@@ -31,7 +31,7 @@ including the following GQL-specific operators:
   <td><a href="#graph_logical_operators">Graph logical operators</a>
 </td>
   <td>
-    Tests for the truth of a condition in a graph and produces either
+    Tests for the truth of a condition in a graph label and produces either
     <code>TRUE</code> or <code>FALSE</code>.
   </td>
 </tr>
@@ -238,7 +238,7 @@ GoogleSQL supports the following logical operators in
 GoogleSQL supports the following graph-specific predicates in
 graph expressions. A predicate can produce `TRUE`, `FALSE`, or `NULL`.
 
-+   [`PROPERTY_EXISTS` predicate][property-exists-predicate]
++ [`PROPERTY_EXISTS` predicate][property-exists-predicate]
 +   [`IS SOURCE` predicate][is-source-predicate]
 +   [`IS DESTINATION` predicate][is-destination-predicate]
 +   [`IS LABELED` predicate][is-labeled-predicate]
@@ -500,7 +500,8 @@ Produces an error if `element` is `NULL`.
 
 **Example**
 
-The following query checks to see if `a` and `b` aren't the same person.
+The following query returns the source and destination IDs for transfers
+between different accounts:
 
 ```googlesql
 GRAPH FinGraph

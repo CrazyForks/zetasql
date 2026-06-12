@@ -35,9 +35,9 @@
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -148,6 +148,31 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status VisitResolvedSubqueryExpr(
+      const ResolvedSubqueryExpr* node) override {
+    if (node->subquery_type() == ResolvedSubqueryExpr::LIKE_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::LIKE_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::NOT_LIKE_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::NOT_LIKE_ALL) {
+      applicable_rewrites_->insert(REWRITE_LIKE_ANY_ALL);
+    }
+    if (node->subquery_type() == ResolvedSubqueryExpr::EQ_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::EQ_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::NE_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::NE_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::LT_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::LT_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::LE_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::LE_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::GT_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::GT_ALL ||
+        node->subquery_type() == ResolvedSubqueryExpr::GE_ANY ||
+        node->subquery_type() == ResolvedSubqueryExpr::GE_ALL) {
+      applicable_rewrites_->insert(REWRITE_QUANTIFIED_COMPARISONS);
+    }
+    return DefaultVisit(node);
+  }
+
   absl::Status VisitResolvedFunctionCall(
       const ResolvedFunctionCall* node) override {
 
@@ -227,6 +252,32 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
               REWRITE_VARIADIC_FUNCTION_SIGNATURE_EXPANDER);
         }
         break;
+      case FN_EQ_ANY:
+      case FN_EQ_ANY_ARRAY:
+      case FN_EQ_ALL:
+      case FN_EQ_ALL_ARRAY:
+      case FN_NE_ANY:
+      case FN_NE_ANY_ARRAY:
+      case FN_NE_ALL:
+      case FN_NE_ALL_ARRAY:
+      case FN_LT_ANY:
+      case FN_LT_ANY_ARRAY:
+      case FN_LT_ALL:
+      case FN_LT_ALL_ARRAY:
+      case FN_LE_ANY:
+      case FN_LE_ANY_ARRAY:
+      case FN_LE_ALL:
+      case FN_LE_ALL_ARRAY:
+      case FN_GT_ANY:
+      case FN_GT_ANY_ARRAY:
+      case FN_GT_ALL:
+      case FN_GT_ALL_ARRAY:
+      case FN_GE_ANY:
+      case FN_GE_ANY_ARRAY:
+      case FN_GE_ALL:
+      case FN_GE_ALL_ARRAY:
+        applicable_rewrites_->insert(REWRITE_QUANTIFIED_COMPARISONS);
+        break;
       default:
         break;
     }
@@ -287,6 +338,16 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
           templated_tvf_signature->resolved_templated_query()->Accept(this));
     }
 
+    if (node->signature() != nullptr) {
+      // TVF result schema may contain a ROW type which needs to be rewritten,
+      // even if the ROW is not referenced in the AST.
+      for (const auto& column : node->signature()->result_schema().columns()) {
+        if (column.type->IsRow()) {
+          applicable_rewrites_->insert(REWRITE_ROW_TYPE);
+        }
+      }
+    }
+
     return DefaultVisit(node);
   }
 
@@ -313,7 +374,7 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
       applicable_rewrites_->insert(REWRITE_MULTIWAY_UNNEST);
     }
     for (const auto& array_expr : node->array_expr_list()) {
-      if (array_expr->type()->IsRow()) {
+      if (array_expr->type()->IsRowOrTable()) {
         applicable_rewrites_->insert(REWRITE_ROW_TYPE);
       }
     }
@@ -340,7 +401,11 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
 
   absl::Status VisitResolvedGeneralizedQueryStmt(
       const ResolvedGeneralizedQueryStmt* node) override {
-    applicable_rewrites_->insert(REWRITE_GENERALIZED_QUERY_STMT);
+    std::vector<const ResolvedNode*> dml_scans;
+    node->GetDescendantsWithKinds({RESOLVED_GRAPH_INSERT_SCAN}, &dml_scans);
+    if (dml_scans.empty()) {
+      applicable_rewrites_->insert(REWRITE_GENERALIZED_QUERY_STMT);
+    }
     return DefaultVisit(node);
   }
 
@@ -382,17 +447,21 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
       GOOGLESQL_RET_CHECK(aggregate_comp_col->Is<ResolvedComputedColumnImpl>());
       const auto& aggregate_expr =
           aggregate_comp_col->GetAs<ResolvedComputedColumnImpl>()->expr();
-      GOOGLESQL_RET_CHECK(aggregate_expr->Is<ResolvedAggregateFunctionCall>());
-      const auto& aggregate_func_call =
-          aggregate_expr->GetAs<ResolvedAggregateFunctionCall>();
-      GOOGLESQL_ASSIGN_OR_RETURN(bool uda_inlining_eligible,
-                       IsEligibleForSqlUdaInliner(aggregate_func_call));
-      if (uda_inlining_eligible) {
-        applicable_rewrites_->insert(REWRITE_INLINE_SQL_UDAS);
-      }
-      if (aggregate_func_call->order_by_item_list_size() > 0 ||
-          aggregate_func_call->limit() != nullptr) {
-        applicable_rewrites_->insert(REWRITE_ORDER_BY_AND_LIMIT_IN_AGGREGATE);
+      if (aggregate_expr->Is<ResolvedAggregateFunctionCall>()) {
+        const auto& aggregate_func_call =
+            aggregate_expr->GetAs<ResolvedAggregateFunctionCall>();
+        GOOGLESQL_ASSIGN_OR_RETURN(bool uda_inlining_eligible,
+                         IsEligibleForSqlUdaInliner(aggregate_func_call));
+        if (uda_inlining_eligible) {
+          applicable_rewrites_->insert(REWRITE_INLINE_SQL_UDAS);
+        }
+        if (aggregate_func_call->order_by_item_list_size() > 0 ||
+            aggregate_func_call->limit() != nullptr) {
+          applicable_rewrites_->insert(REWRITE_ORDER_BY_AND_LIMIT_IN_AGGREGATE);
+        }
+      } else {
+        // This is a with group rows subquery.
+        GOOGLESQL_RET_CHECK(aggregate_expr->Is<ResolvedSubqueryExpr>());
       }
     }
 

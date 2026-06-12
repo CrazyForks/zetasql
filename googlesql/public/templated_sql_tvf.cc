@@ -45,6 +45,7 @@
 #include "googlesql/public/simple_table.pb.h"
 #include "googlesql/public/strings.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_deserializer.h"
 #include "googlesql/public/types/type_factory.h"
@@ -53,11 +54,11 @@
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "absl/status/status.h"
+#include "googlesql/base/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
-#include "googlesql/base/status_macros.h"
 
 namespace googlesql {
 
@@ -148,16 +149,18 @@ absl::Status TemplatedSQLTVF::Resolve(
                                         tvf_arg_type.relation()));
     } else {
       // TODO: Attach proper error locations to the returned Status.
-      GOOGLESQL_ASSIGN_OR_RETURN(const InputArgumentType& arg_type,
-                       tvf_arg_type.GetScalarArgType());
+      GOOGLESQL_ASSIGN_OR_RETURN(AnnotatedType annotated_type,
+                       tvf_arg_type.GetScalarArgAnnotatedType());
       if (function_arguments.contains(tvf_arg_name)) {
         // TODO: Attach proper error locations to the returned Status.
         return MakeTVFQueryAnalysisError(
             absl::StrCat("Duplicate argument name ", tvf_arg_name.ToString()));
       }
-      function_arguments[tvf_arg_name] =
-          MakeResolvedArgumentRef(arg_type.type(), tvf_arg_name.ToString(),
+      auto arg_ref =
+          MakeResolvedArgumentRef(annotated_type.type, tvf_arg_name.ToString(),
                                   ResolvedArgumentDefEnums::SCALAR);
+      arg_ref->set_type_annotation_map(annotated_type.annotation_map);
+      function_arguments[tvf_arg_name] = std::move(arg_ref);
     }
   }
 
@@ -186,7 +189,11 @@ absl::Status TemplatedSQLTVF::Resolve(
   // the specified function arguments. Note that if this resolver uses the
   // catalog passed into the class constructor, then the catalog may include
   // names that were not available when the function was initially declared.
-  Resolver resolver(catalog, type_factory, analyzer_options);
+  // TODO: This should share the output properties with the
+  // enclosing query's resolver.
+  AnalyzerOutputProperties analyzer_output_properties;
+  Resolver resolver(catalog, type_factory, analyzer_options,
+                    analyzer_output_properties);
   std::optional<TVFRelation> specified_output_schema;
   if (signatures_[0].result_type().options().has_relation_input_schema()) {
     specified_output_schema =

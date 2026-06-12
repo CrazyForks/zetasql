@@ -1,0 +1,149 @@
+# These tests take an IMPORT statement as input, read the module contents
+# from the related file (residing in googlesql/testdata), create a
+# ModuleCatalog from the contents, and then dump the Catalog functions and
+# other (non-catalog function) errors.
+
+[no_input_is_module_contents]
+IMPORT MODULE googlesql.testdata.modules.simple AS simple2;
+--
+PRIVATE Lazy_resolution_function:abc
+  (UINT32 c) -> UINT64
+
+Lazy_resolution_function:b1
+  (INT32 b) -> INT64
+
+Lazy_resolution_function:b2
+ERROR: Function b2 is invalid [at .../googlesql/testdata/modules/simple.sqlm:14:35]
+create or replace public function b2(a int64) as (a);       -- bad OR REPLACE
+                                  ^
+Modules do not support CREATE OR REPLACE for CREATE FUNCTION [at .../googlesql/testdata/modules/simple.sqlm:14:1]
+create or replace public function b2(a int64) as (a);       -- bad OR REPLACE
+^
+
+Lazy_resolution_function:b3
+ERROR: Function b3 is invalid [at .../googlesql/testdata/modules/simple.sqlm:15:38]
+create public function if not exists b3(a int64) as (a);    -- bad IF !EXISTS
+                                     ^
+Modules do not support IF NOT EXISTS for CREATE FUNCTION [at .../googlesql/testdata/modules/simple.sqlm:15:1]
+create public function if not exists b3(a int64) as (a);    -- bad IF !EXISTS
+^
+
+Lazy_resolution_function:b4
+ERROR: Function b4 is invalid [at .../googlesql/testdata/modules/simple.sqlm:16:24]
+create public function b4(a int32) language sql as (a);     -- bad LANGUAGE
+                       ^
+Function cannot specify a LANGUAGE and include a SQL body [at .../googlesql/testdata/modules/simple.sqlm:16:1]
+create public function b4(a int32) language sql as (a);     -- bad LANGUAGE
+^
+
+Lazy_resolution_function:b5
+ERROR: Function b5 is invalid [at .../googlesql/testdata/modules/simple.sqlm:17:24]
+create public function b5(a int32) language sql as '1';   -- bad LANGUAGE
+                       ^
+Non-SQL functions must specify a return type [at .../googlesql/testdata/modules/simple.sqlm:17:1]
+create public function b5(a int32) language sql as '1';   -- bad LANGUAGE
+^
+
+Lazy_resolution_function:b6
+ERROR: Function b6 is invalid [at .../googlesql/testdata/modules/simple.sqlm:18:24]
+create public function b6(a int32) returns int64 language sql as '1';   -- ba...
+                       ^
+To write SQL functions, omit the LANGUAGE clause and write the function body using 'AS (expression)' [at .../googlesql/testdata/modules/simple.sqlm:18:59]
+...public function b6(a int32) returns int64 language sql as '1';   -- bad LA...
+                                                      ^
+
+Lazy_resolution_function:bad_no_modifier
+ERROR: Function bad_no_modifier is invalid [at .../googlesql/testdata/modules/simple.sqlm:11:17]
+create function bad_no_modifier(c uint32) as (c+3);         -- BAD
+                ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/simple.sqlm:11:1]
+create function bad_no_modifier(c uint32) as (c+3);         -- BAD
+^
+
+Lazy_resolution_function:bad_temp_modifier
+ERROR: Function bad_temp_modifier is invalid [at .../googlesql/testdata/modules/simple.sqlm:12:22]
+create temp function bad_temp_modifier(c uint32) as (c+3);  -- BAD
+                     ^
+CREATE statements within modules require the PUBLIC or PRIVATE modifier [at .../googlesql/testdata/modules/simple.sqlm:12:1]
+create temp function bad_temp_modifier(c uint32) as (c+3);  -- BAD
+^
+
+Lazy_resolution_function:bar
+  (INT32 b) -> INT64
+
+Lazy_resolution_function:bat
+  () -> STRING
+
+Lazy_resolution_function:baz
+  (UINT32 c) -> UINT64
+
+Lazy_resolution_function:foo
+  (INT64 a) -> INT64
+
+Non_sql_function:jsScalar1
+  (INT32 a) -> INT64
+
+Non_sql_function:jsScalar2
+  (ANY TYPE a) -> INT64
+
+Non_sql_function:jsScalar3
+  (ANY TYPE a) -> INT64
+
+Lazy_resolution_function:m1
+ERROR: Function m1 is invalid [at .../googlesql/testdata/modules/simple.sqlm:24:24]
+create public function m1(a float) as (a + 'a');  -- GOOD init
+                       ^
+No matching signature for operator +
+  Argument types: FLOAT, STRING
+  Signature: INT64 + INT64
+    Argument 1: Unable to coerce type FLOAT to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 1: Unable to coerce type FLOAT to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type STRING to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 1: Unable to coerce type FLOAT to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 1: Unable to coerce type FLOAT to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type FLOAT to expected type DATE
+  Signature: INT64 + DATE
+    Argument 1: Unable to coerce type FLOAT to expected type INT64
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type FLOAT to expected type INTERVAL [at .../googlesql/testdata/modules/simple.sqlm:24:40]
+create public function m1(a float) as (a + 'a');  -- GOOD init
+                                       ^
+
+--
+Module errors:
+INVALID_ARGUMENT: Unsupported statement kind: QueryStatement [at .../googlesql/testdata/modules/simple.sqlm:2:1]
+select 1 as a;                                              -- invalid stmt
+^
+
+INVALID_ARGUMENT: Unsupported statement kind: GrantStatement [at .../googlesql/testdata/modules/simple.sqlm:6:1]
+grant all on foo to 'mdbuser/user';                         -- invalid stmt
+^
+
+INVALID_ARGUMENT: Modules do not support function overloads yet but found multiple CREATE FUNCTION statements for function baz [at .../googlesql/testdata/modules/simple.sqlm:9:1]
+create public function baz(c uint64) as (c+3);              -- bad overload
+^
+
+INVALID_ARGUMENT: Modules do not support creating functions with multi-part names or in nested catalogs [at .../googlesql/testdata/modules/simple.sqlm:13:24]
+create public function a.b.c(b int32) as (b + 5);           -- bad pathname
+                       ^
+
+INVALID_ARGUMENT: Syntax error: Unexpected identifier "abdsgklds" [at .../googlesql/testdata/modules/simple.sqlm:26:1]
+abdsgklds;                                        -- bad PARSE ERROR
+^

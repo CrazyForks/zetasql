@@ -936,7 +936,7 @@ SET array_value[OFFSET(0)] = 100,
     array_value[OFFSET(0)] = 200
 WHERE array_value IS NOT NULL
 --
-ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 of an ARRAY<INT64>
+ERROR: generic::out_of_range: Cannot perform multiple updates to offset 0 on type ARRAY<INT64>
 ==
 
 [name=update_array_element_with_set_null_array]
@@ -1205,6 +1205,42 @@ STRUCT<
     {2, 220, 200, 2000}
   ]
 }
+==
+
+[name=update_with_join_returning_star]
+[required_features=DML_UPDATE_WITH_JOIN,DML_RETURNING]
+UPDATE TableInt64Values
+SET value1 = TableInt64Values.value1 + TableInt64Values2.value1
+FROM TableInt64Values2
+WHERE TableInt64Values.primary_key = TableInt64Values2.primary_key
+THEN RETURN *
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>,
+  returning_rows ARRAY<>
+>{
+  2,
+  ARRAY<STRUCT<primary_key INT64, value1 INT64, value2 INT64, value3 INT64>>[unknown order:
+    {1, 110, 100, 1000},
+    {2, 220, 200, 2000}
+  ],
+  ARRAY<STRUCT<primary_key INT64, value1 INT64, value2 INT64, value3 INT64>>[unknown order:
+    {1, 110, 100, 1000},
+    {2, 220, 200, 2000}
+  ]
+}
+==
+
+[name=update_with_join_where_true_returning_star]
+[required_features=DML_UPDATE_WITH_JOIN,DML_RETURNING]
+UPDATE TableInt64Values
+SET value1 = TableInt64Values.value1 + TableInt64Values2.value1
+FROM TableInt64Values2
+WHERE true
+THEN RETURN *
+--
+ERROR: generic::out_of_range: UPDATE with join requires that each row of the table being updated correspond with at most one joined row that matches the WHERE clause
 ==
 
 [name=update_with_join_no_join_condition]

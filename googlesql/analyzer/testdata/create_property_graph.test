@@ -5594,6 +5594,23 @@ CreatePropertyGraphStmt
 ==
 
 [language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS]
+[no_enable_literal_replacement]
+create property graph catalog.aml
+node tables(person, account)
+edge tables(
+personownaccount as own
+source key(personId) references person(id)
+destination key(accountId) references account
+label x1 properties(personId+1 as id OPTIONS(description='a'))
+label x2 properties(personId+1 as id OPTIONS(description='b'))
+)
+--
+ERROR: Property 'id' has more than one definition in the element table; use the same property definition or assign different property names [at 8:21]
+label x2 properties(personId+1 as id OPTIONS(description='b'))
+                    ^
+==
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS]
 CREATE PROPERTY GRAPH aml_with_options
   NODE TABLES(
     Person
@@ -5676,7 +5693,7 @@ ERROR: MEASURE is not supported for property definitions [at 15:7]
 ==
 
 # Test MEASURE property.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -5816,7 +5833,7 @@ CreatePropertyGraphStmt
 ==
 
 # Test more valid MEASURE property expressions.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+NULL_HANDLING_MODIFIER_IN_AGGREGATE,+LIMIT_IN_AGGREGATE]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+NULL_HANDLING_MODIFIER_IN_AGGREGATE,+LIMIT_IN_AGGREGATE,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6016,7 +6033,7 @@ CreatePropertyGraphStmt
 
 # Test MEASURE property expression validation:
 # Graph properties in a measure expression can only be referenced within an aggregate function call.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6122,7 +6139,7 @@ ERROR: Property value expression cannot contain a subquery [at 15:15]
 ==
 
 # Test MEASURE property expression validation: SUM(AVG()).
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6226,7 +6243,7 @@ ERROR: MEASURE expression cannot contain clauses such as GROUP BY, HAVING MIN/MA
 ==
 
 # Test MEASURE property expression validation: HAVING MIN/MAX is not allowed.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6252,7 +6269,7 @@ ERROR: HAVING modifier in aggregate function is not supported [at 15:28]
 ==
 
 # Test MEASURE property expression validation: Measure expression must not contain an aggregate function with a HAVING filter clause
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6278,7 +6295,7 @@ ERROR: Measure expression must not contain an aggregate function with a HAVING f
 ==
 
 # Test MEASURE property expression validation: graph properties as argument to a multi-level aggregate function is OK.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6390,7 +6407,7 @@ CreatePropertyGraphStmt
 ==
 
 # Test MEASURE property expression validation: ORDER BY in aggregate function is not supported.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+ORDER_BY_IN_AGGREGATE]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+ORDER_BY_IN_AGGREGATE,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6416,7 +6433,7 @@ ERROR: Measure expression must not contain an aggregate function with an ORDER B
 ==
 
 # Test MEASURE property expression validation: Lambda is not allowed.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+INLINE_LAMBDA_ARGUMENT]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+INLINE_LAMBDA_ARGUMENT,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6494,7 +6511,7 @@ ERROR: Property value expression cannot use volatile or non-deterministic functi
 ==
 
 # Test MEASURE property expression validation: WHERE filter is not allowed.
-[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   person
@@ -6675,3 +6692,454 @@ EDGE TABLES (
 ERROR: Duplicate graph property name p1 [at 14:5]
     PROPERTIES (
     ^
+==
+
+# Test that columns are not allowed in measure expressions without feature SQL_GRAPH_MEASURE_ALLOW_COLUMNS.
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    DEFAULT LABEL PROPERTIES (personId, accountId)
+    LABEL test
+    PROPERTIES (
+      MEASURE(SUM(personId)) AS m_total1
+    )
+)
+--
+
+ERROR: Columns are not supported in graph measure property expressions [at 15:19]
+      MEASURE(SUM(personId)) AS m_total1
+                  ^
+==
+
+# Test that properties are fine in measure expressions without feature SQL_GRAPH_MEASURE_ALLOW_COLUMNS.
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    DEFAULT LABEL PROPERTIES (personId, accountId)
+    LABEL test
+    PROPERTIES (
+      personId as personId,
+      personId + 1 as t1,
+      MEASURE(SUM(personId)) AS m_total1,
+      MEASURE(SUM(t1)) AS m_total2
+    )
+)
+--
+
+CreatePropertyGraphStmt
++-name_path=catalog.aml
++-node_table_list=
+| +-GraphElementTable
+| | +-alias="person"
+| | +-input_scan=
+| | | +-TableScan(column_list=Person.[id#1, name#2, gender#3, birthday#4, email#5, age#6, data#7], table=Person, column_index_list=[0, 1, 2, 3, 4, 5, 6])
+| | +-key_list=
+| | | +-ColumnRef(type=INT64, column=Person.id#1)
+| | +-label_name_list=[person, no_properties]
+| | +-property_definition_list=
+| |   +-GraphPropertyDefinition
+| |     +-parse_location=87-89
+| |     +-expr=
+| |     | +-ColumnRef(type=INT64, column=Person.id#1)
+| |     +-sql="id"
+| |     +-property_declaration_name="id"
+| +-GraphElementTable
+|   +-alias="account"
+|   +-input_scan=
+|   | +-TableScan(column_list=Account.[id#8, name#9, balance#10], table=Account, column_index_list=[0, 1, 2])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=Account.id#8)
+|   +-label_name_list=[account]
+|   +-property_definition_list=
+|     +-GraphPropertyDefinition
+|       +-parse_location=152-154
+|       +-expr=
+|       | +-ColumnRef(type=INT64, column=Account.id#8)
+|       +-sql="id"
+|       +-property_declaration_name="id"
++-edge_table_list=
+| +-GraphElementTable
+|   +-alias="PersonOwnAccount"
+|   +-input_scan=
+|   | +-TableScan(column_list=PersonOwnAccount.[personId#11, accountId#12, startDate#13], table=PersonOwnAccount, column_index_list=[0, 1, 2])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+|   | +-ColumnRef(type=INT64, column=PersonOwnAccount.accountId#12)
+|   +-source_node_reference=
+|   | +-GraphNodeTableReference
+|   |   +-node_table_identifier="person"
+|   |   +-edge_table_column_list=
+|   |   | +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+|   |   +-node_table_column_list=
+|   |     +-ColumnRef(type=INT64, column=Person.id#1)
+|   +-dest_node_reference=
+|   | +-GraphNodeTableReference
+|   |   +-node_table_identifier="account"
+|   |   +-edge_table_column_list=
+|   |   | +-ColumnRef(type=INT64, column=PersonOwnAccount.accountId#12)
+|   |   +-node_table_column_list=
+|   |     +-ColumnRef(type=INT64, column=Account.id#8)
+|   +-label_name_list=[PersonOwnAccount, test]
+|   +-property_definition_list=
+|     +-GraphPropertyDefinition
+|     | +-parse_location=347-355
+|     | +-expr=
+|     | | +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+|     | +-sql="personId"
+|     | +-property_declaration_name="personId"
+|     +-GraphPropertyDefinition
+|     | +-parse_location=357-366
+|     | +-expr=
+|     | | +-ColumnRef(type=INT64, column=PersonOwnAccount.accountId#12)
+|     | +-sql="accountId"
+|     | +-property_declaration_name="accountId"
+|     +-GraphPropertyDefinition
+|     | +-parse_location=434-452
+|     | +-expr=
+|     | | +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+|     | |   +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+|     | |   +-Literal(type=INT64, value=1)
+|     | +-sql="personId + 1"
+|     | +-property_declaration_name="t1"
+|     +-GraphPropertyDefinition
+|     | +-parse_location=460-494
+|     | +-expr=
+|     | | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+|     | |   +-CatalogColumnRef(type=INT64, name="personId")
+|     | +-sql="SUM(personId)"
+|     | +-property_declaration_name="m_total1"
+|     | +-is_measure=TRUE
+|     +-GraphPropertyDefinition
+|       +-parse_location=502-530
+|       +-expr=
+|       | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+|       |   +-CatalogColumnRef(type=INT64, name="t1")
+|       +-sql="SUM(t1)"
+|       +-property_declaration_name="m_total2"
+|       +-is_measure=TRUE
++-label_list=
+| +-GraphElementLabel(parse_location=61-90, name="person", property_declaration_name_list=[id])
+| +-GraphElementLabel(parse_location=95-128, name="no_properties")
+| +-GraphElementLabel(parse_location=140-155, name="account", property_declaration_name_list=[id])
+| +-GraphElementLabel(parse_location=321-367, name="PersonOwnAccount", property_declaration_name_list=[personId, accountId])
+| +-GraphElementLabel(parse_location=372-536, name="test", property_declaration_name_list=[personId, t1, m_total1, m_total2])
++-property_declaration_list=
+  +-GraphPropertyDeclaration(parse_location=87-89, name="id", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=347-355, name="personId", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=357-366, name="accountId", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=434-452, name="t1", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=460-494, name="m_total1", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=502-530, name="m_total2", type=INT64)
+
+==
+
+# Create a property graph with an inlined edge, which is not supported yet
+create property graph catalog.aml
+node tables (
+  Person as person
+    edge as friend
+      join key (id) references Person (id)
+)
+--
+ERROR: Inlined edge definition is not supported [at 4:5]
+    edge as friend
+    ^
+==
+
+# The same name cannot be declared as both a non-measure property and a measure property.
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    LABEL test
+    PROPERTIES (
+      MEASURE(1.0) as p1
+    ),
+
+ Transfer KEY(TXNID)
+    source key(fromAccountId) REFERENCES account(ID)
+    DESTINATION KEY(toAccountId) REFERENCES account
+    LABEL test3
+    PROPERTIES (
+      2.0 as p1
+    )
+)
+--
+ERROR: Property 'p1' is defined as MEASURE, but there are other declarations with the same name [at 14:7]
+      MEASURE(1.0) as p1
+      ^
+==
+
+# The same name cannot be declared as both a non-measure property and a measure property. Verify that the error location is generated at the measure property definition.
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    LABEL test
+    PROPERTIES (
+      1.0 as p1
+    ),
+
+ Transfer KEY(TXNID)
+    source key(fromAccountId) REFERENCES account(ID)
+    DESTINATION KEY(toAccountId) REFERENCES account
+    LABEL test3
+    PROPERTIES (
+      MEASURE(2.0) as p1
+    )
+)
+--
+ERROR: Property 'p1' is defined as MEASURE, but there are other declarations with the same name [at 22:7]
+      MEASURE(2.0) as p1
+      ^
+==
+
+# The same name cannot be declared as measure properties multiple times.
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    LABEL test
+    PROPERTIES (
+      MEASURE(1.0) as p1
+    ),
+
+ Transfer KEY(TXNID)
+    source key(fromAccountId) REFERENCES account(ID)
+    DESTINATION KEY(toAccountId) REFERENCES account
+    LABEL test3
+    PROPERTIES (
+      MEASURE(2.0) as p1
+    )
+)
+--
+ERROR: Property 'p1' is defined as MEASURE, but there are other declarations with the same name [at 22:7]
+      MEASURE(2.0) as p1
+      ^
+==
+
+# It's allowed that the same name be declared as multiple non-measure properties.
+
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  person
+    DEFAULT LABEL PROPERTIES (id)
+    LABEL no_properties NO PROPERTIES,
+  account PROPERTIES (id)
+)
+EDGE TABLES (
+  PersonOwnAccount KEY(personId, accountId)
+    SOURCE KEY(personId) REFERENCES person(id)
+    DESTINATION KEY(accountId) REFERENCES account(id)
+    LABEL test
+    PROPERTIES (
+      1.0 as p1
+    ),
+
+ Transfer KEY(TXNID)
+    source key(fromAccountId) REFERENCES account(ID)
+    DESTINATION KEY(toAccountId) REFERENCES account
+    LABEL test3
+    PROPERTIES (
+      2.0 as p1
+    )
+)
+--
+CreatePropertyGraphStmt
++-name_path=catalog.aml
++-node_table_list=
+| +-GraphElementTable
+| | +-alias="person"
+| | +-input_scan=
+| | | +-TableScan(column_list=Person.[id#1, name#2, gender#3, birthday#4, email#5, age#6, data#7], table=Person, column_index_list=[0, 1, 2, 3, 4, 5, 6])
+| | +-key_list=
+| | | +-ColumnRef(type=INT64, column=Person.id#1)
+| | +-label_name_list=[person, no_properties]
+| | +-property_definition_list=
+| |   +-GraphPropertyDefinition
+| |     +-parse_location=87-89
+| |     +-expr=
+| |     | +-ColumnRef(type=INT64, column=Person.id#1)
+| |     +-sql="id"
+| |     +-property_declaration_name="id"
+| +-GraphElementTable
+|   +-alias="account"
+|   +-input_scan=
+|   | +-TableScan(column_list=Account.[id#8, name#9, balance#10], table=Account, column_index_list=[0, 1, 2])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=Account.id#8)
+|   +-label_name_list=[account]
+|   +-property_definition_list=
+|     +-GraphPropertyDefinition
+|       +-parse_location=152-154
+|       +-expr=
+|       | +-ColumnRef(type=INT64, column=Account.id#8)
+|       +-sql="id"
+|       +-property_declaration_name="id"
++-edge_table_list=
+| +-GraphElementTable
+| | +-alias="PersonOwnAccount"
+| | +-input_scan=
+| | | +-TableScan(column_list=PersonOwnAccount.[personId#11, accountId#12, startDate#13], table=PersonOwnAccount, column_index_list=[0, 1, 2])
+| | +-key_list=
+| | | +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+| | | +-ColumnRef(type=INT64, column=PersonOwnAccount.accountId#12)
+| | +-source_node_reference=
+| | | +-GraphNodeTableReference
+| | |   +-node_table_identifier="person"
+| | |   +-edge_table_column_list=
+| | |   | +-ColumnRef(type=INT64, column=PersonOwnAccount.personId#11)
+| | |   +-node_table_column_list=
+| | |     +-ColumnRef(type=INT64, column=Person.id#1)
+| | +-dest_node_reference=
+| | | +-GraphNodeTableReference
+| | |   +-node_table_identifier="account"
+| | |   +-edge_table_column_list=
+| | |   | +-ColumnRef(type=INT64, column=PersonOwnAccount.accountId#12)
+| | |   +-node_table_column_list=
+| | |     +-ColumnRef(type=INT64, column=Account.id#8)
+| | +-label_name_list=[test]
+| | +-property_definition_list=
+| |   +-GraphPropertyDefinition
+| |     +-parse_location=355-364
+| |     +-expr=
+| |     | +-Literal(type=DOUBLE, value=1)
+| |     +-sql="1.0"
+| |     +-property_declaration_name="p1"
+| +-GraphElementTable
+|   +-alias="Transfer"
+|   +-input_scan=
+|   | +-TableScan(column_list=Transfer.[txnId#14, fromAccountId#15, toAccountId#16, time#17, amount#18], table=Transfer, column_index_list=[0, 1, 2, 3, 4])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=Transfer.txnId#14)
+|   +-source_node_reference=
+|   | +-GraphNodeTableReference
+|   |   +-node_table_identifier="account"
+|   |   +-edge_table_column_list=
+|   |   | +-ColumnRef(type=INT64, column=Transfer.fromAccountId#15)
+|   |   +-node_table_column_list=
+|   |     +-ColumnRef(type=INT64, column=Account.id#8)
+|   +-dest_node_reference=
+|   | +-GraphNodeTableReference
+|   |   +-node_table_identifier="account"
+|   |   +-edge_table_column_list=
+|   |   | +-ColumnRef(type=INT64, column=Transfer.toAccountId#16)
+|   |   +-node_table_column_list=
+|   |     +-ColumnRef(type=INT64, column=Account.id#8)
+|   +-label_name_list=[test3]
+|   +-property_definition_list=
+|     +-GraphPropertyDefinition
+|       +-parse_location=538-547
+|       +-expr=
+|       | +-Literal(type=DOUBLE, value=2)
+|       +-sql="2.0"
+|       +-property_declaration_name="p1"
++-label_list=
+| +-GraphElementLabel(parse_location=61-90, name="person", property_declaration_name_list=[id])
+| +-GraphElementLabel(parse_location=95-128, name="no_properties")
+| +-GraphElementLabel(parse_location=140-155, name="account", property_declaration_name_list=[id])
+| +-GraphElementLabel(parse_location=321-370, name="test", property_declaration_name_list=[p1])
+| +-GraphElementLabel(parse_location=503-553, name="test3", property_declaration_name_list=[p1])
++-property_declaration_list=
+  +-GraphPropertyDeclaration(parse_location=87-89, name="id", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=355-364, name="p1", type=DOUBLE)
+
+==
+
+# TODO: b/519688990 - Duplicate column and property names in graph DDL currently
+# do not trigger ambiguity errors. We should fix this.
+[language_features=MAXIMUM]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  Person
+    DEFAULT LABEL PROPERTIES (
+      id,
+      gender AS age,
+      MEASURE(SUM(age)) AS sum_age
+    )
+)
+--
+CreatePropertyGraphStmt
++-name_path=catalog.aml
++-node_table_list=
+| +-GraphElementTable
+|   +-alias="Person"
+|   +-input_scan=
+|   | +-TableScan(column_list=Person.[id#1, name#2, gender#3, birthday#4, email#5, age#6, data#7], table=Person, column_index_list=[0, 1, 2, 3, 4, 5, 6])
+|   +-key_list=
+|   | +-ColumnRef(type=INT64, column=Person.id#1)
+|   +-label_name_list=[Person]
+|   +-property_definition_list=
+|     +-GraphPropertyDefinition
+|     | +-parse_location=94-96
+|     | +-expr=
+|     | | +-ColumnRef(type=INT64, column=Person.id#1)
+|     | +-sql="id"
+|     | +-property_declaration_name="id"
+|     +-GraphPropertyDefinition
+|     | +-parse_location=104-117
+|     | +-expr=
+|     | | +-ColumnRef(type=STRING, column=Person.gender#3)
+|     | +-sql="gender"
+|     | +-property_declaration_name="age"
+|     +-GraphPropertyDefinition
+|       +-parse_location=125-153
+|       +-expr=
+|       | +-AggregateFunctionCall(GoogleSQL:sum(UINT64) -> UINT64)
+|       |   +-Cast(UINT32 -> UINT64)
+|       |     +-CatalogColumnRef(type=UINT32, name="age")
+|       +-sql="SUM(age)"
+|       +-property_declaration_name="sum_age"
+|       +-is_measure=TRUE
++-label_list=
+| +-GraphElementLabel(parse_location=61-159, name="Person", property_declaration_name_list=[id, age, sum_age])
++-property_declaration_list=
+  +-GraphPropertyDeclaration(parse_location=94-96, name="id", type=INT64)
+  +-GraphPropertyDeclaration(parse_location=104-117, name="age", type=STRING)
+  +-GraphPropertyDeclaration(parse_location=125-153, name="sum_age", type=UINT64)
