@@ -1609,15 +1609,27 @@ sum(x order by x)
 ==
 
 [language_features=NONE,+TEMPLATE_FUNCTIONS]
-[allow_internal_error_todo_bug=b/456550678]
 SELECT TemplatedUdfExplicitReturnType('a', 'b');
 --
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [STRUCT<x STRING, y STRING>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(Templated_SQL_Function:TemplatedUdfExplicitReturnType(STRING arg1, STRING arg2) -> STRUCT<x STRING, y STRING>)
+    |     +-Literal(type=STRING, value="a")
+    |     +-Literal(type=STRING, value="b")
+    +-input_scan=
+      +-SingleRowScan
 
-ERROR: generic::internal: RET_CHECK failure (<location redacted>) Cannot obtain the AST expressions for field arguments of struct constructor:
-FunctionCall [7-47]
-  PathExpression [7-37]
-    Identifier(TemplatedUdfExplicitReturnType) [7-37]
-  StringLiteral [38-41]
-    StringLiteralComponent('a') [38-41]
-  StringLiteral [43-46]
-    StringLiteralComponent('b') [43-46]
+With Templated SQL function call:
+  Templated_SQL_Function:TemplatedUdfExplicitReturnType(STRING arg1, STRING arg2) -> STRUCT<x STRING, y STRING>
+containing resolved templated expression:
+MakeStruct
++-type=STRUCT<x STRING, y STRING>
++-field_list=
+  +-ArgumentRef(type=STRING, name="arg1")
+  +-ArgumentRef(type=STRING, name="arg2")

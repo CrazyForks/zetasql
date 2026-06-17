@@ -204,4 +204,3 @@ ALTERNATION GROUPS:
 ERROR: The allowed_references option can only be the literal string 'GLOBAL' for SQL procedures in modules [at 3:11]
   OPTIONS(allowed_references='BUILTIN')
           ^
-==

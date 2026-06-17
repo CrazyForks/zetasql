@@ -725,6 +725,23 @@ to a valid value, an error is returned.
       </td>
       <td>TIMESTAMP</td>
     </tr>
+    
+    <tr>
+      <td>
+        <ul>
+        <li>INTERVAL</li>
+        <li>
+          google.protobuf.Duration
+
+          
+
+          
+        </li>
+        </ul>
+      </td>
+      <td>INTERVAL</td>
+    </tr>
+    
   </tbody>
 </table>
 
@@ -763,6 +780,23 @@ SELECT FROM_PROTO(DATE '2019-10-30')
  +------------+
  | 2019-10-30 |
  +------------*/
+```
+
+Convert a `google.protobuf.Duration` type into an `INTERVAL` type.
+
+```googlesql
+SELECT FROM_PROTO(
+  new google.protobuf.Duration(
+    10000 as seconds,
+    500000000 as nanos
+  )
+)
+
+/*----------------───+
+ | $col1             |
+ +----------------───+
+ | 0-0 0 2:46:40.500 |
+ +----------------───*/
 ```
 
 ## `PROTO_DEFAULT_IF_NULL`
@@ -1173,6 +1207,17 @@ table below, along with the return types that they produce. Other input
       </td>
       <td>google.protobuf.Timestamp</td>
     </tr>
+    
+    <tr>
+      <td>
+        <ul>
+        <li>INTERVAL</li>
+        <li>google.protobuf.Duration</li>
+        </ul>
+      </td>
+      <td>google.protobuf.Duration</td>
+    </tr>
+    
   </tbody>
 </table>
 
@@ -1211,5 +1256,17 @@ SELECT TO_PROTO(
  +--------------------------------+
  | {year: 2019 month: 10 day: 30} |
  +--------------------------------*/
+```
+
+Convert an `INTERVAL` type into a `google.protobuf.Duration` type.
+
+```googlesql
+SELECT TO_PROTO(INTERVAL "2:46:40.5" HOUR TO SECOND)
+
+/*-----------------------------------+
+ | $col1                             |
+ +-----------------------------------+
+ | {seconds: 10000 nanos: 500000000} |
+ +-----------------------------------*/
 ```
 

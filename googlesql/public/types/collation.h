@@ -43,6 +43,9 @@ namespace googlesql {
 // any child, or it has at least one non-empty child.
 class Collation {
  public:
+  // Returns a reference to the empty Collation.
+  static const Collation& EmptyCollation();
+
   // Iterates the <annotation_map> and makes a normalized Collation
   // instance.
   static absl::StatusOr<Collation> MakeCollation(

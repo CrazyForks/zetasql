@@ -460,4 +460,3 @@ InsertStmt
     | +-ColumnRef(type=INT64, column=TableWithGeneratedColumn.A#1)
     | +-ColumnRef(type=INT64, column=TableWithGeneratedColumn.B#2)
     +-ColumnRef(type=INT64, column=TableWithGeneratedColumn.C#3)
-==

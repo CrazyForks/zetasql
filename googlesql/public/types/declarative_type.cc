@@ -131,6 +131,26 @@ bool DeclarativeType::SupportsPartitioningImpl(
   return supports_partitioning;
 }
 
+bool DeclarativeType::SupportsReturningImpl(
+    const LanguageOptions& language_options,
+    const Type** no_returning_type) const {
+  bool supports_returning = std::visit(
+      absl::Overload(
+          [](DeclarativeTypeDescriptor::ReturningDisallowed) { return false; },
+          [&](DeclarativeTypeDescriptor::ReturningDelegated) {
+            // We do not care which part of the backing type caused the issue.
+            // We will report the current type as the one not supporting
+            // returning below, before returning.
+            return backing_type()->SupportsReturningImpl(
+                language_options, /*no_returning_type=*/nullptr);
+          }),
+      data_.returning_strategy());
+  if (!supports_returning && no_returning_type != nullptr) {
+    *no_returning_type = this;
+  }
+  return supports_returning;
+}
+
 bool DeclarativeType::SupportsOrdering(const LanguageOptions& language_options,
                                        std::string* type_description) const {
   // TODO: Support ordering strategies.

@@ -21,6 +21,7 @@
 #include "googlesql/compliance/functions_testlib_common.h"
 #include "googlesql/public/civil_time.h"
 #include "googlesql/public/functions/date_time_util.h"
+#include "googlesql/public/interval_value.h"
 #include "googlesql/public/interval_value_test_util.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/value.h"
@@ -491,15 +492,20 @@ struct BinaryFunctionArgumentsAndResult {
   std::string input1;
   std::string input2;
   std::string output;
+  std::vector<LanguageFeature> required_features;
 };
 
 // INTERVAL DAY to SECOND tests are shared between DATETIME and TIMESTAMP
 const struct BinaryFunctionArgumentsAndResult
     kAddDatetimeIntervalDayToSecondTests[] = {
-        {"2000-01-01 00:00:00", "0:0:0.000000001",
-         "2000-01-01 00:00:00.000000001"},
-        {"2000-01-01 00:00:00", "-0:0:0.000000001",
-         "1999-12-31 23:59:59.999999999"},
+        {"2000-01-01 00:00:00",
+         "0:0:0.000000001",
+         "2000-01-01 00:00:00.000000001",
+         {FEATURE_TIMESTAMP_NANOS}},
+        {"2000-01-01 00:00:00",
+         "-0:0:0.000000001",
+         "1999-12-31 23:59:59.999999999",
+         {FEATURE_TIMESTAMP_NANOS}},
         {"2000-01-01 00:00:00", "0:0:0.000001", "2000-01-01 00:00:00.000001"},
         {"2000-01-01 00:00:00", "-0:0:0.000001", "1999-12-31 23:59:59.999999"},
         {"2000-01-01 00:00:00", "0:0:0.001", "2000-01-01 00:00:00.001"},
@@ -541,18 +547,26 @@ const struct BinaryFunctionArgumentsAndResult
         {"2000-01-01 00:00:00", "1 2:3:4.123456", "2000-01-02 02:03:04.123456"},
         {"2000-01-01 00:00:00", "-1 -2:3:4.123456",
          "1999-12-30 21:56:55.876544"},
-        {"2000-01-01 00:00:00", "1 2:3:4.123456789",
-         "2000-01-02 02:03:04.123456789"},
-        {"2000-01-01 00:00:00", "-1 -2:3:4.123456789",
-         "1999-12-30 21:56:55.876543211"},
+        {"2000-01-01 00:00:00",
+         "1 2:3:4.123456789",
+         "2000-01-02 02:03:04.123456789",
+         {FEATURE_TIMESTAMP_NANOS}},
+        {"2000-01-01 00:00:00",
+         "-1 -2:3:4.123456789",
+         "1999-12-30 21:56:55.876543211",
+         {FEATURE_TIMESTAMP_NANOS}},
         {"2000-01-01 00:00:00", "1 -1:0:0", "2000-01-01 23:00:00"},
         {"2000-01-01 00:00:00", "-1 1:0:0", "1999-12-31 01:00:00"},
         {"2000-01-01 00:00:00", "1 -24:0:0", "2000-01-01 00:00:00"},
         {"2000-01-01 00:00:00", "-1 24:0:0", "2000-01-01 00:00:00"},
-        {"1900-10-11 12:13:14.1500006", "1 1:1:1.0100001",
-         "1900-10-12 13:14:15.160000700"},
-        {"1900-10-11 12:13:14.1500006", "-1 -1:1:1.0100001",
-         "1900-10-10 11:12:13.140000500"},
+        {"1900-10-11 12:13:14.1500006",
+         "1 1:1:1.0100001",
+         "1900-10-12 13:14:15.160000700",
+         {FEATURE_TIMESTAMP_NANOS}},
+        {"1900-10-11 12:13:14.1500006",
+         "-1 -1:1:1.0100001",
+         "1900-10-10 11:12:13.140000500",
+         {FEATURE_TIMESTAMP_NANOS}},
         {"0001-01-01 0:0:0", "3652058 0:0:0", "9999-12-31 00:00:00"},
         {"9999-12-31 23:59:59", "-3652058 0:0:0", "0001-01-01 23:59:59"},
         {"0001-01-01 0:0:0", "87649415:0:0", "9999-12-31 23:00:00"},
@@ -563,11 +577,15 @@ const struct BinaryFunctionArgumentsAndResult
          "9999-12-31 23:59:59.999999"},
         {"9999-12-31 23:59:59.999999", "-87649415:59:59.999999",
          "0001-01-01 00:00:00"},
-        {"0001-01-01 0:0:0", "87649415:59:59.999999999",
-         "9999-12-31 23:59:59.999999999"},
-        {"9999-12-31 23:59:59.999999999", "-87649415:59:59.999999999",
-         "0001-01-01 00:00:00"},
-};
+        {"0001-01-01 0:0:0",
+         "87649415:59:59.999999999",
+         "9999-12-31 23:59:59.999999999",
+         {FEATURE_TIMESTAMP_NANOS}},
+        {"9999-12-31 23:59:59.999999999",
+         "-87649415:59:59.999999999",
+         "0001-01-01 00:00:00",
+         {FEATURE_TIMESTAMP_NANOS}},
+    };
 
 // Remaining INTERVAL YEAR TO SECOND are for DATETIME only
 const struct BinaryFunctionArgumentsAndResult
@@ -608,11 +626,15 @@ const struct BinaryFunctionArgumentsAndResult
         {"2000-01-01 00:00:00", "-0-1 31 0:0:0", "2000-01-01 00:00:00"},
         {"2000-01-01 00:00:00", "1-0 -366 0:0:0", "2000-01-01 00:00:00"},
         {"2000-01-01 00:00:00", "-1-0 365 0:0:0", "2000-01-01 00:00:00"},
-        {"1900-10-11 12:13:14.1500006", "1-1 1 1:1:1.0100001",
-         "1901-11-12 13:14:15.160000700"},
-        {"1900-10-11 12:13:14.1500006", "-1-1 -1 -1:1:1.0100001",
-         "1899-09-10 11:12:13.140000500"},
-};
+        {"1900-10-11 12:13:14.1500006",
+         "1-1 1 1:1:1.0100001",
+         "1901-11-12 13:14:15.160000700",
+         {FEATURE_TIMESTAMP_NANOS}},
+        {"1900-10-11 12:13:14.1500006",
+         "-1-1 -1 -1:1:1.0100001",
+         "1899-09-10 11:12:13.140000500",
+         {FEATURE_TIMESTAMP_NANOS}},
+    };
 
 std::vector<QueryParamsWithResult> GetDatetimeAddSubIntervalBase() {
   std::vector<QueryParamsWithResult> tests = {
@@ -637,18 +659,28 @@ std::vector<QueryParamsWithResult> GetDatetimeAddSubIntervalBase() {
     IntervalValue interval =
         *IntervalValue::ParseFromString(p.input2, /*allow_nanos=*/true);
     // Original test case
-    tests.push_back(
-        {{Datetime(p.input1), Value::Interval(interval)}, Datetime(p.output)});
+    QueryParamsWithResult tc1 = {
+        {Datetime(p.input1), Value::Interval(interval)}, Datetime(p.output)};
     // Test case derived through transformation: x+y=z <=> z-y=x
-    tests.push_back(
-        {{Datetime(p.output), Value::Interval(-interval)}, Datetime(p.input1)});
+    QueryParamsWithResult tc2 = {
+        {Datetime(p.output), Value::Interval(-interval)}, Datetime(p.input1)};
+    for (LanguageFeature feature : p.required_features) {
+      tc1.AddRequiredFeature(feature);
+      tc2.AddRequiredFeature(feature);
+    }
+    tests.push_back(tc1);
+    tests.push_back(tc2);
   }
 
   for (const auto& p : kAddDatetimeIntervalYearToSecondTests) {
     IntervalValue interval =
         *IntervalValue::ParseFromString(p.input2, /*allow_nanos=*/true);
-    tests.push_back(
-        {{Datetime(p.input1), Value::Interval(interval)}, Datetime(p.output)});
+    QueryParamsWithResult tc = {{Datetime(p.input1), Value::Interval(interval)},
+                                Datetime(p.output)};
+    for (LanguageFeature feature : p.required_features) {
+      tc.AddRequiredFeature(feature);
+    }
+    tests.push_back(tc);
     // Note: for Year/Month date parts, x+y=z <=> z-y=x is no longer true, so
     // no additional test cases.
   }
@@ -699,11 +731,17 @@ std::vector<QueryParamsWithResult> GetTimestampAddSubIntervalBase() {
     IntervalValue interval =
         *IntervalValue::ParseFromString(p.input2, /*allow_nanos=*/true);
     // Original test case
-    tests.push_back({{Timestamp(p.input1), Value::Interval(interval)},
-                     Timestamp(p.output)});
+    QueryParamsWithResult tc1 = {
+        {Timestamp(p.input1), Value::Interval(interval)}, Timestamp(p.output)};
     // Test case derived through transformation: x+y=z <=> z-y=x
-    tests.push_back({{Timestamp(p.output), Value::Interval(-interval)},
-                     Timestamp(p.input1)});
+    QueryParamsWithResult tc2 = {
+        {Timestamp(p.output), Value::Interval(-interval)}, Timestamp(p.input1)};
+    for (LanguageFeature feature : p.required_features) {
+      tc1.AddRequiredFeature(feature);
+      tc2.AddRequiredFeature(feature);
+    }
+    tests.push_back(tc1);
+    tests.push_back(tc2);
   }
 
   return tests;
@@ -721,8 +759,10 @@ std::vector<QueryParamsWithResult> GetTimestampAddSubInterval() {
     }
     IntervalValue interval = *IntervalValue::ParseFromString(
         test.result().string_value(), /*allow_nanos=*/true);
-    tests.push_back(
-        {{test.param(1), Value::Interval(interval)}, test.param(0)});
+    QueryParamsWithResult tc = {{test.param(1), Value::Interval(interval)},
+                                test.param(0)};
+    tc.AddRequiredFeatures(test.required_features());
+    tests.push_back(tc);
   }
 
   return WrapFeatureIntervalType(tests);

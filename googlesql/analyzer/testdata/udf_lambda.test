@@ -702,7 +702,7 @@ CreateFunctionStmt
 +-name_path=f_with_collation
 +-return_type=STRING
 +-argument_name_list=[p, s]
-+-signature=(FUNCTION<STRING->STRING> p, STRING s) -> STRING rejects_collation=TRUE
++-signature=(FUNCTION<STRING->STRING> p, STRING s) -> STRING
 +-language="SQL"
 +-code="p(COLLATE(s, 'und:ci'))"
 +-function_expression=

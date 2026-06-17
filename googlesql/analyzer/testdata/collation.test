@@ -6,7 +6,7 @@ CREATE FUNCTION TemplatedStringEq(a ANY TYPE, b ANY TYPE) AS (
   a = b
 );
 --
-CreateFunctionStmt(name_path=TemplatedStringEq, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="a = b")
+CreateFunctionStmt(name_path=TemplatedStringEq, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE, language="SQL", code="a = b")
 ==
 
 [prepare_database=db1]
@@ -14,7 +14,7 @@ CREATE FUNCTION FuncWithTemplatedAndNonTemplatedArgs(x ANY TYPE, y STRING) AS (
   STRUCT(x, y)
 );
 --
-CreateFunctionStmt(name_path=FuncWithTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, STRING y) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="STRUCT(x, y)")
+CreateFunctionStmt(name_path=FuncWithTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, STRING y) -> ANY TYPE, language="SQL", code="STRUCT(x, y)")
 ==
 
 [prepare_database=db1]
@@ -22,7 +22,7 @@ CREATE FUNCTION FuncWithRepeatedTemplatedAndNonTemplatedArgsWithExplicitReturnTy
   ARRAY_CONCAT(x,y)
 );
 --
-CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgsWithExplicitReturnType, has_explicit_return_type=TRUE, return_type=ARRAY<STRING>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ARRAY<STRING> rejects_collation=TRUE, language="SQL", code="ARRAY_CONCAT(x,y)")
+CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgsWithExplicitReturnType, has_explicit_return_type=TRUE, return_type=ARRAY<STRING>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ARRAY<STRING>, language="SQL", code="ARRAY_CONCAT(x,y)")
 ==
 
 [prepare_database=db1]
@@ -30,7 +30,7 @@ CREATE FUNCTION FuncWithRepeatedTemplatedAndNonTemplatedArgs(x ANY TYPE, y ARRAY
   ARRAY_CONCAT(x,y)
 );
 --
-CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="ARRAY_CONCAT(x,y)")
+CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ANY TYPE, language="SQL", code="ARRAY_CONCAT(x,y)")
 ==
 
 [prepare_database=db1]
@@ -38,7 +38,7 @@ CREATE FUNCTION FuncWithRepeatedTemplatedAndNonTemplatedArgsReturnNonTemplatedAr
   y
 );
 --
-CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgsReturnNonTemplatedArray, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="y")
+CreateFunctionStmt(name_path=FuncWithRepeatedTemplatedAndNonTemplatedArgsReturnNonTemplatedArray, return_type=STRUCT<>, argument_name_list=[x, y], signature=(ANY TYPE x, ARRAY<STRING> y) -> ANY TYPE, language="SQL", code="y")
 ==
 
 [prepare_database=db1]
@@ -50,7 +50,7 @@ CreateFunctionStmt
 +-name_path=ConcreteUdfImplicitReturnType
 +-return_type=STRUCT<a STRING, b STRING>
 +-argument_name_list=[a, b]
-+-signature=(STRING a, STRING b) -> STRUCT<a STRING, b STRING> rejects_collation=TRUE
++-signature=(STRING a, STRING b) -> STRUCT<a STRING, b STRING>
 +-language="SQL"
 +-code="STRUCT(a, b)"
 +-function_expression=
@@ -66,7 +66,7 @@ CREATE FUNCTION TemplatedUdfImplicitReturnType(a ANY TYPE, b ANY TYPE) AS (
   (a, b)
 );
 --
-CreateFunctionStmt(name_path=TemplatedUdfImplicitReturnType, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="(a, b)")
+CreateFunctionStmt(name_path=TemplatedUdfImplicitReturnType, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, ANY TYPE b) -> ANY TYPE, language="SQL", code="(a, b)")
 ==
 
 [prepare_database=db1]
@@ -78,7 +78,7 @@ CreateFunctionStmt
 +-name_path=UdafWithNonTemplatedArgs
 +-return_type=STRING
 +-argument_name_list=[a, b]
-+-signature=(STRING a, STRING b) -> STRING rejects_collation=TRUE
++-signature=(STRING a, STRING b) -> STRING
 +-is_aggregate=TRUE
 +-language="SQL"
 +-code="STRING_AGG(CONCAT(a,b))"
@@ -97,7 +97,7 @@ CREATE AGGREGATE FUNCTION UdafWithTemplatedAndNonTemplatedArgs(a ANY TYPE, b STR
   STRING_AGG(CONCAT(a,b))
 );
 --
-CreateFunctionStmt(name_path=UdafWithTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, STRING b) -> ANY TYPE rejects_collation=TRUE, is_aggregate=TRUE, language="SQL", code="STRING_AGG(CONCAT(a,b))")
+CreateFunctionStmt(name_path=UdafWithTemplatedAndNonTemplatedArgs, return_type=STRUCT<>, argument_name_list=[a, b], signature=(ANY TYPE a, STRING b) -> ANY TYPE, is_aggregate=TRUE, language="SQL", code="STRING_AGG(CONCAT(a,b))")
 ==
 
 [prepare_database=db1]
@@ -176,7 +176,7 @@ CREATE AGGREGATE FUNCTION UdafWithTemplatedAndNonTemplatedArgsWithExplicitReturn
   STRING_AGG(CONCAT(a,b))
 );
 --
-CreateFunctionStmt(name_path=UdafWithTemplatedAndNonTemplatedArgsWithExplicitReturnType, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[a, b], signature=(ANY TYPE a, STRING b) -> STRING rejects_collation=TRUE, is_aggregate=TRUE, language="SQL", code="STRING_AGG(CONCAT(a,b))")
+CreateFunctionStmt(name_path=UdafWithTemplatedAndNonTemplatedArgsWithExplicitReturnType, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[a, b], signature=(ANY TYPE a, STRING b) -> STRING, is_aggregate=TRUE, language="SQL", code="STRING_AGG(CONCAT(a,b))")
 ==
 
 [use_database=db1]
@@ -206,7 +206,7 @@ QueryStmt
       +-SingleRowScan
 
 With Templated SQL function call:
-  Templated_SQL_Function:FuncWithTemplatedAndNonTemplatedArgs(STRING x, STRING y) -> STRUCT<x STRING, y STRING> rejects_collation=TRUE
+  Templated_SQL_Function:FuncWithTemplatedAndNonTemplatedArgs(STRING x, STRING y) -> STRUCT<x STRING, y STRING>
 containing resolved templated expression:
 MakeStruct
 +-type=STRUCT<x STRING, y STRING>
@@ -250,7 +250,7 @@ QueryStmt
         +-element_column_list=[$array.$unnest1#1{Collation:"und:ci"}]
 
 With Templated SQL function call:
-  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgs(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING> rejects_collation=TRUE
+  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgs(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING>
 containing resolved templated expression:
 FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
 +-type_annotation_map=<{Collation:"und:ci"}>
@@ -291,7 +291,7 @@ QueryStmt
         +-element_column_list=[$array.$unnest1#1]
 
 With Templated SQL function call:
-  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgsWithExplicitReturnType(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING> rejects_collation=TRUE
+  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgsWithExplicitReturnType(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING>
 containing resolved templated expression:
 Cast(ARRAY<STRING> -> ARRAY<STRING>)
 +-FunctionCall(GoogleSQL:array_concat(ARRAY<STRING>, repeated(1) ARRAY<STRING>) -> ARRAY<STRING>)
@@ -334,7 +334,7 @@ QueryStmt
         +-element_column_list=[$array.$unnest1#1]
 
 With Templated SQL function call:
-  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgsReturnNonTemplatedArray(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING> rejects_collation=TRUE
+  Templated_SQL_Function:FuncWithRepeatedTemplatedAndNonTemplatedArgsReturnNonTemplatedArray(ARRAY<STRING> x, ARRAY<STRING> y) -> ARRAY<STRING>
 containing resolved templated expression:
 ArgumentRef(type=ARRAY<STRING>, name="y")
 ==
@@ -405,7 +405,7 @@ QueryStmt
                   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
 
 With Templated SQL function call:
-  Templated_SQL_Function:UdafWithTemplatedAndNonTemplatedArgs(STRING a, STRING b) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:UdafWithTemplatedAndNonTemplatedArgs(STRING a, STRING b) -> STRING
 containing resolved templated expression:
 ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
 
@@ -452,7 +452,7 @@ QueryStmt
                   +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
 
 With Templated SQL function call:
-  Templated_SQL_Function:UdafWithTemplatedAndNonTemplatedArgsWithExplicitReturnType(STRING a, STRING b) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:UdafWithTemplatedAndNonTemplatedArgsWithExplicitReturnType(STRING a, STRING b) -> STRING
 containing resolved templated expression:
 Cast(STRING -> STRING)
 +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$aggregate.$agg1#1{Collation:"und:ci"})
@@ -476,7 +476,7 @@ CreateFunctionStmt
 +-name_path=ConcreteUdfExplicitReturnType
 +-has_explicit_return_type=TRUE
 +-return_type=STRUCT<x STRING, y STRING>
-+-signature=() -> STRUCT<x STRING, y STRING> rejects_collation=TRUE
++-signature=() -> STRUCT<x STRING, y STRING>
 +-language="SQL"
 +-code="STRUCT(COLLATE('a', 'und:ci'), 'A')"
 +-function_expression=
@@ -499,7 +499,7 @@ RETURNS STRING AS (
   arg1
 );
 --
-CreateFunctionStmt(name_path=TemplatedUdfExplicitStringReturnType, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[arg1], signature=(ANY TYPE arg1) -> STRING rejects_collation=TRUE, language="SQL", code="arg1")
+CreateFunctionStmt(name_path=TemplatedUdfExplicitStringReturnType, has_explicit_return_type=TRUE, return_type=STRING, argument_name_list=[arg1], signature=(ANY TYPE arg1) -> STRING, language="SQL", code="arg1")
 ==
 
 # Cast string with collation to string type.
@@ -7591,7 +7591,7 @@ CreateFunctionStmt
 +-create_scope=CREATE_TEMP
 +-return_type=STRING
 +-argument_name_list=[x]
-+-signature=(STRING x) -> STRING rejects_collation=TRUE
++-signature=(STRING x) -> STRING
 +-language="SQL"
 +-code="x"
 +-function_expression=
@@ -7603,7 +7603,7 @@ CreateFunctionStmt
 +-name_path=f
 +-return_type=STRING
 +-argument_name_list=[x]
-+-signature=(STRING x) -> STRING rejects_collation=TRUE
++-signature=(STRING x) -> STRING
 +-language="SQL"
 +-code="x"
 +-function_expression=
@@ -10456,7 +10456,7 @@ CreateFunctionStmt
 +-name_path=myfunc
 +-return_type=STRING
 +-argument_name_list=[x]
-+-signature=(STRING x) -> STRING rejects_collation=TRUE
++-signature=(STRING x) -> STRING
 +-language="SQL"
 +-code="COLLATE(x, '')"
 +-function_expression=
@@ -10583,7 +10583,7 @@ QueryStmt
       +-TableScan(column_list=[CollatedTable.string_ci#1{Collation:"und:ci"}], table=CollatedTable, column_index_list=[0])
 
 With Templated SQL function call:
-  Templated_SQL_Function:TemplatedStringEq(STRING a, STRING b) -> BOOL rejects_collation=TRUE
+  Templated_SQL_Function:TemplatedStringEq(STRING a, STRING b) -> BOOL
 containing resolved templated expression:
 FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
 +-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="a")
@@ -10711,7 +10711,7 @@ QueryStmt
               +-ColumnRef(type=STRUCT<a INT32, b STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, column=CollatedTable.struct_with_string_ci#3<_,{Collation:"und:ci"}>)
 
 With Templated SQL function call:
-  Templated_SQL_Function:UdaTemplateWithHavingMax(STRUCT<a INT32, b STRING> agg_arg) -> ARRAY<INT32> rejects_collation=TRUE
+  Templated_SQL_Function:UdaTemplateWithHavingMax(STRUCT<a INT32, b STRING> agg_arg) -> ARRAY<INT32>
 containing resolved templated expression:
 ColumnRef(type=ARRAY<INT32>, column=$aggregate.$agg1#1)
 
@@ -11276,7 +11276,7 @@ QueryStmt
           +-SingleRowScan
 
 With Templated SQL function call:
-  Templated_SQL_Function:TemplatedUdfImplicitReturnType(STRING a, STRING b) -> STRUCT<STRING, STRING> rejects_collation=TRUE
+  Templated_SQL_Function:TemplatedUdfImplicitReturnType(STRING a, STRING b) -> STRUCT<STRING, STRING>
 containing resolved templated expression:
 MakeStruct
 +-type=STRUCT<STRING, STRING>
@@ -11286,7 +11286,7 @@ MakeStruct
   +-ArgumentRef(type=STRING, name="b")
 
 With Templated SQL function call:
-  Templated_SQL_Function:TemplatedUdfExplicitStringReturnType(STRING arg1) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:TemplatedUdfExplicitStringReturnType(STRING arg1) -> STRING
 containing resolved templated expression:
 Cast(STRING -> STRING)
 +-ArgumentRef(type=STRING, type_annotation_map={Collation:"und:ci"}, name="arg1")

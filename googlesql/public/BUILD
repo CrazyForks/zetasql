@@ -42,6 +42,32 @@ cc_library(
 )
 
 cc_library(
+    name = "time_series_tvf_util",
+    srcs = ["time_series_tvf_util.cc"],
+    hdrs = ["time_series_tvf_util.h"],
+    deps = [
+        "//googlesql/base:status",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "time_series_tvf_util_test",
+    size = "small",
+    srcs = ["time_series_tvf_util_test.cc"],
+    deps = [
+        ":time_series_tvf_util",
+        "//googlesql/base/testing:googlesql_gtest_main",
+        "//googlesql/public/testing:error_matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "anonymization_utils",
     srcs = [
         "anonymization_utils.cc",

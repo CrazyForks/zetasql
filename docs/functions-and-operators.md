@@ -2414,10 +2414,15 @@ The following rules apply when comparing these data types:
 +   `STRING`: Strings are compared codepoint-by-codepoint, which means that
     canonically equivalent strings are only guaranteed to compare as equal if
     they have been normalized first.
-+   `JSON`: You can't compare JSON, but you can compare
-    the values inside of JSON if you convert the values to
-    SQL values first. For more information, see
-    [`JSON` functions][json-functions].
++   `JSON`: You can compare `JSON` values in the following cases:
+    +   Both operands are `JSON`.
+    +   One operand is `JSON` and the other is a non-`JSON` type that can be
+        implicitly coerced to `JSON` for equality and ordering comparisons.
+
+    For more information, see
+    <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#json_type"><code>JSON</code> type</a>
+.
+
 +   `NULL`: Any operation with a `NULL` input returns `NULL`.
 +   `STRUCT`: When testing a struct for equality, it's possible that one or more
     fields are `NULL`. In such cases:
@@ -6512,6 +6517,9 @@ Gets the number of `TRUE` values for an expression.
 The function signature `COUNTIF(DISTINCT ...)` is generally not useful. If you
 would like to use `DISTINCT`, use `COUNT` with `DISTINCT IF`. For more
 information, see the [`COUNT`][count] function.
+
+Note: `COUNTIF(expression)` is equivalent to
+`COUNT(expression WHERE expression)`.
 
 **Return type**
 
@@ -12270,8 +12278,9 @@ CAST(expression AS TIMESTAMP [format_clause [AT TIME ZONE timezone_expr]])
 GoogleSQL supports [casting][con-func-cast] to `TIMESTAMP`. The
 `expression` parameter can represent an expression for these data types:
 
-+ `STRING`
++ `DATE`
 + `DATETIME`
++ `STRING`
 + `TIMESTAMP`
 
 **Format clause**
@@ -39780,6 +39789,23 @@ to a valid value, an error is returned.
       </td>
       <td>TIMESTAMP</td>
     </tr>
+    
+    <tr>
+      <td>
+        <ul>
+        <li>INTERVAL</li>
+        <li>
+          google.protobuf.Duration
+
+          
+
+          
+        </li>
+        </ul>
+      </td>
+      <td>INTERVAL</td>
+    </tr>
+    
   </tbody>
 </table>
 
@@ -39818,6 +39844,23 @@ SELECT FROM_PROTO(DATE '2019-10-30')
  +------------+
  | 2019-10-30 |
  +------------*/
+```
+
+Convert a `google.protobuf.Duration` type into an `INTERVAL` type.
+
+```googlesql
+SELECT FROM_PROTO(
+  new google.protobuf.Duration(
+    10000 as seconds,
+    500000000 as nanos
+  )
+)
+
+/*----------------───+
+ | $col1             |
+ +----------------───+
+ | 0-0 0 2:46:40.500 |
+ +----------------───*/
 ```
 
 ### `PROTO_DEFAULT_IF_NULL`
@@ -40228,6 +40271,17 @@ table below, along with the return types that they produce. Other input
       </td>
       <td>google.protobuf.Timestamp</td>
     </tr>
+    
+    <tr>
+      <td>
+        <ul>
+        <li>INTERVAL</li>
+        <li>google.protobuf.Duration</li>
+        </ul>
+      </td>
+      <td>google.protobuf.Duration</td>
+    </tr>
+    
   </tbody>
 </table>
 
@@ -40266,6 +40320,18 @@ SELECT TO_PROTO(
  +--------------------------------+
  | {year: 2019 month: 10 day: 30} |
  +--------------------------------*/
+```
+
+Convert an `INTERVAL` type into a `google.protobuf.Duration` type.
+
+```googlesql
+SELECT TO_PROTO(INTERVAL "2:46:40.5" HOUR TO SECOND)
+
+/*-----------------------------------+
+ | $col1                             |
+ +-----------------------------------+
+ | {seconds: 10000 nanos: 500000000} |
+ +-----------------------------------*/
 ```
 
 ## Range functions

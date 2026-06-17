@@ -38,9 +38,12 @@
 #include "googlesql/public/civil_time.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/function_signature.h"
+#include "googlesql/public/functions/date_time_util.h"
 #include "googlesql/public/id_string.h"
+#include "googlesql/public/interval_value.h"
 #include "googlesql/public/json_value.h"
 #include "googlesql/public/language_options.h"
+#include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/property_graph.h"
 #include "googlesql/public/proto_util.h"
@@ -84,6 +87,8 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/civil_time.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
@@ -4759,6 +4764,200 @@ TEST_F(ProtoEvalTest, GetProtoFieldExprsMultipleFieldsMultipleRows) {
       EXPECT_THAT(s2, IsTupleSlotWith(v[1], Pointee(Eq(nullopt))));
       EXPECT_THAT(s3, IsTupleSlotWith(v[2], Pointee(Eq(nullopt))));
     }
+  }
+}
+
+TEST_F(EvalTest, TimestampIntervalAddition) {
+  absl::Time base_time = absl::FromCivil(
+      absl::CivilSecond(2015, 6, 15, 8, 30, 0), absl::UTCTimeZone());
+  Value ts_val = Value::Timestamp(base_time);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(IntervalValue interval, IntervalValue::FromNanos(2345));
+  Value interval_val = Value::Interval(interval);
+
+  // Test with FEATURE_TIMESTAMP_NANOS disabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_NANOS);
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_PICOS);
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto ts_expr, ConstExpr::Create(ts_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(ts_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto add_body,
+                         BuiltinScalarFunction::CreateValidated(
+                             FunctionKind::kAdd, options, TimestampType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto add_fct,
+        ScalarFunctionCallExpr::Create(std::move(add_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    absl::Time expected_time = base_time + absl::Microseconds(2);
+    EXPECT_THAT(EvalExpr(*add_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Timestamp(expected_time)));
+  }
+
+  // Test with FEATURE_TIMESTAMP_NANOS enabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto ts_expr, ConstExpr::Create(ts_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(ts_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto add_body,
+                         BuiltinScalarFunction::CreateValidated(
+                             FunctionKind::kAdd, options, TimestampType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto add_fct,
+        ScalarFunctionCallExpr::Create(std::move(add_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    absl::Time expected_time =
+        base_time + absl::Microseconds(2) + absl::Nanoseconds(345);
+    EXPECT_THAT(EvalExpr(*add_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Timestamp(expected_time)));
+  }
+}
+
+TEST_F(EvalTest, DateIntervalAddition) {
+  int32_t date_days;
+  GOOGLESQL_ASSERT_OK(functions::ConstructDate(1990, 11, 20, &date_days));
+  Value date_val = Value::Date(date_days);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(IntervalValue interval, IntervalValue::FromNanos(3123));
+  Value interval_val = Value::Interval(interval);
+
+  // Test with FEATURE_TIMESTAMP_NANOS disabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_NANOS);
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_PICOS);
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto date_expr, ConstExpr::Create(date_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(date_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto add_body,
+                         BuiltinScalarFunction::CreateValidated(
+                             FunctionKind::kAdd, options, DatetimeType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto add_fct,
+        ScalarFunctionCallExpr::Create(std::move(add_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    DatetimeValue expected_dt =
+        DatetimeValue::FromYMDHMSAndNanos(1990, 11, 20, 0, 0, 0, 3000);
+    EXPECT_THAT(EvalExpr(*add_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Datetime(expected_dt)));
+  }
+
+  // Test with FEATURE_TIMESTAMP_NANOS enabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto date_expr, ConstExpr::Create(date_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(date_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto add_body,
+                         BuiltinScalarFunction::CreateValidated(
+                             FunctionKind::kAdd, options, DatetimeType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto add_fct,
+        ScalarFunctionCallExpr::Create(std::move(add_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    DatetimeValue expected_dt =
+        DatetimeValue::FromYMDHMSAndNanos(1990, 11, 20, 0, 0, 0, 3123);
+    EXPECT_THAT(EvalExpr(*add_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Datetime(expected_dt)));
+  }
+}
+
+TEST_F(EvalTest, DatetimeIntervalSubtraction) {
+  DatetimeValue dt =
+      DatetimeValue::FromYMDHMSAndNanos(2021, 8, 4, 15, 45, 30, 0);
+  Value dt_val = Value::Datetime(dt);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(IntervalValue interval, IntervalValue::FromNanos(4567));
+  Value interval_val = Value::Interval(interval);
+
+  // Test with FEATURE_TIMESTAMP_NANOS disabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_NANOS);
+    options.DisableLanguageFeature(FEATURE_TIMESTAMP_PICOS);
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto dt_expr, ConstExpr::Create(dt_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(dt_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto sub_body, BuiltinScalarFunction::CreateValidated(
+                                            FunctionKind::kSubtract, options,
+                                            DatetimeType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto sub_fct,
+        ScalarFunctionCallExpr::Create(std::move(sub_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    DatetimeValue expected_dt =
+        DatetimeValue::FromYMDHMSAndNanos(2021, 8, 4, 15, 45, 29, 999995000);
+    EXPECT_THAT(EvalExpr(*sub_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Datetime(expected_dt)));
+  }
+
+  // Test with FEATURE_TIMESTAMP_NANOS enabled
+  {
+    LanguageOptions options;
+    options.EnableMaximumLanguageFeaturesForDevelopment();
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto dt_expr, ConstExpr::Create(dt_val));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto int_expr, ConstExpr::Create(interval_val));
+
+    std::vector<std::unique_ptr<ValueExpr>> args;
+    args.push_back(std::move(dt_expr));
+    args.push_back(std::move(int_expr));
+
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto sub_body, BuiltinScalarFunction::CreateValidated(
+                                            FunctionKind::kSubtract, options,
+                                            DatetimeType(), {}));
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        auto sub_fct,
+        ScalarFunctionCallExpr::Create(std::move(sub_body), std::move(args)));
+
+    EvaluationContext context((EvaluationOptions()));
+    context.SetLanguageOptions(options);
+    DatetimeValue expected_dt =
+        DatetimeValue::FromYMDHMSAndNanos(2021, 8, 4, 15, 45, 29, 999995433);
+    EXPECT_THAT(EvalExpr(*sub_fct, EmptyParams(), &context),
+                IsOkAndHolds(Value::Datetime(expected_dt)));
   }
 }
 

@@ -892,4 +892,3 @@ from (select * from T1StringAnonymizationUid
 Rewrite ERROR: Queries in UNION ALL have mismatched userid columns; query 1 has userid column 'uid' in position 1, query 3 has userid column 'uid' in position 2 [at 2:7]
 from (select * from T1StringAnonymizationUid
       ^
-==

@@ -1534,6 +1534,75 @@ When comparing JSON values of the same type, the following rules apply:
 *   **Nulls:** All JSON null values are considered equal to each other and less
     than any other non-null JSON value.
 
+You can also compare `JSON` values with non-`JSON` values. When you do this,
+GoogleSQL implicitly coerces the non-`JSON` value to `JSON` (as if
+using `CAST` to `JSON`) before performing the comparison.
+
+#### Implicit coercion for equality comparison {: #json_type_implicit_coercion}
+
+GoogleSQL supports implicit coercion to `JSON` for the following equality
+operators:
+
+*   `=` (equal)
+*   `!=` (not equal)
+*   `IS DISTINCT FROM`
+*   `IS NOT DISTINCT FROM`
+*   `IN` (list-based)
+
+For the `IN` operator, GoogleSQL only supports the list-based syntax:
+`json_expression IN (expression1, expression2, ..., expressionN)`. The first
+operand must be a `JSON` expression. GoogleSQL coerces the subsequent
+expressions to `JSON` if they are supported types.
+
+Supported non-JSON types for equality coercion include:
+
+*   Scalars:
+    <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#boolean_type">Boolean type</a>
+,
+    <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#numeric_types">Numeric types</a>
+,
+    `DATE`,
+    `DATETIME`,
+    `TIME`,
+    `TIMESTAMP`,
+    `UUID`,
+    `STRING`,
+    `ENUM`,
+    and `BYTES`.
+*   Non-scalars: `ARRAY` and `RANGE` (if their element types are supported).
+
+#### Implicit coercion for ordering {: #json_type_implicit_coercion_ordering}
+
+GoogleSQL supports implicit coercion to `JSON` for the following ordering
+operators:
+
+*   `<` (less than)
+*   `<=` (less than or equal to)
+*   `>` (greater than)
+*   `>=` (greater than or equal to)
+*   `BETWEEN`
+
+For the `BETWEEN` operator, the first operand must be a `JSON` expression,
+for example, `json_col BETWEEN 1 AND 10`.
+
+Supported non-JSON types for ordering coercion include:
+
+*   Scalars:
+    <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#boolean_type">Boolean type</a>
+,
+    <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#numeric_types">Numeric types</a>
+,
+    `DATE`,
+    `DATETIME`,
+    `TIME`,
+    `TIMESTAMP`,
+    `UUID`,
+    and `STRING`.
+*   Non-scalars: `ARRAY` (if its element type is supported).
+
+`BYTES`, `RANGE`, and `ENUM` types aren't supported for ordering coercion because
+they don't preserve order when cast to JSON.
+
 [json-literals]: https://github.com/google/googlesql/blob/master/docs/lexical.md#json_literals
 
 ## Measure type 

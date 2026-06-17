@@ -132,6 +132,16 @@ TEST(TypeModifiersTest, Creation) {
   }
 }
 
+TEST(TypeModifiersTest, AssignmentAfterMove) {
+  {
+    // Test that TypeModifiers can be reassigned after being moved.
+    TypeModifiers type_modifiers;
+    TypeModifiers type_modifiers2 = std::move(type_modifiers);
+    type_modifiers = type_modifiers2;
+    EXPECT_EQ(type_modifiers, type_modifiers2);
+  }
+}
+
 static absl::StatusOr<TypeModifiers>
 CreateTypeModifiersForStructWithTimestampPrecision(int64_t precision) {
   TimestampTypeParametersProto timestamp_type_parameters_proto;

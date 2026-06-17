@@ -195,4 +195,3 @@ QueryStmt
             | +-ColumnRef(type=STRING, column=$align.borg_job#11)
             | +-ColumnRef(type=INT64, column=$align.task_num#12)
             +-aligned_timestamp_column=$align.aligned_timestamp#13
-==

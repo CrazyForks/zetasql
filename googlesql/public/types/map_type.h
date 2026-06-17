@@ -118,6 +118,9 @@ class MapType : public ContainerType {
       const LanguageOptions& language_options,
       const Type** no_partitioning_type) const override;
 
+  bool SupportsReturningImpl(const LanguageOptions& language_options,
+                             const Type** no_returning_type) const override;
+
   absl::Status SerializeToProtoAndDistinctFileDescriptorsImpl(
       const BuildFileDescriptorSetMapOptions& options, TypeProto* type_proto,
       FileDescriptorSetMap* file_descriptor_set_map) const override;

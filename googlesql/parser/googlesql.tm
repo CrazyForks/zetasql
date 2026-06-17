@@ -12152,8 +12152,13 @@ options_entry {ASTOptionsEntry*}:
       entry->set_assignment_op($op);
       $$ = entry;
     }
-  | "FROM" expression[expr]
+  | "FROM"[from] expression[expr]
     {
+      if (!language_options.LanguageFeatureEnabled(FEATURE_OPTIONS_FROM_STRUCT)) {
+        return MakeSyntaxError(
+            @from,
+            "Syntax error: OPTIONS (FROM <struct_expression>) is not supported");
+      }
       auto* entry = MakeNode<ASTOptionsEntry>(@$, nullptr, $expr);
       entry->set_assignment_op(ASTOptionsEntry::FROM);
       $$ = entry;

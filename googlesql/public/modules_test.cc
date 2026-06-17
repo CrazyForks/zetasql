@@ -588,10 +588,8 @@ TEST_F(ModuleTest, single_statement_module_test) {
   GOOGLESQL_ASSERT_OK(module_catalog()->FindFunction({"foo"}, &function));
   EXPECT_EQ("Lazy_resolution_function:foo",
             function->DebugString(/*verbose=*/false));
-  EXPECT_EQ(
-      "Lazy_resolution_function:foo\n  (INT64 a) -> INT64 "
-      "rejects_collation=TRUE",
-      function->DebugString(/*verbose=*/true));
+  EXPECT_EQ("Lazy_resolution_function:foo\n  (INT64 a) -> INT64",
+            function->DebugString(/*verbose=*/true));
   EXPECT_THAT(function->function_options().module_name_from_import,
               ElementsAre("a", "B", "cc"));
 }
@@ -797,16 +795,14 @@ TEST_F(ModuleTest, multi_statement_module_test) {
     const Function* function;
     // Function <foo> was successfully created.
     GOOGLESQL_ASSERT_OK(module_catalog()->FindFunction({"foo"}, &function));
-    EXPECT_EQ(
-        "Lazy_resolution_function:foo\n  (INT64 a) -> INT64 "
-        "rejects_collation=TRUE",
-        function->DebugString(/*verbose=*/true));
+    EXPECT_EQ("Lazy_resolution_function:foo\n  (INT64 a) -> INT64",
+              function->DebugString(/*verbose=*/true));
 
     ASSERT_TRUE(function->Is<SQLFunction>());
     const SQLFunction* simple_function = function->GetAs<SQLFunction>();
 
     std::string expected_full_debug_string = R"(Lazy_resolution_function:foo
-  (INT64 a) -> INT64 rejects_collation=TRUE
+  (INT64 a) -> INT64
 argument names (a)
 FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
 +-ArgumentRef(type=INT64, name="a")
@@ -818,16 +814,14 @@ FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
 
     // Function <bar> was successfully created.
     GOOGLESQL_ASSERT_OK(module_catalog()->FindFunction({"bar"}, &function));
-    EXPECT_EQ(
-        "Lazy_resolution_function:bar\n  (INT32 b) -> INT64 "
-        "rejects_collation=TRUE",
-        function->DebugString(/*verbose=*/true));
+    EXPECT_EQ("Lazy_resolution_function:bar\n  (INT32 b) -> INT64",
+              function->DebugString(/*verbose=*/true));
 
     ASSERT_TRUE(function->Is<SQLFunction>());
     simple_function = function->GetAs<SQLFunction>();
 
     expected_full_debug_string = R"(Lazy_resolution_function:bar
-  (INT32 b) -> INT64 rejects_collation=TRUE
+  (INT32 b) -> INT64
 argument names (b)
 FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
 +-Cast(INT32 -> INT64)
@@ -840,16 +834,14 @@ FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
 
     // Function <baz> was successfully created.
     GOOGLESQL_ASSERT_OK(module_catalog()->FindFunction({"baz"}, &function));
-    EXPECT_EQ(
-        "Lazy_resolution_function:baz\n  (UINT32 c) -> UINT64 "
-        "rejects_collation=TRUE",
-        function->DebugString(/*verbose=*/true));
+    EXPECT_EQ("Lazy_resolution_function:baz\n  (UINT32 c) -> UINT64",
+              function->DebugString(/*verbose=*/true));
 
     ASSERT_TRUE(function->Is<SQLFunction>());
     simple_function = function->GetAs<SQLFunction>();
 
     expected_full_debug_string = R"(Lazy_resolution_function:baz
-  (UINT32 c) -> UINT64 rejects_collation=TRUE
+  (UINT32 c) -> UINT64
 argument names (c)
 FunctionCall(GoogleSQL:$add(UINT64, UINT64) -> UINT64)
 +-Cast(UINT32 -> UINT64)

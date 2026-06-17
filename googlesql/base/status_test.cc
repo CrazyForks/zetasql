@@ -222,7 +222,7 @@ void VisitAndAssertEquals(const absl::Status& status,
 
 TEST(Status, ForEachPayloadEmptyPayload) {
   absl::Status a = absl::Status(absl::StatusCode::kCancelled, "msg");
-  VisitAndAssertEquals(a, "type_a", absl::nullopt);
+  VisitAndAssertEquals(a, "type_a", std::nullopt);
 }
 
 TEST(Status, ForEachPayload_Multiple) {

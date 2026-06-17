@@ -129,10 +129,6 @@ void ASTNode::Accept(ParseTreeVisitor* visitor, void* data) const {
 
 absl::Status ASTNode::Accept(ParseTreeStatusVisitor& visitor,
                              std::any& output) const {
-  if (!ThreadHasEnoughStack()) {
-    return absl::ResourceExhaustedError(
-        "Parse tree is too deep to visit in available stack space.");
-  }
   return visitor.Visit(this, output);
 }
 
@@ -144,6 +140,16 @@ void ASTNode::ChildrenAccept(ParseTreeVisitor* visitor, void* data) const {
 
 absl::Status ASTNode::ChildrenAccept(ParseTreeStatusVisitor& visitor,
                                      std::any& output) const {
+  // ChildrenAccept is the only base-class entry point on the recursive path
+  // ASTNode::Accept (virtual) -> Subclass::Accept -> Visitor::Visit{Subclass}
+  // -> DefaultVisit -> ChildrenAccept -> child->Accept (recurse). The check
+  // cannot live in ASTNode::Accept above because every concrete subclass
+  // overrides Accept (see gen_extra_files.py), so the base body is unreachable
+  // via virtual dispatch. See b/519375908.
+  if (!ThreadHasEnoughStack()) {
+    return absl::ResourceExhaustedError(
+        "Parse tree is too deep to visit in available stack space.");
+  }
   for (int i = 0; i < children_.size(); ++i) {
     GOOGLESQL_RETURN_IF_ERROR(children_[i]->Accept(visitor, output));
   }

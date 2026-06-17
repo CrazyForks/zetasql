@@ -40,25 +40,23 @@ TypeModifiers TypeModifiers::MakeTypeModifiers(TypeParameters type_parameters,
   return TypeModifiers(std::move(type_parameters), std::move(collation));
 }
 
-TypeModifiers::TypeModifiers()
-    : type_parameters_(std::make_unique<TypeParameters>()),
-      collation_(std::make_unique<Collation>()) {}
-
 TypeModifiers::TypeModifiers(const TypeModifiers& that)
-    : type_parameters_(
-          std::make_unique<TypeParameters>(*that.type_parameters_)),
-      collation_(std::make_unique<Collation>(*that.collation_)) {}
+    : type_parameters_(that.type_parameters_
+                           ? new TypeParameters(*that.type_parameters_)
+                           : nullptr),
+      collation_(that.collation_ ? new Collation(*that.collation_) : nullptr) {}
 
 TypeModifiers& TypeModifiers::operator=(const TypeModifiers& that) {
   if (this == &that) {
     return *this;
   }
-  *type_parameters_ = *that.type_parameters_;
-  *collation_ = *that.collation_;
+
+  type_parameters_.reset(that.type_parameters_
+                             ? new TypeParameters(*that.type_parameters_)
+                             : nullptr);
+  collation_.reset(that.collation_ ? new Collation(*that.collation_) : nullptr);
   return *this;
 }
-
-TypeModifiers::~TypeModifiers() = default;
 
 TypeModifiers::TypeModifiers(TypeParameters type_parameters,
                              Collation collation)
@@ -67,21 +65,26 @@ TypeModifiers::TypeModifiers(TypeParameters type_parameters,
       collation_(std::make_unique<Collation>(std::move(collation))) {}
 
 const TypeParameters& TypeModifiers::type_parameters() const {
-  return *type_parameters_;
+  return type_parameters_ == nullptr ? TypeParameters::EmptyTypeParameters()
+                                     : *type_parameters_;
 }
 
-const Collation& TypeModifiers::collation() const { return *collation_; }
+const Collation& TypeModifiers::collation() const {
+  return collation_ == nullptr ? Collation::EmptyCollation() : *collation_;
+}
 
 TypeParameters TypeModifiers::release_type_parameters() {
-  TypeParameters result = std::move(*type_parameters_);
-  type_parameters_ = std::make_unique<TypeParameters>();
-  return result;
+  if (type_parameters_ == nullptr) {
+    return TypeParameters::EmptyTypeParameters();
+  }
+  return *std::move(type_parameters_);
 }
 
 Collation TypeModifiers::release_collation() {
-  Collation result = std::move(*collation_);
-  collation_ = std::make_unique<Collation>();
-  return result;
+  if (collation_ == nullptr) {
+    return Collation::EmptyCollation();
+  }
+  return *std::move(collation_);
 }
 
 bool TypeModifiers::Equals(const TypeModifiers& that) const {
@@ -125,8 +128,8 @@ absl::StatusOr<TypeModifiers> TypeModifiers::MakeTypeModifiers(
 
 absl::Status TypeModifiers::Serialize(TypeModifiersProto* proto) const {
   GOOGLESQL_RETURN_IF_ERROR(
-      type_parameters_->Serialize(proto->mutable_type_parameters()));
-  GOOGLESQL_RETURN_IF_ERROR(collation_->Serialize(proto->mutable_collation()));
+      type_parameters().Serialize(proto->mutable_type_parameters()));
+  GOOGLESQL_RETURN_IF_ERROR(collation().Serialize(proto->mutable_collation()));
   return absl::OkStatus();
 }
 

@@ -92,7 +92,17 @@ bool MeasureType::SupportsEquality() const { return false; }
 bool MeasureType::SupportsPartitioningImpl(
     const LanguageOptions& language_options,
     const Type** no_partitioning_type) const {
-  *no_partitioning_type = this;
+  if (no_partitioning_type != nullptr) {
+    *no_partitioning_type = this;
+  }
+  return false;
+}
+
+bool MeasureType::SupportsReturningImpl(const LanguageOptions& language_options,
+                                        const Type** no_returning_type) const {
+  if (no_returning_type != nullptr) {
+    *no_returning_type = this;
+  }
   return false;
 }
 

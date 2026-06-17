@@ -1,0 +1,686 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+select 1 from Foo
+order by **cols {{|COLLATE 'binary'}} {{|ASC|DESC}} {{|NULLS FIRST|NULLS LAST}};
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-33] [select 1 from...by **cols]
+  Query [0-33] [select 1 from...by **cols]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-33] [order by **cols]
+      OrderingExpression(ASC) [27-33] [**cols]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols)
+--
+ALTERNATION GROUP: NULLS FIRST
+--
+QueryStatement [0-47] [select 1 from...NULLS FIRST]
+  Query [0-47] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-47] [order by **cols   NULLS FIRST]
+      OrderingExpression(ASC) [27-47] [**cols   NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS FIRST) [36-47] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) NULLS FIRST
+--
+ALTERNATION GROUP: NULLS LAST
+--
+QueryStatement [0-46] [select 1 from...NULLS LAST]
+  Query [0-46] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-46] [order by **cols   NULLS LAST]
+      OrderingExpression(ASC) [27-46] [**cols   NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS LAST) [36-46] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) NULLS LAST
+--
+ALTERNATION GROUP: ASC,
+--
+QueryStatement [0-38] [select 1 from...*cols  ASC]
+  Query [0-38] [select 1 from...*cols  ASC]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-38] [order by **cols  ASC]
+      OrderingExpression(ASC EXPLICITLY) [27-38] [**cols  ASC]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) ASC
+--
+ALTERNATION GROUP: ASC,NULLS FIRST
+--
+QueryStatement [0-50] [select 1 from...NULLS FIRST]
+  Query [0-50] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-50] [order by *...NULLS FIRST]
+      OrderingExpression(ASC EXPLICITLY) [27-50] [**cols  ASC NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS FIRST) [39-50] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) ASC NULLS FIRST
+--
+ALTERNATION GROUP: ASC,NULLS LAST
+--
+QueryStatement [0-49] [select 1 from...NULLS LAST]
+  Query [0-49] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-49] [order by *...NULLS LAST]
+      OrderingExpression(ASC EXPLICITLY) [27-49] [**cols  ASC NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS LAST) [39-49] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) ASC NULLS LAST
+--
+ALTERNATION GROUP: DESC,
+--
+QueryStatement [0-39] [select 1 from...cols  DESC]
+  Query [0-39] [select 1 from...cols  DESC]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-39] [order by **cols  DESC]
+      OrderingExpression(DESC) [27-39] [**cols  DESC]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) DESC
+--
+ALTERNATION GROUP: DESC,NULLS FIRST
+--
+QueryStatement [0-51] [select 1 from...NULLS FIRST]
+  Query [0-51] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-51] [order by *...NULLS FIRST]
+      OrderingExpression(DESC) [27-51] [**cols  DESC NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS FIRST) [40-51] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) DESC NULLS FIRST
+--
+ALTERNATION GROUP: DESC,NULLS LAST
+--
+QueryStatement [0-50] [select 1 from...NULLS LAST]
+  Query [0-50] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-50] [order by *...NULLS LAST]
+      OrderingExpression(DESC) [27-50] [**cols  DESC NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        NullOrder(NULLS LAST) [40-50] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) DESC NULLS LAST
+--
+ALTERNATION GROUP: COLLATE 'binary',,
+--
+QueryStatement [0-50] [select 1 from...LLATE 'binary']
+  Query [0-50] [select 1 from...LLATE 'binary']
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-50] [order by *...COLLATE 'binary']
+      OrderingExpression(ASC) [27-50] [**cols COLLATE 'binary']
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary'
+--
+ALTERNATION GROUP: COLLATE 'binary',,NULLS FIRST
+--
+QueryStatement [0-63] [select 1 from...NULLS FIRST]
+  Query [0-63] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-63] [order by *...NULLS FIRST]
+      OrderingExpression(ASC) [27-63] [**cols COLLATE...NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS FIRST) [52-63] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' NULLS FIRST
+--
+ALTERNATION GROUP: COLLATE 'binary',,NULLS LAST
+--
+QueryStatement [0-62] [select 1 from...NULLS LAST]
+  Query [0-62] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-62] [order by *...NULLS LAST]
+      OrderingExpression(ASC) [27-62] [**cols COLLATE...NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS LAST) [52-62] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' NULLS LAST
+--
+ALTERNATION GROUP: COLLATE 'binary',ASC,
+--
+QueryStatement [0-54] [select 1 from...binary' ASC]
+  Query [0-54] [select 1 from...binary' ASC]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-54] [order by *...binary' ASC]
+      OrderingExpression(ASC EXPLICITLY) [27-54] [**cols COLLATE 'binary' ASC]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' ASC
+--
+ALTERNATION GROUP: COLLATE 'binary',ASC,NULLS FIRST
+--
+QueryStatement [0-66] [select 1 from...NULLS FIRST]
+  Query [0-66] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-66] [order by *...NULLS FIRST]
+      OrderingExpression(ASC EXPLICITLY) [27-66] [**cols COLLATE...NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS FIRST) [55-66] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' ASC NULLS FIRST
+--
+ALTERNATION GROUP: COLLATE 'binary',ASC,NULLS LAST
+--
+QueryStatement [0-65] [select 1 from...NULLS LAST]
+  Query [0-65] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-65] [order by *...NULLS LAST]
+      OrderingExpression(ASC EXPLICITLY) [27-65] [**cols COLLATE...NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS LAST) [55-65] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' ASC NULLS LAST
+--
+ALTERNATION GROUP: COLLATE 'binary',DESC,
+--
+QueryStatement [0-55] [select 1 from...binary' DESC]
+  Query [0-55] [select 1 from...binary' DESC]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-55] [order by *...binary' DESC]
+      OrderingExpression(DESC) [27-55] [**cols COLLATE 'binary' DESC]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' DESC
+--
+ALTERNATION GROUP: COLLATE 'binary',DESC,NULLS FIRST
+--
+QueryStatement [0-67] [select 1 from...NULLS FIRST]
+  Query [0-67] [select 1 from...NULLS FIRST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-67] [order by *...NULLS FIRST]
+      OrderingExpression(DESC) [27-67] [**cols COLLATE...NULLS FIRST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS FIRST) [56-67] [NULLS FIRST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' DESC NULLS FIRST
+--
+ALTERNATION GROUP: COLLATE 'binary',DESC,NULLS LAST
+--
+QueryStatement [0-66] [select 1 from...NULLS LAST]
+  Query [0-66] [select 1 from...NULLS LAST]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-66] [order by *...NULLS LAST]
+      OrderingExpression(DESC) [27-66] [**cols COLLATE...NULLS LAST]
+        UnpackExpression [27-33] [**cols]
+          PathExpression [29-33] [cols]
+            Identifier(cols) [29-33] [cols]
+        Collate [34-50] [COLLATE 'binary']
+          StringLiteral [42-50] ['binary']
+            StringLiteralComponent('binary') [42-50] ['binary']
+        NullOrder(NULLS LAST) [56-66] [NULLS LAST]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols) COLLATE 'binary' DESC NULLS LAST
+==
+
+select 1 from Foo
+order by {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+
+QueryStatement [0-34] [select 1 from...by  **cols]
+  Query [0-34] [select 1 from...by  **cols]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-34] [order by  **cols]
+      OrderingExpression(ASC) [28-34] [**cols]
+        UnpackExpression [28-34] [**cols]
+          PathExpression [30-34] [cols]
+            Identifier(cols) [30-34] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-37] [select 1 from...**cols ,y]
+  Query [0-37] [select 1 from...**cols ,y]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-37] [order by  **cols ,y]
+      OrderingExpression(ASC) [28-34] [**cols]
+        UnpackExpression [28-34] [**cols]
+          PathExpression [30-34] [cols]
+            Identifier(cols) [30-34] [cols]
+      OrderingExpression(ASC) [36-37] [y]
+        PathExpression [36-37] [y]
+          Identifier(y) [36-37] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY ** (cols), y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-36] [select 1 from...x, **cols]
+  Query [0-36] [select 1 from...x, **cols]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-36] [order by x, **cols]
+      OrderingExpression(ASC) [27-28] [x]
+        PathExpression [27-28] [x]
+          Identifier(x) [27-28] [x]
+      OrderingExpression(ASC) [30-36] [**cols]
+        UnpackExpression [30-36] [**cols]
+          PathExpression [32-36] [cols]
+            Identifier(cols) [32-36] [cols]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY x, ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-39] [select 1 from...**cols ,y]
+  Query [0-39] [select 1 from...**cols ,y]
+    Select [0-17] [select 1 from Foo]
+      SelectList [7-8] [1]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+      FromClause [9-17] [from Foo]
+        TablePathExpression [14-17] [Foo]
+          PathExpression [14-17] [Foo]
+            Identifier(Foo) [14-17] [Foo]
+    OrderBy [18-39] [order by x, **cols ,y]
+      OrderingExpression(ASC) [27-28] [x]
+        PathExpression [27-28] [x]
+          Identifier(x) [27-28] [x]
+      OrderingExpression(ASC) [30-36] [**cols]
+        UnpackExpression [30-36] [**cols]
+          PathExpression [32-36] [cols]
+            Identifier(cols) [32-36] [cols]
+      OrderingExpression(ASC) [38-39] [y]
+        PathExpression [38-39] [y]
+          Identifier(y) [38-39] [y]
+--
+SELECT
+  1
+FROM
+  Foo
+ORDER BY x, ** (cols), y
+==
+
+from Foo
+|> order by {{|x,}} **cols {{|,y}};
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-28] [from Foo |> order by  **cols]
+  Query [0-28] [from Foo |> order by  **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeOrderBy [9-28] [|> order by  **cols]
+      OrderBy [12-28] [order by  **cols]
+        OrderingExpression(ASC) [22-28] [**cols]
+          UnpackExpression [22-28] [**cols]
+            PathExpression [24-28] [cols]
+              Identifier(cols) [24-28] [cols]
+--
+FROM
+  Foo
+|> ORDER BY ** (cols)
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-31] [from Foo |...**cols ,y]
+  Query [0-31] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeOrderBy [9-31] [|> order by  **cols ,y]
+      OrderBy [12-31] [order by  **cols ,y]
+        OrderingExpression(ASC) [22-28] [**cols]
+          UnpackExpression [22-28] [**cols]
+            PathExpression [24-28] [cols]
+              Identifier(cols) [24-28] [cols]
+        OrderingExpression(ASC) [30-31] [y]
+          PathExpression [30-31] [y]
+            Identifier(y) [30-31] [y]
+--
+FROM
+  Foo
+|> ORDER BY ** (cols), y
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-30] [from Foo |> order by x, **cols]
+  Query [0-30] [from Foo |> order by x, **cols]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeOrderBy [9-30] [|> order by x, **cols]
+      OrderBy [12-30] [order by x, **cols]
+        OrderingExpression(ASC) [21-22] [x]
+          PathExpression [21-22] [x]
+            Identifier(x) [21-22] [x]
+        OrderingExpression(ASC) [24-30] [**cols]
+          UnpackExpression [24-30] [**cols]
+            PathExpression [26-30] [cols]
+              Identifier(cols) [26-30] [cols]
+--
+FROM
+  Foo
+|> ORDER BY x, ** (cols)
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-33] [from Foo |...**cols ,y]
+  Query [0-33] [from Foo |...**cols ,y]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeOrderBy [9-33] [|> order by x, **cols ,y]
+      OrderBy [12-33] [order by x, **cols ,y]
+        OrderingExpression(ASC) [21-22] [x]
+          PathExpression [21-22] [x]
+            Identifier(x) [21-22] [x]
+        OrderingExpression(ASC) [24-30] [**cols]
+          UnpackExpression [24-30] [**cols]
+            PathExpression [26-30] [cols]
+              Identifier(cols) [26-30] [cols]
+        OrderingExpression(ASC) [32-33] [y]
+          PathExpression [32-33] [y]
+            Identifier(y) [32-33] [y]
+--
+FROM
+  Foo
+|> ORDER BY x, ** (cols), y

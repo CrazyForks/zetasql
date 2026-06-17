@@ -539,6 +539,12 @@ GoogleSQL supports the following query parameter coercions:
 If the parameter value can't be coerced successfully to the target type, an
 error is provided.
 
+#### JSON comparison coercion 
+<a id="json_comparison_coercion"></a>
+
+GoogleSQL supports implicit coercion from non-`JSON` types to `JSON` when comparing a `JSON` value with a non-`JSON` value. For more information about this behavior and the supported types, see the <a href="https://github.com/google/googlesql/blob/master/docs/data-types.md#json_type_implicit_coercion">Implicit coercion</a>
+ section in the `JSON` type documentation.
+
 ### Supertypes
 
 A supertype is a common type to which two or more expressions can be coerced.

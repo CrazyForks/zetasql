@@ -20,6 +20,7 @@
 
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/public/types/measure_type.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
@@ -80,7 +81,8 @@ absl::Status MeasureColumnToExprMapping::TrackMeasureColumnsEmittedByScan(
                 column->GetExpression()->HasResolvedExpression());
       const ResolvedExpr* measure_expr =
           column->GetExpression()->GetResolvedExpression();
-      GOOGLESQL_RETURN_IF_ERROR(AddMeasureColumnWithExpr(resolved_column, measure_expr));
+      GOOGLESQL_RETURN_IF_ERROR(AddMeasureColumnWithExpr(
+          resolved_column.type()->AsMeasure(), measure_expr));
     }
   }
   return absl::OkStatus();
@@ -91,97 +93,26 @@ absl::Status MeasureColumnToExprMapping::TrackMeasureColumnsEmittedByTableScan(
   return TrackMeasureColumnsEmittedByScan(table_scan);
 }
 
-void MeasureColumnToExprMapping::TrackWithQueryScan(
-    const ResolvedWithEntry& with_entry) {
-  with_query_name_to_scan_[with_entry.with_query_name()] =
-      with_entry.with_subquery();
-}
-
-absl::Status
-MeasureColumnToExprMapping::TrackMeasureColumnsRenamedByWithRefScan(
-    const ResolvedWithRefScan& with_ref_scan) {
-  auto it = with_query_name_to_scan_.find(with_ref_scan.with_query_name());
-  GOOGLESQL_RET_CHECK(it != with_query_name_to_scan_.end());
-  const ResolvedScan& with_subquery_scan = *it->second;
-  GOOGLESQL_RET_CHECK_EQ(with_ref_scan.column_list_size(),
-               with_subquery_scan.column_list_size());
-  for (int idx = 0; idx < with_ref_scan.column_list_size(); ++idx) {
-    const ResolvedColumn& renamed_column = with_ref_scan.column_list(idx);
-    const ResolvedColumn& original_column = with_subquery_scan.column_list(idx);
-    GOOGLESQL_RET_CHECK(original_column.type()->Equals(renamed_column.type()));
-    if (original_column.type()->IsMeasureType()) {
-      GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* measure_expr,
-                       GetMeasureExpr(original_column));
-      GOOGLESQL_RETURN_IF_ERROR(AddMeasureColumnWithExpr(renamed_column, measure_expr));
-    }
-  }
-  return absl::OkStatus();
-}
-
 absl::Status MeasureColumnToExprMapping::TrackMeasureColumnsEmittedByTVFScan(
     const ResolvedTVFScan& tvf_scan) {
   return TrackMeasureColumnsEmittedByScan(tvf_scan);
 }
 
-absl::Status MeasureColumnToExprMapping::MapOriginalMeasureExprToRenamedColumn(
-    const ResolvedColumn& renamed_column,
-    const ResolvedColumn& original_column) {
-  if (!renamed_column.type()->IsMeasureType()) {
-    return absl::OkStatus();
-  }
-  GOOGLESQL_RET_CHECK(renamed_column.type()->IsMeasureType());
-  GOOGLESQL_RET_CHECK(renamed_column.type()->Equals(original_column.type()));
-  GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* measure_expr,
-                   GetMeasureExpr(original_column));
-  return AddMeasureColumnWithExpr(renamed_column, measure_expr);
-}
-
-absl::Status MeasureColumnToExprMapping::TrackMeasureColumnsRenamedByExpr(
-    const ResolvedColumn& renamed_column, const ResolvedExpr& resolved_expr) {
-  if (!renamed_column.type()->IsMeasureType()) {
-    return absl::OkStatus();
-  }
-
-  switch (resolved_expr.node_kind()) {
-    case RESOLVED_COLUMN_REF:
-      return MapOriginalMeasureExprToRenamedColumn(
-          renamed_column, resolved_expr.GetAs<ResolvedColumnRef>()->column());
-    case RESOLVED_SUBQUERY_EXPR: {
-      const ResolvedSubqueryExpr& subquery_expr =
-          *resolved_expr.GetAs<ResolvedSubqueryExpr>();
-      if (subquery_expr.subquery_type() == ResolvedSubqueryExpr::SCALAR) {
-        GOOGLESQL_RET_CHECK_EQ(subquery_expr.subquery()->column_list_size(), 1);
-        return MapOriginalMeasureExprToRenamedColumn(
-            renamed_column, subquery_expr.subquery()->column_list(0));
-      }
-      break;
-    }
-    case RESOLVED_WITH_EXPR: {
-      return TrackMeasureColumnsRenamedByExpr(
-          renamed_column, *resolved_expr.GetAs<ResolvedWithExpr>()->expr());
-    }
-    default:
-      break;
-  }
-  GOOGLESQL_RET_CHECK_FAIL() << "Unexpected measure column: "
-                   << renamed_column.DebugString();
-}
-
 absl::StatusOr<const ResolvedExpr*> MeasureColumnToExprMapping::GetMeasureExpr(
-    const ResolvedColumn& column) const {
-  if (auto it = measure_column_to_expr_.find(column);
+    const MeasureType* measure_type) const {
+  if (auto it = measure_column_to_expr_.find(measure_type);
       it != measure_column_to_expr_.end()) {
     return it->second;
   }
   return absl::NotFoundError(
-      absl::StrCat("Column not found: ", column.DebugString()));
+      absl::StrCat("MeasureType not found: ", measure_type->DebugString()));
 }
 
 absl::Status MeasureColumnToExprMapping::AddMeasureColumnWithExpr(
-    const ResolvedColumn& column, const ResolvedExpr* expr) {
-  GOOGLESQL_RET_CHECK(column.type()->IsMeasureType());
+    const MeasureType* measure_type, const ResolvedExpr* expr) {
+  GOOGLESQL_RET_CHECK(measure_type != nullptr);
   GOOGLESQL_RET_CHECK(expr != nullptr);
-  auto [it, inserted] = measure_column_to_expr_.insert({column, expr});
+  auto [it, inserted] = measure_column_to_expr_.insert({measure_type, expr});
   if (inserted) {
     return absl::OkStatus();
   }

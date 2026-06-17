@@ -2154,8 +2154,9 @@ CAST(expression AS TIMESTAMP [format_clause [AT TIME ZONE timezone_expr]])
 GoogleSQL supports [casting][con-func-cast] to `TIMESTAMP`. The
 `expression` parameter can represent an expression for these data types:
 
-+ `STRING`
++ `DATE`
 + `DATETIME`
++ `STRING`
 + `TIMESTAMP`
 
 **Format clause**

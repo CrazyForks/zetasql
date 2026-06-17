@@ -126,6 +126,11 @@ TypeParameters::TypeParameters(std::vector<TypeParameters> child_list)
     : child_list_(std::move(child_list)) {}
 TypeParameters::TypeParameters() = default;
 
+const TypeParameters& TypeParameters::EmptyTypeParameters() {
+  static const TypeParameters* kEmptyTypeParameters = new TypeParameters();
+  return *kEmptyTypeParameters;
+}
+
 absl::StatusOr<TypeParameters> TypeParameters::MakeStringTypeParameters(
     const StringTypeParametersProto& string_type_parameters) {
   GOOGLESQL_RETURN_IF_ERROR(ValidateStringTypeParameters(string_type_parameters));

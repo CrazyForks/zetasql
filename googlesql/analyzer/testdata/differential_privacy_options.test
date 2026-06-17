@@ -420,4 +420,3 @@ from SimpleTypesWithAnonymizationUid;
 ERROR: Unrecognized name: int64 [at 1:51]
 select with differential_privacy options(epsilon=(int64))
                                                   ^
-==

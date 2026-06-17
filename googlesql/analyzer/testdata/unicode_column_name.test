@@ -201,4 +201,3 @@ create table tbl(`Ô` INT64, `ô` INT64);
 ERROR: Duplicate column name ô in CREATE TABLE [at 1:29]
 create table tbl(`Ô` INT64, `ô` INT64);
                             ^
-==

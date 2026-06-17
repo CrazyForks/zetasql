@@ -43,7 +43,8 @@ USER googlesql
 ENV HOME=/home/googlesql
 RUN mkdir -p $HOME/bin
 
-RUN cd googlesql && ./docker_build.sh execute_query
+ARG VERSION=0.0.0-SNAPSHOT
+RUN cd googlesql && ./docker_build.sh release ${VERSION}
 
 ENV PATH=$PATH:$HOME/bin
 
@@ -51,7 +52,7 @@ WORKDIR /googlesql
 
 ################################################################################
 #                                COPY STAGE                                    #
-# This stage copies only the built binary from 'builder'.                      #
+# This stage copies only the execute_query binary from 'builder'.              #
 ################################################################################
 FROM ubuntu:22.04
 

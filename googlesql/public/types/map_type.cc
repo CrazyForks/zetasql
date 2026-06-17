@@ -155,8 +155,25 @@ bool MapType::SupportsPartitioningImpl(
     const LanguageOptions& language_options,
     const Type** no_partitioning_type) const {
   // Map does not currently support partitioning. (broken link).
-  *no_partitioning_type = this;
+  if (no_partitioning_type != nullptr) {
+    *no_partitioning_type = this;
+  }
   return false;
+}
+
+bool MapType::SupportsReturningImpl(const LanguageOptions& language_options,
+                                    const Type** no_returning_type) const {
+  if (!key_type()->SupportsReturningImpl(language_options, no_returning_type)) {
+    return false;
+  }
+  if (!value_type()->SupportsReturningImpl(language_options,
+                                           no_returning_type)) {
+    return false;
+  }
+  if (no_returning_type != nullptr) {
+    *no_returning_type = nullptr;
+  }
+  return true;
 }
 
 absl::Status MapType::SerializeToProtoAndDistinctFileDescriptorsImpl(

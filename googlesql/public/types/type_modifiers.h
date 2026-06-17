@@ -64,13 +64,13 @@ class TypeModifiers {
 
   // Constructs empty TypeModifiers where each modifier class is empty. Default
   // constructor must be public to be used in the ResolvedAST.
-  TypeModifiers();
+  TypeModifiers() = default;
 
   TypeModifiers(const TypeModifiers& that);
   TypeModifiers(TypeModifiers&& that) noexcept = default;
   TypeModifiers& operator=(const TypeModifiers& that);
   TypeModifiers& operator=(TypeModifiers&& that) noexcept = default;
-  ~TypeModifiers();
+  ~TypeModifiers() = default;
 
   const TypeParameters& type_parameters() const;
 

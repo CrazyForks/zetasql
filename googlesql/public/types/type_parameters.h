@@ -67,6 +67,9 @@ class TypeParameters {
   // constructor must be public to be used in the ResolvedAST.
   TypeParameters();
 
+  // Returns a reference to the empty TypeParameters object.
+  static const TypeParameters& EmptyTypeParameters();
+
   // Constructs type parameters for STRING(L) or BYTES(L) type.
   static absl::StatusOr<TypeParameters> MakeStringTypeParameters(
       const StringTypeParametersProto& string_type_parameters);

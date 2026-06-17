@@ -39,6 +39,12 @@
 namespace googlesql {
 
 // static
+const Collation& Collation::EmptyCollation() {
+  static const Collation* kEmptyCollation = new Collation();
+  return *kEmptyCollation;
+}
+
+// static
 Collation Collation::MakeScalar(absl::string_view collation_name) {
   Collation collation;
   if (!collation_name.empty()) {

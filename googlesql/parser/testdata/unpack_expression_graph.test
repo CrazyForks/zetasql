@@ -1,0 +1,1264 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+GRAPH FinGraph
+MATCH (p:Person {Id: 1})
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN {{|p.name AS person_name,}} **cols {{|, friend.name AS friend_name}};
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-103] [GRAPH FinGraph...ETURN  **cols]
+  Query [0-103] [GRAPH FinGraph...ETURN  **cols]
+    GqlQuery [0-103] [GRAPH FinGraph...ETURN  **cols]
+      GraphTableQuery [0-103] [GRAPH FinGraph...ETURN  **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-103] [MATCH (p:Person...TURN  **cols]
+          GqlOperatorList [15-103] [MATCH (p:Person...TURN  **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-103] [RETURN  **cols]
+              Select [97-103] [**cols]
+                SelectList [97-103] [**cols]
+                  SelectColumn [97-103] [**cols]
+                    UnpackExpression [97-103] [**cols]
+                      PathExpression [99-103] [cols]
+                        Identifier(cols) [99-103] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  ** (cols)
+--
+ALTERNATION GROUP: , friend.name AS friend_name
+--
+QueryStatement [0-132] [GRAPH FinGraph...friend_name]
+  Query [0-132] [GRAPH FinGraph...friend_name]
+    GqlQuery [0-132] [GRAPH FinGraph...friend_name]
+      GraphTableQuery [0-132] [GRAPH FinGraph...friend_name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-132] [MATCH (p:Person...friend_name]
+          GqlOperatorList [15-132] [MATCH (p:Person...friend_name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-132] [RETURN  **...friend_name]
+              Select [97-132] [**cols , friend...friend_name]
+                SelectList [97-132] [**cols , friend...friend_name]
+                  SelectColumn [97-103] [**cols]
+                    UnpackExpression [97-103] [**cols]
+                      PathExpression [99-103] [cols]
+                        Identifier(cols) [99-103] [cols]
+                  SelectColumn [106-132] [friend.name AS friend_name]
+                    PathExpression [106-117] [friend.name]
+                      Identifier(friend) [106-112] [friend]
+                      Identifier(name) [113-117] [name]
+                    Alias [118-132] [AS friend_name]
+                      Identifier(friend_name) [121-132] [friend_name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  ** (cols),
+  friend.name AS friend_name
+--
+ALTERNATION GROUP: p.name AS person_name,,
+--
+QueryStatement [0-125] [GRAPH FinGraph..._name, **cols]
+  Query [0-125] [GRAPH FinGraph..._name, **cols]
+    GqlQuery [0-125] [GRAPH FinGraph..._name, **cols]
+      GraphTableQuery [0-125] [GRAPH FinGraph..._name, **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-125] [MATCH (p:Person...name, **cols]
+          GqlOperatorList [15-125] [MATCH (p:Person...name, **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-125] [RETURN p.name...n_name, **cols]
+              Select [96-125] [p.name AS person_name, **cols]
+                SelectList [96-125] [p.name AS person_name, **cols]
+                  SelectColumn [96-117] [p.name AS person_name]
+                    PathExpression [96-102] [p.name]
+                      Identifier(p) [96-97] [p]
+                      Identifier(name) [98-102] [name]
+                    Alias [103-117] [AS person_name]
+                      Identifier(person_name) [106-117] [person_name]
+                  SelectColumn [119-125] [**cols]
+                    UnpackExpression [119-125] [**cols]
+                      PathExpression [121-125] [cols]
+                        Identifier(cols) [121-125] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  p.name AS person_name,
+  ** (cols)
+--
+ALTERNATION GROUP: p.name AS person_name,,, friend.name AS friend_name
+--
+QueryStatement [0-154] [GRAPH FinGraph...friend_name]
+  Query [0-154] [GRAPH FinGraph...friend_name]
+    GqlQuery [0-154] [GRAPH FinGraph...friend_name]
+      GraphTableQuery [0-154] [GRAPH FinGraph...friend_name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-154] [MATCH (p:Person...friend_name]
+          GqlOperatorList [15-154] [MATCH (p:Person...friend_name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-154] [RETURN p.name...friend_name]
+              Select [96-154] [p.name AS...friend_name]
+                SelectList [96-154] [p.name AS...friend_name]
+                  SelectColumn [96-117] [p.name AS person_name]
+                    PathExpression [96-102] [p.name]
+                      Identifier(p) [96-97] [p]
+                      Identifier(name) [98-102] [name]
+                    Alias [103-117] [AS person_name]
+                      Identifier(person_name) [106-117] [person_name]
+                  SelectColumn [119-125] [**cols]
+                    UnpackExpression [119-125] [**cols]
+                      PathExpression [121-125] [cols]
+                        Identifier(cols) [121-125] [cols]
+                  SelectColumn [128-154] [friend.name AS friend_name]
+                    PathExpression [128-139] [friend.name]
+                      Identifier(friend) [128-134] [friend]
+                      Identifier(name) [135-139] [name]
+                    Alias [140-154] [AS friend_name]
+                      Identifier(friend_name) [143-154] [friend_name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  p.name AS person_name,
+  ** (cols),
+  friend.name AS friend_name
+==
+
+GRAPH FinGraph
+MATCH (p:Person {Id: 1})
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN *
+GROUP BY {{|p.name,}} **cols {{|, friend.name}};
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-114] [GRAPH FinGraph...BY  **cols]
+  Query [0-114] [GRAPH FinGraph...BY  **cols]
+    GqlQuery [0-114] [GRAPH FinGraph...BY  **cols]
+      GraphTableQuery [0-114] [GRAPH FinGraph...BY  **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-114] [MATCH (p:Person...BY  **cols]
+          GqlOperatorList [15-114] [MATCH (p:Person...BY  **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-114] [RETURN * GROUP BY  **cols]
+              Select [96-114] [* GROUP BY  **cols]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+                GroupBy [98-114] [GROUP BY  **cols]
+                  GroupingItem [108-114] [**cols]
+                    UnpackExpression [108-114] [**cols]
+                      PathExpression [110-114] [cols]
+                        Identifier(cols) [110-114] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+GROUP BY ** (cols)
+--
+ALTERNATION GROUP: , friend.name
+--
+QueryStatement [0-128] [GRAPH FinGraph...friend.name]
+  Query [0-128] [GRAPH FinGraph...friend.name]
+    GqlQuery [0-128] [GRAPH FinGraph...friend.name]
+      GraphTableQuery [0-128] [GRAPH FinGraph...friend.name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-128] [MATCH (p:Person...friend.name]
+          GqlOperatorList [15-128] [MATCH (p:Person...friend.name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-128] [RETURN * GROUP...friend.name]
+              Select [96-128] [* GROUP BY...friend.name]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+                GroupBy [98-128] [GROUP BY  **cols , friend.name]
+                  GroupingItem [108-114] [**cols]
+                    UnpackExpression [108-114] [**cols]
+                      PathExpression [110-114] [cols]
+                        Identifier(cols) [110-114] [cols]
+                  GroupingItem [117-128] [friend.name]
+                    PathExpression [117-128] [friend.name]
+                      Identifier(friend) [117-123] [friend]
+                      Identifier(name) [124-128] [name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+GROUP BY ** (cols), friend.name
+--
+ALTERNATION GROUP: p.name,,
+--
+QueryStatement [0-121] [GRAPH FinGraph...name, **cols]
+  Query [0-121] [GRAPH FinGraph...name, **cols]
+    GqlQuery [0-121] [GRAPH FinGraph...name, **cols]
+      GraphTableQuery [0-121] [GRAPH FinGraph...name, **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-121] [MATCH (p:Person...name, **cols]
+          GqlOperatorList [15-121] [MATCH (p:Person...name, **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-121] [RETURN * GROUP...name, **cols]
+              Select [96-121] [* GROUP BY p.name, **cols]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+                GroupBy [98-121] [GROUP BY p.name, **cols]
+                  GroupingItem [107-113] [p.name]
+                    PathExpression [107-113] [p.name]
+                      Identifier(p) [107-108] [p]
+                      Identifier(name) [109-113] [name]
+                  GroupingItem [115-121] [**cols]
+                    UnpackExpression [115-121] [**cols]
+                      PathExpression [117-121] [cols]
+                        Identifier(cols) [117-121] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+GROUP BY p.name, ** (cols)
+--
+ALTERNATION GROUP: p.name,,, friend.name
+--
+QueryStatement [0-135] [GRAPH FinGraph...friend.name]
+  Query [0-135] [GRAPH FinGraph...friend.name]
+    GqlQuery [0-135] [GRAPH FinGraph...friend.name]
+      GraphTableQuery [0-135] [GRAPH FinGraph...friend.name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-135] [MATCH (p:Person...friend.name]
+          GqlOperatorList [15-135] [MATCH (p:Person...friend.name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-135] [RETURN * GROUP...friend.name]
+              Select [96-135] [* GROUP BY...friend.name]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+                GroupBy [98-135] [GROUP BY p...friend.name]
+                  GroupingItem [107-113] [p.name]
+                    PathExpression [107-113] [p.name]
+                      Identifier(p) [107-108] [p]
+                      Identifier(name) [109-113] [name]
+                  GroupingItem [115-121] [**cols]
+                    UnpackExpression [115-121] [**cols]
+                      PathExpression [117-121] [cols]
+                        Identifier(cols) [117-121] [cols]
+                  GroupingItem [124-135] [friend.name]
+                    PathExpression [124-135] [friend.name]
+                      Identifier(friend) [124-130] [friend]
+                      Identifier(name) [131-135] [name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+GROUP BY p.name, ** (cols), friend.name
+==
+
+GRAPH FinGraph
+MATCH (p:Person {Id: 1})
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN *
+ORDER BY {{|p.name,}} **cols {{|, friend.name}};
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-114] [GRAPH FinGraph...BY  **cols]
+  Query [0-114] [GRAPH FinGraph...BY  **cols]
+    GqlQuery [0-114] [GRAPH FinGraph...BY  **cols]
+      GraphTableQuery [0-114] [GRAPH FinGraph...BY  **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-114] [MATCH (p:Person...BY  **cols]
+          GqlOperatorList [15-114] [MATCH (p:Person...BY  **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-114] [RETURN * ORDER BY  **cols]
+              Select [96-97] [*]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+              GqlOrderByAndPage [98-114] [ORDER BY  **cols]
+                OrderBy [98-114] [ORDER BY  **cols]
+                  OrderingExpression(ASC) [108-114] [**cols]
+                    UnpackExpression [108-114] [**cols]
+                      PathExpression [110-114] [cols]
+                        Identifier(cols) [110-114] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+ORDER BY ** (cols)
+--
+ALTERNATION GROUP: , friend.name
+--
+QueryStatement [0-128] [GRAPH FinGraph...friend.name]
+  Query [0-128] [GRAPH FinGraph...friend.name]
+    GqlQuery [0-128] [GRAPH FinGraph...friend.name]
+      GraphTableQuery [0-128] [GRAPH FinGraph...friend.name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-128] [MATCH (p:Person...friend.name]
+          GqlOperatorList [15-128] [MATCH (p:Person...friend.name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-128] [RETURN * ORDER...friend.name]
+              Select [96-97] [*]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+              GqlOrderByAndPage [98-128] [ORDER BY  **cols , friend.name]
+                OrderBy [98-128] [ORDER BY  **cols , friend.name]
+                  OrderingExpression(ASC) [108-114] [**cols]
+                    UnpackExpression [108-114] [**cols]
+                      PathExpression [110-114] [cols]
+                        Identifier(cols) [110-114] [cols]
+                  OrderingExpression(ASC) [117-128] [friend.name]
+                    PathExpression [117-128] [friend.name]
+                      Identifier(friend) [117-123] [friend]
+                      Identifier(name) [124-128] [name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+ORDER BY ** (cols), friend.name
+--
+ALTERNATION GROUP: p.name,,
+--
+QueryStatement [0-121] [GRAPH FinGraph...name, **cols]
+  Query [0-121] [GRAPH FinGraph...name, **cols]
+    GqlQuery [0-121] [GRAPH FinGraph...name, **cols]
+      GraphTableQuery [0-121] [GRAPH FinGraph...name, **cols]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-121] [MATCH (p:Person...name, **cols]
+          GqlOperatorList [15-121] [MATCH (p:Person...name, **cols]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-121] [RETURN * ORDER...name, **cols]
+              Select [96-97] [*]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+              GqlOrderByAndPage [98-121] [ORDER BY p.name, **cols]
+                OrderBy [98-121] [ORDER BY p.name, **cols]
+                  OrderingExpression(ASC) [107-113] [p.name]
+                    PathExpression [107-113] [p.name]
+                      Identifier(p) [107-108] [p]
+                      Identifier(name) [109-113] [name]
+                  OrderingExpression(ASC) [115-121] [**cols]
+                    UnpackExpression [115-121] [**cols]
+                      PathExpression [117-121] [cols]
+                        Identifier(cols) [117-121] [cols]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+ORDER BY p.name, ** (cols)
+--
+ALTERNATION GROUP: p.name,,, friend.name
+--
+QueryStatement [0-135] [GRAPH FinGraph...friend.name]
+  Query [0-135] [GRAPH FinGraph...friend.name]
+    GqlQuery [0-135] [GRAPH FinGraph...friend.name]
+      GraphTableQuery [0-135] [GRAPH FinGraph...friend.name]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-135] [MATCH (p:Person...friend.name]
+          GqlOperatorList [15-135] [MATCH (p:Person...friend.name]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlReturn [89-135] [RETURN * ORDER...friend.name]
+              Select [96-97] [*]
+                SelectList [96-97] [*]
+                  SelectColumn [96-97] [*]
+                    Star(*) [96-97] [*]
+              GqlOrderByAndPage [98-135] [ORDER BY p...friend.name]
+                OrderBy [98-135] [ORDER BY p...friend.name]
+                  OrderingExpression(ASC) [107-113] [p.name]
+                    PathExpression [107-113] [p.name]
+                      Identifier(p) [107-108] [p]
+                      Identifier(name) [109-113] [name]
+                  OrderingExpression(ASC) [115-121] [**cols]
+                    UnpackExpression [115-121] [**cols]
+                      PathExpression [117-121] [cols]
+                        Identifier(cols) [117-121] [cols]
+                  OrderingExpression(ASC) [124-135] [friend.name]
+                    PathExpression [124-135] [friend.name]
+                      Identifier(friend) [124-130] [friend]
+                      Identifier(name) [131-135] [name]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+RETURN
+  *
+ORDER BY p.name, ** (cols), friend.name
+==
+
+GRAPH FinGraph
+MATCH (p:Person {Id: 1})
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH {{|p.name,}} **cols {{|, friend.name}}
+RETURN *;
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-111] [GRAPH FinGraph...RETURN *]
+  Query [0-111] [GRAPH FinGraph...RETURN *]
+    GqlQuery [0-111] [GRAPH FinGraph...RETURN *]
+      GraphTableQuery [0-111] [GRAPH FinGraph...RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-111] [MATCH (p:Person...RETURN *]
+          GqlOperatorList [15-111] [MATCH (p:Person...RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-101] [WITH  **cols]
+              Select [95-101] [**cols]
+                SelectList [95-101] [**cols]
+                  SelectColumn [95-101] [**cols]
+                    UnpackExpression [95-101] [**cols]
+                      PathExpression [97-101] [cols]
+                        Identifier(cols) [97-101] [cols]
+            GqlReturn [103-111] [RETURN *]
+              Select [110-111] [*]
+                SelectList [110-111] [*]
+                  SelectColumn [110-111] [*]
+                    Star(*) [110-111] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  ** (cols)
+RETURN
+  *
+--
+ALTERNATION GROUP: , friend.name
+--
+QueryStatement [0-124] [GRAPH FinGraph...name RETURN *]
+  Query [0-124] [GRAPH FinGraph...name RETURN *]
+    GqlQuery [0-124] [GRAPH FinGraph...name RETURN *]
+      GraphTableQuery [0-124] [GRAPH FinGraph...name RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-124] [MATCH (p:Person...ame RETURN *]
+          GqlOperatorList [15-124] [MATCH (p:Person...ame RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-115] [WITH  **cols , friend.name]
+              Select [95-115] [**cols , friend.name]
+                SelectList [95-115] [**cols , friend.name]
+                  SelectColumn [95-101] [**cols]
+                    UnpackExpression [95-101] [**cols]
+                      PathExpression [97-101] [cols]
+                        Identifier(cols) [97-101] [cols]
+                  SelectColumn [104-115] [friend.name]
+                    PathExpression [104-115] [friend.name]
+                      Identifier(friend) [104-110] [friend]
+                      Identifier(name) [111-115] [name]
+            GqlReturn [116-124] [RETURN *]
+              Select [123-124] [*]
+                SelectList [123-124] [*]
+                  SelectColumn [123-124] [*]
+                    Star(*) [123-124] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  ** (cols),
+  friend.name
+RETURN
+  *
+--
+ALTERNATION GROUP: p.name,,
+--
+QueryStatement [0-118] [GRAPH FinGraph...RETURN *]
+  Query [0-118] [GRAPH FinGraph...RETURN *]
+    GqlQuery [0-118] [GRAPH FinGraph...RETURN *]
+      GraphTableQuery [0-118] [GRAPH FinGraph...RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-118] [MATCH (p:Person...RETURN *]
+          GqlOperatorList [15-118] [MATCH (p:Person...RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-108] [WITH p.name, **cols]
+              Select [94-108] [p.name, **cols]
+                SelectList [94-108] [p.name, **cols]
+                  SelectColumn [94-100] [p.name]
+                    PathExpression [94-100] [p.name]
+                      Identifier(p) [94-95] [p]
+                      Identifier(name) [96-100] [name]
+                  SelectColumn [102-108] [**cols]
+                    UnpackExpression [102-108] [**cols]
+                      PathExpression [104-108] [cols]
+                        Identifier(cols) [104-108] [cols]
+            GqlReturn [110-118] [RETURN *]
+              Select [117-118] [*]
+                SelectList [117-118] [*]
+                  SelectColumn [117-118] [*]
+                    Star(*) [117-118] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  p.name,
+  ** (cols)
+RETURN
+  *
+--
+ALTERNATION GROUP: p.name,,, friend.name
+--
+QueryStatement [0-131] [GRAPH FinGraph...name RETURN *]
+  Query [0-131] [GRAPH FinGraph...name RETURN *]
+    GqlQuery [0-131] [GRAPH FinGraph...name RETURN *]
+      GraphTableQuery [0-131] [GRAPH FinGraph...name RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-131] [MATCH (p:Person...ame RETURN *]
+          GqlOperatorList [15-131] [MATCH (p:Person...ame RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-122] [WITH p.name...friend.name]
+              Select [94-122] [p.name, **cols , friend.name]
+                SelectList [94-122] [p.name, **cols , friend.name]
+                  SelectColumn [94-100] [p.name]
+                    PathExpression [94-100] [p.name]
+                      Identifier(p) [94-95] [p]
+                      Identifier(name) [96-100] [name]
+                  SelectColumn [102-108] [**cols]
+                    UnpackExpression [102-108] [**cols]
+                      PathExpression [104-108] [cols]
+                        Identifier(cols) [104-108] [cols]
+                  SelectColumn [111-122] [friend.name]
+                    PathExpression [111-122] [friend.name]
+                      Identifier(friend) [111-117] [friend]
+                      Identifier(name) [118-122] [name]
+            GqlReturn [123-131] [RETURN *]
+              Select [130-131] [*]
+                SelectList [130-131] [*]
+                  SelectColumn [130-131] [*]
+                    Star(*) [130-131] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  p.name,
+  ** (cols),
+  friend.name
+RETURN
+  *
+==
+
+GRAPH FinGraph
+MATCH (p:Person {Id: 1})
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH * GROUP BY {{|p.name,}} **cols {{|, friend.name}}
+RETURN *;
+
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-122] [GRAPH FinGraph...RETURN *]
+  Query [0-122] [GRAPH FinGraph...RETURN *]
+    GqlQuery [0-122] [GRAPH FinGraph...RETURN *]
+      GraphTableQuery [0-122] [GRAPH FinGraph...RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-122] [MATCH (p:Person...RETURN *]
+          GqlOperatorList [15-122] [MATCH (p:Person...RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-112] [WITH * GROUP BY  **cols]
+              Select [94-112] [* GROUP BY  **cols]
+                SelectList [94-95] [*]
+                  SelectColumn [94-95] [*]
+                    Star(*) [94-95] [*]
+                GroupBy [96-112] [GROUP BY  **cols]
+                  GroupingItem [106-112] [**cols]
+                    UnpackExpression [106-112] [**cols]
+                      PathExpression [108-112] [cols]
+                        Identifier(cols) [108-112] [cols]
+            GqlReturn [114-122] [RETURN *]
+              Select [121-122] [*]
+                SelectList [121-122] [*]
+                  SelectColumn [121-122] [*]
+                    Star(*) [121-122] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  *
+GROUP BY ** (cols)
+RETURN
+  *
+--
+ALTERNATION GROUP: , friend.name
+--
+QueryStatement [0-135] [GRAPH FinGraph...name RETURN *]
+  Query [0-135] [GRAPH FinGraph...name RETURN *]
+    GqlQuery [0-135] [GRAPH FinGraph...name RETURN *]
+      GraphTableQuery [0-135] [GRAPH FinGraph...name RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-135] [MATCH (p:Person...ame RETURN *]
+          GqlOperatorList [15-135] [MATCH (p:Person...ame RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-126] [WITH * GROUP...friend.name]
+              Select [94-126] [* GROUP BY...friend.name]
+                SelectList [94-95] [*]
+                  SelectColumn [94-95] [*]
+                    Star(*) [94-95] [*]
+                GroupBy [96-126] [GROUP BY  **cols , friend.name]
+                  GroupingItem [106-112] [**cols]
+                    UnpackExpression [106-112] [**cols]
+                      PathExpression [108-112] [cols]
+                        Identifier(cols) [108-112] [cols]
+                  GroupingItem [115-126] [friend.name]
+                    PathExpression [115-126] [friend.name]
+                      Identifier(friend) [115-121] [friend]
+                      Identifier(name) [122-126] [name]
+            GqlReturn [127-135] [RETURN *]
+              Select [134-135] [*]
+                SelectList [134-135] [*]
+                  SelectColumn [134-135] [*]
+                    Star(*) [134-135] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  *
+GROUP BY ** (cols), friend.name
+RETURN
+  *
+--
+ALTERNATION GROUP: p.name,,
+--
+QueryStatement [0-129] [GRAPH FinGraph...RETURN *]
+  Query [0-129] [GRAPH FinGraph...RETURN *]
+    GqlQuery [0-129] [GRAPH FinGraph...RETURN *]
+      GraphTableQuery [0-129] [GRAPH FinGraph...RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-129] [MATCH (p:Person...RETURN *]
+          GqlOperatorList [15-129] [MATCH (p:Person...RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-119] [WITH * GROUP BY p.name, **cols]
+              Select [94-119] [* GROUP BY p.name, **cols]
+                SelectList [94-95] [*]
+                  SelectColumn [94-95] [*]
+                    Star(*) [94-95] [*]
+                GroupBy [96-119] [GROUP BY p.name, **cols]
+                  GroupingItem [105-111] [p.name]
+                    PathExpression [105-111] [p.name]
+                      Identifier(p) [105-106] [p]
+                      Identifier(name) [107-111] [name]
+                  GroupingItem [113-119] [**cols]
+                    UnpackExpression [113-119] [**cols]
+                      PathExpression [115-119] [cols]
+                        Identifier(cols) [115-119] [cols]
+            GqlReturn [121-129] [RETURN *]
+              Select [128-129] [*]
+                SelectList [128-129] [*]
+                  SelectColumn [128-129] [*]
+                    Star(*) [128-129] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  *
+GROUP BY p.name, ** (cols)
+RETURN
+  *
+--
+ALTERNATION GROUP: p.name,,, friend.name
+--
+QueryStatement [0-142] [GRAPH FinGraph...name RETURN *]
+  Query [0-142] [GRAPH FinGraph...name RETURN *]
+    GqlQuery [0-142] [GRAPH FinGraph...name RETURN *]
+      GraphTableQuery [0-142] [GRAPH FinGraph...name RETURN *]
+        PathExpression [6-14] [FinGraph]
+          Identifier(FinGraph) [6-14] [FinGraph]
+        GqlOperatorList [15-142] [MATCH (p:Person...ame RETURN *]
+          GqlOperatorList [15-142] [MATCH (p:Person...ame RETURN *]
+            GqlMatch [15-39] [MATCH (p:Person {Id: 1})]
+              GraphPattern [21-39] [(p:Person {Id: 1})]
+                GraphPathPattern [21-39] [(p:Person {Id: 1})]
+                  GraphNodePattern [21-39] [(p:Person {Id: 1})]
+                    GraphElementPatternFiller [22-38] [p:Person {Id: 1}]
+                      Identifier(p) [22-23] [p]
+                      GraphLabelFilter [23-30] [:Person]
+                        GraphElementLabel [24-30] [Person]
+                          Identifier(Person) [24-30] [Person]
+                      GraphPropertySpecification [31-38] [{Id: 1}]
+                        GraphPropertyNameAndValue [32-37] [Id: 1]
+                          Identifier(Id) [32-34] [Id]
+                          IntLiteral(1) [36-37] [1]
+            GqlNamedCall [40-88] [CALL graph...AS friend]
+              TVF [45-63] [graph.neighbors(p)]
+                PathExpression [45-60] [graph.neighbors]
+                  Identifier(graph) [45-50] [graph]
+                  Identifier(neighbors) [51-60] [neighbors]
+                TVFArgument [61-62] [p]
+                  PathExpression [61-62] [p]
+                    Identifier(p) [61-62] [p]
+              YieldItemList [64-88] [YIELD neighbor AS friend]
+                ExpressionWithOptAlias [70-88] [neighbor AS friend]
+                  Identifier(neighbor) [70-78] [neighbor]
+                  Alias [79-88] [AS friend]
+                    Identifier(friend) [82-88] [friend]
+            GqlWith [89-133] [WITH * GROUP...friend.name]
+              Select [94-133] [* GROUP BY...friend.name]
+                SelectList [94-95] [*]
+                  SelectColumn [94-95] [*]
+                    Star(*) [94-95] [*]
+                GroupBy [96-133] [GROUP BY p...friend.name]
+                  GroupingItem [105-111] [p.name]
+                    PathExpression [105-111] [p.name]
+                      Identifier(p) [105-106] [p]
+                      Identifier(name) [107-111] [name]
+                  GroupingItem [113-119] [**cols]
+                    UnpackExpression [113-119] [**cols]
+                      PathExpression [115-119] [cols]
+                        Identifier(cols) [115-119] [cols]
+                  GroupingItem [122-133] [friend.name]
+                    PathExpression [122-133] [friend.name]
+                      Identifier(friend) [122-128] [friend]
+                      Identifier(name) [129-133] [name]
+            GqlReturn [134-142] [RETURN *]
+              Select [141-142] [*]
+                SelectList [141-142] [*]
+                  SelectColumn [141-142] [*]
+                    Star(*) [141-142] [*]
+--
+GRAPH FinGraph
+MATCH
+  (p IS Person { Id : 1 })
+CALL graph.neighbors(p) YIELD neighbor AS friend
+WITH
+  *
+GROUP BY p.name, ** (cols), friend.name
+RETURN
+  *

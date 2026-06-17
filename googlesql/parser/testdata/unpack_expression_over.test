@@ -1,0 +1,795 @@
+# Tests for ** unpack expressions
+[default language_features=MAXIMUM,+PIPES]
+
+select 1,
+  RANK() OVER (
+    PARTITION BY {{|x,}} **cols {{|,y}}
+    ORDER BY y DESC
+  ) as rank
+from Foo;
+--
+ALTERNATION GROUP: <empty>
+--
+
+QueryStatement [0-92] [select 1,...rank from Foo]
+  Query [0-92] [select 1,...rank from Foo]
+    Select [0-92] [select 1,...rank from Foo]
+      SelectList [7-83] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-83] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-75] [RANK() OVER...y DESC   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-75] [(     PARTITION...y DESC   )]
+              PartitionBy [30-50] [PARTITION BY  **cols]
+                UnpackExpression [44-50] [**cols]
+                  PathExpression [46-50] [cols]
+                    Identifier(cols) [46-50] [cols]
+              OrderBy [56-71] [ORDER BY y DESC]
+                OrderingExpression(DESC) [65-71] [y DESC]
+                  PathExpression [65-66] [y]
+                    Identifier(y) [65-66] [y]
+          Alias [76-83] [as rank]
+            Identifier(rank) [79-83] [rank]
+      FromClause [84-92] [from Foo]
+        TablePathExpression [89-92] [Foo]
+          PathExpression [89-92] [Foo]
+            Identifier(Foo) [89-92] [Foo]
+--
+SELECT
+  1,
+  RANK() OVER (PARTITION BY ** (cols)
+    ORDER BY y DESC) AS rank
+FROM
+  Foo
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-94] [select 1,...rank from Foo]
+  Query [0-94] [select 1,...rank from Foo]
+    Select [0-94] [select 1,...rank from Foo]
+      SelectList [7-85] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-85] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-77] [RANK() OVER...y DESC   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-77] [(     PARTITION...y DESC   )]
+              PartitionBy [30-53] [PARTITION BY  **cols ,y]
+                UnpackExpression [44-50] [**cols]
+                  PathExpression [46-50] [cols]
+                    Identifier(cols) [46-50] [cols]
+                PathExpression [52-53] [y]
+                  Identifier(y) [52-53] [y]
+              OrderBy [58-73] [ORDER BY y DESC]
+                OrderingExpression(DESC) [67-73] [y DESC]
+                  PathExpression [67-68] [y]
+                    Identifier(y) [67-68] [y]
+          Alias [78-85] [as rank]
+            Identifier(rank) [81-85] [rank]
+      FromClause [86-94] [from Foo]
+        TablePathExpression [91-94] [Foo]
+          PathExpression [91-94] [Foo]
+            Identifier(Foo) [91-94] [Foo]
+--
+SELECT
+  1,
+  RANK() OVER (PARTITION BY ** (cols), y
+    ORDER BY y DESC) AS rank
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-94] [select 1,...rank from Foo]
+  Query [0-94] [select 1,...rank from Foo]
+    Select [0-94] [select 1,...rank from Foo]
+      SelectList [7-85] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-85] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-77] [RANK() OVER...y DESC   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-77] [(     PARTITION...y DESC   )]
+              PartitionBy [30-52] [PARTITION BY x, **cols]
+                PathExpression [43-44] [x]
+                  Identifier(x) [43-44] [x]
+                UnpackExpression [46-52] [**cols]
+                  PathExpression [48-52] [cols]
+                    Identifier(cols) [48-52] [cols]
+              OrderBy [58-73] [ORDER BY y DESC]
+                OrderingExpression(DESC) [67-73] [y DESC]
+                  PathExpression [67-68] [y]
+                    Identifier(y) [67-68] [y]
+          Alias [78-85] [as rank]
+            Identifier(rank) [81-85] [rank]
+      FromClause [86-94] [from Foo]
+        TablePathExpression [91-94] [Foo]
+          PathExpression [91-94] [Foo]
+            Identifier(Foo) [91-94] [Foo]
+--
+SELECT
+  1,
+  RANK() OVER (PARTITION BY x, ** (cols)
+    ORDER BY y DESC) AS rank
+FROM
+  Foo
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-96] [select 1,...rank from Foo]
+  Query [0-96] [select 1,...rank from Foo]
+    Select [0-96] [select 1,...rank from Foo]
+      SelectList [7-87] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-87] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-79] [RANK() OVER...y DESC   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-79] [(     PARTITION...y DESC   )]
+              PartitionBy [30-55] [PARTITION BY x, **cols ,y]
+                PathExpression [43-44] [x]
+                  Identifier(x) [43-44] [x]
+                UnpackExpression [46-52] [**cols]
+                  PathExpression [48-52] [cols]
+                    Identifier(cols) [48-52] [cols]
+                PathExpression [54-55] [y]
+                  Identifier(y) [54-55] [y]
+              OrderBy [60-75] [ORDER BY y DESC]
+                OrderingExpression(DESC) [69-75] [y DESC]
+                  PathExpression [69-70] [y]
+                    Identifier(y) [69-70] [y]
+          Alias [80-87] [as rank]
+            Identifier(rank) [83-87] [rank]
+      FromClause [88-96] [from Foo]
+        TablePathExpression [93-96] [Foo]
+          PathExpression [93-96] [Foo]
+            Identifier(Foo) [93-96] [Foo]
+--
+SELECT
+  1,
+  RANK() OVER (PARTITION BY x, ** (cols), y
+    ORDER BY y DESC) AS rank
+FROM
+  Foo
+==
+
+from Foo
+|> select 1,
+    RANK() OVER (
+      PARTITION BY {{|x,}} **cols {{|,y}}
+      ORDER BY y DESC
+    ) as rank;
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-103] [from Foo |...) as rank]
+  Query [0-103] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-103] [|> select...) as rank]
+      Select [12-103] [select 1,...) as rank]
+        SelectList [19-103] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-103] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-95] [RANK() OVER...DESC     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-95] [(       PARTITION...DESC     )]
+                PartitionBy [46-66] [PARTITION BY  **cols]
+                  UnpackExpression [60-66] [**cols]
+                    PathExpression [62-66] [cols]
+                      Identifier(cols) [62-66] [cols]
+                OrderBy [74-89] [ORDER BY y DESC]
+                  OrderingExpression(DESC) [83-89] [y DESC]
+                    PathExpression [83-84] [y]
+                      Identifier(y) [83-84] [y]
+            Alias [96-103] [as rank]
+              Identifier(rank) [99-103] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (PARTITION BY ** (cols)
+       ORDER BY y DESC) AS rank
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-105] [from Foo |...) as rank]
+  Query [0-105] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-105] [|> select...) as rank]
+      Select [12-105] [select 1,...) as rank]
+        SelectList [19-105] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-105] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-97] [RANK() OVER...DESC     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-97] [(       PARTITION...DESC     )]
+                PartitionBy [46-69] [PARTITION BY  **cols ,y]
+                  UnpackExpression [60-66] [**cols]
+                    PathExpression [62-66] [cols]
+                      Identifier(cols) [62-66] [cols]
+                  PathExpression [68-69] [y]
+                    Identifier(y) [68-69] [y]
+                OrderBy [76-91] [ORDER BY y DESC]
+                  OrderingExpression(DESC) [85-91] [y DESC]
+                    PathExpression [85-86] [y]
+                      Identifier(y) [85-86] [y]
+            Alias [98-105] [as rank]
+              Identifier(rank) [101-105] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (PARTITION BY ** (cols), y
+       ORDER BY y DESC) AS rank
+--
+ALTERNATION GROUP: x,,
+--
+QueryStatement [0-105] [from Foo |...) as rank]
+  Query [0-105] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-105] [|> select...) as rank]
+      Select [12-105] [select 1,...) as rank]
+        SelectList [19-105] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-105] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-97] [RANK() OVER...DESC     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-97] [(       PARTITION...DESC     )]
+                PartitionBy [46-68] [PARTITION BY x, **cols]
+                  PathExpression [59-60] [x]
+                    Identifier(x) [59-60] [x]
+                  UnpackExpression [62-68] [**cols]
+                    PathExpression [64-68] [cols]
+                      Identifier(cols) [64-68] [cols]
+                OrderBy [76-91] [ORDER BY y DESC]
+                  OrderingExpression(DESC) [85-91] [y DESC]
+                    PathExpression [85-86] [y]
+                      Identifier(y) [85-86] [y]
+            Alias [98-105] [as rank]
+              Identifier(rank) [101-105] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (PARTITION BY x, ** (cols)
+       ORDER BY y DESC) AS rank
+--
+ALTERNATION GROUP: x,,,y
+--
+QueryStatement [0-107] [from Foo |...) as rank]
+  Query [0-107] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-107] [|> select...) as rank]
+      Select [12-107] [select 1,...) as rank]
+        SelectList [19-107] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-107] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-99] [RANK() OVER...DESC     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-99] [(       PARTITION...DESC     )]
+                PartitionBy [46-71] [PARTITION BY x, **cols ,y]
+                  PathExpression [59-60] [x]
+                    Identifier(x) [59-60] [x]
+                  UnpackExpression [62-68] [**cols]
+                    PathExpression [64-68] [cols]
+                      Identifier(cols) [64-68] [cols]
+                  PathExpression [70-71] [y]
+                    Identifier(y) [70-71] [y]
+                OrderBy [78-93] [ORDER BY y DESC]
+                  OrderingExpression(DESC) [87-93] [y DESC]
+                    PathExpression [87-88] [y]
+                      Identifier(y) [87-88] [y]
+            Alias [100-107] [as rank]
+              Identifier(rank) [103-107] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (PARTITION BY x, ** (cols), y
+       ORDER BY y DESC) AS rank
+==
+
+select 1,
+  RANK() OVER (
+    ORDER BY {{|x ,|x DESC,}} **cols {{|,y}}
+  ) as rank
+from foo;
+--
+ALTERNATION GROUP: <empty>
+--
+
+QueryStatement [0-68] [select 1,...rank from foo]
+  Query [0-68] [select 1,...rank from foo]
+    Select [0-68] [select 1,...rank from foo]
+      SelectList [7-59] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-59] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-51] [RANK() OVER...*cols    )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-51] [(     ORDER BY  **cols    )]
+              OrderBy [30-46] [ORDER BY  **cols]
+                OrderingExpression(ASC) [40-46] [**cols]
+                  UnpackExpression [40-46] [**cols]
+                    PathExpression [42-46] [cols]
+                      Identifier(cols) [42-46] [cols]
+          Alias [52-59] [as rank]
+            Identifier(rank) [55-59] [rank]
+      FromClause [60-68] [from foo]
+        TablePathExpression [65-68] [foo]
+          PathExpression [65-68] [foo]
+            Identifier(foo) [65-68] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY ** (cols)) AS rank
+FROM
+  foo
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-70] [select 1,...rank from foo]
+  Query [0-70] [select 1,...rank from foo]
+    Select [0-70] [select 1,...rank from foo]
+      SelectList [7-61] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-61] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-53] [RANK() OVER...cols ,y   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-53] [(     ORDER BY  **cols ,y   )]
+              OrderBy [30-49] [ORDER BY  **cols ,y]
+                OrderingExpression(ASC) [40-46] [**cols]
+                  UnpackExpression [40-46] [**cols]
+                    PathExpression [42-46] [cols]
+                      Identifier(cols) [42-46] [cols]
+                OrderingExpression(ASC) [48-49] [y]
+                  PathExpression [48-49] [y]
+                    Identifier(y) [48-49] [y]
+          Alias [54-61] [as rank]
+            Identifier(rank) [57-61] [rank]
+      FromClause [62-70] [from foo]
+        TablePathExpression [67-70] [foo]
+          PathExpression [67-70] [foo]
+            Identifier(foo) [67-70] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY ** (cols), y) AS rank
+FROM
+  foo
+--
+ALTERNATION GROUP: x ,,
+--
+QueryStatement [0-71] [select 1,...rank from foo]
+  Query [0-71] [select 1,...rank from foo]
+    Select [0-71] [select 1,...rank from foo]
+      SelectList [7-62] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-62] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-54] [RANK() OVER...*cols    )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-54] [(     ORDER BY x , **cols    )]
+              OrderBy [30-49] [ORDER BY x , **cols]
+                OrderingExpression(ASC) [39-40] [x]
+                  PathExpression [39-40] [x]
+                    Identifier(x) [39-40] [x]
+                OrderingExpression(ASC) [43-49] [**cols]
+                  UnpackExpression [43-49] [**cols]
+                    PathExpression [45-49] [cols]
+                      Identifier(cols) [45-49] [cols]
+          Alias [55-62] [as rank]
+            Identifier(rank) [58-62] [rank]
+      FromClause [63-71] [from foo]
+        TablePathExpression [68-71] [foo]
+          PathExpression [68-71] [foo]
+            Identifier(foo) [68-71] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY x, ** (cols)) AS rank
+FROM
+  foo
+--
+ALTERNATION GROUP: x ,,,y
+--
+QueryStatement [0-73] [select 1,...rank from foo]
+  Query [0-73] [select 1,...rank from foo]
+    Select [0-73] [select 1,...rank from foo]
+      SelectList [7-64] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-64] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-56] [RANK() OVER...cols ,y   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-56] [(     ORDER...cols ,y   )]
+              OrderBy [30-52] [ORDER BY x , **cols ,y]
+                OrderingExpression(ASC) [39-40] [x]
+                  PathExpression [39-40] [x]
+                    Identifier(x) [39-40] [x]
+                OrderingExpression(ASC) [43-49] [**cols]
+                  UnpackExpression [43-49] [**cols]
+                    PathExpression [45-49] [cols]
+                      Identifier(cols) [45-49] [cols]
+                OrderingExpression(ASC) [51-52] [y]
+                  PathExpression [51-52] [y]
+                    Identifier(y) [51-52] [y]
+          Alias [57-64] [as rank]
+            Identifier(rank) [60-64] [rank]
+      FromClause [65-73] [from foo]
+        TablePathExpression [70-73] [foo]
+          PathExpression [70-73] [foo]
+            Identifier(foo) [70-73] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY x, ** (cols), y) AS rank
+FROM
+  foo
+--
+ALTERNATION GROUP: x DESC,,
+--
+QueryStatement [0-75] [select 1,...rank from foo]
+  Query [0-75] [select 1,...rank from foo]
+    Select [0-75] [select 1,...rank from foo]
+      SelectList [7-66] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-66] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-58] [RANK() OVER...*cols    )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-58] [(     ORDER...*cols    )]
+              OrderBy [30-53] [ORDER BY x DESC, **cols]
+                OrderingExpression(DESC) [39-45] [x DESC]
+                  PathExpression [39-40] [x]
+                    Identifier(x) [39-40] [x]
+                OrderingExpression(ASC) [47-53] [**cols]
+                  UnpackExpression [47-53] [**cols]
+                    PathExpression [49-53] [cols]
+                      Identifier(cols) [49-53] [cols]
+          Alias [59-66] [as rank]
+            Identifier(rank) [62-66] [rank]
+      FromClause [67-75] [from foo]
+        TablePathExpression [72-75] [foo]
+          PathExpression [72-75] [foo]
+            Identifier(foo) [72-75] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY x DESC, ** (cols)) AS rank
+FROM
+  foo
+--
+ALTERNATION GROUP: x DESC,,,y
+--
+QueryStatement [0-77] [select 1,...rank from foo]
+  Query [0-77] [select 1,...rank from foo]
+    Select [0-77] [select 1,...rank from foo]
+      SelectList [7-68] [1,   RANK(...) as rank]
+        SelectColumn [7-8] [1]
+          IntLiteral(1) [7-8] [1]
+        SelectColumn [12-68] [RANK() OVER...) as rank]
+          AnalyticFunctionCall [12-60] [RANK() OVER...cols ,y   )]
+            FunctionCall [12-18] [RANK()]
+              PathExpression [12-16] [RANK]
+                Identifier(RANK) [12-16] [RANK]
+            WindowSpecification [24-60] [(     ORDER...cols ,y   )]
+              OrderBy [30-56] [ORDER BY x DESC, **cols ,y]
+                OrderingExpression(DESC) [39-45] [x DESC]
+                  PathExpression [39-40] [x]
+                    Identifier(x) [39-40] [x]
+                OrderingExpression(ASC) [47-53] [**cols]
+                  UnpackExpression [47-53] [**cols]
+                    PathExpression [49-53] [cols]
+                      Identifier(cols) [49-53] [cols]
+                OrderingExpression(ASC) [55-56] [y]
+                  PathExpression [55-56] [y]
+                    Identifier(y) [55-56] [y]
+          Alias [61-68] [as rank]
+            Identifier(rank) [64-68] [rank]
+      FromClause [69-77] [from foo]
+        TablePathExpression [74-77] [foo]
+          PathExpression [74-77] [foo]
+            Identifier(foo) [74-77] [foo]
+--
+SELECT
+  1,
+  RANK() OVER (
+    ORDER BY x DESC, ** (cols), y) AS rank
+FROM
+  foo
+==
+
+from Foo
+|> select 1,
+    RANK() OVER (
+      ORDER BY {{|x ,|x DESC,}} **cols {{|,y}}
+    ) as rank;
+--
+ALTERNATION GROUP: <empty>
+--
+QueryStatement [0-77] [from Foo |...) as rank]
+  Query [0-77] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-77] [|> select...) as rank]
+      Select [12-77] [select 1,...) as rank]
+        SelectList [19-77] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-77] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-69] [RANK() OVER...cols      )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-69] [(       ORDER...cols      )]
+                OrderBy [46-62] [ORDER BY  **cols]
+                  OrderingExpression(ASC) [56-62] [**cols]
+                    UnpackExpression [56-62] [**cols]
+                      PathExpression [58-62] [cols]
+                        Identifier(cols) [58-62] [cols]
+            Alias [70-77] [as rank]
+              Identifier(rank) [73-77] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY ** (cols)) AS rank
+--
+ALTERNATION GROUP: ,y
+--
+QueryStatement [0-79] [from Foo |...) as rank]
+  Query [0-79] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-79] [|> select...) as rank]
+      Select [12-79] [select 1,...) as rank]
+        SelectList [19-79] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-79] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-71] [RANK() OVER...cols ,y     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-71] [(       ORDER...cols ,y     )]
+                OrderBy [46-65] [ORDER BY  **cols ,y]
+                  OrderingExpression(ASC) [56-62] [**cols]
+                    UnpackExpression [56-62] [**cols]
+                      PathExpression [58-62] [cols]
+                        Identifier(cols) [58-62] [cols]
+                  OrderingExpression(ASC) [64-65] [y]
+                    PathExpression [64-65] [y]
+                      Identifier(y) [64-65] [y]
+            Alias [72-79] [as rank]
+              Identifier(rank) [75-79] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY ** (cols), y) AS rank
+--
+ALTERNATION GROUP: x ,,
+--
+QueryStatement [0-80] [from Foo |...) as rank]
+  Query [0-80] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-80] [|> select...) as rank]
+      Select [12-80] [select 1,...) as rank]
+        SelectList [19-80] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-80] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-72] [RANK() OVER...cols      )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-72] [(       ORDER...cols      )]
+                OrderBy [46-65] [ORDER BY x , **cols]
+                  OrderingExpression(ASC) [55-56] [x]
+                    PathExpression [55-56] [x]
+                      Identifier(x) [55-56] [x]
+                  OrderingExpression(ASC) [59-65] [**cols]
+                    UnpackExpression [59-65] [**cols]
+                      PathExpression [61-65] [cols]
+                        Identifier(cols) [61-65] [cols]
+            Alias [73-80] [as rank]
+              Identifier(rank) [76-80] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY x, ** (cols)) AS rank
+--
+ALTERNATION GROUP: x ,,,y
+--
+QueryStatement [0-82] [from Foo |...) as rank]
+  Query [0-82] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-82] [|> select...) as rank]
+      Select [12-82] [select 1,...) as rank]
+        SelectList [19-82] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-82] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-74] [RANK() OVER...cols ,y     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-74] [(       ORDER...cols ,y     )]
+                OrderBy [46-68] [ORDER BY x , **cols ,y]
+                  OrderingExpression(ASC) [55-56] [x]
+                    PathExpression [55-56] [x]
+                      Identifier(x) [55-56] [x]
+                  OrderingExpression(ASC) [59-65] [**cols]
+                    UnpackExpression [59-65] [**cols]
+                      PathExpression [61-65] [cols]
+                        Identifier(cols) [61-65] [cols]
+                  OrderingExpression(ASC) [67-68] [y]
+                    PathExpression [67-68] [y]
+                      Identifier(y) [67-68] [y]
+            Alias [75-82] [as rank]
+              Identifier(rank) [78-82] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY x, ** (cols), y) AS rank
+--
+ALTERNATION GROUP: x DESC,,
+--
+QueryStatement [0-84] [from Foo |...) as rank]
+  Query [0-84] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-84] [|> select...) as rank]
+      Select [12-84] [select 1,...) as rank]
+        SelectList [19-84] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-84] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-76] [RANK() OVER...cols      )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-76] [(       ORDER...cols      )]
+                OrderBy [46-69] [ORDER BY x DESC, **cols]
+                  OrderingExpression(DESC) [55-61] [x DESC]
+                    PathExpression [55-56] [x]
+                      Identifier(x) [55-56] [x]
+                  OrderingExpression(ASC) [63-69] [**cols]
+                    UnpackExpression [63-69] [**cols]
+                      PathExpression [65-69] [cols]
+                        Identifier(cols) [65-69] [cols]
+            Alias [77-84] [as rank]
+              Identifier(rank) [80-84] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY x DESC, ** (cols)) AS rank
+--
+ALTERNATION GROUP: x DESC,,,y
+--
+QueryStatement [0-86] [from Foo |...) as rank]
+  Query [0-86] [from Foo |...) as rank]
+    FromQuery [0-8] [from Foo]
+      FromClause [0-8] [from Foo]
+        TablePathExpression [5-8] [Foo]
+          PathExpression [5-8] [Foo]
+            Identifier(Foo) [5-8] [Foo]
+    PipeSelect [9-86] [|> select...) as rank]
+      Select [12-86] [select 1,...) as rank]
+        SelectList [19-86] [1,     RANK...) as rank]
+          SelectColumn [19-20] [1]
+            IntLiteral(1) [19-20] [1]
+          SelectColumn [26-86] [RANK() OVER...) as rank]
+            AnalyticFunctionCall [26-78] [RANK() OVER...cols ,y     )]
+              FunctionCall [26-32] [RANK()]
+                PathExpression [26-30] [RANK]
+                  Identifier(RANK) [26-30] [RANK]
+              WindowSpecification [38-78] [(       ORDER...cols ,y     )]
+                OrderBy [46-72] [ORDER BY x DESC, **cols ,y]
+                  OrderingExpression(DESC) [55-61] [x DESC]
+                    PathExpression [55-56] [x]
+                      Identifier(x) [55-56] [x]
+                  OrderingExpression(ASC) [63-69] [**cols]
+                    UnpackExpression [63-69] [**cols]
+                      PathExpression [65-69] [cols]
+                        Identifier(cols) [65-69] [cols]
+                  OrderingExpression(ASC) [71-72] [y]
+                    PathExpression [71-72] [y]
+                      Identifier(y) [71-72] [y]
+            Alias [79-86] [as rank]
+              Identifier(rank) [82-86] [rank]
+--
+FROM
+  Foo
+|> SELECT
+     1,
+     RANK() OVER (
+       ORDER BY x DESC, ** (cols), y) AS rank

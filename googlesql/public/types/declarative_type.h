@@ -223,17 +223,11 @@ class DeclarativeType final : public Type {
 
   std::vector<const Type*> ComponentTypes() const final;
 
-  const Type* backing_type() const { return data_.backing_type(); }
-
   const DeclarativeType* AsDeclarativeType() const override { return this; }
 
   DeclarativeTypeDescriptor::AllowCoercionMode coercion_from_backing_type()
       const {
     return data_.coercion_from_backing_type();
-  }
-
-  DeclarativeTypeDescriptor::ReturningStrategy returning_strategy() const {
-    return data_.returning_strategy();
   }
 
   DeclarativeTypeDescriptor::AllowCoercionMode coercion_to_backing_type()
@@ -270,9 +264,14 @@ class DeclarativeType final : public Type {
   bool SupportsPartitioningImpl(const LanguageOptions& language_options,
                                 const Type** no_partitioning_type) const final;
 
+  bool SupportsReturningImpl(const LanguageOptions& language_options,
+                             const Type** no_returning_type) const final;
+
  private:
   DeclarativeType(const TypeFactoryBase* factory,
                   DeclarativeTypeDescriptor data);
+
+  const Type* backing_type() const { return data_.backing_type(); }
 
   bool EqualsForSameKind(const Type* that, bool equivalent) const final;
 

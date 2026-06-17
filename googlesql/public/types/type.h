@@ -844,6 +844,11 @@ class Type {
       const LanguageOptions& language_options,
       const Type** no_partitioning_type) const;
 
+  // Recursive implementation of SupportsReturning, which returns in
+  // `no_returning_type` the contained type that made returning unsupported.
+  virtual bool SupportsReturningImpl(const LanguageOptions& language_options,
+                                     const Type** no_returning_type) const;
+
   // Compares type instances belonging to the same type kind.
   virtual bool EqualsForSameKind(const Type* that, bool equivalent) const = 0;
 

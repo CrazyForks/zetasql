@@ -101,7 +101,9 @@ void StructType::DebugStringImpl(bool details, TypeOrStringVector* stack,
 bool StructType::SupportsGroupingImpl(const LanguageOptions& language_options,
                                       const Type** no_grouping_type) const {
   if (!language_options.LanguageFeatureEnabled(FEATURE_GROUP_BY_STRUCT)) {
-    if (no_grouping_type != nullptr) *no_grouping_type = this;
+    if (no_grouping_type != nullptr) {
+      *no_grouping_type = this;
+    }
     return false;
   }
 
@@ -110,7 +112,9 @@ bool StructType::SupportsGroupingImpl(const LanguageOptions& language_options,
       return false;
     }
   }
-  if (no_grouping_type != nullptr) *no_grouping_type = nullptr;
+  if (no_grouping_type != nullptr) {
+    *no_grouping_type = nullptr;
+  }
   return true;
 }
 
@@ -118,7 +122,9 @@ bool StructType::SupportsPartitioningImpl(
     const LanguageOptions& language_options,
     const Type** no_partitioning_type) const {
   if (!language_options.LanguageFeatureEnabled(FEATURE_GROUP_BY_STRUCT)) {
-    if (no_partitioning_type != nullptr) *no_partitioning_type = this;
+    if (no_partitioning_type != nullptr) {
+      *no_partitioning_type = this;
+    }
     return false;
   }
 
@@ -129,7 +135,24 @@ bool StructType::SupportsPartitioningImpl(
     }
   }
 
-  if (no_partitioning_type != nullptr) *no_partitioning_type = nullptr;
+  if (no_partitioning_type != nullptr) {
+    *no_partitioning_type = nullptr;
+  }
+  return true;
+}
+
+bool StructType::SupportsReturningImpl(const LanguageOptions& language_options,
+                                       const Type** no_returning_type) const {
+  for (const StructField& field : this->AsStruct()->fields()) {
+    if (!field.type->SupportsReturningImpl(language_options,
+                                           no_returning_type)) {
+      return false;
+    }
+  }
+
+  if (no_returning_type != nullptr) {
+    *no_returning_type = nullptr;
+  }
   return true;
 }
 

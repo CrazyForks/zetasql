@@ -96,18 +96,19 @@ TEST(DeclarativeTypeTest, TypeNameWithModifiersRequiresEmptyTypeModifiers) {
                          "types")));
 }
 
-TEST(DeclarativeTypeTest, DeclarativeTypeCoercionAndReturning) {
+TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingReturning) {
   TypeFactory type_factory;
   LanguageOptions language_options;
 
-  const Type* t1 = nullptr;
+  const Type* backing_type = types::Int64Type();
+
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
-      t1,
+      const Type* decl_type,
       type_factory.MakeDeclarativeType(
           DeclarativeTypeDescriptor()
-              .set_type_id({"NS", "T1"})
-              .set_display_name("t1")
-              .set_backing_type(type_factory.get_int64())
+              .set_type_id({"NS", "DeclType"})
+              .set_display_name("DeclType")
+              .set_backing_type(backing_type)
               .set_coercion_from_backing_type(
                   DeclarativeTypeDescriptor::AllowCoercionMode::
                       kAllowAllCoercion)
@@ -116,52 +117,46 @@ TEST(DeclarativeTypeTest, DeclarativeTypeCoercionAndReturning) {
               .set_returning_strategy(
                   DeclarativeTypeDescriptor::ReturningDisallowed{})));
 
-  const DeclarativeType* decl_type = t1->AsDeclarativeType();
-  ASSERT_NE(decl_type, nullptr);
-
-  EXPECT_EQ(decl_type->coercion_from_backing_type(),
-            DeclarativeTypeDescriptor::AllowCoercionMode::kAllowAllCoercion);
-  EXPECT_EQ(decl_type->coercion_to_backing_type(),
-            DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly);
-
   // ReturningDisallowed ensures that SupportsReturning() returns false, even
   // though the backing type does support returning.
-  EXPECT_TRUE(t1->AsDeclarativeType()->backing_type()->SupportsReturning(
-      language_options));
+  EXPECT_TRUE(backing_type->SupportsReturning(language_options));
 
   std::string type_description;
   EXPECT_FALSE(
       decl_type->SupportsReturning(language_options, &type_description));
-  EXPECT_EQ(type_description, "t1");
+  EXPECT_EQ(type_description, "DeclType");
 }
 
 TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingEquality) {
   TypeFactory type_factory;
   LanguageOptions language_options;
+
+  const Type* backing_type = types::Int64Type();
+
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
-      const Type* t1,
+      const Type* decl_type,
       type_factory.MakeDeclarativeType(
           DeclarativeTypeDescriptor()
-              .set_type_id({"NS", "T1"})
-              .set_display_name("t1")
-              .set_backing_type(type_factory.get_int64())
+              .set_type_id({"NS", "DeclType"})
+              .set_display_name("DeclType")
+              .set_backing_type(backing_type)
               .set_equality_strategy(
                   DeclarativeTypeDescriptor::EqualityDisallowed{})));
 
-  EXPECT_TRUE(t1->AsDeclarativeType()->backing_type()->SupportsEquality());
-  EXPECT_FALSE(t1->SupportsEquality());
+  EXPECT_TRUE(backing_type->SupportsEquality());
+  EXPECT_FALSE(decl_type->SupportsEquality());
 
-  EXPECT_TRUE(t1->AsDeclarativeType()->backing_type()->SupportsGrouping(
-      language_options));
+  EXPECT_TRUE(backing_type->SupportsGrouping(language_options));
   std::string type_description;
-  EXPECT_FALSE(t1->SupportsGrouping(language_options, &type_description));
-  EXPECT_EQ(type_description, "t1");
+  EXPECT_FALSE(
+      decl_type->SupportsGrouping(language_options, &type_description));
+  EXPECT_EQ(type_description, "DeclType");
 
-  EXPECT_TRUE(t1->AsDeclarativeType()->backing_type()->SupportsPartitioning(
-      language_options));
+  EXPECT_TRUE(backing_type->SupportsPartitioning(language_options));
   std::string type_description2;
-  EXPECT_FALSE(t1->SupportsPartitioning(language_options, &type_description2));
-  EXPECT_EQ(type_description2, "t1");
+  EXPECT_FALSE(
+      decl_type->SupportsPartitioning(language_options, &type_description2));
+  EXPECT_EQ(type_description2, "DeclType");
 }
 
 TEST(DeclarativeTypeTest, DeclarativeTypeDelegatingEqualityToSupported) {

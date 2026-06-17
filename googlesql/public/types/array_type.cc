@@ -254,6 +254,18 @@ bool ArrayType::SupportsPartitioningImpl(
   return true;
 }
 
+bool ArrayType::SupportsReturningImpl(const LanguageOptions& language_options,
+                                      const Type** no_returning_type) const {
+  if (!element_type()->SupportsReturningImpl(language_options,
+                                             no_returning_type)) {
+    return false;
+  }
+  if (no_returning_type != nullptr) {
+    *no_returning_type = nullptr;
+  }
+  return true;
+}
+
 absl::Status ArrayType::SerializeToProtoAndDistinctFileDescriptorsImpl(
     const BuildFileDescriptorSetMapOptions& options, TypeProto* type_proto,
     FileDescriptorSetMap* file_descriptor_set_map) const {

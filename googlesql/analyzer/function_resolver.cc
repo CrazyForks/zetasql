@@ -2982,8 +2982,9 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
   const FunctionArgumentType& expected_type =
       function.signatures()[0].result_type();
   if (expected_type.kind() == ARG_TYPE_FIXED) {
+    GOOGLESQL_RET_CHECK(expression != nullptr);
     if (absl::Status status = resolver_->CoerceExprToType(
-            ast_location, expected_type.type(),
+            expression, expected_type.type(),
             // In the future, add type modifiers when we have them declared on
             // function signatures.
             TypeModifiers(), Resolver::kImplicitCoercion,

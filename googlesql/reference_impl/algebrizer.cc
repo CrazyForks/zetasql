@@ -155,24 +155,25 @@ absl::Status CheckHints(
   return absl::OkStatus();
 }
 
-std::unique_ptr<ExtendedCompositeCastEvaluator>
+absl::StatusOr<std::unique_ptr<ExtendedCompositeCastEvaluator>>
 GetExtendedCastEvaluatorFromResolvedCast(const ResolvedCast* cast) {
   if (cast->extended_cast() != nullptr) {
     std::vector<ConversionEvaluator> evaluators;
     for (const auto& extended_conversion :
          cast->extended_cast()->element_list()) {
-      evaluators.push_back(
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          ConversionEvaluator conversion_evaluator,
           ConversionEvaluator::Create(extended_conversion->from_type(),
                                       extended_conversion->to_type(),
-                                      extended_conversion->function())
-              .value());
+                                      extended_conversion->function()));
+      evaluators.push_back(std::move(conversion_evaluator));
     }
 
     return std::make_unique<ExtendedCompositeCastEvaluator>(
         std::move(evaluators));
   }
 
-  return {};
+  return std::unique_ptr<ExtendedCompositeCastEvaluator>();
 }
 
 bool IsAnalyticFunctionCollationSupported(const FunctionSignature& signature) {
@@ -380,8 +381,9 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeCast(
   // For extended conversions extended_cast will contain a conversion function
   // that implements a conversion. Extended conversions in reference
   // implementation are tested in public/types/extended_type_test.cc.
-  std::unique_ptr<ExtendedCompositeCastEvaluator> extended_evaluator =
-      GetExtendedCastEvaluatorFromResolvedCast(cast);
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::unique_ptr<ExtendedCompositeCastEvaluator> extended_evaluator,
+      GetExtendedCastEvaluatorFromResolvedCast(cast));
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> function_call,
                    BuiltinScalarFunction::CreateCast(
                        language_options_, cast->type(), std::move(arg),
@@ -1620,25 +1622,8 @@ absl::StatusOr<std::unique_ptr<AggregateArg>> Algebrizer::AlgebrizeAggregateFn(
                      AlgebrizeExpression(argument_expr));
     if (argument_expr->type()->IsMeasureType()) {
       GOOGLESQL_RET_CHECK(measure_expr == nullptr);
-      ResolvedColumn measure_column_arg;
-      if (argument_expr->Is<ResolvedColumnRef>()) {
-        measure_column_arg =
-            argument_expr->GetAs<ResolvedColumnRef>()->column();
-      } else if (argument_expr->Is<ResolvedSubqueryExpr>()) {
-        GOOGLESQL_RET_CHECK_EQ(
-            argument_expr->GetAs<ResolvedSubqueryExpr>()->subquery_type(),
-            ResolvedSubqueryExpr::SCALAR);
-        measure_column_arg = argument_expr->GetAs<ResolvedSubqueryExpr>()
-                                 ->subquery()
-                                 ->column_list(0);
-      } else {
-        return absl::UnimplementedError(
-            absl::StrCat("Unexpected argument for AGG function. Argument: ",
-                         argument_expr->DebugString()));
-      }
-
       GOOGLESQL_ASSIGN_OR_RETURN(measure_expr, measure_column_to_expr_.GetMeasureExpr(
-                                         measure_column_arg));
+                                         argument_expr->type()->AsMeasure()));
     }
     arguments.push_back(std::move(argument));
   }
@@ -2961,9 +2946,6 @@ absl::StatusOr<std::unique_ptr<ValueExpr>> Algebrizer::AlgebrizeWithExpr(
         AlgebrizeExpression(with_expr->assignment_list(i)->expr()));
     assignments.emplace_back(
         std::make_unique<ExprArg>(assigned_var, std::move(assigned_value)));
-    GOOGLESQL_RETURN_IF_ERROR(measure_column_to_expr_.TrackMeasureColumnsRenamedByExpr(
-        with_expr->assignment_list(i)->column(),
-        *with_expr->assignment_list(i)->expr()));
   }
   GOOGLESQL_ASSIGN_OR_RETURN(auto expr, AlgebrizeExpression(with_expr->expr()));
   return WithExpr::Create(std::move(assignments), std::move(expr));
@@ -4144,7 +4126,6 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeWithScan(
   }
 
   for (const auto& with_entry : scan->with_entry_list()) {
-    measure_column_to_expr_.TrackWithQueryScan(*with_entry);
     if (reference_count_by_name.has_value()) {
       int ref_count =
           reference_count_by_name.value().at(with_entry->with_query_name());
@@ -4204,10 +4185,6 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeWithRefScan(
 
     GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<RelationalOp> algebrized_with_subquery,
                      AlgebrizeScan(with_subquery_scan));
-    // Track measure columns renamed by the WITH ref scan after algebrizing the
-    // WITH subquery.
-    GOOGLESQL_RETURN_IF_ERROR(
-        measure_column_to_expr_.TrackMeasureColumnsRenamedByWithRefScan(*scan));
 
     // Map columns from that of subquery to that of <scan>.
     std::vector<std::unique_ptr<ExprArg>> column_map;
@@ -4234,10 +4211,6 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeWithRefScan(
     return compute_op;
   }
 
-  // WITH subquery is already algebrized. Track measure columns renamed by the
-  // WITH ref scan.
-  GOOGLESQL_RETURN_IF_ERROR(
-      measure_column_to_expr_.TrackMeasureColumnsRenamedByWithRefScan(*scan));
   // We are referencing a pre-computed array value storing the entire table.
   const auto it = with_map_.find(query_name);
   GOOGLESQL_RET_CHECK(it != with_map_.end())
@@ -6661,12 +6634,6 @@ Algebrizer::AlgebrizeProjectScanInternal(
         column_to_variable_->AssignNewVariableToColumn(column);
     arguments.push_back(
         std::make_unique<ExprArg>(variable, std::move(argument)));
-    // If the ProjectScan computes a measure column from some other measure
-    // column, we need to track the measure column rename. This tracking
-    // happens after the algebrization for the input scan and the computed
-    // expression are done.
-    GOOGLESQL_RETURN_IF_ERROR(measure_column_to_expr_.TrackMeasureColumnsRenamedByExpr(
-        column, *expr));
   }
 
   // If no columns were defined by this project then just drop it.
@@ -8741,7 +8708,6 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeBarrierScan(
 absl::StatusOr<std::unique_ptr<ExprArg>>
 Algebrizer::AlgebrizeCreateWithEntryStmt(
     const ResolvedCreateWithEntryStmt* create_with_stmt) {
-  measure_column_to_expr_.TrackWithQueryScan(*create_with_stmt->with_entry());
   const ResolvedScan* subquery_node =
       create_with_stmt->with_entry()->with_subquery();
   GOOGLESQL_ASSIGN_OR_RETURN(

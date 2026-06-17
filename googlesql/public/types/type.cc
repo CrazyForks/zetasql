@@ -759,67 +759,27 @@ bool Type::SupportsEquality(const LanguageOptions& language_options) const {
 
 bool Type::SupportsReturning(const LanguageOptions& language_options,
                              std::string* type_description) const {
-  switch (this->kind()) {
-    case TYPE_ARRAY:
-      return this->AsArray()->element_type()->SupportsReturning(
-          language_options, type_description);
-    case TYPE_STRUCT:
-      for (const StructField& field : this->AsStruct()->fields()) {
-        if (!field.type->SupportsReturning(language_options,
-                                           type_description)) {
-          return false;
-        }
-      }
-      return true;
-    case TYPE_MAP:
-      return GetMapKeyType(this)->SupportsReturning(language_options,
-                                                    type_description) &&
-             GetMapValueType(this)->SupportsReturning(language_options,
-                                                      type_description);
-    case TYPE_GRAPH_ELEMENT:
-    case TYPE_GRAPH_PATH:
-      if (type_description != nullptr) {
-        *type_description = TypeKindToString(
-            this->kind(), language_options.product_mode(),
-            !language_options.LanguageFeatureEnabled(FEATURE_DISABLE_FLOAT32));
-      }
-      return false;
-    case TYPE_MEASURE:
-      if (type_description != nullptr) {
-        *type_description = "MEASURE";
-      }
-      return false;
-    case TYPE_ROW:
-      if (type_description != nullptr) {
-        if (this->IsRow()) {
-          *type_description = "ROW";
-        } else {
-          *type_description = "TABLE";
-        }
-      }
-      return false;
-    case TYPE_DECLARATIVE: {
-      const DeclarativeType* declarative_type = this->AsDeclarativeType();
-      bool supports_returning = false;
-      std::visit(absl::Overload(
-                     [&](DeclarativeTypeDescriptor::ReturningDelegated) {
-                       supports_returning =
-                           declarative_type->backing_type()->SupportsReturning(
-                               language_options, type_description);
-                     },
-                     [&](DeclarativeTypeDescriptor::ReturningDisallowed) {
-                       supports_returning = false;
-                     }),
-                 declarative_type->returning_strategy());
-      if (!supports_returning && type_description != nullptr) {
-        *type_description =
-            declarative_type->TypeName(language_options.product_mode());
-      }
-      return supports_returning;
+  const Type* no_returning_type;
+  const bool supports_returning =
+      this->SupportsReturningImpl(language_options, &no_returning_type);
+
+  if (!supports_returning && type_description != nullptr) {
+    if (no_returning_type->IsRowOrTable() && !no_returning_type->IsRow()) {
+      *type_description = "TABLE";
+    } else {
+      *type_description = GetTypeDescriptionForErrorMessage(
+          no_returning_type, language_options.product_mode());
     }
-    default:
-      return true;
   }
+  return supports_returning;
+}
+
+bool Type::SupportsReturningImpl(const LanguageOptions& language_options,
+                                 const Type** no_returning_type) const {
+  if (no_returning_type != nullptr) {
+    *no_returning_type = nullptr;
+  }
+  return true;
 }
 
 void Type::CopyValueContent(const ValueContent& from, ValueContent* to) const {

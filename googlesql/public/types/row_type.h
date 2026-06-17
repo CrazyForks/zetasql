@@ -130,6 +130,14 @@ class RowOrTableType : public Type {
     return false;
   }
 
+  bool SupportsReturningImpl(const LanguageOptions& language_options,
+                             const Type** no_returning_type) const override {
+    if (no_returning_type != nullptr) {
+      *no_returning_type = this;
+    }
+    return false;
+  }
+
   HasFieldResult HasFieldImpl(absl::string_view name, int* field_id,
                               bool include_pseudo_fields) const override;
 

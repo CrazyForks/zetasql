@@ -1403,10 +1403,13 @@ ALTER MATERIALIZED VIEW foo SET OPTIONS (string_option -= 'str1');
                                          ^
 ==
 
+# TODO: b/524262626 - This is a parser error to mitigate the crashes in
+# b/524262626, and should be changed to an analyzer check once the feature is
+# fixed.
 export data OPTIONS(FROM struct(1 as int32_option))
 as select 1 x
 --
-ERROR: OPTIONS (FROM <struct_expression>) is not supported [at 1:21]
+ERROR: Syntax error: OPTIONS (FROM <struct_expression>) is not supported [at 1:21]
 export data OPTIONS(FROM struct(1 as int32_option))
                     ^
 ==

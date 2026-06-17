@@ -1465,6 +1465,9 @@ The function signature `COUNTIF(DISTINCT ...)` is generally not useful. If you
 would like to use `DISTINCT`, use `COUNT` with `DISTINCT IF`. For more
 information, see the [`COUNT`][count] function.
 
+Note: `COUNTIF(expression)` is equivalent to
+`COUNT(expression WHERE expression)`.
+
 **Return type**
 
 `INT64`

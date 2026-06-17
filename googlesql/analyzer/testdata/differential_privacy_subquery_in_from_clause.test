@@ -855,4 +855,3 @@ QueryStmt
         |     +-TableScan(table=SimpleTypes)
         +-aggregate_list=
           +-$agg1#33 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
-==

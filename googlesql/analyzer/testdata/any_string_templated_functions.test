@@ -7,14 +7,14 @@
 CREATE FUNCTION udf(s1 ANY STRING, s2 ANY STRING DEFAULT "abc", s3 STRING DEFAULT "xyz") AS (s1 || s2 || s3);
 --
 
-CreateFunctionStmt(name_path=udf, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(ANY STRING s1, optional ANY STRING {default_value: "abc"} s2, optional STRING {default_value: "xyz"} s3) -> ANY TYPE rejects_collation=TRUE, language="SQL", code="s1 || s2 || s3")
+CreateFunctionStmt(name_path=udf, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(ANY STRING s1, optional ANY STRING {default_value: "abc"} s2, optional STRING {default_value: "xyz"} s3) -> ANY TYPE, language="SQL", code="s1 || s2 || s3")
 ==
 
 [prepare_database=db1]
 CREATE AGGREGATE FUNCTION uda(s1 ANY STRING DEFAULT "abc", s2 ANY STRING DEFAULT "xyz" NOT AGGREGATE, s3 STRING DEFAULT "hjk" NOT AGGREGATE) AS (MAX(s1) || s2 || s3);
 --
 
-CreateFunctionStmt(name_path=uda, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(optional ANY STRING {default_value: "abc"} s1, optional ANY STRING {default_value: "xyz", is_not_aggregate: true} s2, optional STRING {default_value: "hjk", is_not_aggregate: true} s3) -> ANY TYPE rejects_collation=TRUE, is_aggregate=TRUE, language="SQL", code="MAX(s1) || s2 || s3")
+CreateFunctionStmt(name_path=uda, return_type=STRUCT<>, argument_name_list=[s1, s2, s3], signature=(optional ANY STRING {default_value: "abc"} s1, optional ANY STRING {default_value: "xyz", is_not_aggregate: true} s2, optional STRING {default_value: "hjk", is_not_aggregate: true} s3) -> ANY TYPE, is_aggregate=TRUE, language="SQL", code="MAX(s1) || s2 || s3")
 ==
 
 [prepare_database=db1]
@@ -152,7 +152,7 @@ QueryStmt
                   +-type_modifiers=collation:und:ci
 
 With Templated SQL function call:
-  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -161,7 +161,7 @@ FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-ArgumentRef(type=STRING, name="s3")
 
 With Templated SQL function call:
-  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -170,7 +170,7 @@ FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-ArgumentRef(type=STRING, name="s3")
 
 With Templated SQL function call:
-  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -185,7 +185,7 @@ FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
       +-collation_list=[und:ci]
 
 With Templated SQL function call:
-  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -264,7 +264,7 @@ QueryStmt
               +-Literal(type=STRING, value="hjk")
 
 With Templated SQL function call:
-  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -296,7 +296,7 @@ QueryStmt
             +-collation_list=[und:ci]
 
 With Templated SQL function call:
-  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -313,8 +313,8 @@ FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 
 # Collation is handled correctly, even when optional argument is supplied.
 SELECT
-  udf(col, CAST("foo" AS STRING COLLATE "und:ci"), CAST("xyz" AS STRING COLLATE "binary")),
-  uda(col, CAST("bar" AS STRING COLLATE "und:ci"), CAST("hjk" AS STRING COLLATE "binary"))
+  udf(col, CAST("foo" AS STRING COLLATE "und:ci"), CAST("xyz" AS STRING COLLATE "binary")),
+  uda(col, CAST("bar" AS STRING COLLATE "und:ci"), CAST("hjk" AS STRING COLLATE "binary"))
 FROM tvf((SELECT COLLATE("A", "und:ci") AS col), "baz")
 GROUP BY col
 --
@@ -388,7 +388,7 @@ QueryStmt
                   +-type_modifiers=collation:binary
 
 With Templated SQL function call:
-  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:udf(STRING s1, optional(1) STRING s2, optional(1) STRING s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}
@@ -420,7 +420,7 @@ QueryStmt
             +-collation_list=[und:ci]
 
 With Templated SQL function call:
-  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING rejects_collation=TRUE
+  Templated_SQL_Function:uda(optional(1) STRING s1, optional(1) STRING {is_not_aggregate: true} s2, optional(1) STRING {is_not_aggregate: true} s3) -> STRING
 containing resolved templated expression:
 FunctionCall(GoogleSQL:concat(STRING, repeated(2) STRING) -> STRING)
 +-type_annotation_map={Collation:"und:ci"}

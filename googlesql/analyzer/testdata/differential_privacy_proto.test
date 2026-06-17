@@ -469,4 +469,3 @@ QueryStmt
               +-Literal(type=STRUCT<INT64, INT64>, value=NULL)
 
 Rewrite ERROR: Subqueries of differential_privacy queries must explicitly SELECT the userid column 't.string_val'
-==

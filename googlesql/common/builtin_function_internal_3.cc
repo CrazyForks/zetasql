@@ -1977,18 +1977,22 @@ struct PathArguments {
     }
 
     const Type* const string_type = types::StringType();
+    const ArrayType* const array_string_type = types::StringArrayType();
 
     return {.json_path =
                 FunctionArgumentType(string_type, json_path_argument_options),
             .repeated_json_path = FunctionArgumentType(
                 string_type, repeated_json_path_argument_options),
             .optional_json_path = FunctionArgumentType(
-                string_type, optional_json_path_argument_options)};
+                string_type, optional_json_path_argument_options),
+            .json_path_array = FunctionArgumentType(
+                array_string_type, json_path_argument_options)};
   }
 
   FunctionArgumentType json_path;
   FunctionArgumentType repeated_json_path;
   FunctionArgumentType optional_json_path;
+  FunctionArgumentType json_path_array;
 };
 
 void GetJsonArrayFunctions(const PathArguments& path_arguments,
@@ -2192,6 +2196,39 @@ void GetJsonValueFunctions(const PathArguments& path_arguments,
   }
 }
 
+void GetJsonExistsFunctions(const PathArguments& path_arguments,
+                            const GoogleSQLBuiltinFunctionOptions& options,
+                            NameToFunctionMap* functions) {
+  if (!options.language_options.LanguageFeatureEnabled(
+          FEATURE_JSON_EXISTS_FUNCTIONS)) {
+    return;
+  }
+  const Type* const bool_type = types::BoolType();
+  const Type* const json_type = types::JsonType();
+
+  // json_exists(json, string) -> bool
+  std::vector<FunctionSignatureOnHeap> json_exists_signatures = {
+      {bool_type, {json_type, path_arguments.json_path}, FN_JSON_EXISTS}};
+  InsertFunction(functions, options, "json_exists", Function::SCALAR,
+                 json_exists_signatures);
+
+  // json_exists_any(json, array<string>) -> bool
+  std::vector<FunctionSignatureOnHeap> json_exists_any_signatures = {
+      {bool_type,
+       {json_type, path_arguments.json_path_array},
+       FN_JSON_EXISTS_ANY}};
+  InsertFunction(functions, options, "json_exists_any", Function::SCALAR,
+                 json_exists_any_signatures);
+
+  // json_exists_all(json, array<string>) -> bool
+  std::vector<FunctionSignatureOnHeap> json_exists_all_signatures = {
+      {bool_type,
+       {json_type, path_arguments.json_path_array},
+       FN_JSON_EXISTS_ALL}};
+  InsertFunction(functions, options, "json_exists_all", Function::SCALAR,
+                 json_exists_all_signatures);
+}
+
 void GetJsonObjectManipulationFunctions(
     const PathArguments& path_arguments,
     const GoogleSQLBuiltinFunctionOptions& options,
@@ -2338,6 +2375,7 @@ absl::Status GetJSONFunctions(TypeFactory* type_factory,
   GetJsonExtractFunctions(path_arguments, options, functions);
   GetJsonQueryFunctions(path_arguments, options, functions);
   GetJsonValueFunctions(path_arguments, options, functions);
+  GetJsonExistsFunctions(path_arguments, options, functions);
   GetJsonObjectManipulationFunctions(path_arguments, options, functions);
 
   return absl::OkStatus();

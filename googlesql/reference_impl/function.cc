@@ -3333,25 +3333,35 @@ absl::StatusOr<Value> RangeBucketFunction::Eval(
 absl::Status ArithmeticFunction::AddIntervalHelper(
     const Value& arg, const IntervalValue& interval, Value* result,
     EvaluationContext* context) const {
+  const bool round_to_micros = GetTimestampScale(context->GetLanguageOptions(),
+                                                 /*support_picos=*/true) ==
+                               functions::TimestampScale::kMicroseconds;
+  IntervalValue truncated_interval = interval;
+  if (round_to_micros) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        truncated_interval,
+        IntervalValue::FromMonthsDaysMicros(
+            interval.get_months(), interval.get_days(), interval.get_micros()));
+  }
   switch (arg.type()->kind()) {
     case TYPE_DATE: {
       DatetimeValue datetime;
       GOOGLESQL_RETURN_IF_ERROR(
-          functions::AddDate(arg.date_value(), interval, &datetime));
+          functions::AddDate(arg.date_value(), truncated_interval, &datetime));
       *result = Value::Datetime(datetime);
       break;
     }
     case TYPE_TIMESTAMP: {
-      GOOGLESQL_ASSIGN_OR_RETURN(
-          PicoTime timestamp,
-          functions::AddTimestamp(arg.ToUnixPicos().ToPicoTime(), interval));
+      GOOGLESQL_ASSIGN_OR_RETURN(PicoTime timestamp,
+                       functions::AddTimestamp(arg.ToUnixPicos().ToPicoTime(),
+                                               truncated_interval));
       *result = Value::Timestamp(TimestampPicosValue(timestamp));
       break;
     }
     case TYPE_DATETIME: {
       DatetimeValue datetime;
-      GOOGLESQL_RETURN_IF_ERROR(
-          functions::AddDatetime(arg.datetime_value(), interval, &datetime));
+      GOOGLESQL_RETURN_IF_ERROR(functions::AddDatetime(arg.datetime_value(),
+                                             truncated_interval, &datetime));
       *result = Value::Datetime(datetime);
       break;
     }

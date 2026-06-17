@@ -108,6 +108,9 @@ class MeasureType : public ContainerType {
       const LanguageOptions& language_options,
       const Type** no_partitioning_type) const override;
 
+  bool SupportsReturningImpl(const LanguageOptions& language_options,
+                             const Type** no_returning_type) const override;
+
   absl::HashState HashTypeParameter(absl::HashState state) const override;
   absl::HashState HashValueContent(const ValueContent& value,
                                    absl::HashState state) const override;

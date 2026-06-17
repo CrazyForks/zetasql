@@ -120,6 +120,15 @@ bool GraphPathType::SupportsPartitioningImpl(
   return false;
 }
 
+bool GraphPathType::SupportsReturningImpl(
+    const LanguageOptions& language_options,
+    const Type** no_returning_type) const {
+  if (no_returning_type != nullptr) {
+    *no_returning_type = this;
+  }
+  return false;
+}
+
 bool GraphPathType::SupportsOrdering(const LanguageOptions& language_options,
                                      std::string* type_description) const {
   if (type_description != nullptr) {

@@ -5329,8 +5329,8 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
                        sql_));
   signature_options.set_additional_deprecation_warnings(
       additional_deprecation_warnings);
-  // TODO: Roll forward (broken link) after fix.
-  if (language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT)) {
+  if (language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT) &&
+      !is_sql_function) {
     // User defined function should disallow collation on function arguments.
     // This constraint is temporary and we should support it later through some
     // kind of language extensions.

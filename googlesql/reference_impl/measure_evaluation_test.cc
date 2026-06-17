@@ -116,39 +116,27 @@ TEST_F(MeasureColumnToExprMappingTest, TrackMeasureColumns) {
   GOOGLESQL_EXPECT_OK(
       measure_column_to_expr_mapping.TrackMeasureColumnsEmittedByTableScan(
           *table_scan.value()));
-  EXPECT_THAT(measure_column_to_expr_mapping.GetMeasureExpr(measure_column),
+  EXPECT_THAT(measure_column_to_expr_mapping.GetMeasureExpr(
+                  measure_column.type()->AsMeasure()),
               IsOkAndHolds(measure_expr));
 
-  // Ensure that measure expression lookup fails for columns not emitted by the
-  // table scan.
+  // Ensure that measure expression can be looked up for a renamed column with
+  // the same type.
   ResolvedColumn renamed_measure_column(
       /*column_id=*/2, id_string_pool.Make(GetTableWithMeasures().Name()),
       id_string_pool.Make("renamed_measure_column"), measure_type);
-  EXPECT_THAT(
-      measure_column_to_expr_mapping.GetMeasureExpr(renamed_measure_column),
-      StatusIs(absl::StatusCode::kNotFound, HasSubstr("Column not found")));
+  EXPECT_THAT(measure_column_to_expr_mapping.GetMeasureExpr(
+                  renamed_measure_column.type()->AsMeasure()),
+              IsOkAndHolds(measure_expr));
 
-  // Create a WithRefScan emitting the renamed measure column, and track the
-  // renamed measure column.
-  auto with_entry = ResolvedWithEntryBuilder()
-                        .set_with_query_name("placeholder_with_query_name")
-                        .set_with_subquery(std::move(table_scan.value()))
-                        .Build();
-  GOOGLESQL_CHECK_OK(with_entry);
-  measure_column_to_expr_mapping.TrackWithQueryScan(*with_entry.value());
-  auto with_ref_scan = ResolvedWithRefScanBuilder()
-                           .set_column_list({renamed_measure_column})
-                           .set_with_query_name("placeholder_with_query_name")
-                           .Build();
-  GOOGLESQL_CHECK_OK(with_ref_scan);
-  GOOGLESQL_EXPECT_OK(
-      measure_column_to_expr_mapping.TrackMeasureColumnsRenamedByWithRefScan(
-          *with_ref_scan.value()));
-
-  // Ensure that the measure expression can be looked up for the renamed column.
-  EXPECT_THAT(
-      measure_column_to_expr_mapping.GetMeasureExpr(renamed_measure_column),
-      IsOkAndHolds(measure_expr));
+  // Test that a non-tracked measure type returns NotFound.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const Type* new_measure_type,
+      GetTypeFactory()->MakeMeasureType(GetTypeFactory()->get_int64()));
+  EXPECT_THAT(measure_column_to_expr_mapping.GetMeasureExpr(
+                  new_measure_type->AsMeasure()),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("MeasureType not found")));
 }
 
 }  // namespace
