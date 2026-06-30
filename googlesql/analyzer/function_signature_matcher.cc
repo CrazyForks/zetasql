@@ -196,12 +196,13 @@ class FunctionSignatureMatcher {
     InputArgumentTypeSet typed_arguments_;
   };
 
-  // Maps templated arguments (ARG_TYPE_ANY_1, etc.) to a set of input argument
-  // types. See CheckArgumentTypesAndCollectTemplatedArguments() for details.
+  // Maps templated arguments (ARG_KIND_EXPR_ANY_1, etc.) to a set of input
+  // argument types. See CheckArgumentTypesAndCollectTemplatedArguments() for
+  // details.
   typedef std::map<SignatureArgumentKind, SignatureArgumentKindTypeSet>
       ArgKindToInputTypesMap;
 
-  // Maps templated arguments (ARG_TYPE_ANY_1, etc.) to the
+  // Maps templated arguments (ARG_KIND_EXPR_ANY_1, etc.) to the
   // resolved (possibly coerced) Type each resolved to in a particular function
   // call.
   typedef std::map<SignatureArgumentKind, const Type*> ArgKindToResolvedTypeMap;
@@ -419,30 +420,30 @@ std::string FunctionSignatureMatcher::ArgKindToInputTypesMapDebugString(
 // this time.
 SignatureArgumentKind ArrayRelatedTemplatedKind(SignatureArgumentKind kind) {
   switch (kind) {
-    case ARG_TYPE_ANY_1:
-      return ARG_ARRAY_TYPE_ANY_1;
-    case ARG_TYPE_ANY_2:
-      return ARG_ARRAY_TYPE_ANY_2;
-    case ARG_ARRAY_TYPE_ANY_1:
-      return ARG_TYPE_ANY_1;
-    case ARG_ARRAY_TYPE_ANY_2:
-      return ARG_TYPE_ANY_2;
-    case ARG_TYPE_ANY_3:
-      return ARG_ARRAY_TYPE_ANY_3;
-    case ARG_ARRAY_TYPE_ANY_3:
-      return ARG_TYPE_ANY_3;
-    case ARG_TYPE_ANY_4:
-      return ARG_ARRAY_TYPE_ANY_4;
-    case ARG_ARRAY_TYPE_ANY_4:
-      return ARG_TYPE_ANY_4;
-    case ARG_TYPE_ANY_5:
-      return ARG_ARRAY_TYPE_ANY_5;
-    case ARG_ARRAY_TYPE_ANY_5:
-      return ARG_TYPE_ANY_5;
-    case ARG_RANGE_TYPE_ANY_1:
+    case ARG_KIND_EXPR_ANY_1:
+      return ARG_KIND_EXPR_ARRAY_ANY_1;
+    case ARG_KIND_EXPR_ANY_2:
+      return ARG_KIND_EXPR_ARRAY_ANY_2;
+    case ARG_KIND_EXPR_ARRAY_ANY_1:
+      return ARG_KIND_EXPR_ANY_1;
+    case ARG_KIND_EXPR_ARRAY_ANY_2:
+      return ARG_KIND_EXPR_ANY_2;
+    case ARG_KIND_EXPR_ANY_3:
+      return ARG_KIND_EXPR_ARRAY_ANY_3;
+    case ARG_KIND_EXPR_ARRAY_ANY_3:
+      return ARG_KIND_EXPR_ANY_3;
+    case ARG_KIND_EXPR_ANY_4:
+      return ARG_KIND_EXPR_ARRAY_ANY_4;
+    case ARG_KIND_EXPR_ARRAY_ANY_4:
+      return ARG_KIND_EXPR_ANY_4;
+    case ARG_KIND_EXPR_ANY_5:
+      return ARG_KIND_EXPR_ARRAY_ANY_5;
+    case ARG_KIND_EXPR_ARRAY_ANY_5:
+      return ARG_KIND_EXPR_ANY_5;
+    case ARG_KIND_EXPR_RANGE_ANY_1:
       // TODO: Remove range handling from this function in a
       // follow-up.
-      return ARG_TYPE_ANY_1;
+      return ARG_KIND_EXPR_ANY_1;
     default:
       break;
   }
@@ -457,7 +458,7 @@ absl::StatusOr<bool> FunctionSignatureMatcher::GetConcreteArgument(
     const ArgKindToResolvedTypeMap& templated_argument_map,
     std::unique_ptr<FunctionArgumentType>* output_argument) const {
   GOOGLESQL_RETURN_IF_NOT_ENOUGH_STACK(kStackSpaceErrorMessage);
-  GOOGLESQL_RET_CHECK_NE(argument.kind(), ARG_TYPE_ARBITRARY);
+  GOOGLESQL_RET_CHECK_NE(argument.kind(), ARG_KIND_EXPR_ARBITRARY);
   output_argument->reset();
 
   // Make a copy of the arg type options, so that we can clear the default
@@ -487,23 +488,23 @@ absl::StatusOr<bool> FunctionSignatureMatcher::GetConcreteArgument(
     *output_argument = std::make_unique<FunctionArgumentType>(
         *found_type, std::move(options), num_occurrences);
   } else if (argument.IsRelation()) {
-    // Table-valued functions should return ARG_TYPE_RELATION. There is no Type
+    // Table-valued functions should return ARG_KIND_RELATION. There is no Type
     // object in this case, so return a new FunctionArgumentType with
-    // ARG_TYPE_RELATION and the specified number of occurrences.
+    // ARG_KIND_RELATION and the specified number of occurrences.
     *output_argument = std::make_unique<FunctionArgumentType>(
-        ARG_TYPE_RELATION, argument.options(), num_occurrences);
+        ARG_KIND_RELATION, argument.options(), num_occurrences);
   } else if (argument.IsModel()) {
     *output_argument = std::make_unique<FunctionArgumentType>(
-        ARG_TYPE_MODEL, argument.options(), num_occurrences);
+        ARG_KIND_MODEL, argument.options(), num_occurrences);
   } else if (argument.IsConnection()) {
     *output_argument = std::make_unique<FunctionArgumentType>(
-        ARG_TYPE_CONNECTION, argument.options(), num_occurrences);
+        ARG_KIND_CONNECTION, argument.options(), num_occurrences);
   } else if (argument.IsSequence()) {
     *output_argument = std::make_unique<FunctionArgumentType>(
-        ARG_TYPE_SEQUENCE, argument.options(), num_occurrences);
+        ARG_KIND_SEQUENCE, argument.options(), num_occurrences);
   } else if (argument.IsGraph()) {
     *output_argument = std::make_unique<FunctionArgumentType>(
-        ARG_TYPE_GRAPH, argument.options(), num_occurrences);
+        ARG_KIND_GRAPH, argument.options(), num_occurrences);
   } else if (argument.IsLambda()) {
     std::vector<FunctionArgumentType> concrete_arg_types;
     for (const FunctionArgumentType& arg_type :
@@ -538,9 +539,9 @@ absl::StatusOr<bool> FunctionSignatureMatcher::GetConcreteArgument(
     // This function is used to process both arguments and return types.
     // Procedures can have a VOID return type, which does not have an associated
     // googlesql::Type*, so we handle it explicitly here to avoid falling
-    // into the default ARG_TYPE_FIXED case.
+    // into the default ARG_KIND_EXPR_FIXED case.
     *output_argument =
-        std::make_unique<FunctionArgumentType>(ARG_TYPE_VOID, num_occurrences);
+        std::make_unique<FunctionArgumentType>(ARG_KIND_VOID, num_occurrences);
   } else {
     *output_argument = std::make_unique<FunctionArgumentType>(
         argument.type(), std::move(options), num_occurrences);
@@ -570,7 +571,7 @@ FunctionSignatureMatcher::GetConcreteArguments(
     resolved_argument_list.reserve(signature.arguments().size());
     for (int i = 0; i < signature.arguments().size(); ++i) {
       const FunctionArgumentType& signature_argument = signature.argument(i);
-      if (signature_argument.kind() == ARG_TYPE_ARBITRARY) {
+      if (signature_argument.kind() == ARG_KIND_EXPR_ARBITRARY) {
         // For arbitrary type arguments the type is derived from the input.
         resolved_argument_list.emplace_back(input_arguments[i].type(),
                                             signature_argument.options(), 1);
@@ -598,7 +599,7 @@ FunctionSignatureMatcher::GetConcreteArguments(
   bool has_repeated_arbitrary = false;
   for (const FunctionArgumentType& signature_argument : signature.arguments()) {
     if (signature_argument.repeated() &&
-        signature_argument.kind() == ARG_TYPE_ARBITRARY) {
+        signature_argument.kind() == ARG_KIND_EXPR_ARBITRARY) {
       has_repeated_arbitrary = true;
     }
   }
@@ -652,7 +653,7 @@ FunctionSignatureMatcher::GetConcreteArguments(
             concrete_signature_arg_index;
       }
     }
-    if (signature_argument.kind() == ARG_TYPE_ARBITRARY) {
+    if (signature_argument.kind() == ARG_KIND_EXPR_ARBITRARY) {
       // Make a copy of the arg type options, so that we can clear the default
       // signature_argument value to avoid conflicting with the concrete type
       // which is a fatal error FunctionSignature::IsValid(). It is assumed that
@@ -823,9 +824,10 @@ bool SignatureArgumentCountMatches(
 namespace {
 
 bool IsArgKind_ARRAY_ANY_K(SignatureArgumentKind kind) {
-  return kind == ARG_ARRAY_TYPE_ANY_1 || kind == ARG_ARRAY_TYPE_ANY_2 ||
-         kind == ARG_ARRAY_TYPE_ANY_3 || kind == ARG_ARRAY_TYPE_ANY_4 ||
-         kind == ARG_ARRAY_TYPE_ANY_5;
+  return kind == ARG_KIND_EXPR_ARRAY_ANY_1 ||
+         kind == ARG_KIND_EXPR_ARRAY_ANY_2 ||
+         kind == ARG_KIND_EXPR_ARRAY_ANY_3 ||
+         kind == ARG_KIND_EXPR_ARRAY_ANY_4 || kind == ARG_KIND_EXPR_ARRAY_ANY_5;
 }
 
 // Shorthand for making resolved function argument with lambda.
@@ -849,23 +851,30 @@ FunctionSignatureMatcher::CheckResolveLambdaTypeAndCollectTemplatedArguments(
     std::vector<FunctionArgumentOverride>* arg_overrides) const {
   GOOGLESQL_RETURN_IF_NOT_ENOUGH_STACK(kStackSpaceErrorMessage);
   GOOGLESQL_RET_CHECK(arg_overrides);
-  GOOGLESQL_RET_CHECK(arg_ast_node->Is<ASTLambda>() ||
-            arg_ast_node->Is<ASTPathExpression>());
-  // If the argument is a path expression (e.g. a function reference passed
-  // as an argument), we extract the signature from the referenced function
-  // to populate the templated argument map.
-  if (arg_ast_node->Is<ASTPathExpression>()) {
+  const ASTNode* unwrapped_arg_ast_node = arg_ast_node;
+  if (unwrapped_arg_ast_node != nullptr &&
+      unwrapped_arg_ast_node->Is<ASTNamedArgument>()) {
+    unwrapped_arg_ast_node =
+        unwrapped_arg_ast_node->GetAsOrDie<ASTNamedArgument>()->expr();
+  }
+  GOOGLESQL_RET_CHECK(unwrapped_arg_ast_node->Is<ASTLambda>() ||
+            unwrapped_arg_ast_node->Is<ASTFunctionRefArg>());
+  // If the argument is a function reference, we extract the signature from the
+  // referenced function to populate the templated argument map.
+  if (unwrapped_arg_ast_node->Is<ASTFunctionRefArg>()) {
     const ASTPathExpression* path_expr =
-        arg_ast_node->GetAsOrDie<ASTPathExpression>();
+        unwrapped_arg_ast_node->GetAsOrDie<ASTFunctionRefArg>()
+            ->function_path();
+    GOOGLESQL_RET_CHECK_EQ(path_expr->num_names(), 1);
     IdString first_name = path_expr->first_name()->GetAsIdString();
     const Function* proxy_function = nullptr;
     if (lookup_generated_function_callback_) {
       proxy_function = lookup_generated_function_callback_(first_name);
     }
     if (proxy_function == nullptr) {
-      SET_MISMATCH_ERROR_WITH_INDEX(
-          absl::StrFormat("No proxy function found for lambda argument: %s",
-                          first_name.ToString()));
+      SET_MISMATCH_ERROR_WITH_INDEX(absl::StrFormat(
+          "Argument '%s' does not refer to a function-typed parameter",
+          first_name.ToString()));
       return false;
     }
     GOOGLESQL_RET_CHECK_GT(proxy_function->NumSignatures(), 0);
@@ -907,7 +916,7 @@ FunctionSignatureMatcher::CheckResolveLambdaTypeAndCollectTemplatedArguments(
   }
 
   // Get lambda argument names from AST
-  const ASTLambda* ast_lambda = arg_ast_node->GetAs<ASTLambda>();
+  const ASTLambda* ast_lambda = unwrapped_arg_ast_node->GetAs<ASTLambda>();
   absl::StatusOr<std::vector<IdString>> arg_names_or =
       ExtractLambdaArgumentNames(ast_lambda);
   // Lambda argument names are already validated by
@@ -1125,18 +1134,20 @@ FunctionSignatureMatcher::CheckArgumentTypesAndCollectTemplatedArguments(
     // Creates an UNTYPED_NULL if no entry exists.
     (*templated_argument_map)[result_kind];
   }
-  if (result_kind == ARG_PROTO_MAP_ANY &&
-      (googlesql_base::ContainsKey(*templated_argument_map, ARG_PROTO_MAP_KEY_ANY) ||
-       googlesql_base::ContainsKey(*templated_argument_map, ARG_PROTO_MAP_VALUE_ANY))) {
+  if (result_kind == ARG_KIND_EXPR_PROTO_MAP_ANY &&
+      (googlesql_base::ContainsKey(*templated_argument_map,
+                        ARG_KIND_EXPR_PROTO_MAP_KEY_ANY) ||
+       googlesql_base::ContainsKey(*templated_argument_map,
+                        ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY))) {
     (*templated_argument_map)[result_kind];
   }
-  if (result_kind == ARG_RANGE_TYPE_ANY_1 &&
-      googlesql_base::ContainsKey(*templated_argument_map, ARG_TYPE_ANY_1)) {
+  if (result_kind == ARG_KIND_EXPR_RANGE_ANY_1 &&
+      googlesql_base::ContainsKey(*templated_argument_map, ARG_KIND_EXPR_ANY_1)) {
     (*templated_argument_map)[result_kind];
   }
-  if ((result_kind == ARG_MAP_TYPE_ANY_1_2 &&
-       (googlesql_base::ContainsKey(*templated_argument_map, ARG_TYPE_ANY_1) ||
-        googlesql_base::ContainsKey(*templated_argument_map, ARG_TYPE_ANY_2)))) {
+  if ((result_kind == ARG_KIND_EXPR_MAP_ANY_1_2 &&
+       (googlesql_base::ContainsKey(*templated_argument_map, ARG_KIND_EXPR_ANY_1) ||
+        googlesql_base::ContainsKey(*templated_argument_map, ARG_KIND_EXPR_ANY_2)))) {
     (*templated_argument_map)[result_kind];
   }
 
@@ -1245,9 +1256,9 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     // need to to check for coercion given that the connections are templated.
   } else if (signature_argument.IsSequence()) {
     GOOGLESQL_RET_CHECK(input_argument.is_sequence());
-  } else if (signature_argument.kind() == ARG_TYPE_ARBITRARY) {
+  } else if (signature_argument.kind() == ARG_KIND_EXPR_ARBITRARY) {
     // Arbitrary kind arguments match any input argument type.
-  } else if (signature_argument.kind() == ARG_TYPE_STRING_ANY &&
+  } else if (signature_argument.kind() == ARG_KIND_EXPR_STRING_ANY &&
              !coercer_.CoercesTo(input_argument, types::StringType(),
                                  /*is_explicit=*/false,
                                  signature_match_result)) {
@@ -1322,30 +1333,32 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     // Initializes to UNTYPED_NULL if not already set.
     (*templated_argument_map)[ArrayRelatedTemplatedKind(kind)];
   }
-  if (kind == ARG_PROTO_MAP_ANY) {
+  if (kind == ARG_KIND_EXPR_PROTO_MAP_ANY) {
     // It is not possible to infer the type of a map entry proto, because
     // they are not actually generic maps. The proto descriptor for a map
     // entry is specific to the field it is sourced from. So untyped null
-    // is not resolvable for ARG_PROTO_MAP_ANY-taking function arguments.
+    // is not resolvable for ARG_KIND_EXPR_PROTO_MAP_ANY-taking function
+    // arguments.
     signature_match_result->incr_non_matched_arguments();
     SET_MISMATCH_ERROR_WITH_INDEX(
         absl::StrFormat("expected proto map type but found: %s",
                         UserFacingName(input_argument)));
     return false;
   }
-  if (kind == ARG_PROTO_MAP_KEY_ANY || kind == ARG_PROTO_MAP_VALUE_ANY) {
+  if (kind == ARG_KIND_EXPR_PROTO_MAP_KEY_ANY ||
+      kind == ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY) {
     // We should always see the map type if we see the key or the value.
     // But they don't imply that we should see each other. For example,
     // DELETE_KEY(map, key) would not include the value type in its
     // signature's template types.
-    (*templated_argument_map)[ARG_PROTO_MAP_ANY];
+    (*templated_argument_map)[ARG_KIND_EXPR_PROTO_MAP_ANY];
   }
-  if (kind == ARG_RANGE_TYPE_ANY_1) {
+  if (kind == ARG_KIND_EXPR_RANGE_ANY_1) {
     // Initializes to UNTYPED_NULL if not already set.
     // TODO: Investigate if this is necessary/correct.
-    (*templated_argument_map)[ARG_RANGE_TYPE_ANY_1];
+    (*templated_argument_map)[ARG_KIND_EXPR_RANGE_ANY_1];
   }
-  if (kind == ARG_MEASURE_TYPE_ANY_1) {
+  if (kind == ARG_KIND_EXPR_MEASURE_ANY_1) {
     // Measure type is based on a specific definition and expression, it
     // cannot coerce, so it doesn't make sense to infer the type of a measure
     // from an untyped argument.
@@ -1355,8 +1368,8 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
                         UserFacingName(input_argument)));
     return false;
   }
-  // ARG_MAP_TYPE_ANY_1_2 is intentionally not handled here, because we return
-  // an error when the key or value type can't be inferred.
+  // ARG_KIND_EXPR_MAP_ANY_1_2 is intentionally not handled here, because
+  // we return an error when the key or value type can't be inferred.
   return true;
 }
 
@@ -1384,7 +1397,7 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     return false;
   }
 
-  if (signature_argument_kind == ARG_PROTO_MAP_ANY &&
+  if (signature_argument_kind == ARG_KIND_EXPR_PROTO_MAP_ANY &&
       !IsProtoMap(input_argument.type())) {
     SET_MISMATCH_ERROR_WITH_INDEX(
         absl::StrFormat("expected proto map type but found %s",
@@ -1394,7 +1407,7 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
 
   // If it is templated RANGE type, but the input argument type is not
   // RANGE, then they do not match.
-  if (signature_argument_kind == ARG_RANGE_TYPE_ANY_1 &&
+  if (signature_argument_kind == ARG_KIND_EXPR_RANGE_ANY_1 &&
       !input_argument.type()->IsRangeType()) {
     SET_MISMATCH_ERROR_WITH_INDEX(
         absl::StrFormat("expected range type but found %s",
@@ -1404,11 +1417,11 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
 
   // If it is a templated enum/proto type, but the argument type is not
   // an enum/proto/struct, then they do not match.
-  if ((signature_argument_kind == ARG_ENUM_ANY &&
+  if ((signature_argument_kind == ARG_KIND_EXPR_ENUM_ANY &&
        !input_argument.type()->IsEnum()) ||
-      (signature_argument_kind == ARG_PROTO_ANY &&
+      (signature_argument_kind == ARG_KIND_EXPR_PROTO_ANY &&
        !input_argument.type()->IsProto()) ||
-      (signature_argument_kind == ARG_STRUCT_ANY &&
+      (signature_argument_kind == ARG_KIND_EXPR_STRUCT_ANY &&
        !input_argument.type()->IsStruct())) {
     SET_MISMATCH_ERROR_WITH_INDEX(absl::StrFormat(
         "expected %s but found %s",
@@ -1443,15 +1456,16 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     (*templated_argument_map)[related_kind].InsertTypedArgument(new_argument);
   }
 
-  if (signature_argument_kind == ARG_RANGE_TYPE_ANY_1) {
+  if (signature_argument_kind == ARG_KIND_EXPR_RANGE_ANY_1) {
     // Get T from RANGE<T> and put it as template_arg_map[ARG_ANY_1] = T
     // This is used to resolve function signature with RANGE<T> -> T
     InputArgumentType arg_type =
         MakeConcreteArgument(input_argument.type()->AsRange()->element_type());
-    (*templated_argument_map)[ARG_TYPE_ANY_1].InsertTypedArgument(arg_type);
+    (*templated_argument_map)[ARG_KIND_EXPR_ANY_1].InsertTypedArgument(
+        arg_type);
   }
 
-  if (signature_argument_kind == ARG_PROTO_MAP_ANY) {
+  if (signature_argument_kind == ARG_KIND_EXPR_PROTO_MAP_ANY) {
     // If this is a proto map argument, we can infer the templated types
     // for the key and value.
     absl::StatusOr<MapEntryTypes> entry_types =
@@ -1468,13 +1482,15 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     // For map entry functions, the template type is dominant. Other arguments
     // must be coercible to this type.
     constexpr bool set_dominant = true;
-    (*templated_argument_map)[ARG_PROTO_MAP_KEY_ANY].InsertTypedArgument(
-        MakeConcreteArgument(entry_types->key_type), set_dominant);
-    (*templated_argument_map)[ARG_PROTO_MAP_VALUE_ANY].InsertTypedArgument(
-        MakeConcreteArgument(entry_types->value_type), set_dominant);
+    (*templated_argument_map)[ARG_KIND_EXPR_PROTO_MAP_KEY_ANY]
+        .InsertTypedArgument(MakeConcreteArgument(entry_types->key_type),
+                             set_dominant);
+    (*templated_argument_map)[ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY]
+        .InsertTypedArgument(MakeConcreteArgument(entry_types->value_type),
+                             set_dominant);
   }
 
-  if (signature_argument_kind == ARG_MAP_TYPE_ANY_1_2) {
+  if (signature_argument_kind == ARG_KIND_EXPR_MAP_ANY_1_2) {
     if (!input_argument.type()->IsMap()) {
       SET_ARG_KIND_MISMATCH_ERROR();
       return false;
@@ -1483,20 +1499,20 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
     // this type.
     const MapType* map_type = input_argument.type()->AsMap();
     constexpr bool set_dominant = true;
-    (*templated_argument_map)[ARG_TYPE_ANY_1].InsertTypedArgument(
+    (*templated_argument_map)[ARG_KIND_EXPR_ANY_1].InsertTypedArgument(
         MakeConcreteArgument(map_type->key_type()), set_dominant);
-    (*templated_argument_map)[ARG_TYPE_ANY_2].InsertTypedArgument(
+    (*templated_argument_map)[ARG_KIND_EXPR_ANY_2].InsertTypedArgument(
         MakeConcreteArgument(map_type->value_type()), set_dominant);
   }
 
-  if (signature_argument_kind == ARG_MEASURE_TYPE_ANY_1) {
+  if (signature_argument_kind == ARG_KIND_EXPR_MEASURE_ANY_1) {
     if (!input_argument.type()->IsMeasureType()) {
       SET_ARG_KIND_MISMATCH_ERROR();
       return false;
     }
-    // For MEASURE<T1>, store T in argument map for ARG_TYPE_ANY_1. This is
-    // used to resolve function signatures like MEASURE<T1> -> T1.
-    (*templated_argument_map)[ARG_TYPE_ANY_1].InsertTypedArgument(
+    // For MEASURE<T1>, store T in argument map for ARG_KIND_EXPR_ANY_1.
+    // This is used to resolve function signatures like MEASURE<T1> -> T1.
+    (*templated_argument_map)[ARG_KIND_EXPR_ANY_1].InsertTypedArgument(
         MakeConcreteArgument(input_argument.type()->AsMeasure()->result_type()),
         /*set_dominant=*/true);
   }
@@ -1520,9 +1536,9 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
 
   const Type* input_type = input_argument.type();
   switch (signature_argument.kind()) {
-    case ARG_TYPE_GRAPH_NODE:
-    case ARG_TYPE_GRAPH_EDGE:
-    case ARG_TYPE_GRAPH_ELEMENT:
+    case ARG_KIND_EXPR_GRAPH_NODE:
+    case ARG_KIND_EXPR_GRAPH_EDGE:
+    case ARG_KIND_EXPR_GRAPH_ELEMENT:
       if (input_type == nullptr) {
         SET_ARG_KIND_MISMATCH_ERROR();
         return false;
@@ -1531,18 +1547,18 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
         SET_ARG_KIND_MISMATCH_ERROR();
         return false;
       }
-      if ((signature_argument.kind() == ARG_TYPE_GRAPH_EDGE) &&
+      if ((signature_argument.kind() == ARG_KIND_EXPR_GRAPH_EDGE) &&
           input_type->AsGraphElement()->IsNode()) {
         SET_ARG_KIND_MISMATCH_ERROR();
         return false;
       }
-      if ((signature_argument.kind() == ARG_TYPE_GRAPH_NODE) &&
+      if ((signature_argument.kind() == ARG_KIND_EXPR_GRAPH_NODE) &&
           input_type->AsGraphElement()->IsEdge()) {
         SET_ARG_KIND_MISMATCH_ERROR();
         return false;
       }
       break;
-    case ARG_TYPE_GRAPH_PATH:
+    case ARG_KIND_EXPR_GRAPH_PATH:
       if (input_type == nullptr || !input_type->IsGraphPath()) {
         SET_ARG_KIND_MISMATCH_ERROR();
         return false;
@@ -1556,8 +1572,8 @@ absl::StatusOr<bool> FunctionSignatureMatcher::
                FEATURE_SQL_GRAPH_EXPOSE_GRAPH_ELEMENT) &&
            input_type != nullptr && input_type->IsGraphElement()) ||
           // Disallow measure types for templated arguments except
-          // ARG_MEASURE_TYPE_ANY_1.
-          (signature_argument.kind() != ARG_MEASURE_TYPE_ANY_1 &&
+          // ARG_KIND_EXPR_MEASURE_ANY_1.
+          (signature_argument.kind() != ARG_KIND_EXPR_MEASURE_ANY_1 &&
            input_type != nullptr && input_type->IsMeasureType()) ||
           // Disallow container types that contain measures as any kind of
           // function argument.
@@ -1751,7 +1767,8 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
     const SignatureArgumentKindTypeSet& type_set =
         templated_argument_entry.second;
 
-    if (kind == ARG_PROTO_MAP_VALUE_ANY || kind == ARG_PROTO_MAP_KEY_ANY) {
+    if (kind == ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY ||
+        kind == ARG_KIND_EXPR_PROTO_MAP_KEY_ANY) {
       if (type_set.kind() != SignatureArgumentKindTypeSet::TYPED_ARGUMENTS) {
         continue;
       }
@@ -1781,14 +1798,14 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
         }
       }
       (*resolved_templated_arguments)[kind] = dominant_type->type();
-    } else if (kind == ARG_RANGE_TYPE_ANY_1) {
+    } else if (kind == ARG_KIND_EXPR_RANGE_ANY_1) {
       const Type** element_type =
-          googlesql_base::FindOrNull(*resolved_templated_arguments, ARG_TYPE_ANY_1);
+          googlesql_base::FindOrNull(*resolved_templated_arguments, ARG_KIND_EXPR_ANY_1);
 
       if (element_type != nullptr) {
-        // element_type is not null, meaning ARG_TYPE_ANY_1 was already
-        // seen and resolved, which is used as a subtype for RANGE, such as DATE
-        // This is used for the RANGE constructor function
+        // element_type is not null, meaning ARG_KIND_EXPR_ANY_1 was
+        // already seen and resolved, which is used as a subtype for RANGE, such
+        // as DATE This is used for the RANGE constructor function
         const RangeType* range_type;
         GOOGLESQL_RETURN_IF_ERROR(
             type_factory_->MakeRangeType(*element_type, &range_type));
@@ -1802,11 +1819,11 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
         // this path should never be reached.
         GOOGLESQL_RET_CHECK_FAIL() << "Found unresolved templated RANGE<T> type";
       }
-    } else if (kind == ARG_MAP_TYPE_ANY_1_2) {
-      const Type* key_type =
-          googlesql_base::FindPtrOrNull(*resolved_templated_arguments, ARG_TYPE_ANY_1);
-      const Type* value_type =
-          googlesql_base::FindPtrOrNull(*resolved_templated_arguments, ARG_TYPE_ANY_2);
+    } else if (kind == ARG_KIND_EXPR_MAP_ANY_1_2) {
+      const Type* key_type = googlesql_base::FindPtrOrNull(*resolved_templated_arguments,
+                                                ARG_KIND_EXPR_ANY_1);
+      const Type* value_type = googlesql_base::FindPtrOrNull(*resolved_templated_arguments,
+                                                  ARG_KIND_EXPR_ANY_2);
 
       if (key_type == nullptr || value_type == nullptr) {
         std::string kv_error_msg_part;
@@ -1839,12 +1856,13 @@ FunctionSignatureMatcher::DetermineResolvedTypesForTemplatedArguments(
       }
       googlesql_base::InsertOrDie(resolved_templated_arguments, kind, inferred_map_type);
 
-    } else if (kind == ARG_MEASURE_TYPE_ANY_1) {
+    } else if (kind == ARG_KIND_EXPR_MEASURE_ANY_1) {
       if (type_set.typed_arguments().arguments().size() != 1) {
         // As measure types are not coercible, there should be exactly one
-        // argument which determines the type of ARG_MEASURE_TYPE_ANY_1.
+        // argument which determines the type of
+        // ARG_KIND_EXPR_MEASURE_ANY_1.
         ABSL_DLOG(FATAL) << "Expected function to have exactly one argument "
-                       "determining the type of ARG_MEASURE_TYPE_ANY_1";
+                       "determining the type of ARG_KIND_EXPR_MEASURE_ANY_1";
         return absl::InvalidArgumentError(absl::StrCat(
             "Unable to determine type for ",
             FunctionArgumentType::SignatureArgumentKindToString(kind)));
@@ -1901,10 +1919,10 @@ absl::StatusOr<const Type*>
 FunctionSignatureMatcher::InferTemplatedFunctionArgument(
     SignatureArgumentKind signature_type_kind,
     const SignatureArgumentKindTypeSet& type_set) const {
-  bool is_templated_type = signature_type_kind == ARG_PROTO_ANY ||
-                           signature_type_kind == ARG_STRUCT_ANY ||
-                           signature_type_kind == ARG_ENUM_ANY ||
-                           signature_type_kind == ARG_RANGE_TYPE_ANY_1;
+  bool is_templated_type = signature_type_kind == ARG_KIND_EXPR_PROTO_ANY ||
+                           signature_type_kind == ARG_KIND_EXPR_STRUCT_ANY ||
+                           signature_type_kind == ARG_KIND_EXPR_ENUM_ANY ||
+                           signature_type_kind == ARG_KIND_EXPR_RANGE_ANY_1;
   switch (type_set.kind()) {
     case SignatureArgumentKindTypeSet::UNTYPED_NULL:
       if (is_templated_type) {
@@ -2026,11 +2044,11 @@ absl::StatusOr<bool> FunctionSignatureMatcher::SignatureMatches(
   // Consistency check to verify that templated array element types and their
   // corresponding templated types match.
   std::vector<std::pair<SignatureArgumentKind, SignatureArgumentKind>> kinds(
-      {{ARG_TYPE_ANY_1, ARG_ARRAY_TYPE_ANY_1},
-       {ARG_TYPE_ANY_2, ARG_ARRAY_TYPE_ANY_2},
-       {ARG_TYPE_ANY_3, ARG_ARRAY_TYPE_ANY_3},
-       {ARG_TYPE_ANY_4, ARG_ARRAY_TYPE_ANY_4},
-       {ARG_TYPE_ANY_5, ARG_ARRAY_TYPE_ANY_5}});
+      {{ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ARRAY_ANY_1},
+       {ARG_KIND_EXPR_ANY_2, ARG_KIND_EXPR_ARRAY_ANY_2},
+       {ARG_KIND_EXPR_ANY_3, ARG_KIND_EXPR_ARRAY_ANY_3},
+       {ARG_KIND_EXPR_ANY_4, ARG_KIND_EXPR_ARRAY_ANY_4},
+       {ARG_KIND_EXPR_ANY_5, ARG_KIND_EXPR_ARRAY_ANY_5}});
   for (const auto& kind : kinds) {
     const Type** arg_type =
         googlesql_base::FindOrNull(resolved_templated_arguments, kind.first);
@@ -2064,7 +2082,7 @@ absl::StatusOr<bool> FunctionSignatureMatcher::SignatureMatches(
   // ResolveGeneralFunctionCall for TemplatedSQLFunctions).  In this
   // templated function case, the return type is arbitrary.
   std::unique_ptr<FunctionArgumentType> result_type;
-  if (signature.result_type().kind() == ARG_TYPE_ARBITRARY) {
+  if (signature.result_type().kind() == ARG_KIND_EXPR_ARBITRARY) {
     result_type =
         std::make_unique<FunctionArgumentType>(signature.result_type());
   } else {

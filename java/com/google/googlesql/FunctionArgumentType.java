@@ -60,7 +60,7 @@ public final class FunctionArgumentType implements Serializable {
 
   public FunctionArgumentType(
       SignatureArgumentKind kind, FunctionArgumentTypeOptions options, int numOccurrences) {
-    checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
+    checkArgument(kind != SignatureArgumentKind.ARG_KIND_EXPR_FIXED);
     this.kind = kind;
     this.type = null;
     this.numOccurrences = numOccurrences;
@@ -70,7 +70,7 @@ public final class FunctionArgumentType implements Serializable {
   }
 
   public FunctionArgumentType(Type type, FunctionArgumentTypeOptions options, int numOccurrences) {
-    this.kind = SignatureArgumentKind.ARG_TYPE_FIXED;
+    this.kind = SignatureArgumentKind.ARG_KIND_EXPR_FIXED;
     this.type = type;
     this.numOccurrences = numOccurrences;
     this.options = options;
@@ -80,7 +80,7 @@ public final class FunctionArgumentType implements Serializable {
 
   public FunctionArgumentType(
       SignatureArgumentKind kind, ArgumentCardinality cardinality, int numOccurrences) {
-    checkArgument(kind != SignatureArgumentKind.ARG_TYPE_FIXED);
+    checkArgument(kind != SignatureArgumentKind.ARG_KIND_EXPR_FIXED);
     this.kind = kind;
     this.type = null;
     this.numOccurrences = numOccurrences;
@@ -90,7 +90,7 @@ public final class FunctionArgumentType implements Serializable {
   }
 
   public FunctionArgumentType(Type type, ArgumentCardinality cardinality, int numOccurrences) {
-    this.kind = SignatureArgumentKind.ARG_TYPE_FIXED;
+    this.kind = SignatureArgumentKind.ARG_KIND_EXPR_FIXED;
     this.type = type;
     this.numOccurrences = numOccurrences;
     this.options = FunctionArgumentTypeOptions.builder().setCardinality(cardinality).build();
@@ -104,7 +104,7 @@ public final class FunctionArgumentType implements Serializable {
       FunctionArgumentTypeOptions options) {
     checkNotNull(lambdaArgumentTypes);
     checkNotNull(lambdaBodyType);
-    this.kind = SignatureArgumentKind.ARG_TYPE_LAMBDA;
+    this.kind = SignatureArgumentKind.ARG_KIND_LAMBDA;
     this.type = null;
     this.numOccurrences = -1;
     this.options = options;
@@ -133,12 +133,12 @@ public final class FunctionArgumentType implements Serializable {
   }
 
   public boolean isConcrete() {
-    if (kind != SignatureArgumentKind.ARG_TYPE_FIXED
-        && kind != SignatureArgumentKind.ARG_TYPE_RELATION
-        && kind != SignatureArgumentKind.ARG_TYPE_MODEL
-        && kind != SignatureArgumentKind.ARG_TYPE_CONNECTION
-        && kind != SignatureArgumentKind.ARG_TYPE_LAMBDA
-        && kind != SignatureArgumentKind.ARG_TYPE_GRAPH) {
+    if (kind != SignatureArgumentKind.ARG_KIND_EXPR_FIXED
+        && kind != SignatureArgumentKind.ARG_KIND_RELATION
+        && kind != SignatureArgumentKind.ARG_KIND_MODEL
+        && kind != SignatureArgumentKind.ARG_KIND_CONNECTION
+        && kind != SignatureArgumentKind.ARG_KIND_LAMBDA
+        && kind != SignatureArgumentKind.ARG_KIND_GRAPH) {
       return false;
     }
     if (numOccurrences < 0) {
@@ -146,7 +146,7 @@ public final class FunctionArgumentType implements Serializable {
     }
 
     // Lambda is concrete if all args and body are concrete.
-    if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
+    if (kind == SignatureArgumentKind.ARG_KIND_LAMBDA) {
       for (FunctionArgumentType arg : lambda.argumentTypes) {
         if (!arg.isConcrete()) {
           return false;
@@ -200,12 +200,12 @@ public final class FunctionArgumentType implements Serializable {
 
     if (type != null) {
       builder.append(type.debugString());
-    } else if (kind == SignatureArgumentKind.ARG_TYPE_RELATION
+    } else if (kind == SignatureArgumentKind.ARG_KIND_RELATION
         && options.getRelationInputSchema() != null) {
       builder.append(options.getRelationInputSchema());
-    } else if (kind == SignatureArgumentKind.ARG_TYPE_ARBITRARY) {
+    } else if (kind == SignatureArgumentKind.ARG_KIND_EXPR_ARBITRARY) {
       builder.append("ANY TYPE");
-    } else if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
+    } else if (kind == SignatureArgumentKind.ARG_KIND_LAMBDA) {
       checkNotNull(lambda);
       builder.append("FUNCTION<");
       List<String> args = new ArrayList<>();
@@ -243,7 +243,7 @@ public final class FunctionArgumentType implements Serializable {
   }
 
   public TVFRelation getRelation() {
-    checkArgument(kind == SignatureArgumentKind.ARG_TYPE_RELATION);
+    checkArgument(kind == SignatureArgumentKind.ARG_KIND_RELATION);
     return options.getRelationInputSchema();
   }
 
@@ -337,7 +337,7 @@ public final class FunctionArgumentType implements Serializable {
       type.serialize(builder.getTypeBuilder(), fileDescriptorSetsBuilder);
     }
 
-    if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
+    if (kind == SignatureArgumentKind.ARG_KIND_LAMBDA) {
       checkArgument(lambda != null);
       ArgumentTypeLambdaProto.Builder lambdaBuilder = ArgumentTypeLambdaProto.newBuilder();
       for (FunctionArgumentType arg : lambda.argumentTypes) {
@@ -354,13 +354,13 @@ public final class FunctionArgumentType implements Serializable {
     SignatureArgumentKind kind = proto.getKind();
     TypeFactory factory = TypeFactory.nonUniqueNames();
 
-    if (kind == SignatureArgumentKind.ARG_TYPE_FIXED) {
+    if (kind == SignatureArgumentKind.ARG_KIND_EXPR_FIXED) {
       Type argType = factory.deserialize(proto.getType(), pools);
       return new FunctionArgumentType(
           argType,
           FunctionArgumentTypeOptions.deserialize(proto.getOptions(), pools, argType, factory),
           proto.getNumOccurrences());
-    } else if (kind == SignatureArgumentKind.ARG_TYPE_LAMBDA) {
+    } else if (kind == SignatureArgumentKind.ARG_KIND_LAMBDA) {
       List<FunctionArgumentType> argumentTypes = new ArrayList<>();
       for (FunctionArgumentTypeProto argType : proto.getLambda().getArgumentList()) {
         argumentTypes.add(deserialize(argType, pools));
@@ -384,13 +384,13 @@ public final class FunctionArgumentType implements Serializable {
   private void validate() {
     if (getOptions().getDefault() != null) {
       checkArgument(
-          kind != SignatureArgumentKind.ARG_TYPE_RELATION
-              && kind != SignatureArgumentKind.ARG_TYPE_VOID
-              && kind != SignatureArgumentKind.ARG_TYPE_MODEL
-              && kind != SignatureArgumentKind.ARG_TYPE_DESCRIPTOR
-              && kind != SignatureArgumentKind.ARG_TYPE_CONNECTION
-              && kind != SignatureArgumentKind.ARG_TYPE_GRAPH
-              && kind != SignatureArgumentKind.ARG_TYPE_LAMBDA,
+          kind != SignatureArgumentKind.ARG_KIND_RELATION
+              && kind != SignatureArgumentKind.ARG_KIND_VOID
+              && kind != SignatureArgumentKind.ARG_KIND_MODEL
+              && kind != SignatureArgumentKind.ARG_KIND_DESCRIPTOR
+              && kind != SignatureArgumentKind.ARG_KIND_CONNECTION
+              && kind != SignatureArgumentKind.ARG_KIND_GRAPH
+              && kind != SignatureArgumentKind.ARG_KIND_LAMBDA,
           "%s argument cannot have a default value",
           signatureArgumentKindToString(kind));
       if (type != null) {

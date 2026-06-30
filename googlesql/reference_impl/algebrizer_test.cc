@@ -1444,9 +1444,8 @@ TEST_P(AlgebrizerTestFilters, Filters) {
   std::unique_ptr<const Function> equal_function(
       new Function("$equal", Function::kGoogleSQLFunctionGroupName,
                    Function::SCALAR));
-  FunctionSignature signature(ARG_TYPE_ANY_1,
-                              {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
-                              -1);
+  FunctionSignature signature(ARG_KIND_EXPR_ANY_1,
+                              {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1}, -1);
   // Create the complete filter expression.
   auto filter_expr =
       MakeResolvedFunctionCall(BoolType(), equal_function.get(), signature,
@@ -1675,9 +1674,8 @@ TEST_P(AlgebrizerTestJoins, InnerJoin) {
   std::unique_ptr<const Function> equal_function(
       new Function("$equal", Function::kGoogleSQLFunctionGroupName,
                    Function::SCALAR));
-  FunctionSignature signature(ARG_TYPE_ANY_1,
-                              {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
-                              -1);
+  FunctionSignature signature(ARG_KIND_EXPR_ANY_1,
+                              {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1}, -1);
   auto join_expr =
       MakeResolvedFunctionCall(BoolType(), equal_function.get(), signature,
                                parameters.arguments, DEFAULT_ERROR_MODE);
@@ -1741,9 +1739,8 @@ TEST_P(AlgebrizerTestJoins, CorrelatedInnerJoin) {
   std::unique_ptr<const Function> equal_filter_function(
       new Function("$equal", Function::kGoogleSQLFunctionGroupName,
                    Function::SCALAR));
-  FunctionSignature signature(ARG_TYPE_ANY_1,
-                              {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
-                              -1);
+  FunctionSignature signature(ARG_KIND_EXPR_ANY_1,
+                              {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1}, -1);
   // Create a filter expression.
   auto filter_arguments = MakeNodeVector(
       MakeResolvedColumnRef(

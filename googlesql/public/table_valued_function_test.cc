@@ -341,7 +341,7 @@ TEST(TVFTest, TestInvalidColumnNameForTVFWithExtraColumns) {
   EXPECT_DEATH(
       tvf.reset(new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
           {"tvf_append_column_empty_name"},
-          {FunctionSignature(ARG_TYPE_RELATION, {ARG_TYPE_RELATION}, -1)},
+          {FunctionSignature(ARG_KIND_RELATION, {ARG_KIND_RELATION}, -1)},
           {TVFSchemaColumn("", googlesql::types::Int64Type())})),
       "invalid empty column name in extra columns");
 }
@@ -355,7 +355,7 @@ TEST(TVFTest, TestDuplicateColumnNameForTVFWithExtraColumns) {
   EXPECT_DEATH(
       tvf.reset(new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
           {"tvf_append_column_with_duplicated_names"},
-          {FunctionSignature(ARG_TYPE_RELATION, {ARG_TYPE_RELATION}, -1)},
+          {FunctionSignature(ARG_KIND_RELATION, {ARG_KIND_RELATION}, -1)},
           {int64_col, int64_col})),
       "extra columns have duplicated column names: int64_col");
 }
@@ -381,7 +381,7 @@ TEST(TVFTest, TestInvalidNonTemplatedArgumentForTVFWithExtraColumns) {
               {FunctionArgumentType::RelationWithSchema(
                    output_schema_int64_value_table,
                    /*extra_relation_input_columns_allowed=*/false),
-               FunctionArgumentType(ARG_TYPE_ARBITRARY,
+               FunctionArgumentType(ARG_KIND_EXPR_ARBITRARY,
                                     FunctionArgumentType::REQUIRED)},
               -1)},
           {int64_col})),
@@ -395,7 +395,7 @@ TEST(TVFTest, FullNameShouldNotPrependEmptyGroupName) {
   auto tvf = std::make_unique<TableValuedFunction>(
       name_path, "",
       std::vector<FunctionSignature>{
-          FunctionSignature(ARG_TYPE_RELATION, {}, -1)},
+          FunctionSignature(ARG_KIND_RELATION, {}, -1)},
       TableValuedFunctionOptions().set_uses_upper_case_sql_name(false));
   EXPECT_EQ(tvf->FullName(), "tvf");
   EXPECT_FALSE(tvf->IsGoogleSQLBuiltin());
@@ -408,7 +408,7 @@ TEST(TVFTest, FullNameShouldPrependGroupName) {
   auto tvf = std::make_unique<TableValuedFunction>(
       name_path, "group",
       std::vector<FunctionSignature>{
-          FunctionSignature(ARG_TYPE_RELATION, {}, -1)},
+          FunctionSignature(ARG_KIND_RELATION, {}, -1)},
       TableValuedFunctionOptions().set_uses_upper_case_sql_name(false));
   EXPECT_EQ(tvf->FullName(), "group:tvf");
   EXPECT_FALSE(tvf->IsGoogleSQLBuiltin());
@@ -421,7 +421,7 @@ TEST(TVFTest, GoogleSQLFunctionGroupNameIsGoogleSQLBuiltin) {
   auto tvf = std::make_unique<TableValuedFunction>(
       name_path, Function::kGoogleSQLFunctionGroupName,
       std::vector<FunctionSignature>{
-          FunctionSignature(ARG_TYPE_RELATION, {}, -1)},
+          FunctionSignature(ARG_KIND_RELATION, {}, -1)},
       TableValuedFunctionOptions().set_uses_upper_case_sql_name(false));
   EXPECT_TRUE(tvf->IsGoogleSQLBuiltin());
   EXPECT_EQ(tvf->SQLName(), "builtin_tvf");
@@ -446,7 +446,7 @@ TEST(TVFTest, TVFResolveCallsComputeResultCallBack) {
                                     tvf_signature_options);
       };
 
-  FunctionSignature signature(ARG_TYPE_RELATION, {}, -1);
+  FunctionSignature signature(ARG_KIND_RELATION, {}, -1);
   std::vector<std::string> name_path = {"tvf"};
   auto tvf = std::make_unique<TableValuedFunction>(
       name_path, /*group=*/"", std::vector<FunctionSignature>{signature},
@@ -469,12 +469,12 @@ TEST(TVFTest, TVFResolveComputeResultCallBackNullPtr) {
       name_path,
       /*group=*/"",
       std::vector<FunctionSignature>{
-          FunctionSignature(ARG_TYPE_RELATION, {}, -1)},
+          FunctionSignature(ARG_KIND_RELATION, {}, -1)},
       TableValuedFunctionOptions());
 
   AnalyzerOptions options;
   std::vector<TVFInputArgumentType> arguments;
-  FunctionSignature concrete_signature(ARG_TYPE_RELATION, {}, -1);
+  FunctionSignature concrete_signature(ARG_KIND_RELATION, {}, -1);
   std::shared_ptr<TVFSignature> tvf_signature;
 
   ASSERT_THAT(tvf->Resolve(&options, arguments, concrete_signature, nullptr,
@@ -508,7 +508,7 @@ TEST(TVFTest, TVFSchemaColumnEqualityWithPassthroughColumn) {
 
 TEST(TVFTest, TestPassthroughTVFResolveCallbackPropagatesPassthroughInfo) {
   TypeFactory factory;
-  FunctionSignature signature(ARG_TYPE_RELATION, {}, -1);
+  FunctionSignature signature(ARG_KIND_RELATION, {}, -1);
   std::vector<std::string> name_path = {"tvf"};
 
   TVFRelation::ColumnList columns;
@@ -572,7 +572,7 @@ TEST(TVFTest, TestPseudoColumnForTVFWithExtraColumns) {
   EXPECT_DEATH(
       tvf.reset(new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
           {"tvf_append_pseudo_column"},
-          {FunctionSignature(ARG_TYPE_RELATION, {ARG_TYPE_RELATION}, -1)},
+          {FunctionSignature(ARG_KIND_RELATION, {ARG_KIND_RELATION}, -1)},
           {pseudo_column})),
       "extra columns cannot be pseudo column");
 }
@@ -594,7 +594,7 @@ TEST(TVFTest, TestInputTableWithPseudoColumnForTVFWithExtraColumns) {
   EXPECT_DEATH(
       tvf.reset(new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
           {"tvf_append_pseudo_column"},
-          {FunctionSignature(ARG_TYPE_RELATION, {arg_type}, -1)},
+          {FunctionSignature(ARG_KIND_RELATION, {arg_type}, -1)},
           {double_col})),
       HasSubstr("ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF must "
                 "have a templated relation as the first argument"));
@@ -614,9 +614,9 @@ TEST(TVFTest, TestSignatureTextUppercasesNameByDefault) {
       std::make_unique<FixedOutputSchemaTVF>(
           function_path,
           std::vector<FunctionSignature>{::googlesql::FunctionSignature(
-              ::googlesql::ARG_TYPE_RELATION,
+              ::googlesql::ARG_KIND_RELATION,
               {::googlesql::FunctionArgumentType(
-                  ::googlesql::ARG_TYPE_ARBITRARY,
+                  ::googlesql::ARG_KIND_EXPR_ARBITRARY,
                   ::googlesql::FunctionArgumentType::REPEATED)},
               /*context_id=*/static_cast<int64_t>(0))},
           *tvf_schema);
@@ -643,9 +643,9 @@ TEST(TVFTest, TestSignatureTextLowercasesNameWhenSpecified) {
       std::make_unique<FixedOutputSchemaTVF>(
           function_path,
           std::vector<FunctionSignature>{::googlesql::FunctionSignature(
-              ::googlesql::ARG_TYPE_RELATION,
+              ::googlesql::ARG_KIND_RELATION,
               {::googlesql::FunctionArgumentType(
-                  ::googlesql::ARG_TYPE_ARBITRARY,
+                  ::googlesql::ARG_KIND_EXPR_ARBITRARY,
                   ::googlesql::FunctionArgumentType::REPEATED)},
               /*context_id=*/static_cast<int64_t>(0))},
           *tvf_schema, tvf_options);
@@ -660,54 +660,54 @@ TEST(TVFTest, GetSupportedSignaturesUserFacingTextWithHiddenSignatures) {
   const std::vector<std::string> function_path = {"test_tvf_name"};
 
   // Signature 1: No required features, not hidden.
-  FunctionSignature signature1(ARG_TYPE_RELATION, {ARG_TYPE_RELATION}, -1);
+  FunctionSignature signature1(ARG_KIND_RELATION, {ARG_KIND_RELATION}, -1);
 
   // Signature 2: Requires FEATURE_NAMED_ARGUMENTS, hidden if not enabled.
   FunctionSignatureOptions options2;
   options2.AddRequiredLanguageFeature(FEATURE_NAMED_ARGUMENTS);
   FunctionSignature signature2(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION, FunctionArgumentType(types::Int64Type())}, -1,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION, FunctionArgumentType(types::Int64Type())}, -1,
       options2);
 
   // Signature 3: Always hidden.
   FunctionSignatureOptions options3;
   options3.set_is_hidden(true);
   FunctionSignature signature3(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION, FunctionArgumentType(types::StringType())}, -1,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION, FunctionArgumentType(types::StringType())}, -1,
       options3);
 
   // Signature 4: Requires FEATURE_ANALYTIC_FUNCTIONS, hidden if not enabled.
   FunctionSignatureOptions options4;
   options4.AddRequiredLanguageFeature(FEATURE_ANALYTIC_FUNCTIONS);
   FunctionSignature signature4(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION, FunctionArgumentType(types::BoolType())}, -1,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION, FunctionArgumentType(types::BoolType())}, -1,
       options4);
 
   // Signature 5: IsInternal is true.
   FunctionSignatureOptions options5;
   options5.set_is_internal(true);
   FunctionSignature signature5(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION, FunctionArgumentType(types::DoubleType())}, -1,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION, FunctionArgumentType(types::DoubleType())}, -1,
       options5);
 
   // Signature 6: IsDeprecated is true.
   FunctionSignatureOptions options6;
   options6.set_is_deprecated(true);
   FunctionSignature signature6(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION, FunctionArgumentType(types::FloatType())}, -1,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION, FunctionArgumentType(types::FloatType())}, -1,
       options6);
 
   // Signature 7: HasUnsupportedType because FEATURE_NUMERIC_TYPE is not
   // enabled.
   FunctionSignatureOptions options7;
   FunctionSignature signature7(
-      ARG_TYPE_RELATION,
-      {ARG_TYPE_RELATION,
+      ARG_KIND_RELATION,
+      {ARG_KIND_RELATION,
        FunctionArgumentType(factory.MakeSimpleType(TYPE_NUMERIC))},
       -1, options7);
 
@@ -764,7 +764,7 @@ TEST(TVFTest, TestTableValuedFunctionSerializeAndDeserialize) {
   auto tvf = std::make_unique<TableValuedFunction>(
       name_path, "group_name",
       std::vector<FunctionSignature>{
-          FunctionSignature(ARG_TYPE_RELATION, {ARG_TYPE_RELATION}, -1)});
+          FunctionSignature(ARG_KIND_RELATION, {ARG_KIND_RELATION}, -1)});
 
   FileDescriptorSetMap file_descriptor_set_map;
   TableValuedFunctionProto tvf_proto;
@@ -809,7 +809,7 @@ TEST(TVFTest, TestFixedOutputSchemaTVFSerializeAndDeserialize) {
                   *tvf_schema,
                   /*extra_relation_input_columns_allowed=*/false),
               {::googlesql::FunctionArgumentType(
-                  ::googlesql::ARG_TYPE_ARBITRARY,
+                  ::googlesql::ARG_KIND_EXPR_ARBITRARY,
                   ::googlesql::FunctionArgumentType::REPEATED)},
               /*context_id=*/static_cast<int64_t>(0))},
           *tvf_schema, tvf_options);
@@ -854,8 +854,8 @@ TEST(TVFTest, TvfSerializationAndDeserializationWithMultipleSignatures) {
           *tvf_schema,
           /*extra_relation_input_columns_allowed=*/false);
   FunctionArgumentType any_relation_arg = FunctionArgumentType::AnyRelation();
-  FunctionArgumentType any_arg =
-      FunctionArgumentType(ARG_TYPE_ARBITRARY, FunctionArgumentType::REQUIRED);
+  FunctionArgumentType any_arg = FunctionArgumentType(
+      ARG_KIND_EXPR_ARBITRARY, FunctionArgumentType::REQUIRED);
 
   int64_t context_id = 0;
   FunctionSignature signature_relation_arg(
@@ -958,7 +958,7 @@ TEST(TVFTest, TestAnonymizationInfo) {
                   *tvf_schema,
                   /*extra_relation_input_columns_allowed=*/false),
               {::googlesql::FunctionArgumentType(
-                  ::googlesql::ARG_TYPE_ARBITRARY,
+                  ::googlesql::ARG_KIND_EXPR_ARBITRARY,
                   ::googlesql::FunctionArgumentType::REPEATED)},
               /*context_id=*/static_cast<int64_t>(0))},
           *tvf_schema, tvf_options);
@@ -1022,7 +1022,7 @@ TEST(TVFTest, TestTableValueFunctionConstructorWithAnonymizationInfo) {
                   *tvf_schema,
                   /*extra_relation_input_columns_allowed=*/false),
               {::googlesql::FunctionArgumentType(
-                  ::googlesql::ARG_TYPE_ARBITRARY,
+                  ::googlesql::ARG_KIND_EXPR_ARBITRARY,
                   ::googlesql::FunctionArgumentType::REPEATED)},
               /*context_id=*/static_cast<int64_t>(0))},
           std::move(anonymization_info), *tvf_schema, tvf_options);

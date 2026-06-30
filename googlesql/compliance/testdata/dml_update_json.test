@@ -1327,3 +1327,24 @@ STRUCT<
       {"a":[1,2,3,null,null,1,null,1]}
     }
   ]}
+
+==
+
+[name=update_json_field_with_integer_literal_name]
+UPDATE JsonValue SET json_value["0"] = 1 WHERE primary_key = 1;
+--
+STRUCT<
+  num_rows_modified INT64,
+  all_rows ARRAY<>
+>{1,
+  ARRAY<STRUCT<primary_key INT64, json_value JSON>>[unknown order:
+    {1, {"0":1,"a":1}},
+    {2, {}},
+    {3, []},
+    {4, null},
+    {5, 1},
+    {6, NULL},
+    {7, {"a":{"b":null}}},
+    {8, {"a":{"b":true}}},
+    {9, {"a":[1,2,3]}}
+  ]}

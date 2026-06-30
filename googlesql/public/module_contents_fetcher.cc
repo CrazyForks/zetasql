@@ -186,7 +186,7 @@ static void FetchAndAppendAllModuleAndProtoContents(
       continue;
     }
 
-    const google::protobuf::FileDescriptor* file_descriptor;
+    const google::protobuf::FileDescriptor* file_descriptor = nullptr;
     const absl::Status fetch_status =
         module_contents_fetcher->FetchProtoFileDescriptor(proto_name,
                                                           &file_descriptor);

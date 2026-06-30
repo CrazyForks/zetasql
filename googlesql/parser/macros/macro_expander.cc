@@ -64,6 +64,7 @@ namespace parser {
 namespace macros {
 
 constexpr absl::string_view kBuiltinMacroIdentifier = "IDENTIFIER";
+constexpr absl::string_view kBuiltinMacroString = "STRING";
 
 #define RETURN_ERROR_IF_OUT_OF_STACK_SPACE() \
   GOOGLESQL_RETURN_IF_NOT_ENOUGH_STACK(      \
@@ -548,25 +549,46 @@ absl::StatusOr<TokenWithLocation> MacroExpander::ExpandAndMaybeSpliceMacroItem(
   if (unexpanded_macro_token.kind == Token::MACRO_ARGUMENT_REFERENCE) {
     GOOGLESQL_RETURN_IF_ERROR(
         ExpandMacroArgumentReference(unexpanded_macro_token, expanded_tokens));
-  } else if (unexpanded_macro_token.kind == Token::MACRO_BUILTIN_INVOCATION) {
-    GOOGLESQL_RETURN_IF_ERROR(
-        ExpandBuiltinMacroInvocation(unexpanded_macro_token, expanded_tokens));
   } else {
-    GOOGLESQL_RET_CHECK_EQ(unexpanded_macro_token.kind, Token::MACRO_INVOCATION);
+    GOOGLESQL_RET_CHECK(unexpanded_macro_token.kind == Token::MACRO_INVOCATION ||
+              unexpanded_macro_token.kind == Token::MACRO_BUILTIN_INVOCATION);
     GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view macro_name,
                      GetMacroName(unexpanded_macro_token));
-    std::optional<MacroInfo> macro_info = macro_catalog_.Find(macro_name);
-    if (!macro_info.has_value()) {
-      GOOGLESQL_RETURN_IF_ERROR(RaiseErrorOrAddWarning(MakeSqlErrorAt(
-          unexpanded_macro_token.location.start(),
-          absl::StrFormat("Macro '%s' not found.", macro_name))));
-      // In lenient mode, just return this token as is, and let the argument
-      // list expand as if it were just normal text.
-      return AdvancePendingToken(std::move(pending_token),
-                                 std::move(unexpanded_macro_token));
+    GOOGLESQL_ASSIGN_OR_RETURN(StackFrame * invocation_stack_frame,
+                     MakeInvocationStackFrame(unexpanded_macro_token));
+    std::vector<TokenWithLocation> unexpanded_args;
+    std::vector<std::vector<TokenWithLocation>> expanded_args;
+    std::optional<MacroInfo> macro_info;
+
+    // The following check exists to prevent arguments from being parsed
+    // and expanded if the invoked macro does not exist. This applies only to
+    // user macro invocations in LENIENT mode.
+    if (unexpanded_macro_token.kind == Token::MACRO_INVOCATION) {
+      macro_info = macro_catalog_.Find(macro_name);
+      if (!macro_info.has_value()) {
+        GOOGLESQL_RETURN_IF_ERROR(RaiseErrorOrAddWarning(MakeSqlErrorAt(
+            unexpanded_macro_token.location.start(),
+            absl::StrFormat("Macro '%s' not found.", macro_name))));
+        // In lenient mode, just return this token as is, and let the argument
+        // list expand as if it were just normal text.
+        return AdvancePendingToken(std::move(pending_token),
+                                   std::move(unexpanded_macro_token));
+      }
     }
-    GOOGLESQL_RETURN_IF_ERROR(ExpandMacroInvocation(unexpanded_macro_token, *macro_info,
-                                          expanded_tokens));
+
+    GOOGLESQL_RETURN_IF_ERROR(ParseAndExpandArgs(unexpanded_macro_token, unexpanded_args,
+                                       expanded_args, *invocation_stack_frame));
+
+    if (unexpanded_macro_token.kind == Token::MACRO_BUILTIN_INVOCATION) {
+      GOOGLESQL_RETURN_IF_ERROR(ExpandBuiltinMacroInvocation(
+          macro_name, *invocation_stack_frame, unexpanded_args, expanded_args,
+          expanded_tokens));
+    } else {
+      GOOGLESQL_RET_CHECK(macro_info.has_value());
+      GOOGLESQL_RETURN_IF_ERROR(ExpandUserMacroInvocation(
+          *macro_info, *invocation_stack_frame, unexpanded_args, expanded_args,
+          expanded_tokens));
+    }
   }
 
   GOOGLESQL_RET_CHECK(!expanded_tokens.empty())
@@ -724,15 +746,12 @@ absl::Status MacroExpander::ExpandPotentiallySplicingTokens() {
 
 absl::Status MacroExpander::ParseAndExpandArgs(
     const TokenWithLocation& unexpanded_macro_invocation_token,
+    std::vector<TokenWithLocation>& unexpanded_args,
     std::vector<std::vector<TokenWithLocation>>& expanded_args,
-    bool& has_explicit_unexpanded_arg, int& out_invocation_end_offset,
     StackFrame& macro_invocation_stack_frame) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
-  GOOGLESQL_RET_CHECK(expanded_args.empty());
-
-  has_explicit_unexpanded_arg = false;
-
-  out_invocation_end_offset =
+  GOOGLESQL_RET_CHECK(expanded_args.empty() && unexpanded_args.empty());
+  int out_invocation_end_offset =
       unexpanded_macro_invocation_token.location.end().GetByteOffset();
 
   // The first argument is the macro name
@@ -775,9 +794,10 @@ absl::Status MacroExpander::ParseAndExpandArgs(
     int start_offset = -1;
     int end_offset = -1;
   };
-  std::vector<ParseRange> unexpanded_args;
+  std::vector<ParseRange> unexpanded_arg_ranges;
   GOOGLESQL_RET_CHECK(!splicing_buffer_.empty());
   int num_open_parens = 1;
+
   while (num_open_parens > 0) {
     GOOGLESQL_RET_CHECK(!splicing_buffer_.empty());
     TokenWithLocation token = splicing_buffer_.front();
@@ -791,10 +811,9 @@ absl::Status MacroExpander::ParseAndExpandArgs(
     // The comma between `a` and `b` is internal, not top-level.
     if (token.kind == Token::LPAREN) {
       num_open_parens++;
-      has_explicit_unexpanded_arg = true;
     } else if (token.kind == Token::COMMA && num_open_parens == 1) {
       // Top-level comma means the end of the current argument
-      unexpanded_args.push_back(
+      unexpanded_arg_ranges.push_back(
           {.start_offset = arg_start_offset,
            .end_offset =
                token.start_offset() -
@@ -805,24 +824,24 @@ absl::Status MacroExpander::ParseAndExpandArgs(
       // Even if the first arg is completely empty, when there's a comma
       // separating it from the second, it's an explicit signal that there is
       // an intended first argument that just happens to be empty.
-      has_explicit_unexpanded_arg = true;
     } else if (token.kind == Token::RPAREN) {
       num_open_parens--;
       if (num_open_parens == 0) {
         // This was the last argument.
         out_invocation_end_offset = token.end_offset();
-        unexpanded_args.push_back(
+        unexpanded_arg_ranges.push_back(
             {.start_offset = arg_start_offset,
              .end_offset =
                  token.start_offset() -
                  token_provider_->offset_in_original_input() -
                  static_cast<int>(token.preceding_whitespaces.length())});
-        break;
-      } else {
-        has_explicit_unexpanded_arg = true;
       }
-    } else if (token.kind != Token::COMMENT) {
-      has_explicit_unexpanded_arg = true;
+    }
+
+    // `unexpanded_args` excludes comments and the outermost parentheses
+    // representing the argument list.
+    if (token.kind != Token::COMMENT && num_open_parens > 0) {
+      unexpanded_args.push_back(std::move(token));
     }
   }
   // Update the end location of the macro invocation to reflect the end of the
@@ -832,7 +851,7 @@ absl::Status MacroExpander::ParseAndExpandArgs(
           unexpanded_macro_invocation_token.location.start().filename(),
           out_invocation_end_offset));
   int arg_index = 0;
-  for (const auto& [arg_start_offset, arg_end_offset] : unexpanded_args) {
+  for (const auto& [arg_start_offset, arg_end_offset] : unexpanded_arg_ranges) {
     arg_index++;
 
     // Create a new stack frame representing the argument expansion.
@@ -1020,84 +1039,50 @@ absl::Status MacroExpander::ExpandMacroArgumentReference(
 }
 
 absl::Status MacroExpander::ExpandBuiltinMacroInvocation(
-    const TokenWithLocation& invocation_token,
+    absl::string_view builtin_macro_name, StackFrame& builtin_invocation_frame,
+    const std::vector<TokenWithLocation>& unexpanded_args,
+    const std::vector<std::vector<TokenWithLocation>>& expanded_args,
     std::vector<TokenWithLocation>& expanded_tokens) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
-  GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view builtin_macro_name,
-                   GetMacroName(invocation_token));
-  GOOGLESQL_RET_CHECK(!builtin_macro_name.empty()) << "Builtin macro name is empty";
 
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      StackFrame * builtin_invocation_frame,
-      stack_frame_factory_.MakeStackFrame(
-          AllocateString(absl::StrCat("builtin macro:", builtin_macro_name),
-                         arena_),
-          StackFrame::FrameType::kMacroInvocation,
-          ParseLocationRange(invocation_token.location.start(),
-                             invocation_token.location.end()),
-          token_provider_->input(), token_provider_->offset_in_original_input(),
-          macro_expander_options_.diagnostic_options.error_message_options
-              .input_original_start_line,
-          macro_expander_options_.diagnostic_options.error_message_options
-              .input_original_start_column,
-          parent_location_));
-
-  std::vector<std::vector<TokenWithLocation>> expanded_args;
-  bool has_explicit_unexpanded_arg;
-  int invocation_end_offset;
-  GOOGLESQL_RETURN_IF_ERROR(ParseAndExpandArgs(
-      invocation_token, expanded_args, has_explicit_unexpanded_arg,
-      invocation_end_offset, *builtin_invocation_frame));
-
-  ParseLocationRange invocation_location = ParseLocationRange(
-      invocation_token.location.start(), invocation_token.location.end());
-  invocation_location.mutable_end().SetByteOffset(invocation_end_offset);
-
-  // The `ParseAndExpandArgs` function unpacks the arguments, including the
-  // builtin invocation token in the following format:
-  //
-  // expanded_args:
-  // [
-  //   [ <builtin_invocation_token>, EOI ],
-  //   [ ...builtin arg 1 tokens..., EOI ],
-  //   [ ...builtin arg 2 tokens..., EOI ],
-  //   ...
-  //   [ ...builtin arg N tokens..., EOI ],
-  // ]
-  //
-  // We verify this structure and trim the invocation token suffix before
-  // handing it over to the corresponding builtin macro implementation.
-  GOOGLESQL_RET_CHECK_GE(expanded_args.size(), 1);
-  GOOGLESQL_RET_CHECK_EQ(expanded_args.front().size(), 2);
-  GOOGLESQL_RET_CHECK_EQ(expanded_args.front()[0].kind, Token::IDENTIFIER);
-  GOOGLESQL_RET_CHECK_EQ(expanded_args.front()[0].text, builtin_macro_name);
-  absl::Span<const std::vector<TokenWithLocation>> builtin_args =
-      absl::MakeSpan(expanded_args).subspan(1);
+  GOOGLESQL_RET_CHECK(!expanded_args.empty()) << "Implicit arg $0 must always be present";
+  GOOGLESQL_RET_CHECK(!expanded_args[0].empty()) << "Implicit arg $0 cannot be empty";
+  GOOGLESQL_RET_CHECK_EQ(expanded_args[0][0].kind, Token::IDENTIFIER);
+  GOOGLESQL_RET_CHECK_EQ(expanded_args[0][0].text, builtin_macro_name);
 
   if (builtin_macro_name == kBuiltinMacroIdentifier) {
-    GOOGLESQL_RETURN_IF_ERROR(ExpandIdentifierBuiltin(invocation_location, builtin_args,
-                                            builtin_invocation_frame,
-                                            expanded_tokens));
+    GOOGLESQL_RETURN_IF_ERROR(ExpandIdentifierBuiltin(builtin_invocation_frame,
+                                            expanded_args, expanded_tokens));
+  } else if (builtin_macro_name == kBuiltinMacroString) {
+    GOOGLESQL_RETURN_IF_ERROR(ExpandStringBuiltin(builtin_invocation_frame,
+                                        unexpanded_args, expanded_args,
+                                        expanded_tokens));
   } else {
     return MakeSqlErrorAt(
-        invocation_token.location.start(),
+        builtin_invocation_frame.location.start(),
         absl::StrFormat("Builtin macro '%s' not found", builtin_macro_name));
   }
 
   expanded_tokens.push_back({
       .kind = Token::EOI,
-      .location = invocation_token.location,
+      .location = builtin_invocation_frame.location,
       .text = "",
-      .stack_frame = builtin_invocation_frame,
+      .stack_frame = &builtin_invocation_frame,
   });
   return absl::OkStatus();
 }
 
 absl::Status MacroExpander::ExpandIdentifierBuiltin(
-    const ParseLocationRange& invocation_location,
-    absl::Span<const std::vector<TokenWithLocation>> builtin_args,
-    StackFrame* builtin_invocation_frame,
+    StackFrame& builtin_invocation_frame,
+    const std::vector<std::vector<TokenWithLocation>>& expanded_args,
     std::vector<TokenWithLocation>& expanded_tokens) {
+  GOOGLESQL_RET_CHECK_GE(expanded_args.size(), 1);
+  GOOGLESQL_RET_CHECK_GE(expanded_args.front().size(), 1);
+  GOOGLESQL_RET_CHECK_EQ(expanded_args.front()[0].kind, Token::IDENTIFIER);
+  GOOGLESQL_RET_CHECK_EQ(expanded_args.front()[0].text, kBuiltinMacroIdentifier);
+  absl::Span<const std::vector<TokenWithLocation>> builtin_args =
+      absl::MakeSpan(expanded_args).subspan(1);
+
   std::string spliced_identifier_name;
   for (const std::vector<TokenWithLocation>& expanded_arg : builtin_args) {
     // All argument expansions, including empty ones, must be EOI terminated.
@@ -1109,7 +1094,7 @@ absl::Status MacroExpander::ExpandIdentifierBuiltin(
     // A single argument must be at most a single token (excluding EOI)
     if (expanded_arg.size() > 2) {
       return MakeInvalidBuiltinArgumentError(
-          *builtin_invocation_frame, expanded_arg[1],
+          builtin_invocation_frame, expanded_arg[1],
           absl::StrCat("Argument must resolve to at most a single token, got: ",
                        expanded_arg.size() - 1));
     }
@@ -1135,7 +1120,7 @@ absl::Status MacroExpander::ExpandIdentifierBuiltin(
       absl::StrAppend(&spliced_identifier_name, expanded_arg[0].text);
     } else {
       return MakeInvalidBuiltinArgumentError(
-          *builtin_invocation_frame, expanded_arg.front(),
+          builtin_invocation_frame, expanded_arg.front(),
           "Invalid argument: Only identifiers, keywords and "
           "integer literals are allowed.");
     }
@@ -1143,56 +1128,153 @@ absl::Status MacroExpander::ExpandIdentifierBuiltin(
 
   if (spliced_identifier_name.empty()) {
     return MakeSqlErrorAt(
-        invocation_location.start(),
+        builtin_invocation_frame.location.start(),
         "Invalid invocation: At least one non-empty argument is required.");
   }
 
   expanded_tokens.push_back(TokenWithLocation{
       .kind = Token::IDENTIFIER,
-      .location = invocation_location,
+      .location = builtin_invocation_frame.location,
       .text =
           AllocateString(ToIdentifierLiteral(spliced_identifier_name), arena_),
-      .stack_frame = builtin_invocation_frame});
+      .stack_frame = &builtin_invocation_frame});
   return absl::OkStatus();
 }
 
-// Expands the macro invocation starting at the given token.
-// REQUIRES: Any arguments must have already been loaded into the splicing
-//           buffer.
-absl::Status MacroExpander::ExpandMacroInvocation(
-    const TokenWithLocation& token, const MacroInfo& macro_info,
+absl::Status MacroExpander::ExpandStringBuiltin(
+    StackFrame& builtin_invocation_frame,
+    const std::vector<TokenWithLocation>& unexpanded_args,
+    const std::vector<std::vector<TokenWithLocation>>& expanded_args,
+    std::vector<TokenWithLocation>& expanded_tokens) {
+  GOOGLESQL_RETURN_IF_ERROR(ValidateStringBuiltinInvocation(
+      builtin_invocation_frame, unexpanded_args, expanded_args));
+
+  std::string result = "";
+
+  std::vector<TokenWithLocation> tokens_to_stringify = expanded_args[1];
+  GOOGLESQL_RET_CHECK_EQ(tokens_to_stringify.back().kind, Token::EOI);
+  tokens_to_stringify.pop_back();
+
+  for (int i = 0; i < tokens_to_stringify.size(); ++i) {
+    const TokenWithLocation& token = tokens_to_stringify[i];
+    if (i > 0 && !tokens_to_stringify[i - 1].AdjacentlyPrecedes(token)) {
+      absl::StrAppend(&result, " ");
+    }
+    absl::StrAppend(&result, token.text);
+  }
+
+  // If there is exactly one token and it is a string literal, then we pass it
+  // through as is. Otherwise, (single) quote the expansion.
+  if (tokens_to_stringify.empty() ||
+      tokens_to_stringify[0].kind != Token::STRING_LITERAL) {
+    result = ToSingleQuotedStringLiteral(result);
+  }
+
+  expanded_tokens.push_back(
+      TokenWithLocation{.kind = Token::STRING_LITERAL,
+                        .location = builtin_invocation_frame.location,
+                        .text = AllocateString(result, arena_),
+                        .stack_frame = &builtin_invocation_frame});
+  return absl::OkStatus();
+}
+
+absl::Status MacroExpander::ValidateStringBuiltinInvocation(
+    const StackFrame& builtin_invocation_frame,
+    const std::vector<TokenWithLocation>& unexpanded_args,
+    const std::vector<std::vector<TokenWithLocation>>& expanded_args) {
+  absl::string_view arg_spec =
+      "Invocation requires exactly one argument that is a macro invocation "
+      "or a macro argument reference";
+
+  // Empty arguments in the unexpanded form is invalid. Note that, it is ok for
+  // the expansion to be empty (i.e. only EOI), in which case we return an empty
+  // string literal token.
+  if (unexpanded_args.empty()) {
+    return MakeSqlErrorAt(builtin_invocation_frame.location.start(), arg_spec);
+  }
+
+  // Argument must be exactly a single macro invocation or macro argument.
+  const TokenWithLocation& first_arg = unexpanded_args.front();
+  if (first_arg.kind != Token::MACRO_INVOCATION &&
+      first_arg.kind != Token::MACRO_BUILTIN_INVOCATION &&
+      first_arg.kind != Token::MACRO_ARGUMENT_REFERENCE) {
+    return MakeSqlErrorAt(first_arg.location.start(), arg_spec);
+  }
+
+  // We know by now the first argument is a macro invocation or a macro argument
+  // reference.
+  //
+  // If in addition to that, it is the only argument, then it is valid. Note
+  // that, while macro invocations with an empty argument list still requires
+  // parentheses (i.e. `()`) to be present in STRICT mode, that check happens
+  // before this validation.
+  if (unexpanded_args.size() == 1) {
+    return absl::OkStatus();
+  }
+
+  // When the argument is a macro argument reference, it must be the only token
+  if (first_arg.kind == Token::MACRO_ARGUMENT_REFERENCE &&
+      unexpanded_args.size() > 1) {
+    return MakeSqlErrorAt(unexpanded_args[1].location.start(), arg_spec);
+  }
+
+  // We now know for a fact that the first argument is a macro invocation
+  // followed by additional tokens.
+  GOOGLESQL_RET_CHECK(first_arg.kind == Token::MACRO_INVOCATION ||
+            first_arg.kind == Token::MACRO_BUILTIN_INVOCATION);
+
+  // If the macro invocation is followed by additional tokens, they should
+  // strictly constitute an argument list to be considered a valid single macro
+  // invocation.
+  //
+  // A valid non-empty argument list must start with a left parenthesis, which
+  // in addition must be adjacent to the macro invocation token.
+  if (unexpanded_args[1].kind != Token::LPAREN ||
+      !first_arg.AdjacentlyPrecedes(unexpanded_args[1])) {
+    return MakeSqlErrorAt(first_arg.location.start(), arg_spec);
+  }
+
+  // Find the right parenthesis token that balances the opening parenthesis. For
+  // a single macro invocation, closing parenthesis must be the last token in
+  // the argument.
+  //
+  // `2` is safe below because we now know for a fact that this is a macro
+  // invocation with a non-empty argument list, and the `ParseAndExpandArgs`
+  // guarantees that the parenthesis in the argument list are balanced.
+  int token_index = 2;
+  int num_open_parens = 1;
+  while (num_open_parens > 0) {
+    GOOGLESQL_RET_CHECK(token_index < unexpanded_args.size())
+        << "Parenthesis must be balanced in the argument list";
+    if (unexpanded_args[token_index].kind == Token::LPAREN) {
+      num_open_parens++;
+    } else if (unexpanded_args[token_index].kind == Token::RPAREN) {
+      num_open_parens--;
+    }
+    token_index++;
+  }
+
+  // If there are any tokens beyond the macro invocation and the argument
+  // list, return an error at the first such token.
+  if (token_index < unexpanded_args.size()) {
+    return MakeSqlErrorAt(unexpanded_args[token_index].location.start(),
+                          arg_spec);
+  }
+  return absl::OkStatus();
+}
+
+// Expands the user macro invocation.
+// REQUIRES: The macro definition must have already been loaded from the
+//           macro catalog.
+absl::Status MacroExpander::ExpandUserMacroInvocation(
+    const MacroInfo& macro_info, StackFrame& macro_invocation_stack_frame,
+    const std::vector<TokenWithLocation>& unexpanded_args,
+    const std::vector<std::vector<TokenWithLocation>>& expanded_args,
     std::vector<TokenWithLocation>& expanded_tokens) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
-  GOOGLESQL_RET_CHECK(!token.text.empty());
-  GOOGLESQL_RET_CHECK_EQ(token.text.front(), '$');
-  GOOGLESQL_RET_CHECK(token.kind == Token::MACRO_INVOCATION);
 
-  GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view macro_name, GetMacroName(token));
-
-  // We expand arguments regardless, even if the macro being invoked does not
-  // exist.
-  std::vector<std::vector<TokenWithLocation>> expanded_args;
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      StackFrame * macro_invocation_stack_frame,
-      stack_frame_factory_.MakeStackFrame(
-          AllocateString(absl::StrCat("macro:", macro_name), arena_),
-          StackFrame::FrameType::kMacroInvocation,
-          ParseLocationRange(token.location.start(),
-                             ParseLocationPoint::FromByteOffset(
-                                 token.location.end().filename(),
-                                 token.location.end().GetByteOffset())),
-          token_provider_->input(), token_provider_->offset_in_original_input(),
-          macro_expander_options_.diagnostic_options.error_message_options
-              .input_original_start_line,
-          macro_expander_options_.diagnostic_options.error_message_options
-              .input_original_start_column,
-          parent_location_));
-
-  bool has_explicit_unexpanded_arg;
-  int invocation_end_offset;
-  GOOGLESQL_RETURN_IF_ERROR(
-      ParseAndExpandArgs(token, expanded_args, has_explicit_unexpanded_arg,
-                         invocation_end_offset, *macro_invocation_stack_frame));
+  const ParseLocationRange& invocation_location =
+      macro_invocation_stack_frame.location;
 
   MacroExpanderOptions child_macro_expander_options = macro_expander_options_;
   // The line & column in source when expanding the invocation reads from those
@@ -1219,22 +1301,23 @@ absl::Status MacroExpander::ExpandMacroInvocation(
 
   int max_arg_ref_in_definition;
   // Before expanding, mark the macro as visited and check for cycles.
-  if (!expansion_state_.MarkAsVisited(macro_invocation_stack_frame->name)) {
-    return MakeSqlErrorAt(macro_invocation_stack_frame->location.start(),
+  if (!expansion_state_.MarkAsVisited(macro_invocation_stack_frame.name)) {
+    return MakeSqlErrorAt(macro_invocation_stack_frame.location.start(),
                           "Cycle detected in macro expansion");
   }
   GOOGLESQL_RETURN_IF_ERROR(ExpandMacrosInternal(
       std::move(child_token_provider), macro_catalog_, arena_,
       stack_frame_factory_, expansion_state_, std::move(expanded_args),
-      child_macro_expander_options, macro_invocation_stack_frame, location_map_,
-      expanded_tokens, warning_collector_, &max_arg_ref_in_definition,
+      child_macro_expander_options, &macro_invocation_stack_frame,
+      location_map_, expanded_tokens, warning_collector_,
+      &max_arg_ref_in_definition,
       /*drop_comments=*/true));
   // Track that we are no longer in a cycle including this macro.
-  expansion_state_.UnmarkAsVisited(macro_invocation_stack_frame->name);
-  if (has_explicit_unexpanded_arg &&
+  expansion_state_.UnmarkAsVisited(macro_invocation_stack_frame.name);
+  if (!unexpanded_args.empty() &&
       num_explicit_args > max_arg_ref_in_definition) {
     GOOGLESQL_RETURN_IF_ERROR(RaiseErrorOrAddWarning(MakeSqlErrorAt(
-        token.location.start(),
+        invocation_location.start(),
         absl::StrFormat("Macro invocation has too many arguments (%d) while "
                         "the definition only references up to %d arguments",
                         num_explicit_args, max_arg_ref_in_definition))));
@@ -1248,11 +1331,13 @@ absl::Status MacroExpander::ExpandMacroInvocation(
     expanded_tokens.front().preceding_whitespaces = "";
     expanded_tokens.back().preceding_whitespaces = "";
     location_map_->insert_or_assign(
-        token.start_offset(),
-        Expansion{.macro_name = std::string(macro_name),
+        invocation_location.start().GetByteOffset(),
+        Expansion{.macro_name = std::string(macro_info.name()),
                   .full_match = std::string(absl::ClippedSubstr(
-                      token_provider_->input(), token.start_offset(),
-                      invocation_end_offset - token.start_offset())),
+                      token_provider_->input(),
+                      invocation_location.start().GetByteOffset(),
+                      invocation_location.end().GetByteOffset() -
+                          invocation_location.start().GetByteOffset())),
                   .expansion = TokensToString(expanded_tokens)});
   }
   return absl::OkStatus();
@@ -1537,6 +1622,28 @@ absl::Status MacroExpander::ExpandMacrosInternal(
     *out_max_arg_ref_index = expander->max_arg_ref_index_;
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<StackFrame*> MacroExpander::MakeInvocationStackFrame(
+    const TokenWithLocation& invocation_token) {
+  GOOGLESQL_RET_CHECK(invocation_token.kind == Token::MACRO_INVOCATION ||
+            invocation_token.kind == Token::MACRO_BUILTIN_INVOCATION);
+
+  absl::string_view name_suffix =
+      invocation_token.kind == Token::MACRO_INVOCATION ? "macro:"
+                                                       : "builtin macro:";
+  GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view macro_name,
+                   GetMacroName(invocation_token));
+
+  return stack_frame_factory_.MakeStackFrame(
+      AllocateString(absl::StrCat(name_suffix, macro_name), arena_),
+      StackFrame::FrameType::kMacroInvocation, invocation_token.location,
+      token_provider_->input(), token_provider_->offset_in_original_input(),
+      macro_expander_options_.diagnostic_options.error_message_options
+          .input_original_start_line,
+      macro_expander_options_.diagnostic_options.error_message_options
+          .input_original_start_column,
+      parent_location_);
 }
 
 }  // namespace macros

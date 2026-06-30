@@ -461,7 +461,7 @@ absl::StatusOr<Value> DoMapEntryCast(const Value& from_value,
                                          message));
 
   absl::Cord bytes;
-  ABSL_CHECK(message->SerializeToString(&bytes));
+  GOOGLESQL_RET_CHECK(message->SerializeToString(&bytes));
   return Value::Proto(to_proto_type, bytes);
 }
 

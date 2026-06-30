@@ -1212,10 +1212,11 @@ absl::StatusOr<Value> ScriptExecutorImpl::EvaluateProcedureArgument(
     const FunctionArgumentType& function_argument_type,
     const ASTExpression* argument_expr) {
   const Type* argument_type = function_argument_type.type();
-  const bool is_any_type_argument = (function_argument_type.kind() ==
-                                     SignatureArgumentKind::ARG_TYPE_ARBITRARY);
+  const bool is_any_type_argument =
+      (function_argument_type.kind() ==
+       SignatureArgumentKind::ARG_KIND_EXPR_ARBITRARY);
   GOOGLESQL_RET_CHECK(function_argument_type.kind() ==
-                    SignatureArgumentKind::ARG_TYPE_FIXED &&
+                    SignatureArgumentKind::ARG_KIND_EXPR_FIXED &&
                 argument_type != nullptr ||
             is_any_type_argument && argument_type == nullptr)
       << "Procedure arguments have either a concrete type or nullptr type in "
@@ -1758,7 +1759,7 @@ absl::Status ScriptExecutorImpl::ExecuteDynamicStatement() {
 
   FunctionSignature signature(
       /*result_type=*/FunctionArgumentType(
-          SignatureArgumentKind::ARG_TYPE_VOID),
+          SignatureArgumentKind::ARG_KIND_VOID),
       /*arguments=*/{}, /*context_ptr=*/nullptr);
   GOOGLESQL_RET_CHECK(sql_value.is_valid() && sql_value.type() != nullptr &&
             sql_value.type()->IsString())

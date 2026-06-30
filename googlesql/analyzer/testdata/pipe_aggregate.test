@@ -3040,3 +3040,23 @@ QueryStmt
       +-OrderByItem
         +-column_ref=
           +-ColumnRef(type=INT64, column=$groupby.int64#20)
+==
+
+[language_features=NONE,+PIPES,+ANALYTIC_FUNCTIONS]
+# Direct aggregate function in pipe SELECT fails with clean error.
+FROM TestTable
+|> SELECT SUM(key)
+--
+ERROR: Aggregate function SUM not allowed in pipe SELECT [at 3:11]
+|> SELECT SUM(key)
+          ^
+==
+
+[language_features=NONE,+PIPES,+ANALYTIC_FUNCTIONS]
+# Misplaced analytic function in pipe AGGREGATE fails with clean error.
+FROM TestTable
+|> AGGREGATE SUM(key), RANK() OVER(ORDER BY key)
+--
+ERROR: Analytic function not allowed in pipe AGGREGATE [at 3:24]
+|> AGGREGATE SUM(key), RANK() OVER(ORDER BY key)
+                       ^

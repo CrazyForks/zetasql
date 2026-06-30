@@ -121,6 +121,15 @@ ERROR: Aggregate function SUM not allowed in pipe WINDOW [at 2:19]
                   ^
 ==
 
+# Direct aggregate function inside pipe WINDOW fails.
+FROM TestTable
+|> WINDOW SUM(key)
+--
+ERROR: Aggregate function SUM not allowed in pipe WINDOW [at 2:11]
+|> WINDOW SUM(key)
+          ^
+==
+
 # The two identical OVER clauses are not grouped together.  This only works
 # (including in standard syntax) for empty OVER clauses or named windows.
 select 1 x, 2 y, 3 z

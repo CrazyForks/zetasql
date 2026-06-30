@@ -2347,7 +2347,7 @@ TEST_F(UDAEvalTest, OkUDAEvaluatorCustomCount) {
   catalog()->AddOwnedFunction(
       new Function("CustomCount", "uda", Function::AGGREGATE,
                    {{types::Int64Type(),
-                     {FunctionArgumentType(ARG_TYPE_ARBITRARY)},
+                     {FunctionArgumentType(ARG_KIND_EXPR_ARBITRARY)},
                      kFunctionId}},
                    function_options_));
   // Count all rows
@@ -2599,7 +2599,7 @@ TEST_F(UDAEvalTest, OkUDAPolymorphicEvaluator) {
   catalog()->AddOwnedFunction(
       new Function("PolymorphicAgg", "uda", Function::AGGREGATE,
                    {{types::StringType(),
-                     {FunctionArgumentType(ARG_TYPE_ARBITRARY)},
+                     {FunctionArgumentType(ARG_KIND_EXPR_ARBITRARY)},
                      kFunctionId}},
                    function_options_));
 
@@ -2693,10 +2693,10 @@ TEST_F(UDFEvalTest, OkPolymorphicUDFEvaluator) {
                                 "Beg your pardon: " + signature.DebugString());
         }
       });
-  catalog()->AddOwnedFunction(new Function(
-      "MyUdf", "udf", Function::SCALAR,
-      {{types::Int64Type(), {ARG_TYPE_ANY_1}, kFunctionId}},
-      function_options_));
+  catalog()->AddOwnedFunction(
+      new Function("MyUdf", "udf", Function::SCALAR,
+                   {{types::Int64Type(), {ARG_KIND_EXPR_ANY_1}, kFunctionId}},
+                   function_options_));
   PreparedExpression expr("1 + myudf(myudf(@param))");
   GOOGLESQL_ASSERT_OK(expr.Prepare(analyzer_options_, catalog()));
   Value result = expr.Execute({}, {{"param", Value::String("foo")}}).value();
@@ -5096,7 +5096,10 @@ TEST(PreparedQuery, FromTableFailure) {
   const std::string error = "Failed to read row from TestTable";
   const absl::Status failure = googlesql_base::OutOfRangeErrorBuilder() << error;
 
-  EvaluatorTestTable test_table("TestTable", {{"a", types::Int64Type()}},
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(
+      std::make_unique<SimpleColumn>("TestTable", "a", types::Int64Type()));
+  EvaluatorTestTable test_table("TestTable", std::move(columns),
                                 {{Int64(10)}, {Int64(20)}, {Int64(30)}},
                                 failure);
 
@@ -5147,9 +5150,11 @@ TEST(PreparedQuery, FromTableDeadlineExceeded) {
 
   googlesql_base::SimulatedClock clock(absl::UnixEpoch());
 
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(
+      std::make_unique<SimpleColumn>("TestTable", "a", types::Int64Type()));
   EvaluatorTestTable test_table(
-      "TestTable", {{"a", types::Int64Type()}},
-      {{Int64(10)}, {Int64(20)}, {Int64(30)}},
+      "TestTable", std::move(columns), {{Int64(10)}, {Int64(20)}, {Int64(30)}},
       /*end_status=*/absl::OkStatus(),
       /*column_filter_idxs=*/{},
       /*cancel_cb=*/[]() {},

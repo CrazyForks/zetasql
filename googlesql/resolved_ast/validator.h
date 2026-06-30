@@ -377,6 +377,12 @@ class Validator {
   absl::Status ValidateResolvedAlignScan(
       const ResolvedAlignScan* scan,
       const std::set<ResolvedColumn>& visible_parameters);
+  absl::Status ValidateResolvedWithinBoundExpr(
+      const ResolvedWithinBoundExpr* within_bound_expr,
+      const std::set<ResolvedColumn>& visible_parameters);
+  absl::Status ValidateResolvedWithinBounds(
+      const ResolvedWithinBounds* within_bounds,
+      const std::set<ResolvedColumn>& visible_parameters);
 
   // For a scan with is_ordered=true, validate that this scan can legally
   // produce ordered output.

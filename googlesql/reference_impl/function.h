@@ -29,7 +29,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/public/cast.h"
 #include "googlesql/public/collator.h"
 #include "googlesql/public/evaluator_table_iterator.h"

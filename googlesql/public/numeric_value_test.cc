@@ -819,7 +819,7 @@ struct NumericModOp {
 
 struct NumericDivideToIntegralValueOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, const T& y) const {
+  absl::StatusOr<T> operator()(const T& x, const T& y) const {
     return x.DivideToIntegralValue(y);
   }
   static constexpr absl::string_view kExpressionFormat = "DIV($0, $1)";
@@ -827,7 +827,7 @@ struct NumericDivideToIntegralValueOp {
 
 struct NumericPowerOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, const T& y) const {
+  absl::StatusOr<T> operator()(const T& x, const T& y) const {
     return x.Power(y);
   }
   static constexpr absl::string_view kExpressionFormat = "POW($0, $1)";
@@ -835,7 +835,7 @@ struct NumericPowerOp {
 
 struct NumericExpOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Exp();
   }
   static constexpr absl::string_view kExpressionFormat = "EXP($0)";
@@ -843,7 +843,7 @@ struct NumericExpOp {
 
 struct NumericLnOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Ln();
   }
   static constexpr absl::string_view kExpressionFormat = "LN($0)";
@@ -851,7 +851,7 @@ struct NumericLnOp {
 
 struct NumericLog10Op {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Log10();
   }
   static constexpr absl::string_view kExpressionFormat = "LOG10($0)";
@@ -859,7 +859,7 @@ struct NumericLog10Op {
 
 struct NumericLogOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, const T& y) const {
+  absl::StatusOr<T> operator()(const T& x, const T& y) const {
     return x.Log(y);
   }
   static constexpr absl::string_view kExpressionFormat = "LOG($0, $1)";
@@ -867,7 +867,7 @@ struct NumericLogOp {
 
 struct NumericSqrtOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Sqrt();
   }
   static constexpr absl::string_view kExpressionFormat = "SQRT($0)";
@@ -875,7 +875,7 @@ struct NumericSqrtOp {
 
 struct NumericCbrtOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Cbrt();
   }
   static constexpr absl::string_view kExpressionFormat = "CBRT($0)";
@@ -883,7 +883,7 @@ struct NumericCbrtOp {
 
 struct NumericTruncOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, int64_t y) const {
+  absl::StatusOr<T> operator()(const T& x, int64_t y) const {
     return x.Trunc(y);
   }
   static constexpr absl::string_view kExpressionFormat = "TRUNC($0, $1)";
@@ -891,7 +891,7 @@ struct NumericTruncOp {
 
 struct NumericRoundHalfEvenOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, int64_t y) const {
+  absl::StatusOr<T> operator()(const T& x, int64_t y) const {
     return x.Round(y, true);
   }
   static constexpr absl::string_view kExpressionFormat = "ROUND($0, $1)";
@@ -899,7 +899,7 @@ struct NumericRoundHalfEvenOp {
 
 struct NumericRoundHalfAwayFromZeroOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x, int64_t y) const {
+  absl::StatusOr<T> operator()(const T& x, int64_t y) const {
     return x.Round(y, false);
   }
   static constexpr absl::string_view kExpressionFormat = "ROUND($0, $1)";
@@ -907,7 +907,7 @@ struct NumericRoundHalfAwayFromZeroOp {
 
 struct NumericFloorOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Floor();
   }
   static constexpr absl::string_view kExpressionFormat = "FLOOR($0)";
@@ -915,7 +915,7 @@ struct NumericFloorOp {
 
 struct NumericCeilingOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& x) const {
+  absl::StatusOr<T> operator()(const T& x) const {
     return x.Ceiling();
   }
   static constexpr absl::string_view kExpressionFormat = "CEIL($0)";
@@ -923,7 +923,7 @@ struct NumericCeilingOp {
 
 struct NumericSignOp {
   template <class T>
-  inline int operator()(const T& x) const {
+  int operator()(const T& x) const {
     return x.Sign();
   }
   static constexpr absl::string_view kExpressionFormat = "SIGN($0)";
@@ -931,7 +931,7 @@ struct NumericSignOp {
 
 struct NumericAbsOp {
   template <class T>
-  inline auto operator()(const T& x) const {
+  auto operator()(const T& x) const {
     return x.Abs();
   }
   static constexpr absl::string_view kExpressionFormat = "ABS($0)";
@@ -1024,7 +1024,7 @@ struct NumericFormatOp {
 template <bool allow_rounding>
 struct NumericRescaleOp {
   template <class T>
-  inline absl::StatusOr<T> operator()(const T& input_val, int scale) const {
+  absl::StatusOr<T> operator()(const T& input_val, int scale) const {
     return input_val.Rescale(scale, allow_rounding);
   }
   static constexpr absl::string_view kExpressionFormat = "$1";

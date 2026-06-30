@@ -578,6 +578,7 @@ class SQLBuilder : public ResolvedASTVisitor {
   absl::Status VisitResolvedInlineLambda(
       const ResolvedInlineLambda* node) override;
   absl::Status VisitResolvedSequence(const ResolvedSequence* node) override;
+  absl::Status VisitResolvedModel(const ResolvedModel* node) override;
   absl::Status VisitResolvedGetProtoField(
       const ResolvedGetProtoField* node) override;
   absl::Status VisitResolvedFlatten(const ResolvedFlatten* node) override;
@@ -715,6 +716,10 @@ class SQLBuilder : public ResolvedASTVisitor {
       const ResolvedSubpipelineStmt* node) override;
   absl::Status VisitResolvedStatementWithPipeOperatorsStmt(
       const ResolvedStatementWithPipeOperatorsStmt* node) override;
+  absl::Status VisitResolvedWithinBoundExpr(
+      const ResolvedWithinBoundExpr* node) override;
+  absl::Status VisitResolvedWithinBounds(
+      const ResolvedWithinBounds* node) override;
   absl::Status VisitResolvedAlignScan(const ResolvedAlignScan* node) override;
 
   // Visit methods for analytic functions related nodes.

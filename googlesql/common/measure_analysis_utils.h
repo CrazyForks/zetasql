@@ -49,18 +49,23 @@ absl::StatusOr<const ResolvedExpr*> AnalyzeMeasureExpressionInternal(
     TypeFactory& type_factory, AnalyzerOptions analyzer_options,
     std::unique_ptr<const AnalyzerOutput>& analyzer_output);
 
-// Adds measure columns to a SimpleTable.
-// `table` is the table to which the measure columns should be added. `table`
-// cannot allow duplicate column names.
-// `measures` is a vector of name+expression pairs for the new measure
-//   columns. The expressions are resolved against the columns in `table`.
-// `type_factory` is used to create types.
-// `catalog` should contain builtin functions which can be referenced in
+// Adds the defined measure columns to the table.
+//
+// - `table` is the table to which the measure columns should be added. `table`
+//   cannot allow duplicate column names.
+// - `measures` is a vector of name+expression pairs for the new measure
+//   columns. The expressions are resolved against the columns in `table`. The
+//   definition expression of a measure is allowed to reference other preceding
+//   measures in the `measures` vector.
+// - `type_factory` is used to create types.
+// - `catalog` should contain builtin functions which can be referenced in
 //   measure expressions.
-// `analyzer_options` is used when resolving the measure expressions and should
-//   enable any features required for those expressions.
-// The returned vector of AnalyzerOutputs corresponds to the resolved ASTs of
-// each of the measure columns, and must outlive the table.
+// - `analyzer_options` is used when resolving the measure expressions and
+//   should enable any features required for those expressions.
+//
+// Outputs:
+// - A list of `AnalyzerOutput` objects corresponding to the analyzed measure
+//   expressions.
 absl::StatusOr<std::vector<std::unique_ptr<const AnalyzerOutput>>>
 AddMeasureColumnsToTable(SimpleTable& table,
                          std::vector<MeasureColumnDef> measures,

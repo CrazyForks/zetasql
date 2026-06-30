@@ -643,6 +643,7 @@ cc_library(
         "//googlesql/resolved_ast:resolved_node_kind_cc_proto",
         "@com_google_absl//absl/flags:flag",
     ],
+    alwayslink = 1,
 )
 
 # A test of the reference implementation against the golden files, aliased here for completeness.

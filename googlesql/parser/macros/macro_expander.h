@@ -35,13 +35,11 @@
 #include "googlesql/public/parse_location.h"
 #include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/span.h"
 
 namespace googlesql {
 namespace parser {
@@ -194,8 +192,9 @@ class MacroExpander final : public TokenStream {
         parent_location_(parent_location),
         expansion_state_(expansion_state) {}
 
-  // Because this function may be called internally (e.g. when expanding
-  // a nested macro), it appends to `out_warnings`, instead of replacing it.
+  // Because this function may be called internally (e.g., when expanding
+  // a nested macro), it appends to `warning_collector`, instead of
+  // replacing it.
   static absl::Status ExpandMacrosInternal(
       std::unique_ptr<TokenStream> token_provider,
       const MacroCatalog& macro_catalog, googlesql_base::UnsafeArena* arena,
@@ -254,12 +253,35 @@ class MacroExpander final : public TokenStream {
   absl::StatusOr<TokenWithLocation> AdvancePendingToken(
       TokenWithLocation pending_token, TokenWithLocation incoming_token);
 
-  // Parses the invocation arguments (each argument must have balanced
-  // parentheses) and expands the arguments.
+  // Parses the argument list of a macro invocation, if any and expands each
+  // argument, and provides access to both unexpanded and expanded forms.
+  //
+  // REQUIRES: Parentheses if any, are balanced in the splicing buffer.
+  //
+  // `unexpanded_macro_invocation_token`: The token representing the macro
+  //   invocation (e.g., $MACRO or $$BUILTIN).
+  //
+  // `unexpanded_args`: Output vector where each element is populated with
+  //   the raw, unexpanded tokens representing the argument list, excluding the
+  //   outermost parentheses. Comments within the argument list are never
+  //   included. Must be empty before invocation.
+  //
+  // `expanded_args`: Output vector where each element is a vector of tokens
+  //   representing the fully expanded version of the corresponding
+  //   argument. The first element is always the macro name itself to fill in
+  //   for `$0` as an identifier token. Must be empty before invocation.
+  //
+  // `macro_invocation_stack_frame`: The stack frame for the invocation being
+  //   parsed, and the ancestor stack frame for the expanded tokens. The frame's
+  //   location will be updated to capture the entire invocation, including
+  //   the argument list.
+  //
+  // Returns an error if parsing or expansion fails. The contents of output
+  // parameters are only valid upon success (`absl::OkStatus`).
   absl::Status ParseAndExpandArgs(
       const TokenWithLocation& unexpanded_macro_invocation_token,
+      std::vector<TokenWithLocation>& unexpanded_args,
       std::vector<std::vector<TokenWithLocation>>& expanded_args,
-      bool& has_explicit_unexpanded_arg, int& out_invocation_end_offset,
       StackFrame& macro_invocation_stack_frame);
 
   // Expands the given macro invocation or argument reference and handles any
@@ -286,29 +308,28 @@ class MacroExpander final : public TokenStream {
       const TokenWithLocation& token,
       std::vector<TokenWithLocation>& expanded_tokens);
 
-  // Expands the macro invocation starting at the given token.
+  // Expands the user macro invocation.
   // REQUIRES: The macro definition must have already been loaded from the
   //           macro catalog.
-  absl::Status ExpandMacroInvocation(
-      const TokenWithLocation& token, const MacroInfo& macro_info,
+  absl::Status ExpandUserMacroInvocation(
+      const MacroInfo& macro_info, StackFrame& macro_invocation_stack_frame,
+      const std::vector<TokenWithLocation>& unexpanded_args,
+      const std::vector<std::vector<TokenWithLocation>>& expanded_args,
       std::vector<TokenWithLocation>& expanded_tokens);
 
-  // Expands the builtin macro invocation starting at the given token.
-  //
-  // REQUIRES: the argument tokens to be already loaded into the splicing
-  // buffer and the parentheses, if any, in each argument are balanced.
+  // Expands the builtin macro invocation.
   //
   // The result is appended to `expanded_tokens`.
   absl::Status ExpandBuiltinMacroInvocation(
-      const TokenWithLocation& invocation_token,
+      absl::string_view builtin_macro_name,
+      StackFrame& builtin_invocation_frame,
+      const std::vector<TokenWithLocation>& unexpanded_args,
+      const std::vector<std::vector<TokenWithLocation>>& expanded_args,
       std::vector<TokenWithLocation>& expanded_tokens);
 
   // Expands the IDENTIFIER builtin macro.
-  // The `invocation_location` is the location of the `$$IDENTIFIER` token.
   //
-  // REQUIRES: argument tokens to be expanded prior to calling this function and
-  // no further expansion is performed. Each argument must be at most a single
-  // token and must be one of the following kind:
+  // Each argument must be at most a single token and must be one of:
   //   1.  identifier
   //   2.  keyword
   //   3.  decimal integer literal
@@ -319,10 +340,33 @@ class MacroExpander final : public TokenStream {
   // concatenation of the text value of the argument tokens, which is appended
   // to `expanded_tokens`.
   absl::Status ExpandIdentifierBuiltin(
-      const ParseLocationRange& invocation_location,
-      absl::Span<const std::vector<TokenWithLocation>> builtin_args,
-      StackFrame* builtin_invocation_frame,
+      StackFrame& builtin_invocation_frame,
+      const std::vector<std::vector<TokenWithLocation>>& expanded_args,
       std::vector<TokenWithLocation>& expanded_tokens);
+
+  // Expands the STRING builtin macro.
+  //
+  // The macro accepts exactly one argument that is a macro invocation or a
+  // macro argument reference. The result is always a single string literal
+  // token that corresponds to the literal text value of the argument's
+  // expansion.
+  absl::Status ExpandStringBuiltin(
+      StackFrame& builtin_invocation_frame,
+      const std::vector<TokenWithLocation>& unexpanded_args,
+      const std::vector<std::vector<TokenWithLocation>>& expanded_args,
+      std::vector<TokenWithLocation>& expanded_tokens);
+
+  // Validates a `$$STRING` builtin macro invocation by checking that exactly a
+  // single macro argument reference or macro invocation is provided.
+  //
+  // When the argument is a macro argument reference, it must be the only token.
+  // Invocations of both user and builtin macros are allowed, and may include an
+  // argument list. Empty invocations are disallowed. The function raises a
+  // parser error at the first invalid argument token.
+  absl::Status ValidateStringBuiltinInvocation(
+      const StackFrame& builtin_invocation_frame,
+      const std::vector<TokenWithLocation>& unexpanded_args,
+      const std::vector<std::vector<TokenWithLocation>>& expanded_args);
 
   // Expands a string literal or a quoted identifier.
   absl::StatusOr<TokenWithLocation> ExpandLiteral(
@@ -369,6 +413,12 @@ class MacroExpander final : public TokenStream {
   absl::Status MakeInvalidBuiltinArgumentError(
       const StackFrame& invocation_frame,
       const TokenWithLocation& expanded_arg_token, absl::string_view message);
+
+  // Creates and returns a new `StackFrame` for a user or builtin macro
+  // invocation. The `invocation_token` must be of kind
+  // `Token::MACRO_INVOCATION` or `Token::MACRO_BUILTIN_INVOCATION`.
+  absl::StatusOr<StackFrame*> MakeInvocationStackFrame(
+      const TokenWithLocation& invocation_token);
 
   TokenProviderBase* token_provider_;
 

@@ -295,8 +295,8 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   // MAP_FROM_ARRAY(ARRAY<STRUCT<K,V>> entries) -> MAP<K,V>
   InsertFunction(
       functions, options, "map_from_array", Function::SCALAR,
-      {{ARG_TYPE_ARBITRARY,
-        {ARG_ARRAY_TYPE_ANY_1},
+      {{ARG_KIND_EXPR_ARBITRARY,
+        {ARG_KIND_EXPR_ARRAY_ANY_1},
         FN_MAP_FROM_ARRAY,
         // TODO: Collation support for MAP<> type.
         FunctionSignatureOptions()
@@ -312,8 +312,8 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   // MAP_ENTRIES_SORTED(MAP<K,V> input_map) -> ARRAY<STRUCT<K,V>>
   InsertFunction(
       functions, options, "map_entries_sorted", Function::SCALAR,
-      {{ARG_TYPE_ARBITRARY,
-        {ARG_MAP_TYPE_ANY_1_2},
+      {{ARG_KIND_EXPR_ARBITRARY,
+        {ARG_KIND_EXPR_MAP_ANY_1_2},
         FN_MAP_ENTRIES_SORTED,
         FunctionSignatureOptions()
             .set_rejects_collation()
@@ -328,8 +328,8 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_entries_unsorted", Function::SCALAR,
       {
-          {ARG_TYPE_ARBITRARY,
-           {ARG_MAP_TYPE_ANY_1_2},
+          {ARG_KIND_EXPR_ARBITRARY,
+           {ARG_KIND_EXPR_MAP_ANY_1_2},
            FN_MAP_ENTRIES_UNSORTED,
            FunctionSignatureOptions()
                .set_rejects_collation()
@@ -343,8 +343,9 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
           .AddRequiredLanguageFeature(FEATURE_MAP_TYPE));
 
   const FunctionArgumentType input_map_argument_type{
-      ARG_MAP_TYPE_ANY_1_2, FunctionArgumentTypeOptions().set_argument_name(
-                                "input_map", kPositionalOnly)};
+      ARG_KIND_EXPR_MAP_ANY_1_2,
+      FunctionArgumentTypeOptions().set_argument_name("input_map",
+                                                      kPositionalOnly)};
 
   constexpr absl::string_view kMapGetSql = R"sql(
       IF(
@@ -364,11 +365,12 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_get", Function::SCALAR,
       {
-          {ARG_TYPE_ANY_2,
+          {ARG_KIND_EXPR_ANY_2,
            {input_map_argument_type,
-            {ARG_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                 "lookup_key", kPositionalOnly)},
-            {ARG_TYPE_ANY_2,
+            {ARG_KIND_EXPR_ANY_1,
+             FunctionArgumentTypeOptions().set_argument_name("lookup_key",
+                                                             kPositionalOnly)},
+            {ARG_KIND_EXPR_ANY_2,
              FunctionArgumentTypeOptions()
                  .set_argument_name("default_value", kPositionalOnly)
                  .set_cardinality(FunctionEnums::OPTIONAL)}},
@@ -396,8 +398,9 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
       {
           {type_factory->get_bool(),
            {input_map_argument_type,
-            {ARG_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                 "lookup_key", kPositionalOnly)}},
+            {ARG_KIND_EXPR_ANY_1,
+             FunctionArgumentTypeOptions().set_argument_name("lookup_key",
+                                                             kPositionalOnly)}},
            FN_MAP_CONTAINS_KEY,
            FunctionSignatureOptions()
                .set_rejects_collation()
@@ -414,7 +417,7 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_keys_sorted", Function::SCALAR,
       {
-          {ARG_ARRAY_TYPE_ANY_1,
+          {ARG_KIND_EXPR_ARRAY_ANY_1,
            {input_map_argument_type},
            FN_MAP_KEYS_SORTED,
            FunctionSignatureOptions()
@@ -436,7 +439,7 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_keys_unsorted", Function::SCALAR,
       {
-          {ARG_ARRAY_TYPE_ANY_1,
+          {ARG_KIND_EXPR_ARRAY_ANY_1,
            {input_map_argument_type},
            FN_MAP_KEYS_UNSORTED,
            FunctionSignatureOptions()
@@ -461,7 +464,7 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_values_sorted", Function::SCALAR,
       {
-          {ARG_ARRAY_TYPE_ANY_2,
+          {ARG_KIND_EXPR_ARRAY_ANY_2,
            {input_map_argument_type},
            FN_MAP_VALUES_SORTED,
            FunctionSignatureOptions()
@@ -483,7 +486,7 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_values_unsorted", Function::SCALAR,
       {
-          {ARG_ARRAY_TYPE_ANY_2,
+          {ARG_KIND_EXPR_ARRAY_ANY_2,
            {input_map_argument_type},
            FN_MAP_VALUES_UNSORTED,
            FunctionSignatureOptions()
@@ -501,7 +504,7 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "map_values_sorted_by_key", Function::SCALAR,
       {
-          {ARG_ARRAY_TYPE_ANY_2,
+          {ARG_KIND_EXPR_ARRAY_ANY_2,
            {input_map_argument_type},
            FN_MAP_VALUES_SORTED_BY_KEY,
            FunctionSignatureOptions()
@@ -537,54 +540,56 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
 
   const FunctionArgumentTypeList arglist_map_and_kv_pairs = {
       input_map_argument_type,
-      {ARG_TYPE_ANY_1,
+      {ARG_KIND_EXPR_ANY_1,
        FunctionArgumentTypeOptions().set_argument_name("key", kPositionalOnly)},
-      {ARG_TYPE_ANY_2, FunctionArgumentTypeOptions().set_argument_name(
-                           "value", kPositionalOnly)},
+      {ARG_KIND_EXPR_ANY_2, FunctionArgumentTypeOptions().set_argument_name(
+                                "value", kPositionalOnly)},
       // The function library treats multiple repeated arguments as interleaved.
       // Thus, this creates the signature of (MAP<K,V>, K, V, K, V, ...).
-      {ARG_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                           .set_argument_name("repeated_key", kPositionalOnly)
-                           .set_cardinality(FunctionEnums::REPEATED)},
-      {ARG_TYPE_ANY_2, FunctionArgumentTypeOptions()
-                           .set_argument_name("repeated_value", kPositionalOnly)
-                           .set_cardinality(FunctionEnums::REPEATED)},
+      {ARG_KIND_EXPR_ANY_1,
+       FunctionArgumentTypeOptions()
+           .set_argument_name("repeated_key", kPositionalOnly)
+           .set_cardinality(FunctionEnums::REPEATED)},
+      {ARG_KIND_EXPR_ANY_2,
+       FunctionArgumentTypeOptions()
+           .set_argument_name("repeated_value", kPositionalOnly)
+           .set_cardinality(FunctionEnums::REPEATED)},
   };
 
   FunctionOptions map_insert_function_options =
       FunctionOptions().AddRequiredLanguageFeature(FEATURE_MAP_TYPE);
   InsertFunction(
       functions, options, "map_insert", Function::SCALAR,
-      {{ARG_MAP_TYPE_ANY_1_2, arglist_map_and_kv_pairs, FN_MAP_INSERT,
+      {{ARG_KIND_EXPR_MAP_ANY_1_2, arglist_map_and_kv_pairs, FN_MAP_INSERT,
         FunctionSignatureOptions().set_rejects_collation()}},
       map_insert_function_options);
   InsertFunction(functions, options, "map_insert_or_replace", Function::SCALAR,
-                 {{ARG_MAP_TYPE_ANY_1_2, arglist_map_and_kv_pairs,
+                 {{ARG_KIND_EXPR_MAP_ANY_1_2, arglist_map_and_kv_pairs,
                    FN_MAP_INSERT_OR_REPLACE,
                    FunctionSignatureOptions().set_rejects_collation()}},
                  map_insert_function_options);
-  InsertFunction(
-      functions, options, "map_replace", Function::SCALAR,
-      {
-          {ARG_MAP_TYPE_ANY_1_2, arglist_map_and_kv_pairs,
-           FN_MAP_REPLACE_KV_PAIRS,
-           FunctionSignatureOptions().set_rejects_collation()},
-          {ARG_MAP_TYPE_ANY_1_2,
-           {input_map_argument_type,
-            {ARG_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                 "key", kPositionalOnly)},
-            {ARG_TYPE_ANY_1,
-             FunctionArgumentTypeOptions()
-                 .set_argument_name("repeated_key", kPositionalOnly)
-                 .set_cardinality(FunctionEnums::REPEATED)},
-            FunctionArgumentType::Lambda(
-                {ARG_TYPE_ANY_2}, ARG_TYPE_ANY_2,
-                FunctionArgumentTypeOptions().set_argument_name(
-                    "updater_lambda", kPositionalOnly))},
-           FN_MAP_REPLACE_K_REPEATED_V_LAMBDA,
-           FunctionSignatureOptions().set_rejects_collation()},
-      },
-      map_insert_function_options);
+  InsertFunction(functions, options, "map_replace", Function::SCALAR,
+                 {
+                     {ARG_KIND_EXPR_MAP_ANY_1_2, arglist_map_and_kv_pairs,
+                      FN_MAP_REPLACE_KV_PAIRS,
+                      FunctionSignatureOptions().set_rejects_collation()},
+                     {ARG_KIND_EXPR_MAP_ANY_1_2,
+                      {input_map_argument_type,
+                       {ARG_KIND_EXPR_ANY_1,
+                        FunctionArgumentTypeOptions().set_argument_name(
+                            "key", kPositionalOnly)},
+                       {ARG_KIND_EXPR_ANY_1,
+                        FunctionArgumentTypeOptions()
+                            .set_argument_name("repeated_key", kPositionalOnly)
+                            .set_cardinality(FunctionEnums::REPEATED)},
+                       FunctionArgumentType::Lambda(
+                           {ARG_KIND_EXPR_ANY_2}, ARG_KIND_EXPR_ANY_2,
+                           FunctionArgumentTypeOptions().set_argument_name(
+                               "updater_lambda", kPositionalOnly))},
+                      FN_MAP_REPLACE_K_REPEATED_V_LAMBDA,
+                      FunctionSignatureOptions().set_rejects_collation()},
+                 },
+                 map_insert_function_options);
   InsertFunction(
       functions, options, "map_cardinality", Function::SCALAR,
       {{type_factory->get_int64(),
@@ -599,12 +604,12 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
       FunctionOptions().AddRequiredLanguageFeature(FEATURE_MAP_TYPE));
   InsertFunction(
       functions, options, "map_delete", Function::SCALAR,
-      {{ARG_MAP_TYPE_ANY_1_2,
+      {{ARG_KIND_EXPR_MAP_ANY_1_2,
         {input_map_argument_type,
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           FunctionArgumentTypeOptions().set_argument_name(
               "key", kPositionalOnly)},  // At least one key must be provided.
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           FunctionArgumentTypeOptions()
               .set_argument_name("repeated_key", kPositionalOnly)
               .set_cardinality(FunctionEnums::REPEATED)}},
@@ -632,10 +637,11 @@ void GetMapCoreFunctions(TypeFactory* type_factory,
     )sql";
   InsertFunction(
       functions, options, "map_filter", Function::SCALAR,
-      {{ARG_MAP_TYPE_ANY_1_2,
+      {{ARG_KIND_EXPR_MAP_ANY_1_2,
         {input_map_argument_type,
          FunctionArgumentType::Lambda(
-             {ARG_TYPE_ANY_1, ARG_TYPE_ANY_2}, type_factory->get_bool(),
+             {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_2},
+             type_factory->get_bool(),
              FunctionArgumentTypeOptions().set_argument_name("condition",
                                                              kPositionalOnly))},
         FN_MAP_FILTER,

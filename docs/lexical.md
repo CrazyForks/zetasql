@@ -593,7 +593,12 @@ Examples:
 -123
 ```
 
-An integer literal is interpreted as an `INT64`.
+In the absence of other context, an integer literal can take either type
+`INT64` or `UINT64`. The type is determined by the
+integer value. Values in the range of `-2^63` to `(2^63)-1` are `INT64`.
+Values in the range `2^63` to `2^64-1` are `UINT64`. If the value
+is outside the range of both `INT64` and
+`UINT64`, an error is produced.
 
 Coercion (implicit casting) of integer literals to other integer types can occur
 if casting doesn't result in truncation. For example, if the integer 55 of type
@@ -1233,6 +1238,11 @@ GoogleSQL follows these rules for case sensitivity:
     </tr>
     <tr>
       <td>Field names</td>
+      <td>No</td>
+      <td>&nbsp;</td>
+    </tr>
+    <tr>
+      <td>Constant variables</td>
       <td>No</td>
       <td>&nbsp;</td>
     </tr>

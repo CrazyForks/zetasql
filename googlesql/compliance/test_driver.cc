@@ -83,7 +83,6 @@ absl::Status SerializeTestDatabase(const TestDatabase& database,
       t->mutable_row_identity_column_indices()->Add(row_identity_column_index);
     }
     const TestTableOptions& options = table.options;
-
     TestTableOptionsProto* options_proto = t->mutable_options();
     options_proto->set_expected_table_size_min(
         options.expected_table_size_min());
@@ -108,6 +107,9 @@ absl::Status SerializeTestDatabase(const TestDatabase& database,
           GOOGLESQL_RETURN_IF_ERROR(empty_annotation->Serialize(proto));
         }
       }
+    }
+    for (bool is_pseudo : options.pseudo_columns()) {
+      options_proto->add_pseudo_columns(is_pseudo);
     }
   }
 
@@ -287,6 +289,26 @@ absl::StatusOr<TestDatabase> DeserializeTestDatabase(
                        type_factory->TakeOwnership(std::move(annotation_map)));
     }
     table.options.set_column_annotations(std::move(column_annotations));
+    std::vector<bool> pseudo_columns(
+        table_proto.options().pseudo_columns().begin(),
+        table_proto.options().pseudo_columns().end());
+    table.options.set_pseudo_columns(std::move(pseudo_columns));
+
+    if (!table.options.is_value_table()) {
+      GOOGLESQL_RET_CHECK(contents_type->IsArray());
+      const Type* element_type = contents_type->AsArray()->element_type();
+      GOOGLESQL_RET_CHECK(element_type->IsStruct());
+      int num_fields = element_type->AsStruct()->num_fields();
+      if (!table.options.column_annotations().empty()) {
+        GOOGLESQL_RET_CHECK_EQ(table.options.column_annotations().size(), num_fields)
+            << "column_annotations size mismatch for table "
+            << table_proto.name();
+      }
+      if (!table.options.pseudo_columns().empty()) {
+        GOOGLESQL_RET_CHECK_EQ(table.options.pseudo_columns().size(), num_fields)
+            << "pseudo_columns size mismatch for table " << table_proto.name();
+      }
+    }
   }
 
   for (const TestTVFProto& tvf : proto.tvfs()) {

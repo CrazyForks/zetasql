@@ -42,7 +42,7 @@ from googlesql.parser.generator_utils import UpperCamelCase
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 578
+NEXT_NODE_TAG_ID = 580
 
 
 def GetTempTagId():
@@ -3892,6 +3892,42 @@ def main(argv):
   )
 
   gen.AddNode(
+      name='ASTFunctionRefArg',
+      tag_id=579,
+      parent='ASTExpression',
+      comment="""
+    This represents a clause of form "FUNCTION <target>", where <target> is a
+    function name path.
+      """,
+      fields=[
+          Field(
+              'function_path',
+              'ASTPathExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTModelArg',
+      tag_id=578,
+      parent='ASTExpression',
+      comment="""
+    This represents a clause of form "MODEL <target>", where <target> is a
+    model name.
+      """,
+      fields=[
+          Field(
+              'model_path',
+              'ASTPathExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+      ],
+  )
+
+  gen.AddNode(
       name='ASTNamedArgument',
       tag_id=72,
       parent='ASTExpression',
@@ -3908,7 +3944,8 @@ def main(argv):
               field_loader=FieldLoaderMethod.REQUIRED,
               private_comment="""
               Required, never NULL.
-              """),
+              """,
+          ),
           Field(
               'expr',
               'ASTExpression',
@@ -3916,8 +3953,10 @@ def main(argv):
               field_loader=FieldLoaderMethod.REQUIRED,
               private_comment="""
               Required, never NULL.
-              """),
-      ])
+              """,
+          ),
+      ],
+  )
 
   gen.AddNode(
       name='ASTInputTableArgument',

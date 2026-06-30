@@ -856,11 +856,6 @@ absl::StatusOr<std::unique_ptr<const ResolvedNode>>
 RowTypeRewriterVisitor::PostVisitResolvedTVFScan(
     std::unique_ptr<const ResolvedTVFScan> node) {
   bool need_rewrite = false;
-  // TODO: b/452955184 - Relax this check and/or apply an additional
-  // transformation to support TVFs returning a ROW with a MEASURE.
-  GOOGLESQL_RET_CHECK_EQ(node->signature()->result_table_schema(), nullptr)
-      << "Row type rewriter does not support TVFSignature with result table "
-         "schema";
   // Unreferenced columns may be pruned from the column list, so look at the
   // result schema to see if any ROW types need to be rewritten.
   for (const TVFSchemaColumn& column :

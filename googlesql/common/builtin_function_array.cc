@@ -110,8 +110,9 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
       FunctionArgumentType::REPEATED;
 
   // ARRAY_LENGTH(expr1): returns the length of the array
-  InsertSimpleFunction(functions, options, "array_length", SCALAR,
-                       {{int64_type, {ARG_ARRAY_TYPE_ANY_1}, FN_ARRAY_LENGTH}});
+  InsertSimpleFunction(
+      functions, options, "array_length", SCALAR,
+      {{int64_type, {ARG_KIND_EXPR_ARRAY_ANY_1}, FN_ARRAY_LENGTH}});
 
   // This function is only used during internal resolution and will never
   // appear in a resolved AST. Instead a ResolvedFlatten node will be
@@ -121,8 +122,8 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
   // Flatten later.
   InsertFunction(
       functions, options, "flatten", SCALAR,
-      {{ARG_ARRAY_TYPE_ANY_1,
-        {{ARG_ARRAY_TYPE_ANY_1},
+      {{ARG_KIND_EXPR_ARRAY_ANY_1,
+        {{ARG_KIND_EXPR_ARRAY_ANY_1},
          {int64_type,
           FunctionArgumentTypeOptions(FunctionArgumentType::OPTIONAL)
               .set_default(Value::NullInt64())
@@ -141,9 +142,9 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
   //   element type.
   InsertFunction(
       functions, options, "$make_array", SCALAR,
-      {{{ARG_ARRAY_TYPE_ANY_1,
+      {{{ARG_KIND_EXPR_ARRAY_ANY_1,
          FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
-        {{ARG_TYPE_ANY_1, REPEATED}},
+        {{ARG_KIND_EXPR_ANY_1, REPEATED}},
         FN_MAKE_ARRAY}},
       FunctionOptions()
           .set_supports_safe_error_mode(false)
@@ -154,8 +155,8 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
   // arrays.
   InsertSimpleFunction(
       functions, options, "array_concat", SCALAR,
-      {{ARG_ARRAY_TYPE_ANY_1,
-        {ARG_ARRAY_TYPE_ANY_1, {ARG_ARRAY_TYPE_ANY_1, REPEATED}},
+      {{ARG_KIND_EXPR_ARRAY_ANY_1,
+        {ARG_KIND_EXPR_ARRAY_ANY_1, {ARG_KIND_EXPR_ARRAY_ANY_1, REPEATED}},
         FN_ARRAY_CONCAT}},
       FunctionOptions().set_pre_resolution_argument_constraint(
           &CheckArrayConcatArguments));
@@ -174,14 +175,15 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
         FN_ARRAY_TO_BYTES}});
 
   // ARRAY_REVERSE: returns the input array with its elements in reverse order.
-  InsertSimpleFunction(
-      functions, options, "array_reverse", SCALAR,
-      {{ARG_ARRAY_TYPE_ANY_1, {ARG_ARRAY_TYPE_ANY_1}, FN_ARRAY_REVERSE}});
+  InsertSimpleFunction(functions, options, "array_reverse", SCALAR,
+                       {{ARG_KIND_EXPR_ARRAY_ANY_1,
+                         {ARG_KIND_EXPR_ARRAY_ANY_1},
+                         FN_ARRAY_REVERSE}});
 
   // ARRAY_IS_DISTINCT: returns true if the array has no duplicate entries.
   InsertSimpleFunction(
       functions, options, "array_is_distinct", SCALAR,
-      {{bool_type, {ARG_ARRAY_TYPE_ANY_1}, FN_ARRAY_IS_DISTINCT}},
+      {{bool_type, {ARG_KIND_EXPR_ARRAY_ANY_1}, FN_ARRAY_IS_DISTINCT}},
       FunctionOptions().set_pre_resolution_argument_constraint(
           &CheckArrayIsDistinctArguments));
 
@@ -203,11 +205,11 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
   )sql";
   InsertFunction(
       functions, options, "array_distinct", SCALAR,
-      {{FunctionArgumentType(ARG_ARRAY_TYPE_ANY_1,
+      {{FunctionArgumentType(ARG_KIND_EXPR_ARRAY_ANY_1,
                              FunctionArgumentTypeOptions()
                                  .set_uses_array_element_for_collation()),
         {FunctionArgumentType(
-            ARG_ARRAY_TYPE_ANY_1,
+            ARG_KIND_EXPR_ARRAY_ANY_1,
             FunctionArgumentTypeOptions()
                 .set_uses_array_element_for_collation()
                 .set_array_element_must_support_grouping()
@@ -286,7 +288,7 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
                                "GENERATE_TIMESTAMP_ARRAY")));
 
   FunctionArgumentType array_input_for_collation(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_uses_array_element_for_collation()
           .set_argument_name("input_array", kPositionalOnly));
@@ -301,7 +303,7 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
         END
     )sql";
   InsertFunction(functions, options, "array_first", SCALAR,
-                 {{ARG_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ANY_1,
                    {array_input_for_collation},
                    FN_ARRAY_FIRST,
                    SetDefinitionForInlining(kArrayFirstSql)}});
@@ -317,7 +319,7 @@ void GetArrayMiscFunctions(TypeFactory* type_factory,
     )sql";
   InsertFunction(functions, options, "array_last", SCALAR,
                  /*signatures=*/
-                 {{ARG_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ANY_1,
                    {array_input_for_collation},
                    FN_ARRAY_LAST,
                    SetDefinitionForInlining(kArrayLastSql)}});
@@ -427,7 +429,7 @@ void GetArrayAggregationFunctions(
   if (!options.language_options.LanguageFeatureEnabled(
           FEATURE_DISABLE_ARRAY_MIN_AND_MAX)) {
     FunctionArgumentType array_min_max_arg(
-        ARG_ARRAY_TYPE_ANY_1,
+        ARG_KIND_EXPR_ARRAY_ANY_1,
         FunctionArgumentTypeOptions()
             .set_uses_array_element_for_collation()
             .set_array_element_must_support_ordering()
@@ -445,7 +447,7 @@ void GetArrayAggregationFunctions(
           ))
       )sql";
     InsertFunction(functions, options, "array_min", SCALAR,
-                   {{ARG_TYPE_ANY_1,
+                   {{ARG_KIND_EXPR_ANY_1,
                      {array_min_max_arg},
                      FN_ARRAY_MIN,
                      SetDefinitionForInlining(kArrayMinSql)
@@ -481,7 +483,7 @@ void GetArrayAggregationFunctions(
                                     FN_ARRAY_MAX_FLOAT, kArrayMaxFPSql),
           UnaryArrayFuncConcreteSig(double_type, double_array_type,
                                     FN_ARRAY_MAX_DOUBLE, kArrayMaxFPSql),
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           {array_min_max_arg},
           FN_ARRAY_MAX,
           SetDefinitionForInlining(kArrayMaxSql)
@@ -493,8 +495,9 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
                               const GoogleSQLBuiltinFunctionOptions& options,
                               NameToFunctionMap* functions) {
   FunctionArgumentType array_to_slice_arg(
-      ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                "array_to_slice", kPositionalOnly));
+      ARG_KIND_EXPR_ARRAY_ANY_1,
+      FunctionArgumentTypeOptions().set_argument_name("array_to_slice",
+                                                      kPositionalOnly));
   FunctionArgumentType start_offset_arg(
       type_factory->get_int64(),
       FunctionArgumentTypeOptions().set_argument_name("start_offset",
@@ -534,14 +537,15 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
         END
     )sql";
   InsertFunction(functions, options, "array_slice", Function::SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ARRAY_ANY_1,
                    {array_to_slice_arg, start_offset_arg, end_offset_arg},
                    FN_ARRAY_SLICE,
                    SetDefinitionForInlining(kArraySliceSql)}});
 
   FunctionArgumentType input_array_arg(
-      ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                "input_array", kPositionalOnly));
+      ARG_KIND_EXPR_ARRAY_ANY_1,
+      FunctionArgumentTypeOptions().set_argument_name("input_array",
+                                                      kPositionalOnly));
   FunctionArgumentType n_arg(
       type_factory->get_int64(),
       FunctionArgumentTypeOptions().set_argument_name("n", kPositionalOnly));
@@ -563,7 +567,7 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
       END
     )sql";
   InsertFunction(functions, options, "array_first_n", Function::SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ARRAY_ANY_1,
                    {input_array_arg, n_arg},
                    FN_ARRAY_FIRST_N,
                    SetDefinitionForInlining(kArrayFirstNSql, true)
@@ -588,7 +592,7 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
       END
     )sql";
   InsertFunction(functions, options, "array_last_n", Function::SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ARRAY_ANY_1,
                    {input_array_arg, n_arg},
                    FN_ARRAY_LAST_N,
                    SetDefinitionForInlining(kArrayLastNSql, true)
@@ -611,7 +615,7 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
       END
     )sql";
   InsertFunction(functions, options, "array_remove_first_n", Function::SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ARRAY_ANY_1,
                    {input_array_arg, n_arg},
                    FN_ARRAY_REMOVE_FIRST_N,
                    SetDefinitionForInlining(kArrayRemoveFirstNSql, true)
@@ -637,7 +641,7 @@ void GetArraySlicingFunctions(TypeFactory* type_factory,
       END
     )sql";
   InsertFunction(functions, options, "array_remove_last_n", Function::SCALAR,
-                 {{ARG_ARRAY_TYPE_ANY_1,
+                 {{ARG_KIND_EXPR_ARRAY_ANY_1,
                    {input_array_arg, n_arg},
                    FN_ARRAY_REMOVE_LAST_N,
                    SetDefinitionForInlining(kArrayRemoveLastNSql, true)
@@ -651,23 +655,23 @@ absl::Status GetArrayFindFunctions(
 
   // TODO: implement the behavior below for all lambda signatures
   // in the ARRAY_FIND family.
-  // If there is collation attached to ARG_ARRAY_TYPE_ANY_1, the collation is
-  // always attached to lambda argument ARG_TYPE_ANY_1 and used during the
-  // resolution of the body of the lambda function.
+  // If there is collation attached to ARG_KIND_EXPR_ARRAY_ANY_1, the
+  // collation is always attached to lambda argument ARG_KIND_EXPR_ANY_1
+  // and used during the resolution of the body of the lambda function.
 
   FunctionArgumentType input_array_arg(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_array_element_must_support_equality()
           .set_uses_array_element_for_collation()
           .set_argument_name("input_array", kPositionalOnly));
   FunctionArgumentType input_array_arg_for_lambda_sig(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_uses_array_element_for_collation()
           .set_argument_name("input_array", kPositionalOnly));
   FunctionArgumentType target_element_arg(
-      ARG_TYPE_ANY_1,
+      ARG_KIND_EXPR_ANY_1,
       FunctionArgumentTypeOptions()
           .set_must_support_equality()
           .set_argument_name("target_element", kPositionalOnly));
@@ -678,7 +682,7 @@ absl::Status GetArrayFindFunctions(
           .set_default(Value::Enum(array_find_mode_type->AsEnum(), 1))
           .set_argument_name("find_mode", kPositionalOnly));
   FunctionArgumentType lambda_arg = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1}, type_factory->get_bool(),
+      {ARG_KIND_EXPR_ANY_1}, type_factory->get_bool(),
       FunctionArgumentTypeOptions().set_argument_name("condition",
                                                       kPositionalOnly));
 
@@ -848,11 +852,11 @@ absl::Status GetArrayFindFunctions(
     )sql";
   GOOGLESQL_RETURN_IF_ERROR(InsertFunctionAndTypes(
       functions, types, options, "array_find", Function::SCALAR,
-      {{ARG_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
         {input_array_arg, target_element_arg, find_mode_arg},
         FN_ARRAY_FIND,
         SetDefinitionForInlining(kArrayFindSql).set_uses_operation_collation()},
-       {ARG_TYPE_ANY_1,
+       {ARG_KIND_EXPR_ANY_1,
         {input_array_arg_for_lambda_sig, lambda_arg, find_mode_arg},
         FN_ARRAY_FIND_LAMBDA,
         SetDefinitionForInlining(kArrayFindLambdaSql)
@@ -886,13 +890,13 @@ absl::Status GetArrayFindFunctions(
     )sql";
   InsertFunction(
       functions, options, "array_find_all", Function::SCALAR,
-      {{{ARG_ARRAY_TYPE_ANY_1,
+      {{{ARG_KIND_EXPR_ARRAY_ANY_1,
          FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
         {input_array_arg, target_element_arg},
         FN_ARRAY_FIND_ALL,
         SetDefinitionForInlining(kArrayFindAllSql)
             .set_uses_operation_collation()},
-       {{ARG_ARRAY_TYPE_ANY_1,
+       {{ARG_KIND_EXPR_ARRAY_ANY_1,
          FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
         {input_array_arg_for_lambda_sig, lambda_arg},
         FN_ARRAY_FIND_ALL_LAMBDA,
@@ -911,23 +915,25 @@ void GetArrayFilteringFunctions(TypeFactory* type_factory,
                                 const GoogleSQLBuiltinFunctionOptions& options,
                                 NameToFunctionMap* functions) {
   FunctionArgumentType input_array_arg(
-      ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                "array_to_filter", kPositionalOnly));
-  FunctionArgumentType output_array(ARG_ARRAY_TYPE_ANY_1);
+      ARG_KIND_EXPR_ARRAY_ANY_1,
+      FunctionArgumentTypeOptions().set_argument_name("array_to_filter",
+                                                      kPositionalOnly));
+  FunctionArgumentType output_array(ARG_KIND_EXPR_ARRAY_ANY_1);
   FunctionArgumentType filter_function_arg = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1}, type_factory->get_bool(),
+      {ARG_KIND_EXPR_ANY_1}, type_factory->get_bool(),
       FunctionArgumentTypeOptions().set_argument_name("condition",
                                                       kPositionalOnly));
   FunctionArgumentType filter_function_arg_with_offset =
       FunctionArgumentType::Lambda(
-          {ARG_TYPE_ANY_1, type_factory->get_int64()}, type_factory->get_bool(),
+          {ARG_KIND_EXPR_ANY_1, type_factory->get_int64()},
+          type_factory->get_bool(),
           FunctionArgumentTypeOptions().set_argument_name("condition",
                                                           kPositionalOnly));
 
   // TODO: implement the behavior below
-  // If there is collation attached to ARG_ARRAY_TYPE_ANY_1, the collation is
-  // always attached to lambda argument ARG_TYPE_ANY_1 and used during the
-  // resolution of the body of the lambda function.
+  // If there is collation attached to ARG_KIND_EXPR_ARRAY_ANY_1, the
+  // collation is always attached to lambda argument ARG_KIND_EXPR_ANY_1
+  // and used during the resolution of the body of the lambda function.
 
   constexpr absl::string_view kArrayFilterSql = R"sql(
       IF (array_to_filter IS NULL,
@@ -975,20 +981,20 @@ void GetArrayTransformFunctions(TypeFactory* type_factory,
                                 const GoogleSQLBuiltinFunctionOptions& options,
                                 NameToFunctionMap* functions) {
   FunctionArgumentType input_array_arg(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_argument_name("array_to_transform", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE));
   FunctionArgumentType output_array(
-      ARG_ARRAY_TYPE_ANY_2,
+      ARG_KIND_EXPR_ARRAY_ANY_2,
       FunctionArgumentTypeOptions().set_uses_array_element_for_collation());
   FunctionArgumentType transform_function_arg = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1}, ARG_TYPE_ANY_2,
+      {ARG_KIND_EXPR_ANY_1}, ARG_KIND_EXPR_ANY_2,
       FunctionArgumentTypeOptions().set_argument_name("transformation",
                                                       kPositionalOnly));
   FunctionArgumentType transform_function_arg_with_offset =
       FunctionArgumentType::Lambda(
-          {ARG_TYPE_ANY_1, type_factory->get_int64()}, ARG_TYPE_ANY_2,
+          {ARG_KIND_EXPR_ANY_1, type_factory->get_int64()}, ARG_KIND_EXPR_ANY_2,
           FunctionArgumentTypeOptions().set_argument_name("transformation",
                                                           kPositionalOnly));
 
@@ -1025,11 +1031,11 @@ void GetArrayTransformFunctions(TypeFactory* type_factory,
   // return type.
   // TODO: implement the behavior in 2)
   // 2) the lambda resolution is not affected by the collation_mode setting. If
-  // there is collation attached to ARG_ARRAY_TYPE_ANY_1, the collation is
-  // always attached to lambda argument ARG_TYPE_ANY_1 and used during the
-  // resolution of the body of the lambda function.
-  // 3) the collation of return type ARRAY_TYPE_ANY_2 is decided by lambda
-  // return type TYPE_ANY_2.
+  // there is collation attached to ARG_KIND_EXPR_ARRAY_ANY_1, the
+  // collation is always attached to lambda argument ARG_KIND_EXPR_ANY_1
+  // and used during the resolution of the body of the lambda function. 3) the
+  // collation of return type ARRAY_TYPE_ANY_2 is decided by lambda return type
+  // TYPE_ANY_2.
   InsertFunction(
       functions, options, "array_transform", Function::SCALAR,
       {{output_array,
@@ -1053,25 +1059,26 @@ void GetArrayIncludesFunctions(TypeFactory* type_factory,
                                NameToFunctionMap* functions) {
   const Type* bool_type = type_factory->get_bool();
   FunctionArgumentType array_to_search_arg(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_array_element_must_support_equality()
           .set_uses_array_element_for_collation(true)
           .set_argument_name("array_to_search", kPositionalOnly));
   FunctionArgumentType array_to_search_arg_2(
-      ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                                "array_to_search", kPositionalOnly));
+      ARG_KIND_EXPR_ARRAY_ANY_1,
+      FunctionArgumentTypeOptions().set_argument_name("array_to_search",
+                                                      kPositionalOnly));
   FunctionArgumentType search_value_arg(
-      ARG_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                          "search_value", kPositionalOnly));
+      ARG_KIND_EXPR_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
+                               "search_value", kPositionalOnly));
   FunctionArgumentType search_values_arg(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_array_element_must_support_equality()
           .set_uses_array_element_for_collation(true)
           .set_argument_name("search_values", kPositionalOnly));
   FunctionArgumentType array_include_lambda_arg = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1}, type_factory->get_bool(),
+      {ARG_KIND_EXPR_ANY_1}, type_factory->get_bool(),
       FunctionArgumentTypeOptions().set_argument_name("condition",
                                                       kPositionalOnly));
 
@@ -1113,9 +1120,9 @@ void GetArrayIncludesFunctions(TypeFactory* type_factory,
       )sql";
 
   // TODO: implement the behavior below
-  // If there is collation attached to ARG_ARRAY_TYPE_ANY_1, the collation is
-  // always attached to lambda argument ARG_TYPE_ANY_1 and used during the
-  // resolution of the body of the lambda function.
+  // If there is collation attached to ARG_KIND_EXPR_ARRAY_ANY_1, the
+  // collation is always attached to lambda argument ARG_KIND_EXPR_ANY_1
+  // and used during the resolution of the body of the lambda function.
   InsertFunction(
       functions, options, "array_includes", Function::SCALAR,
       {{bool_type,
@@ -1307,13 +1314,13 @@ static void AddArrayZipNoLambdaSignatures(
   // The result annotations are calculated by the custom annotation callback, so
   // all array arguments should have `argument_collation_mode` = AFFECTS_NONE.
   FunctionArgumentType input_array_1(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_1", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE)
           .set_argument_alias_kind(FunctionEnums::ARGUMENT_ALIASED));
   FunctionArgumentType input_array_2(
-      ARG_ARRAY_TYPE_ANY_2,
+      ARG_KIND_EXPR_ARRAY_ANY_2,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_2", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE)
@@ -1321,7 +1328,7 @@ static void AddArrayZipNoLambdaSignatures(
 
   // The concrete return type will be determined by the
   // `ComputeArrayZipOutputType` function during function resolution.
-  FunctionArgumentType output_array(ARG_TYPE_ARBITRARY);
+  FunctionArgumentType output_array(ARG_KIND_EXPR_ARBITRARY);
 
   // 2-array: ARRAY_ZIP(arr1, arr2[, mode])
   constexpr absl::string_view kTwoArray = R"sql(
@@ -1372,7 +1379,7 @@ static void AddArrayZipNoLambdaSignatures(
 
   // 3-array: ARRAY_ZIP(arr1, arr2, arr3[, mode])
   FunctionArgumentType input_array_3(
-      ARG_ARRAY_TYPE_ANY_3,
+      ARG_KIND_EXPR_ARRAY_ANY_3,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_3", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE)
@@ -1434,7 +1441,7 @@ static void AddArrayZipNoLambdaSignatures(
 
   // 4-array: ARRAY_ZIP(arr1, arr2, arr3, arr4[, mode])
   FunctionArgumentType input_array_4(
-      ARG_ARRAY_TYPE_ANY_4,
+      ARG_KIND_EXPR_ARRAY_ANY_4,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_4", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE)
@@ -1531,18 +1538,18 @@ static void AddArrayZipModeLambdaSignatures(
   //
   // due to `Collation conflict: "binary" vs. "und:ci"`.
   FunctionArgumentType input_array_1(
-      ARG_ARRAY_TYPE_ANY_1,
+      ARG_KIND_EXPR_ARRAY_ANY_1,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_1", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE));
   FunctionArgumentType input_array_2(
-      ARG_ARRAY_TYPE_ANY_2,
+      ARG_KIND_EXPR_ARRAY_ANY_2,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_2", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE));
 
   FunctionArgumentType two_array_transformation = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1, ARG_TYPE_ANY_2}, ARG_TYPE_ANY_3,
+      {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_2}, ARG_KIND_EXPR_ANY_3,
       FunctionArgumentTypeOptions().set_argument_name("transformation",
                                                       kPositionalOrNamed));
 
@@ -1588,7 +1595,7 @@ static void AddArrayZipModeLambdaSignatures(
       )sql";
   signatures.push_back(FunctionSignatureOnHeap(
       FunctionArgumentType(
-          ARG_ARRAY_TYPE_ANY_3,
+          ARG_KIND_EXPR_ARRAY_ANY_3,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()),
       {input_array_1, input_array_2, two_array_transformation,
        array_zip_mode_arg},
@@ -1598,14 +1605,15 @@ static void AddArrayZipModeLambdaSignatures(
           IsRewriteEnabled(FN_ARRAY_ZIP_TWO_ARRAY_LAMBDA, options))));
 
   FunctionArgumentType input_array_3(
-      ARG_ARRAY_TYPE_ANY_3,
+      ARG_KIND_EXPR_ARRAY_ANY_3,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_3", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE));
 
   FunctionArgumentType three_array_transformation =
       FunctionArgumentType::Lambda(
-          {ARG_TYPE_ANY_1, ARG_TYPE_ANY_2, ARG_TYPE_ANY_3}, ARG_TYPE_ANY_4,
+          {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_2, ARG_KIND_EXPR_ANY_3},
+          ARG_KIND_EXPR_ANY_4,
           FunctionArgumentTypeOptions().set_argument_name("transformation",
                                                           kPositionalOrNamed));
 
@@ -1659,7 +1667,7 @@ static void AddArrayZipModeLambdaSignatures(
       )sql";
   signatures.push_back(FunctionSignatureOnHeap(
       FunctionArgumentType(
-          ARG_ARRAY_TYPE_ANY_4,
+          ARG_KIND_EXPR_ARRAY_ANY_4,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()),
       {input_array_1, input_array_2, input_array_3, three_array_transformation,
        array_zip_mode_arg},
@@ -1669,13 +1677,14 @@ static void AddArrayZipModeLambdaSignatures(
           IsRewriteEnabled(FN_ARRAY_ZIP_THREE_ARRAY_LAMBDA, options))));
 
   FunctionArgumentType input_array_4(
-      ARG_ARRAY_TYPE_ANY_4,
+      ARG_KIND_EXPR_ARRAY_ANY_4,
       FunctionArgumentTypeOptions()
           .set_argument_name("input_array_4", kPositionalOnly)
           .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE));
   FunctionArgumentType four_array_transformation = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_1, ARG_TYPE_ANY_2, ARG_TYPE_ANY_3, ARG_TYPE_ANY_4},
-      ARG_TYPE_ANY_5,
+      {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_2, ARG_KIND_EXPR_ANY_3,
+       ARG_KIND_EXPR_ANY_4},
+      ARG_KIND_EXPR_ANY_5,
       FunctionArgumentTypeOptions().set_argument_name("transformation",
                                                       kPositionalOrNamed));
 
@@ -1736,7 +1745,7 @@ static void AddArrayZipModeLambdaSignatures(
       )sql";
   signatures.push_back(FunctionSignatureOnHeap(
       FunctionArgumentType(
-          ARG_ARRAY_TYPE_ANY_5,
+          ARG_KIND_EXPR_ARRAY_ANY_5,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()),
       {input_array_1, input_array_2, input_array_3, input_array_4,
        four_array_transformation, array_zip_mode_arg},

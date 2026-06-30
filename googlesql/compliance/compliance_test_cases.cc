@@ -431,6 +431,13 @@ void CodebasedTestsEnvironment::SetUp() {
                               {{1ll, "foo"}, {2ll, "bar"}}, kIgnoresOrder);
   test_db.tables.emplace("MyTable", TestTable{mytable});
 
+  Value table_with_pseudo = StructArray(
+      {"primary_key", "val", "pseudo_val"},
+      {{1ll, "foo", "pseudo1"}, {2ll, "bar", "pseudo2"}}, kIgnoresOrder);
+  TestTable t_pseudo{table_with_pseudo};
+  t_pseudo.options.set_pseudo_columns({false, false, true});
+  test_db.tables.emplace("TableWithPseudoColumn", t_pseudo);
+
   test_db.tables.emplace(
       "T", TestTable{StructArray({"x", "y"}, {{1ll, "foo"}, {2ll, "bar"}})});
 
@@ -3650,6 +3657,26 @@ TEST_F(ComplianceCodebasedTests, IntegerRoundtrip) {
                 unnest(split(cast(@p0 as string), "")) d WITH OFFSET o
                 order by o desc)) d with offset o)
       )");
+}
+
+TEST_F(ComplianceCodebasedTests, TestPseudoColumn) {
+  if (!DriverCanRunTests()) {
+    return;
+  }
+  auto label = MakeScopedLabel("code:TestPseudoColumn");
+
+  // Verify SELECT * doesn't return pseudo_val
+  SetNamePrefix("TestPseudoColumnSelectAll");
+  EXPECT_THAT(
+      RunSQL("SELECT * FROM TableWithPseudoColumn"),
+      Returns(StructArray({"primary_key", "val"}, {{1ll, "foo"}, {2ll, "bar"}},
+                          kIgnoresOrder)));
+
+  // Verify we can select pseudo_val explicitly
+  SetNamePrefix("TestPseudoColumnSelectPseudo");
+  EXPECT_THAT(RunSQL("SELECT pseudo_val FROM TableWithPseudoColumn"),
+              Returns(StructArray({"pseudo_val"}, {{"pseudo1"}, {"pseudo2"}},
+                                  kIgnoresOrder)));
 }
 
 class ComplianceFilebasedTests : public SQLTestBase {

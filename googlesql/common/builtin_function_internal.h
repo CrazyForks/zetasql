@@ -95,7 +95,7 @@ struct FunctionArgumentTypeProxy {
       : type(type) {}
 
   const Type* type = nullptr;
-  SignatureArgumentKind kind = ARG_TYPE_FIXED;
+  SignatureArgumentKind kind = ARG_KIND_EXPR_FIXED;
   FunctionArgumentType::ArgumentCardinality cardinality =
       FunctionEnums::REQUIRED;
 
@@ -143,6 +143,17 @@ using NameToFunctionMap =
 using NameToTypeMap = absl::flat_hash_map<std::string, const Type*>;
 using NameToTableValuedFunctionMap =
     absl::flat_hash_map<std::string, std::unique_ptr<TableValuedFunction>>;
+
+inline constexpr absl::string_view kVectorTypeName = "VECTOR";
+
+// Adds VECTOR-related required options to the provided
+// FunctionSignatureOptions. It intentionally takes an r-value because it
+// creates a copy of the options.
+inline FunctionSignatureOptions AddVectorTypeRequiredOptions(
+    FunctionSignatureOptions&& options) {
+  options.AddRequiredLanguageFeature(FEATURE_VECTOR_TYPE);
+  return std::move(options);
+}
 
 bool ArgumentsAreComparable(absl::Span<const InputArgumentType> arguments,
                             const LanguageOptions& language_options,
@@ -196,7 +207,7 @@ std::string AnonAvgWithReportJsonFunctionSQL(
     absl::Span<const std::string> inputs);
 
 std::string AnonAvgWithReportProtoFunctionSQL(
-    const std::vector<std::string>& inputs);
+    absl::Span<const std::string> inputs);
 
 std::string AnonCountWithReportJsonFunctionSQL(
     absl::Span<const std::string> inputs);
@@ -220,13 +231,13 @@ std::string CaseWithValueFunctionSQL(absl::Span<const std::string> inputs);
 
 std::string CaseNoValueFunctionSQL(absl::Span<const std::string> inputs);
 
-std::string ArrayAtOffsetFunctionSQL(const std::vector<std::string>& inputs);
+std::string ArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs);
 
 std::string ArrayAtOrdinalFunctionSQL(const std::vector<std::string>& inputs);
 
 std::string SafeArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs);
 
-std::string SubscriptFunctionSQL(const std::vector<std::string>& inputs);
+std::string SubscriptFunctionSQL(absl::Span<const std::string> inputs);
 std::string SubscriptWithKeyFunctionSQL(bool safe,
                                         absl::Span<const std::string> inputs);
 std::string SubscriptWithOffsetFunctionSQL(
@@ -234,10 +245,9 @@ std::string SubscriptWithOffsetFunctionSQL(
 std::string SubscriptWithOrdinalFunctionSQL(
     bool safe, absl::Span<const std::string> inputs);
 
-std::string SafeArrayAtOrdinalFunctionSQL(
-    const std::vector<std::string>& inputs);
+std::string SafeArrayAtOrdinalFunctionSQL(absl::Span<const std::string> inputs);
 
-std::string ProtoMapAtKeySQL(const std::vector<std::string>& inputs);
+std::string ProtoMapAtKeySQL(absl::Span<const std::string> inputs);
 
 std::string SafeProtoMapAtKeySQL(absl::Span<const std::string> inputs);
 
@@ -262,7 +272,7 @@ absl::Status CheckBitwiseOperatorArgumentsHaveSameType(
 
 absl::Status CheckBitwiseOperatorFirstArgumentIsIntegerOrBytes(
     absl::string_view operator_string,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckDateDatetimeTimeTimestampTruncArguments(
@@ -271,8 +281,8 @@ absl::Status CheckDateDatetimeTimeTimestampTruncArguments(
     const LanguageOptions& language_options);
 
 absl::Status CheckLastDayArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::string_view function_name,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckExtractPreResolutionArguments(
@@ -286,12 +296,12 @@ absl::Status CheckExtractPostResolutionArguments(
 
 absl::Status CheckDateDatetimeTimestampAddSubArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckDateDatetimeTimeTimestampDiffArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::string_view function_name,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 // This function returns a GoogleSQL ProtoType for
@@ -305,7 +315,7 @@ absl::StatusOr<const Type*> GetOrMakeEnumValueDescriptorType(
 
 absl::Status CheckTimeAddSubArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckGenerateDateArrayArguments(
@@ -339,13 +349,13 @@ std::string NoMatchingSignatureForCaseNoValueFunction(
     absl::Span<const InputArgumentType> arguments, ProductMode product_mode);
 
 std::string NoMatchingSignatureForFunctionUsingInterval(
-    const std::string& qualified_function_name,
+    absl::string_view qualified_function_name,
     absl::Span<const InputArgumentType> arguments, ProductMode product_mode,
     int index_of_interval_argument);
 
 std::string NoMatchingSignatureForDateOrTimeAddOrSubFunction(
     const std::string& qualified_function_name,
-    const std::vector<InputArgumentType>& arguments, ProductMode product_mode);
+    absl::Span<const InputArgumentType> arguments, ProductMode product_mode);
 
 std::string NoMatchingSignatureForGenerateDateOrTimestampArrayFunction(
     const std::string& qualified_function_name,
@@ -362,7 +372,7 @@ absl::Status CheckArgumentsSupportEquality(
 
 absl::Status CheckArgumentsSupportGrouping(
     absl::string_view comparison_name, const FunctionSignature& signature,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckArgumentsSupportComparison(
@@ -443,7 +453,7 @@ std::string CheckHasBigNumericTypeArgument(
 // Checks if at least one input argument has INTERVAL type.
 std::string CheckHasIntervalTypeArgument(
     const FunctionSignature& matched_signature,
-    const std::vector<InputArgumentType>& arguments);
+    absl::Span<const InputArgumentType> arguments);
 
 // Returns true if FN_CONCAT_STRING function can coerce argument of given type
 // to STRING.
@@ -651,7 +661,8 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
 
 absl::Status GetDistanceFunctions(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
-    NameToFunctionMap* functions, BuiltinsOutputProperties& output_properties);
+    NameToFunctionMap* functions, NameToTypeMap* types,
+    BuiltinsOutputProperties& output_properties);
 
 void GetArrayMiscFunctions(TypeFactory* type_factory,
                            const GoogleSQLBuiltinFunctionOptions& options,
@@ -748,9 +759,9 @@ void GetCompressionFunctions(TypeFactory* type_factory,
                              const GoogleSQLBuiltinFunctionOptions& options,
                              NameToFunctionMap* functions);
 
-void GetAnonFunctions(TypeFactory* type_factory,
-                      const GoogleSQLBuiltinFunctionOptions& options,
-                      NameToFunctionMap* functions);
+absl::Status GetAnonFunctions(TypeFactory* type_factory,
+                              const GoogleSQLBuiltinFunctionOptions& options,
+                              NameToFunctionMap* functions);
 
 absl::Status GetDifferentialPrivacyFunctions(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
@@ -764,9 +775,9 @@ void GetFilterFieldsFunction(TypeFactory* type_factory,
                              const GoogleSQLBuiltinFunctionOptions& options,
                              NameToFunctionMap* functions);
 
-void GetRangeFunctions(TypeFactory* type_factory,
-                       const GoogleSQLBuiltinFunctionOptions& options,
-                       NameToFunctionMap* functions);
+absl::Status GetRangeFunctions(TypeFactory* type_factory,
+                               const GoogleSQLBuiltinFunctionOptions& options,
+                               NameToFunctionMap* functions);
 
 void GetElementWiseAggregationFunctions(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
@@ -779,6 +790,11 @@ void GetGraphFunctions(TypeFactory* type_factory,
 void GetMapCoreFunctions(TypeFactory* type_factory,
                          const GoogleSQLBuiltinFunctionOptions& options,
                          NameToFunctionMap* functions);
+
+absl::Status GetVectorFunctions(TypeFactory* type_factory,
+                                const GoogleSQLBuiltinFunctionOptions& options,
+                                NameToFunctionMap* functions,
+                                NameToTypeMap* types);
 
 // Add MEASURE-type functions to the given map.
 void GetMeasureFunctions(TypeFactory* type_factory,

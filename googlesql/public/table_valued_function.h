@@ -225,18 +225,16 @@ struct TableValuedFunctionOptions {
 //
 // To resolve a TVF call, the resolver:
 //
-// (1) finds the matching signature. Currently only a single matching signature
-//     is supported. If multiple signatures match the provided input arguments,
-//     an internal error is returned.
-// (2) resolves all input arguments based on the signature
-// (3) prepares a TableValuedFunction::InputArgumentList from the resolved input
+// (1) finds the first matching TVF signature in the order they are defined in
+//     the TVF. If no matching signature is found, an error is returned.
+// (2) resolves all input arguments based on the matched signature
+// (3) prepares a list of `TVFInputArgumentType` objects from the resolved input
 //     arguments
-// (4) calls TableValuedFunction::Resolve, passing the input arguments, to get
-//     a TableValuedFunctionCall object with the output schema for the TVF call
+// (4) calls TableValuedFunction::Resolve, passing the `TVFInputArgumentType`
+//     list, to get a `TVFSignature` object containing the output schema for the
+//     TVF call
 // (5) fills the output name list from the column names in the output schema
 // (6) returns a new ResolvedTVFScan with the resolved arguments as children
-// TODO: b/447515225 - Update this comment once finding the closest matching
-// TVF signature is supported.
 class TableValuedFunction {
  public:
   // The SQL SECURITY specified when the function was created.
@@ -263,7 +261,7 @@ class TableValuedFunction {
   // whether each argument should be a value or a relation. For a value
   // argument, the signature may specify a concrete Type or a (possibly
   // templated) SignatureArgumentKind. For relation arguments, the signature
-  // should use ARG_TYPE_RELATION, and any relation will be accepted as an
+  // should use ARG_KIND_RELATION, and any relation will be accepted as an
   // argument.
   TableValuedFunction(const std::vector<std::string>& function_name_path,
                       std::string group,
@@ -348,10 +346,7 @@ class TableValuedFunction {
   // convention AnyRelation is returned.
   const std::vector<FunctionSignature>& signatures() const;
 
-  // Adds a function signature to an existing table function.  TVFs currently
-  // only support one signature, so an error is returned if a signature
-  // already exists.
-  // TODO: Support more than one signature.
+  // Adds a function signature to an existing table function.
   absl::Status AddSignature(const FunctionSignature& function_signature);
 
   // Returns the requested FunctionSignature.  The caller does not take

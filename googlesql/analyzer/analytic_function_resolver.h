@@ -163,7 +163,7 @@ class AnalyticFunctionResolver {
   // BY.  We do not need to re-enable named window references once they are
   // disabled because the only other clause that supports analytic functions
   // is the SELECT list, which is resolved before ORDER BY.
-  void DisableNamedWindowRefs(const char* clause_name);
+  absl::Status DisableNamedWindowRefs(const char* clause_name);
 
   // Sets the current match recognize window context, based on the PARTITION BY
   // and ORDER BY clauses of the current MATCH_RECOGNIZE clause.

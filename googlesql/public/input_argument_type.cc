@@ -354,6 +354,13 @@ InputArgumentType InputArgumentType::ModelInputArgumentType(
   return type;
 }
 
+InputArgumentType InputArgumentType::ModelInputArgumentType() {
+  InputArgumentType type;
+  type.EnsureData().annotated_type = AnnotatedType(nullptr);
+  type.category_ = kModel;
+  return type;
+}
+
 InputArgumentType InputArgumentType::ConnectionInputArgumentType(
     const TVFConnectionArgument& connection_arg) {
   InputArgumentType type;

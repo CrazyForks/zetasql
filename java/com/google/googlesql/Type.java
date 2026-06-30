@@ -96,7 +96,8 @@ public abstract class Type implements Serializable {
           entry(TypeKind.TYPE_GRAPH_PATH, "GRAPH_PATH"),
           entry(TypeKind.TYPE_MAP, "MAP"),
           entry(TypeKind.TYPE_UUID, "UUID"),
-          entry(TypeKind.TYPE_MEASURE, "MEASURE"));
+          entry(TypeKind.TYPE_MEASURE, "MEASURE"),
+          entry(TypeKind.TYPE_DECLARATIVE, "DECLARATIVE"));
 
   /** Returns {@code true} if the given {@code date} value is within valid range. */
   @SuppressWarnings("GoodTime") // should accept a java.time.LocalDate (?)
@@ -259,6 +260,10 @@ public abstract class Type implements Serializable {
 
   public boolean isMeasure() {
     return kind == TypeKind.TYPE_MEASURE;
+  }
+
+  public boolean isDeclarativeType() {
+    return kind == TypeKind.TYPE_DECLARATIVE;
   }
 
   public boolean isStructOrProto() {
@@ -487,6 +492,11 @@ public abstract class Type implements Serializable {
     return null;
   }
 
+  /** Returns {@code this} cast to DeclarativeType or null for other types. */
+  public DeclarativeType asDeclarativeType() {
+    return null;
+  }
+
   @SuppressWarnings("ReferenceEquality")
   protected boolean equalsInternal(Type other, boolean equivalent) {
     if (other == this) {
@@ -526,6 +536,9 @@ public abstract class Type implements Serializable {
       case TYPE_MEASURE:
         // Measure types cannot be used interchangeably, and so are not equal or equivalent.
         return false;
+      case TYPE_DECLARATIVE:
+        return DeclarativeType.equalsImpl(
+            this.asDeclarativeType(), other.asDeclarativeType(), equivalent);
       default:
         throw new IllegalArgumentException("Shouldn't happen: unsupported type " + other);
     }

@@ -233,9 +233,9 @@ inline bool UnaryMinus(float in, float* out, absl::Status* error) {
 // below when input types are not the same.
 #if __has_builtin(__builtin_uadd_overflow)
 
-static_assert(std::is_same<uint32_t, unsigned>::value,  // NOLINT(runtime/int)
+static_assert(std::is_same_v<uint32_t, unsigned>,  // NOLINT(runtime/int)
               "unsigned != uint32?");
-static_assert(std::is_same<int32_t, int>::value, "int != int32?");
+static_assert(std::is_same_v<int32_t, int>, "int != int32?");
 
 // 64-bit integers may be either 'long' or 'long long' depending on the system,
 // but we have to explicitly specify the underlying type in the name of the
@@ -401,9 +401,8 @@ inline bool Multiply(T in1, T in2, T* out, absl::Status* error) {
 
 template <typename T>
 inline bool Modulo(T in1, T in2, T* out, absl::Status* error) {
-  static_assert(
-      std::is_same<uint64_t, T>::value || std::is_same<int64_t, T>::value,
-      "Modulo only supports 64 bit integer");
+  static_assert(std::is_same_v<uint64_t, T> || std::is_same_v<int64_t, T>,
+                "Modulo only supports 64 bit integer");
   if (ABSL_PREDICT_FALSE(in2 == 0)) {
     return internal::UpdateError(
         error, absl::StrCat("division by zero: MOD(", in1, ", ", in2, ")"));

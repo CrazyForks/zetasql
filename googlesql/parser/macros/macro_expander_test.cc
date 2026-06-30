@@ -1749,9 +1749,10 @@ INSTANTIATE_TEST_SUITE_P(UnknownBuiltinMacroInvocationTestSuite,
 
 TEST(MacroExpanderTest, TestBuiltinMacroRequiresParenthesesInStrictMode) {
   EXPECT_THAT(
-      ExpandMacros("$$TEST", MacroCatalog(), /*is_strict=*/true),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Invocation of macro 'TEST' missing argument list")));
+      ExpandMacros("$$IDENTIFIER", MacroCatalog(), /*is_strict=*/true),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Invocation of macro 'IDENTIFIER' missing argument list")));
 }
 
 TEST(MacroExpanderTest, DoesNotReexpand) {
@@ -3503,8 +3504,10 @@ TEST_P(PositiveIdentifierInvocationTest, TestPositiveIdentifierInvocation) {
           .location = MakeLocation(invocation_length, invocation_length),
       }};
 
-  EXPECT_THAT(ExpandMacros(test_case.invocation, macro_catalog, is_strict),
-              IsOkAndHolds(TokensEq(expected_tokens)));
+  absl::StatusOr<ExpansionOutput> output =
+      ExpandMacros(test_case.invocation, macro_catalog, is_strict);
+
+  EXPECT_THAT(output, IsOkAndHolds(TokensEq(expected_tokens)));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -3578,6 +3581,197 @@ struct NegativeBuiltinInvocationTestCase {
   std::string invocation;
   std::string expected_error;
 };
+
+class StringBuiltinStringLiteralPassthroughTest
+    : public testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+
+TEST_P(StringBuiltinStringLiteralPassthroughTest,
+       TestStringBuiltinStringLiteralPassthrough) {
+  std::string quote = std::get<0>(GetParam());
+  bool is_raw = std::get<1>(GetParam());
+  bool is_strict = std::get<2>(GetParam());
+
+  MacroCatalog macro_catalog;
+  RegisterMacros("DEFINE MACRO STRINGIFY $$STRING($1)", macro_catalog);
+
+  std::string string_literal =
+      absl::StrCat(is_raw ? "r" : "", quote, "hello world", quote);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const ExpansionOutput output,
+      ExpandMacros(absl::StrFormat("$STRINGIFY(%s)", string_literal),
+                   macro_catalog, is_strict));
+
+  EXPECT_EQ(output.expanded_tokens[0].kind, Token::STRING_LITERAL);
+  EXPECT_EQ(output.expanded_tokens[0].text, string_literal);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    StringBuiltinStringLiteralPassthroughTests,
+    StringBuiltinStringLiteralPassthroughTest,
+    testing::Combine(/*quote=*/ValuesIn(std::vector<std::string>{"'", "\"",
+                                                                 "'''"}),
+                     /*is_raw=*/Bool(), /*is_strict=*/Bool()));
+
+// Test case input for $$STRING builtin macro.
+struct PositiveStringInvocationTestCase {
+  absl::string_view description;
+  absl::string_view macro_body;
+  absl::string_view expected_literal;
+};
+
+class PositiveStringInvocationTest
+    : public testing::TestWithParam<
+          std::tuple<PositiveStringInvocationTestCase, bool>> {};
+
+TEST_P(PositiveStringInvocationTest, TestPositiveStringInvocation) {
+  const auto& test_case = std::get<0>(GetParam());
+  bool is_strict = std::get<1>(GetParam());
+
+  MacroCatalog macro_catalog;
+  RegisterMacros(
+      R"sql(
+        DEFINE MACRO FOO foo;
+        DEFINE MACRO BAR bar;
+        DEFINE MACRO GT >;
+        DEFINE MACRO LT <;
+        DEFINE MACRO EQUALS =;
+        DEFINE MACRO ATSIGN @;
+        DEFINE MACRO MINUS -;
+        DEFINE MACRO PLUS +;
+        DEFINE MACRO STAR *;
+        DEFINE MACRO EXCL !;
+        DEFINE MACRO BAR_CHAR |;
+        DEFINE MACRO PIPE |;
+      )sql",
+      macro_catalog);
+
+  std::string macro_definition =
+      absl::StrCat("DEFINE MACRO TEST ", test_case.macro_body, ";");
+  RegisterMacros(macro_definition, macro_catalog);
+
+  absl::string_view invocation = "$$STRING($TEST())";
+  int invocation_length = static_cast<int>(invocation.length());
+  EXPECT_THAT(
+      ExpandMacros(invocation, macro_catalog, is_strict),
+      IsOkAndHolds(TokensEq(std::vector<TokenWithLocation>{
+          {
+              .kind = Token::STRING_LITERAL,
+              .location = MakeLocation(0, invocation_length),
+              .text = test_case.expected_literal,
+          },
+          {
+              .kind = Token::EOI,
+              .location = MakeLocation(invocation_length, invocation_length),
+          },
+      })));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PositiveStringInvocationTests, PositiveStringInvocationTest,
+    testing::Combine(
+        ValuesIn(std::vector<PositiveStringInvocationTestCase>{
+            {
+                .description = "BasicStringizing",
+                .macro_body = "hello world",
+                .expected_literal = "'hello world'",
+            },
+            {
+                .description = "Keywords",
+                .macro_body = "SELECT FROM WHERE",
+                .expected_literal = "'SELECT FROM WHERE'",
+            },
+            {
+                .description = "Operators",
+                .macro_body = "+ - || >> |> ->",
+                .expected_literal = "'+ - || >> |> ->'",
+            },
+            {
+                .description = "IgnoresSurroundingWhitespace",
+                .macro_body = "  hello  ",
+                .expected_literal = "'hello'",
+            },
+            {
+                .description = "IgnoresSurroundingComments",
+                .macro_body = "/*comment*/ hello --comment2\n",
+                .expected_literal = "'hello'",
+            },
+            {
+                .description = "WhitespaceNormalizedToSingleSpace",
+                .macro_body = "hello \n\t world",
+                .expected_literal = "'hello world'",
+            },
+            {
+                .description = "CommentsNormalizedToSingleSpace",
+                .macro_body = "hello/*comment*/world",
+                .expected_literal = "'hello world'",
+            },
+            {
+                .description = "PreservesSourceAdjacency",
+                .macro_body = "1+2>>3",
+                .expected_literal = "'1+2>>3'",
+            },
+            {
+                .description = "NonAdjacencyForcesSpace",
+                .macro_body = "foo/*comment*/+1",
+                .expected_literal = "'foo +1'",
+            },
+            {
+                .description = "MacroInvocationBreaksAdjacency",
+                .macro_body = "$LT()$LT() $GT()$GT() $PIPE()$GT()",
+                .expected_literal = "'< < > > | >'",
+            },
+            {
+                .description = "SingleQuotedStringLiteralPassesThrough",
+                .macro_body = "'hello'",
+                .expected_literal = "'hello'",
+            },
+            {
+                .description = "RawTripleQuotedStringLiteralPassesThrough",
+                .macro_body = "r'''hello'''",
+                .expected_literal = "r'''hello'''",
+            },
+            {
+                .description = "BytesLiteralDoesNotPassThrough",
+                .macro_body = "b'hello'",
+                .expected_literal = R"sql('b\'hello\'')sql",
+            },
+            {
+                .description = "QuotedIdentifierDoesNotPassThrough",
+                .macro_body = "`hello`",
+                .expected_literal = "'`hello`'",
+            },
+            {
+                .description = "StringEscapingMixed",
+                .macro_body = R"sql(foo 'bar' r'baz' "qux" r"quux")sql",
+                .expected_literal =
+                    R"sql('foo \'bar\' r\'baz\' "qux" r"quux"')sql",
+            },
+            {
+                .description = "TripleQuotedEscapingMixed",
+                .macro_body =
+                    R"sql(foo '''bar''' r'''baz''' """qux""" r"""quux""")sql",
+                .expected_literal =
+                    R"sql('foo \'\'\'bar\'\'\' r\'\'\'baz\'\'\' """qux""" r"""quux"""')sql",
+            },
+            {
+                .description = "BytesLiteralEscapingMixed",
+                .macro_body = "foo b'bar' rb'baz' br'qux'",
+                .expected_literal =
+                    R"sql('foo b\'bar\' rb\'baz\' br\'qux\'')sql",
+            },
+            {
+                .description = "TokenEscapingMixed",
+                .macro_body = R"sql(foo 'bar\'baz')sql",
+                .expected_literal = R"sql('foo \'bar\\\'baz\'')sql",
+            },
+            {
+                .description = "EmptyMacroBodyProducesEmptyString",
+                .macro_body = "",
+                .expected_literal = "''",
+            },
+        }),
+        Bool()));
 
 class NegativeBuiltinInvocationTest
     : public testing::TestWithParam<
@@ -3691,6 +3885,80 @@ INSTANTIATE_TEST_SUITE_P(
             },
         }),
         Bool()));
+
+INSTANTIATE_TEST_SUITE_P(
+    NegativeStringBuiltinTests, NegativeBuiltinInvocationTest,
+    testing::Combine(
+        ValuesIn(std::vector<NegativeBuiltinInvocationTestCase>{
+            {
+                .invocation = "$$STRING()",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:1]",
+            },
+            {
+                .invocation = "$$STRING(,)",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:10]",
+            },
+            {
+                .invocation = "$$STRING($1,)",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:12]",
+            },
+            {
+                .invocation = "$$STRING(foo)",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:10]",
+            },
+            {
+                .invocation = "$$STRING($ EMPTY ())",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:10]",
+            },
+            {
+                .invocation = "$$STRING($APPEND((foo), bar) $EMPTY())",
+                .expected_error =
+                    "Invocation requires exactly one argument that "
+                    "is a macro invocation or a macro argument "
+                    "reference [at top_file.sql:1:30]",
+            },
+        }),
+        Bool()));
+
+// This test lives separately from the `$$STRING()` empty invocation case above
+// because the `$$STRING` case fails differently in strict and lenient modes.
+// In STRICT mode, the lack of an explicit argument list triggers an error way
+// earlier.
+TEST(MacroExpanderTest, EmptyStringBuiltinInvocationIsDisallowed) {
+  MacroCatalog macro_catalog;
+  EXPECT_THAT(ExpandMacros("$$STRING", macro_catalog, /*is_strict=*/false),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invocation requires exactly one argument "
+                                 "that is a macro invocation or a macro "
+                                 "argument reference [at top_file.sql:1:1]")));
+}
+
+// This test lives separately from the `$$IDENTIFIER()` empty invocation case
+// because the `$$IDENTIFIER` case fails differently in strict and lenient
+// modes. In STRICT mode, the lack of an explicit argument list triggers an
+// error way earlier.
+TEST(MacroExpanderTest, EmptyIdentifierBuiltinInvocationIsDisallowed) {
+  MacroCatalog macro_catalog;
+  EXPECT_THAT(ExpandMacros("$$IDENTIFIER", macro_catalog, /*is_strict=*/false),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("At least one non-empty argument is "
+                                 "required. [at top_file.sql:1:1]")));
+}
 
 }  // namespace macros
 }  // namespace parser

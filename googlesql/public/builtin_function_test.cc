@@ -174,13 +174,13 @@ void GetConcreteTypesFromInputArgumentType(
     const FunctionArgumentType& argument_type,
     absl::flat_hash_set<const Type*>& types_out) {
   switch (argument_type.kind()) {
-    case ARG_TYPE_FIXED: {
+    case ARG_KIND_EXPR_FIXED: {
       const Type* type = argument_type.type();
       ASSERT_NE(type, nullptr);
       types_out.insert(type);
       break;
     }
-    case ARG_TYPE_LAMBDA: {
+    case ARG_KIND_LAMBDA: {
       GetConcreteTypesFromInputArgumentTypeList(
           argument_type.lambda().argument_types(), types_out);
       GetConcreteTypesFromInputArgumentType(argument_type.lambda().body_type(),
@@ -344,14 +344,16 @@ TEST(SimpleBuiltinFunctionTests, BasicTests) {
   ASSERT_THAT(function, NotNull());
   ASSERT_EQ(1, (*function)->NumSignatures());
   ASSERT_EQ(4, (*function)->GetSignature(0)->arguments().size());
-  ASSERT_EQ(ARG_TYPE_ANY_1, (*function)->GetSignature(0)->result_type().kind());
+  ASSERT_EQ(ARG_KIND_EXPR_ANY_1,
+            (*function)->GetSignature(0)->result_type().kind());
   EXPECT_FALSE((*function)->SupportsSafeErrorMode());
 
   function = googlesql_base::FindOrNull(functions, "$case_no_value");
   ASSERT_THAT(function, NotNull());
   ASSERT_EQ(1, (*function)->NumSignatures());
   ASSERT_EQ(3, (*function)->GetSignature(0)->arguments().size());
-  ASSERT_EQ(ARG_TYPE_ANY_1, (*function)->GetSignature(0)->result_type().kind());
+  ASSERT_EQ(ARG_KIND_EXPR_ANY_1,
+            (*function)->GetSignature(0)->result_type().kind());
   EXPECT_FALSE((*function)->SupportsSafeErrorMode());
 
   function = googlesql_base::FindOrNull(functions, "concat");

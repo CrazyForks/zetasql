@@ -182,6 +182,31 @@ message ResolvedWindowFrameExprEnums {
   }
 }
 
+message ResolvedWithinBoundExprEnums {
+  enum BoundKind {
+    // Default value. It is an error to set this value.
+    NOT_SET = 0;
+    UNBOUNDED_PRECEDING = 1;
+    UNBOUNDED_FOLLOWING = 2;
+    // (integer OR double) PERIOD (PRECEDING OR FOLLOWING)
+    // Must be used with expr of type INT64 or DOUBLE in
+    // ResolvedWithinBoundExpr.
+    PERIOD_PRECEDING = 3;
+    PERIOD_FOLLOWING = 4;
+    // interval (PRECEDING OR FOLLOWING)
+    // Must be used with expr of type INTERVAL in ResolvedWithinBoundExpr.
+    INTERVAL_PRECEDING = 5;
+    INTERVAL_FOLLOWING = 6;
+    // This represents either a bound at the aligned_timestamp for the window in
+    // the estimator function or CURRENT_TIMESTASMP() bound for the OUTPUT
+    // WITHIN window.
+    ANCHOR_TIMESTAMP = 7;
+    // Absolute timestamp bound
+    // Must be used with expr of type TIMESTAMP in ResolvedWithinBoundExpr.
+    TIMESTAMP = 8;
+  }
+}
+
 message ResolvedInsertStmtEnums {
   // This defines the behavior of INSERT when there are duplicate rows.
   // "Duplicate" generally mean rows with identical primary keys.

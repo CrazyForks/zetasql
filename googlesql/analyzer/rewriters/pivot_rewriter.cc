@@ -29,6 +29,7 @@
 #include "googlesql/public/builtin_function.pb.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/function.h"
+#include "googlesql/public/function.pb.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
@@ -313,7 +314,8 @@ absl::Status PivotRewriterVisitor::VisitResolvedPivotScan(
     const ResolvedExpr* pivot_value_expr =
         node->pivot_value_list()[pivot_column->pivot_value_index()].get();
 
-    ABSL_CHECK_LE(pivot_column->pivot_expr_index(), agg_fn_argument_columns.size());
+    GOOGLESQL_RET_CHECK_LE(pivot_column->pivot_expr_index(),
+                 agg_fn_argument_columns.size());
     const std::vector<ResolvedColumn>& agg_fn_arg_columns =
         agg_fn_argument_columns[pivot_column->pivot_expr_index()];
 
@@ -603,9 +605,9 @@ PivotRewriterVisitor::RewriteCountStarPivotExpr(
                                       analyzer_options_.find_options()));
   GOOGLESQL_RET_CHECK(countif_fn->IsGoogleSQLBuiltin());
   FunctionArgumentType int64_arg = FunctionArgumentType(types::Int64Type(), 1);
-  int64_arg.set_original_kind(ARG_TYPE_FIXED);
+  int64_arg.set_original_kind(ARG_KIND_EXPR_FIXED);
   FunctionArgumentType bool_arg = FunctionArgumentType(types::BoolType(), 1);
-  bool_arg.set_original_kind(ARG_TYPE_FIXED);
+  bool_arg.set_original_kind(ARG_KIND_EXPR_FIXED);
 
   FunctionSignature countif_sig(int64_arg, {bool_arg}, FN_COUNTIF);
 

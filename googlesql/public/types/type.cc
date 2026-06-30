@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -500,6 +501,13 @@ static int KindCost(TypeKind kind) {
 }
 
 int Type::GetTypeCoercionCost(TypeKind kind1, TypeKind kind2) {
+  if (kind1 == TYPE_DECLARATIVE || kind2 == TYPE_DECLARATIVE) {
+    // TYPE_DECLARATIVE represents many unrelated types. The fact that they have
+    // the same kind doesn't mean they're close. We assign those the highest
+    // possible cost, to ensure they never receive high precedence over existing
+    // coercions.
+    return std::max(KindCost(kind1), KindCost(kind2));
+  }
   return abs(KindCost(kind1) - KindCost(kind2));
 }
 

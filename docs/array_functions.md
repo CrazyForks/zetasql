@@ -557,7 +557,9 @@ array.
     element.
 +   `boolean_expression`: The predicate used to filter the array elements.
 
-Returns `NULL` if the `array_expression` is `NULL`.
+Returns `NULL` if the `array_expression` is `NULL`. Otherwise, returns a new
+array containing all elements in `array_expression` where the lambda expression
+evaluates to `TRUE`, in the same relative order.
 
 **Return type**
 
@@ -1409,8 +1411,10 @@ lambda_expression:
 
 **Description**
 
-Takes an array, transforms the elements, and returns the results in a new array.
-The output array always has the same length as the input array.
+Takes an array, transforms the elements, and returns the results in a new
+array. The output array has the same length and order as the input array. The
+element at a given index is transformed to the same index in the new
+array.
 
 +   `array_expression`: The array to transform.
 +   `lambda_expression`: Each element in `array_expression` is evaluated against

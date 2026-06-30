@@ -233,7 +233,7 @@ std::string AnonAvgWithReportJsonFunctionSQL(
 }
 
 std::string AnonAvgWithReportProtoFunctionSQL(
-    const std::vector<std::string>& inputs) {
+    absl::Span<const std::string> inputs) {
   ABSL_DCHECK(inputs.size() == 1 || inputs.size() == 3);
   return absl::StrCat(
       "ANON_AVG(", inputs[0],
@@ -351,7 +351,7 @@ std::string ArrayAtFunctionSQL(absl::string_view inner_function_name,
   return absl::StrCat(ParenthesizedArrayFunctionSQL(inputs[0]), "[",
                       inner_function_name, "(", inputs[1], ")]");
 }
-std::string ArrayAtOffsetFunctionSQL(const std::vector<std::string>& inputs) {
+std::string ArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("OFFSET", inputs);
 }
 std::string ArrayAtOrdinalFunctionSQL(const std::vector<std::string>& inputs) {
@@ -360,7 +360,7 @@ std::string ArrayAtOrdinalFunctionSQL(const std::vector<std::string>& inputs) {
 std::string SafeArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("SAFE_OFFSET", inputs);
 }
-std::string SubscriptFunctionSQL(const std::vector<std::string>& inputs) {
+std::string SubscriptFunctionSQL(absl::Span<const std::string> inputs) {
   ABSL_DCHECK_EQ(inputs.size(), 2);
   return absl::StrCat(inputs[0], "[", inputs[1], "]");
 }
@@ -383,10 +383,10 @@ std::string SubscriptWithOrdinalFunctionSQL(
                       inputs[1], ")]");
 }
 std::string SafeArrayAtOrdinalFunctionSQL(
-    const std::vector<std::string>& inputs) {
+    absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("SAFE_ORDINAL", inputs);
 }
-std::string ProtoMapAtKeySQL(const std::vector<std::string>& inputs) {
+std::string ProtoMapAtKeySQL(absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("KEY", inputs);
 }
 std::string SafeProtoMapAtKeySQL(absl::Span<const std::string> inputs) {
@@ -471,8 +471,8 @@ absl::Status EnsureArgumentsHaveType(
 }
 
 absl::Status CheckDateDatetimeTimeTimestampDiffArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::string_view function_name,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (arguments.size() != 3) {
     // Let validation happen normally.  It will return an error later.
@@ -585,7 +585,7 @@ absl::Status CheckBitwiseOperatorArgumentsHaveSameType(
 
 absl::Status CheckBitwiseOperatorFirstArgumentIsIntegerOrBytes(
     absl::string_view operator_string,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   // We do not want the first argument to implicitly coerce to integer.
   // We currently have signatures for all the integer types and BYTES for the
@@ -673,8 +673,8 @@ absl::Status CheckDateDatetimeTimeTimestampTruncArguments(
 }
 
 absl::Status CheckLastDayArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::string_view function_name,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (arguments.size() < 2) {
     // Let validation happen normally.  It will return an error later.
@@ -770,7 +770,7 @@ absl::Status CheckExtractPostResolutionArguments(
 
 absl::Status CheckDateDatetimeTimestampAddSubArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (arguments.size() != 3) {
     // Let validation happen normally. It will return an error later.
@@ -840,7 +840,7 @@ absl::Status CheckDateDatetimeTimestampAddSubArguments(
 
 absl::Status CheckTimeAddSubArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (arguments.size() != 3) {
     // Let validation happen normally.  It will return an error later.
@@ -1124,7 +1124,7 @@ std::string NoMatchingSignatureForCaseNoValueFunction(
 }
 
 std::string NoMatchingSignatureForFunctionUsingInterval(
-    const std::string& qualified_function_name,
+    absl::string_view qualified_function_name,
     absl::Span<const InputArgumentType> arguments, ProductMode product_mode,
     int index_of_interval_argument) {
   // index_of_interval_argument is the index of the INTERVAL expression in the
@@ -1158,7 +1158,7 @@ std::string NoMatchingSignatureForFunctionUsingInterval(
 
 std::string NoMatchingSignatureForDateOrTimeAddOrSubFunction(
     const std::string& qualified_function_name,
-    const std::vector<InputArgumentType>& arguments, ProductMode product_mode) {
+    absl::Span<const InputArgumentType> arguments, ProductMode product_mode) {
   return NoMatchingSignatureForFunctionUsingInterval(
       qualified_function_name, arguments, product_mode,
       /*index_of_interval_argument=*/1);
@@ -1209,7 +1209,7 @@ absl::Status CheckArgumentsSupportEquality(
 
 absl::Status CheckArgumentsSupportGrouping(
     absl::string_view comparison_name, const FunctionSignature& signature,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   GOOGLESQL_RET_CHECK_EQ(signature.NumConcreteArguments(), arguments.size());
   GOOGLESQL_RETURN_IF_ERROR(
@@ -1534,7 +1534,7 @@ std::string CheckHasBigNumericTypeArgument(
 // Checks if at least one input argument has INTERVAL type.
 std::string CheckHasIntervalTypeArgument(
     const FunctionSignature& matched_signature,
-    const std::vector<InputArgumentType>& arguments) {
+    absl::Span<const InputArgumentType> arguments) {
   for (const InputArgumentType& argument : arguments) {
     if (argument.type()->kind() == TYPE_INTERVAL) {
       return "";
@@ -1946,7 +1946,7 @@ static absl::StatusOr<bool> InsertTableValuedFunctionImpl(
     NameToTableValuedFunctionMap* table_valued_functions,
     const GoogleSQLBuiltinFunctionOptions& options,
     std::vector<std::string> name,
-    const std::vector<FunctionSignatureOnHeap>& signatures,
+    absl::Span<const FunctionSignatureOnHeap> signatures,
     TableValuedFunctionOptions table_valued_function_options) {
   if (TableValuedFunctionIsDisabled(options, table_valued_function_options)) {
     return false;

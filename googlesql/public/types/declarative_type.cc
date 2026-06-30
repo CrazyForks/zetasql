@@ -58,7 +58,14 @@ size_t DeclarativeTypeDescriptor::GetEstimatedOwnedMemoryBytesSize() const {
 
 DeclarativeType::DeclarativeType(const TypeFactoryBase* factory,
                                  DeclarativeTypeDescriptor data)
-    : Type(factory, TYPE_DECLARATIVE), data_(std::move(data)) {}
+    : Type(factory, TYPE_DECLARATIVE), data_(std::move(data)) {
+  // The only supertype for a declarative type is the backing type *IF* it
+  // specifies that implicit coercion to the backing type is allowed.
+  if (data_.coercion_to_backing_type() ==
+      DeclarativeTypeDescriptor::AllowCoercionMode::kAllowAllCoercion) {
+    candidate_super_types_.push_back(data_.backing_type());
+  }
+}
 
 std::string DeclarativeType::ShortTypeName(ProductMode mode) const {
   return data_.display_name();
@@ -78,6 +85,39 @@ absl::StatusOr<std::string> DeclarativeType::TypeNameWithModifiers(
 }
 
 std::vector<const Type*> DeclarativeType::ComponentTypes() const { return {}; }
+
+// Returns true if the descriptor allows the given coercion.
+// This helper function is used only for the coercion to/from the backing type,
+// and `coercion_spec` is for the corresponding direction.
+static bool IsBackingTypeCoercionAllowed(
+    DeclarativeTypeDescriptor::AllowCoercionMode coercion_spec,
+    bool is_explicit) {
+  switch (coercion_spec) {
+    case DeclarativeTypeDescriptor::AllowCoercionMode::kNoCoercion:
+      return false;
+    case DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly:
+      return is_explicit;
+    case DeclarativeTypeDescriptor::AllowCoercionMode::kAllowAllCoercion:
+      return true;
+  }
+}
+
+bool DeclarativeType::CanCoerceTo(const Type* to_type, bool is_explicit) const {
+  if (!to_type->Equals(backing_type())) {
+    return false;
+  }
+  return IsBackingTypeCoercionAllowed(data_.coercion_to_backing_type(),
+                                      is_explicit);
+}
+
+bool DeclarativeType::CanCoerceFrom(const Type* from_type,
+                                    bool is_explicit) const {
+  if (!from_type->Equals(backing_type())) {
+    return false;
+  }
+  return IsBackingTypeCoercionAllowed(data_.coercion_from_backing_type(),
+                                      is_explicit);
+}
 
 bool DeclarativeType::SupportsEquality() const {
   return std::visit(
@@ -189,8 +229,10 @@ bool DeclarativeType::IsSupportedType(
 }
 
 int64_t DeclarativeType::GetEstimatedOwnedMemoryBytesSize() const {
-  return sizeof(*this) + data_.GetEstimatedOwnedMemoryBytesSize() -
-         sizeof(data_);
+  return sizeof(*this) +
+         internal::GetExternallyAllocatedMemoryEstimate(
+             candidate_super_types_) +
+         data_.GetEstimatedOwnedMemoryBytesSize() - sizeof(data_);
 }
 
 uint64_t DeclarativeType::GetValueContentExternallyAllocatedByteSize(

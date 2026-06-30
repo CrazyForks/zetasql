@@ -305,25 +305,6 @@ SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", CAST(NULL AS INTE
 --
 ERROR: generic::out_of_range: Window size cannot be null.
 ==
-[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
-[name=timestamp_col_wrong_type]
-WITH CteWithNullTimestamps AS (
-  SELECT 1 as id, TIMESTAMP '2025-01-01 00:00:00+00' AS ts_col
-  UNION ALL
-  SELECT 2 as id, CAST(NULL AS TIMESTAMP) AS ts_col
-  UNION ALL
-  SELECT 3 as id, CAST(NULL AS TIMESTAMP) AS ts_col
-)
-SELECT * FROM tumble(TABLE CteWithNullTimestamps, "id", INTERVAL 1 DAY);
---
-ERROR: generic::out_of_range: Timestamp column 'id' is not of TIMESTAMP type.
-==
-[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
-[name=timestamp_col_not_found]
-SELECT * FROM tumble(TABLE TableWithTimestampColumn, "non_existent_ts_col", INTERVAL 1 DAY);
---
-ERROR: generic::out_of_range: Timestamp column 'non_existent_ts_col' not found in input table.
-==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
 [name=null_origin]
 SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, origin => NULL);
@@ -365,3 +346,27 @@ FROM TUMBLE(
 --
 ARRAY<STRUCT<WINDOW_START TIMESTAMP>>[{2024-01-01 08:00:00+00}]
 
+==
+# Run-once semantics:
+# These tests try to ensure that expressions provided as TVF arguments are
+# evaluated exactly once. In particular, this is intended to check that the
+# **TUMBLE function rewriter** preserves run-once semantics.
+#
+# The input table has 20 rows with the same timestamp, so they should all
+# have the same window_start. If the expression is evaluated more than once,
+# it's extremely likely that some rows will have different window_start values,
+# and the test will fail.
+[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
+[name=tumble_run_once_window_size]
+WITH Events AS (
+  SELECT TIMESTAMP '2025-09-01 05:01:00' AS ts
+  FROM UNNEST(GENERATE_ARRAY(1, 20)) AS n
+)
+SELECT
+  IF(windows_count = 1, 'Correct', 'Incorrect!')
+FROM (
+  SELECT count(distinct WINDOW_START) as windows_count
+  FROM TUMBLE(TABLE Events, 'ts', IF(RAND() > 0.5, INTERVAL '1' MINUTE, INTERVAL '10' MINUTE))
+)
+--
+ARRAY<STRUCT<STRING>>[{"Correct"}]

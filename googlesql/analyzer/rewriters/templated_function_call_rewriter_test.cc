@@ -88,7 +88,7 @@ TEST(TemplatedFunctionCallRewriterTest, RewriterIsApplied) {
   catalog.AddOwnedFunction(new TemplatedSQLFunction(
       {"CallTypeOfTemplatedFn"},
       FunctionSignature(types::StringType(),
-                        {FunctionArgumentType(ARG_TYPE_ARBITRARY,
+                        {FunctionArgumentType(ARG_KIND_EXPR_ARBITRARY,
                                               FunctionArgumentType::REQUIRED)},
                         /*context_id=*/1),
       /*argument_names=*/{"x"}, ParseResumeLocation::FromString("TYPEOF(x)")));

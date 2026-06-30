@@ -103,7 +103,7 @@ TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingReturning) {
   const Type* backing_type = types::Int64Type();
 
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
-      const Type* decl_type,
+      const Type* t1,
       type_factory.MakeDeclarativeType(
           DeclarativeTypeDescriptor()
               .set_type_id({"NS", "DeclType"})
@@ -122,9 +122,20 @@ TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingReturning) {
   EXPECT_TRUE(backing_type->SupportsReturning(language_options));
 
   std::string type_description;
-  EXPECT_FALSE(
-      decl_type->SupportsReturning(language_options, &type_description));
+  EXPECT_FALSE(t1->SupportsReturning(language_options, &type_description));
   EXPECT_EQ(type_description, "DeclType");
+
+  const DeclarativeType* decl_type = t1->AsDeclarativeType();
+  ASSERT_NE(decl_type, nullptr);
+
+  EXPECT_TRUE(decl_type->CanCoerceTo(backing_type, /*is_explicit=*/true));
+  EXPECT_FALSE(decl_type->CanCoerceTo(backing_type,
+                                      /*is_explicit=*/false));
+
+  EXPECT_TRUE(decl_type->CanCoerceFrom(backing_type,
+                                       /*is_explicit=*/true));
+  EXPECT_TRUE(decl_type->CanCoerceFrom(backing_type,
+                                       /*is_explicit=*/false));
 }
 
 TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingEquality) {

@@ -939,31 +939,36 @@ catch_all: /./ -100 {
 // or reduce DROP as type identifier in Spanner-specific rule. Bison chooses to
 // shift, which is a desired behavior.
 //
-// AMBIGUOUS CASE 10: SEQUENCE CLAMPED
+// AMBIGUOUS CASE 10: INPUT_ARG_TYPE CLAMPED
 // ----------------------------------
-// MyFunction(SEQUENCE clamped)
-// Resolve to a function call passing a SEQUENCE input argument type.
 //
-// MyFunction(sequence clamped between x and y)
-// Resolve to a function call passing a column 'sequence' modified
+// Catalog references use keywords (MODEL, SEQUENCE, TABLE, etc.) that are
+// non-reserved and can be used as identifiers. INPUT_ARG_TYPE below can be
+// substituted with any of these keywords.
+//
+// MyFunction(INPUT_ARG_TYPE clamped). Resolve to a function call passing an
+// `INPUT_ARG_TYPE input` argument.
+//
+// MyFunction(input_arg_type clamped between x and y)
+// Resolve to a function call passing a column 'input_arg_type' modified
 // with "clamped between x and y".
 //
 // Bison favors reducing the 2nd form to an error, so we add a lexer rule to
-// force SEQUENCE followed by clamped to resolve to an identifier.
+// force INPUT_ARG_TYPE followed by clamped to resolve to an identifier.
 // So bison still thinks there is a conflict but the lexer
 // will _never_ produce:
-// ... KW_SEQUENCE KW_CLAMPED ...
+// ... KW_INPUT_ARG_TYPE KW_CLAMPED ...
 // it instead produces
 // ... IDENTIFIER KW_CLAMPED
 // Which will resolve toward the second form
-// (sequence clamped between x and y) correctly, and the first form (
-// sequence clamped) will result in an error.
+// (input_arg_type clamped between x and y) correctly,
+// and the first form (input_arg_type clamped) will result in an error.
 //
 // In other contexts, CLAMPED will also act as an identifier via the
 // keyword_as_identifier rule.
 //
-// If the user wants to reference a sequence called 'clamped', they must
-// identifier quote it (SEQUENCE `clamped`);
+// If the user wants to reference a catalog entity called 'clamped', they must
+// identifier quote it (ENTITY `clamped`);
 //
 // AMBIGUOUS CASE 11: WITH OFFSET in <graph_with_operator>
 // ----------------------------------
@@ -1104,6 +1109,7 @@ catch_all: /./ -100 {
 //   5: QUALIFY
 //   2: ALTER COLUMN
 //   1: SUM(SEQUENCE CLAMPED BETWEEN x and y)
+//   1: SUM(MODEL CLAMPED BETWEEN x and y)
 //   1: WITH OFFSET
 //   1: WITH WEIGHT
 //   2: Pipe INSERT
@@ -1111,7 +1117,7 @@ catch_all: /./ -100 {
 //   2: CALL PER()
 //   1: INTERVAL expression identifier TO
 //   1: VALUE { ... }
-%expect 33;
+%expect 35;
 
 // Precedence for operator tokens. The operator precedence is defined by the
 // order of the declarations here, with tokens specified in the same declaration
@@ -2757,7 +2763,7 @@ inlined_edge_definition {ASTGraphInlinedEdgeDefinition*}:
     opt_column_list[dest_element_table_columns]
     inlined_edge_direction[direction]?
     opt_options_list[default_label_options]
-    opt_label_and_properties_clause
+    opt_inlined_edge_label_and_properties_clause[label_and_properties]
     dynamic_label_and_properties?
     {
        auto direction = $direction.has_value() ? $direction.value() : ASTGraphEdgePatternEnums::RIGHT;
@@ -2766,7 +2772,7 @@ inlined_edge_definition {ASTGraphInlinedEdgeDefinition*}:
            $join_keys,
            $ref_table,
            $dest_element_table_columns,
-           $opt_label_and_properties_clause,
+           $label_and_properties,
            $dynamic_label_and_properties.has_value() ?
                $dynamic_label_and_properties->dynamic_label : nullptr,
            $dynamic_label_and_properties.has_value() ?
@@ -2853,7 +2859,11 @@ opt_label_and_properties_clause {ASTNode*}:
       $$ = MakeGraphElementLabelAndPropertiesListImplicitDefaultLabel(
         node_factory, /*properties=*/properties, @$);
     }
-  | properties_clause[properties]
+  | non_empty_label_and_properties_clause
+;
+
+non_empty_label_and_properties_clause {ASTNode*}:
+    properties_clause[properties]
     {
       // Implicit DEFAULT LABEL PROPERTIES ...
       $$ = MakeGraphElementLabelAndPropertiesListImplicitDefaultLabel(
@@ -2864,6 +2874,23 @@ opt_label_and_properties_clause {ASTNode*}:
       $$ = MakeNode<ASTGraphElementLabelAndPropertiesList>(@$,
             $label_and_properties_list);
     }
+;
+
+// Same as `opt_label_and_properties_clause`, except that an omitted clause
+// defaults to NO PROPERTIES instead of PROPERTIES ALL COLUMNS. An inlined edge
+// shares the host node table, so defaulting to ALL COLUMNS would copy the
+// node's columns onto the edge, which is rarely intended. See
+// (broken link):graph-inlined-edge.
+opt_inlined_edge_label_and_properties_clause {ASTNode*}:
+    %empty
+    {
+      // Implicit DEFAULT LABEL NO PROPERTIES
+      auto* properties = MakeNode<ASTGraphProperties>(@$);
+      properties->set_no_properties(true);
+      $$ = MakeGraphElementLabelAndPropertiesListImplicitDefaultLabel(
+        node_factory, /*properties=*/properties, @$);
+    }
+  | non_empty_label_and_properties_clause
 ;
 
 label_and_properties {ASTNode*}:
@@ -3347,7 +3374,7 @@ opt_generic_entity_body {ASTNode*}:
 ;
 
 create_entity_statement {ASTNode*}:
-    "CREATE" opt_or_replace generic_entity_type opt_if_not_exists
+    "CREATE" opt_or_replace opt_create_scope generic_entity_type opt_if_not_exists
     path_expression opt_options_list opt_generic_entity_body
     {
       auto* node = MakeNode<ASTCreateEntityStatement>(@$,
@@ -3357,6 +3384,7 @@ create_entity_statement {ASTNode*}:
             $opt_generic_entity_body
           );
       node->set_is_or_replace($opt_or_replace);
+      node->set_scope($opt_create_scope);
       node->set_is_if_not_exists($opt_if_not_exists);
       $$ = node;
     }
@@ -11123,6 +11151,8 @@ function_call_argument {ASTExpression*}:
   | named_argument
   | lambda_argument
   | sequence_arg
+  | model_arg
+  | function_ref_arg
   | "SELECT"
     {
       return MakeSyntaxError(
@@ -11140,6 +11170,20 @@ sequence_arg {ASTExpression*}:
     }
 ;
 
+model_arg {ASTExpression*}:
+    "MODEL" path_expression
+    {
+      $$ = MakeNode<ASTModelArg>(@$, $2);
+    }
+;
+
+function_ref_arg {ASTExpression*}:
+    "FUNCTION" path_expression
+    {
+      $$ = MakeNode<ASTFunctionRefArg>(@$, $2);
+    }
+;
+
 named_argument {ASTExpression*}:
     identifier "=>" expression
     {
@@ -11148,6 +11192,10 @@ named_argument {ASTExpression*}:
   | identifier "=>" lambda_argument
     {
       $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $lambda_argument);
+    }
+  | identifier "=>" function_ref_arg
+    {
+      $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $function_ref_arg);
     }
   | identifier "=>" input_table_argument
     {
@@ -13619,7 +13667,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTCreateSchemaStatement::kConcreteNodeKind;
     }
-  | "CREATE" opt_or_replace generic_entity_type
+  | "CREATE" next_statement_kind_create_modifiers generic_entity_type
     {
       $$ = ASTCreateEntityStatement::kConcreteNodeKind;
     }

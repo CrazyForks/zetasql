@@ -302,6 +302,7 @@ cc_library(
         "//googlesql/public:builtin_function_cc_proto",
         "//googlesql/public:catalog",
         "//googlesql/public:function",
+        "//googlesql/public:function_cc_proto",
         "//googlesql/public:language_options",
         "//googlesql/public:options_cc_proto",
         "//googlesql/public:rewriter_interface",
@@ -460,6 +461,32 @@ cc_library(
 )
 
 cc_library(
+    name = "tumble_function_rewriter",
+    srcs = ["tumble_function_rewriter.cc"],
+    hdrs = ["tumble_function_rewriter.h"],
+    deps = [
+        "//googlesql/analyzer:substitute",
+        "//googlesql/base:ret_check",
+        "//googlesql/base:status",
+        "//googlesql/public:analyzer_options",
+        "//googlesql/public:analyzer_output_properties",
+        "//googlesql/public:builtin_function_cc_proto",
+        "//googlesql/public:catalog",
+        "//googlesql/public:function",
+        "//googlesql/public:options_cc_proto",
+        "//googlesql/public:rewriter_interface",
+        "//googlesql/public:value",
+        "//googlesql/public/types",
+        "//googlesql/resolved_ast",
+        "//googlesql/resolved_ast:column_factory",
+        "//googlesql/resolved_ast:rewrite_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "quantified_comparison_rewriter",
     srcs = ["quantified_comparison_rewriter.cc"],
     hdrs = ["quantified_comparison_rewriter.h"],
@@ -479,7 +506,9 @@ cc_library(
         "//googlesql/resolved_ast:column_factory",
         "//googlesql/resolved_ast:make_node_vector",
         "//googlesql/resolved_ast:resolved_ast_builder",
+        "//googlesql/resolved_ast:resolved_ast_enums_cc_proto",
         "//googlesql/resolved_ast:resolved_ast_rewrite_visitor",
+        "//googlesql/resolved_ast:resolved_node_kind_cc_proto",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -16,7 +16,7 @@
 
 #ifndef GOOGLESQL_ANALYZER_REWRITERS_MEASURE_COLLECTOR_H_
 #define GOOGLESQL_ANALYZER_REWRITERS_MEASURE_COLLECTOR_H_
-
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -39,11 +39,6 @@ struct MeasureInfo {
   // containing ResolvedExpressionColumns.
   const ResolvedExpr* measure_expr;
 
-  // A struct-typed column containing values needed for measure expansion into
-  // multi-level aggregation. The struct contains columns referenced in
-  // `measure_expr` and row identity columns from the source table.
-  ResolvedColumn closure_struct;
-
   // Names of row identity columns for the measure, retrieved from
   // `Column::Name()`. They are used to fetch the
   // corresponding fields from the "key_columns" sub-struct from
@@ -54,9 +49,25 @@ struct MeasureInfo {
   absl::btree_set<std::string, googlesql_base::CaseLess>
       row_identity_column_names;
 
-  // The measure-typed column from whence the measure originates,
-  // e.g., a measure-typed ResolvedColumn on a ResolvedTableScan::column_list().
-  ResolvedColumn measure_source_column;
+  // The type of the closure struct corresponding to the measure.
+  const Type* closure_struct_type;
+
+  struct ClosureColumn {
+    // A struct-typed column containing values needed for measure expansion into
+    // multi-level aggregation. The struct contains columns referenced in
+    // `measure_expr` and row identity columns from the source table.
+    ResolvedColumn closure_struct;
+
+    // The measure-typed column from whence the measure originates,
+    // e.g., a measure-typed ResolvedColumn on a
+    // ResolvedTableScan::column_list().
+    ResolvedColumn measure_source_column;
+  };
+
+  // Populated only if we do not reuse the original measure column id to hold
+  // the closure struct column, e.g., when multiple measure-typed columns on the
+  // same source scan are mapped to the same closure struct column.
+  std::optional<ClosureColumn> closure_column;
 };
 
 class MeasureCollector {
@@ -80,6 +91,10 @@ class MeasureCollector {
 
   // Returns the closure struct column that contains the required information to
   // evaluate the measure-typed column `m`.
+  //
+  // This function should only be called when we do not reuse the original
+  // measure column id to hold the closure struct, i.e., when
+  // `MeasureInfo::closure_column` has a value.
   //
   // Note: This function is needed because multiple measure-typed columns can
   // map to the same closure struct column (because we build one closure struct

@@ -172,7 +172,6 @@ cc_library(
         "//googlesql/public:strings",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

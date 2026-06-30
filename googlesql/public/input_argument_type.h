@@ -290,6 +290,7 @@ class InputArgumentType {
   // see table_valued_function.h.
   static InputArgumentType ModelInputArgumentType(
       const TVFModelArgument& model_arg);
+  static InputArgumentType ModelInputArgumentType();
 
   // Constructor for connection arguments. Only for use when analyzing
   // table-valued functions. 'connection_arg' specifies the connection object

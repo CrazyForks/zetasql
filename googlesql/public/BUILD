@@ -46,10 +46,17 @@ cc_library(
     srcs = ["time_series_tvf_util.cc"],
     hdrs = ["time_series_tvf_util.h"],
     deps = [
+        ":function",
+        ":type",
+        "//googlesql/base:ret_check",
         "//googlesql/base:status",
+        "//googlesql/public/types",
+        "//googlesql/public/types:type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -58,12 +65,19 @@ cc_test(
     size = "small",
     srcs = ["time_series_tvf_util_test.cc"],
     deps = [
+        ":function",
         ":time_series_tvf_util",
+        ":type",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/public/testing:error_matchers",
+        "//googlesql/public/types",
+        "//googlesql/public/types:type",
+        "//googlesql/testdata:test_proto3_cc_proto",
+        "//googlesql/testdata:test_schema_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 

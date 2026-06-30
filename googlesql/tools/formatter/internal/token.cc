@@ -852,7 +852,7 @@ void MaybeUpdateGroupingStateForSetStatement(
   //    [  group 1   ][g.2]
   //    [    entire match    ]
   static LazyRE2 kSetStatementRegex = {
-      R"regex((?im)(\s+[a-z0-9_.]+\s+)([^=;\s]+)\s*(?:;|$))regex"};
+      R"regex((?im)(\s+[a-z0-9_.]+\s+)((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`|[^=;'"`\s]+)+)\s*(?:;|$))regex"};
   // The same but for GoogleSQL-like SET statements: "SET param = value;".
   // Makes sure that 'value' is not an escaped string or a beginning of a
   // multiline statement: requires that the value is followed by a semicolon.
@@ -938,7 +938,7 @@ void MaybeUpdateGroupingStateForLoadOrSourceStatement(
   //     [g.1][  g.2  ]
   //     [ entire match  ]
   static LazyRE2 kLoadStatementRegex = {
-      R"regex((?m)(\s+)([^;\s]+)\s*(?:;|$))regex"};
+      R"regex((?m)(\s+)((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`|[^;'"`\s]+)+)\s*(?:;|$))regex"};
 
   absl::string_view matched_string[3];
   if (kLoadStatementRegex->Match(sql, TokenEndOffset(parse_token), sql.size(),

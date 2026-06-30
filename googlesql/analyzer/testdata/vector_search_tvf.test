@@ -27,7 +27,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -61,6 +61,7 @@ QueryStmt
 ==
 
 # Call with all arguments
+[language_features={{MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF|MAXIMUM}}]
 SELECT * FROM vector_search(
   TABLE base_table,
   'embedding',
@@ -69,8 +70,57 @@ SELECT * FROM vector_search(
   top_k => 5,
   distance_type => 'COSINE',
   max_distance => 0.8,
-  options => new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+  options => {{JSON '{"key1": 1, "key2": "value2"}'|new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)}}
 )
+--
+ALTERNATION GROUP: MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,JSON '{"key1": 1, "key2": "value2"}'
+--
+QueryStmt
++-output_column_list=
+| +-vector_search.query#17 AS query [STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>]
+| +-vector_search.base#18 AS base [STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>]
+| +-vector_search.distance#19 AS distance [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=vector_search.[query#17, base#18, distance#19]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=vector_search.[query#17, base#18, distance#19]
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, literal JSON, literal INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=base_table.[id#9, embedding#10, string_col#11], node_source="table_clause", table=base_table, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=base_table.[id#9, embedding#10, string_col#11]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="embedding")
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16], node_source="table_clause", table=query_table, column_index_list=[0, 1, 2, 3, 4])
+        | | +-argument_column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="query_embedding")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=JSON, value={"key1":1,"key2":"value2"}, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=INT64, value=5)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="COSINE")
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=2)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) JSON options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUPS:
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+    MAXIMUM,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
 --
 QueryStmt
 +-output_column_list=
@@ -83,7 +133,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -118,6 +168,89 @@ QueryStmt
         |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=1)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUP: MAXIMUM,JSON '{"key1": 1, "key2": "value2"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
+==
+
+[language_features=MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF]
+# Call with options as a parse_json argument (immutable constant)
+SELECT * FROM vector_search(
+  TABLE base_table,
+  'embedding',
+  TABLE query_table,
+  'query_embedding',
+  top_k => 5,
+  distance_type => 'COSINE',
+  max_distance => 0.8,
+  options => parse_json('{"key1": 1, "key2": "value2"}')
+)
+--
+QueryStmt
++-output_column_list=
+| +-vector_search.query#17 AS query [STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>]
+| +-vector_search.base#18 AS base [STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>]
+| +-vector_search.distance#19 AS distance [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=vector_search.[query#17, base#18, distance#19]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=vector_search.[query#17, base#18, distance#19]
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, JSON, literal INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=base_table.[id#9, embedding#10, string_col#11], node_source="table_clause", table=base_table, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=base_table.[id#9, embedding#10, string_col#11]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="embedding")
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16], node_source="table_clause", table=query_table, column_index_list=[0, 1, 2, 3, 4])
+        | | +-argument_column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="query_embedding")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:parse_json(STRING, optional(1) STRING wide_number_mode) -> JSON)
+        | |     +-Literal(type=STRING, value='{"key1": 1, "key2": "value2"}')
+        | |     +-Literal(type=STRING, value="exact")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=INT64, value=5)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="COSINE")
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=2)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) JSON options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+==
+
+[language_features=MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF]
+# Call with options as a non-immutable-constant query parameter
+SELECT * FROM vector_search(
+  TABLE base_table,
+  'embedding',
+  TABLE query_table,
+  'query_embedding',
+  top_k => 5,
+  distance_type => 'COSINE',
+  max_distance => 0.8,
+  options => @test_param_json
+)
+--
+ERROR: Argument 'options' to table-valued function VECTOR_SEARCH must be an immutable constant [at 10:3]
+  options => @test_param_json
+  ^
 ==
 
 # Call with alias
@@ -214,7 +347,7 @@ QueryStmt
         +-input_scan=
           +-TVFScan
             +-column_list=VECTOR_SEARCH.[query#9, base#10, distance#11]
-            +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+            +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
             +-signature=(TABLE<_INDEX_LEAF_ID INT64, embedding ARRAY<FLOAT>>, literal STRING, TABLE<id INT64, embd ARRAY<FLOAT>>, literal STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, embd ARRAY<FLOAT>>, base STRUCT<_INDEX_LEAF_ID INT64, embedding ARRAY<FLOAT>>, distance DOUBLE>
             +-argument_list=
             | +-FunctionArgument
@@ -272,16 +405,69 @@ QueryStmt
 ==
 
 # query table as SELECT query
+[language_features={{MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF|MAXIMUM}}]
 SELECT * FROM vector_search(
   TABLE base_table,
   'embedding',
   (SELECT query_embedding FROM query_table),
   'query_embedding',
-  options => new googlesql_test.TestApproxDistanceFunctionOptionsProto(),
+  options => {{JSON '{"top_k": 5, "distance_type": "COSINE"}'|new googlesql_test.TestApproxDistanceFunctionOptionsProto()}},
   top_k => 5,
   distance_type => 'COSINE',
   max_distance => 0.8
 )
+--
+ALTERNATION GROUP: MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,JSON '{"top_k": 5, "distance_type": "COSINE"}'
+--
+QueryStmt
++-output_column_list=
+| +-vector_search.query#17 AS query [STRUCT<query_embedding ARRAY<DOUBLE>>]
+| +-vector_search.base#18 AS base [STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>]
+| +-vector_search.distance#19 AS distance [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=vector_search.[query#17, base#18, distance#19]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=vector_search.[query#17, base#18, distance#19]
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<query_embedding ARRAY<DOUBLE>>, literal STRING, literal JSON, literal INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<query_embedding ARRAY<DOUBLE>>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=base_table.[id#9, embedding#10, string_col#11], node_source="table_clause", table=base_table, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=base_table.[id#9, embedding#10, string_col#11]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="embedding")
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-ProjectScan
+        | | |   +-column_list=[query_table.query_embedding#13]
+        | | |   +-input_scan=
+        | | |     +-TableScan(column_list=[query_table.query_embedding#13], table=query_table, column_index_list=[1])
+        | | +-argument_column_list=[query_table.query_embedding#13]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="query_embedding")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=JSON, value={"distance_type":"COSINE","top_k":5}, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=INT64, value=5)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="COSINE")
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=2)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) JSON options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUPS:
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,new googlesql_test.TestApproxDistanceFunctionOptionsProto()
+    MAXIMUM,new googlesql_test.TestApproxDistanceFunctionOptionsProto()
 --
 QueryStmt
 +-output_column_list=
@@ -294,7 +480,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<query_embedding ARRAY<DOUBLE>>, literal STRING, PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<query_embedding ARRAY<DOUBLE>>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -328,6 +514,12 @@ QueryStmt
         |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=1)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUP: MAXIMUM,JSON '{"top_k": 5, "distance_type": "COSINE"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
 ==
 
 # implicit query_column_to_search
@@ -344,7 +536,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, null STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -377,24 +569,10 @@ QueryStmt
         +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
 ==
 
-# options argument is a JSON literal
-SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table, options => IFNULL(NULL, JSON '{"key1": 1, "key2": 2}'))
---
-ERROR: No matching signature for vector_search
-  Argument types: TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, STRING, JSON, INT64, STRING, DOUBLE
-  Signature: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE])
-    Argument 5: Unable to coerce type JSON to expected type googlesql_test.TestApproxDistanceFunctionOptionsProto [at 1:15]
-SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table,...
-              ^
-==
-
 # options argument is not a proto
 SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table, options => CAST(1 AS STRING))
 --
-ERROR: No matching signature for vector_search
-  Argument types: TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, STRING, STRING, INT64, STRING, DOUBLE
-  Signature: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE])
-    Argument 5: Unable to coerce type STRING to expected type googlesql_test.TestApproxDistanceFunctionOptionsProto [at 1:15]
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
 SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table,...
               ^
 ==
@@ -412,6 +590,21 @@ SELECT * FROM vector_search(
 ERROR: Could not cast literal "invalid_json" to type googlesql_test.TestApproxDistanceFunctionOptionsProto (Error parsing proto: Message type "googlesql_test.TestApproxDistanceFunctionOptionsProto" has no field named "invalid_json". [1:13]) [at 6:14]
   options => 'invalid_json'
              ^
+==
+
+# Invalid JSON literal options value
+[language_features=MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF]
+SELECT * FROM vector_search(
+  TABLE base_table,
+  'embedding',
+  TABLE query_table,
+  'query_embedding',
+  options => JSON '{"top_k": 5'
+)
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<FLOAT>, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<FLOAT>, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<DOUBLE>, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<DOUBLE>, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => STRING, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => STRING, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
 ==
 
 # NULL column_to_search argument
@@ -436,7 +629,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -472,6 +665,7 @@ QueryStmt
 ==
 
 # top_k argument is not a literal or query parameter
+[language_features={{MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF|MAXIMUM}}]
 SELECT * FROM vector_search(
   TABLE base_table,
   'embedding',
@@ -480,8 +674,59 @@ SELECT * FROM vector_search(
   top_k => 5 + 6,
   distance_type => 'COSINE',
   max_distance => 0.8,
-  options => new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+  options => {{JSON '{"key1": 1, "key2": "value2"}'|new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)}}
 )
+--
+ALTERNATION GROUP: MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,JSON '{"key1": 1, "key2": "value2"}'
+--
+QueryStmt
++-output_column_list=
+| +-vector_search.query#17 AS query [STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>]
+| +-vector_search.base#18 AS base [STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>]
+| +-vector_search.distance#19 AS distance [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=vector_search.[query#17, base#18, distance#19]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=vector_search.[query#17, base#18, distance#19]
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, literal JSON, INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=base_table.[id#9, embedding#10, string_col#11], node_source="table_clause", table=base_table, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=base_table.[id#9, embedding#10, string_col#11]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="embedding")
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16], node_source="table_clause", table=query_table, column_index_list=[0, 1, 2, 3, 4])
+        | | +-argument_column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="query_embedding")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=JSON, value={"key1":1,"key2":"value2"}, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
+        | |     +-Literal(type=INT64, value=5)
+        | |     +-Literal(type=INT64, value=6)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="COSINE")
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=2)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) JSON options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUPS:
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+    MAXIMUM,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
 --
 QueryStmt
 +-output_column_list=
@@ -494,7 +739,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, INT64, literal STRING, literal DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -531,9 +776,16 @@ QueryStmt
         |     +-Literal(type=DOUBLE, value=0.8, float_literal_id=1)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUP: MAXIMUM,JSON '{"key1": 1, "key2": "value2"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
 ==
 
 # max_distance argument is not a literal or query parameter
+[language_features={{MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF|MAXIMUM}}]
 SELECT * FROM vector_search(
   TABLE base_table,
   'embedding',
@@ -541,8 +793,59 @@ SELECT * FROM vector_search(
   'query_embedding',
   max_distance => 0.8 + 0.9,
   distance_type => 'COSINE',
-  options => new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+  options => {{JSON '{"key1": 1, "key2": "value2"}'|new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)}}
 )
+--
+ALTERNATION GROUP: MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,JSON '{"key1": 1, "key2": "value2"}'
+--
+QueryStmt
++-output_column_list=
+| +-vector_search.query#17 AS query [STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>]
+| +-vector_search.base#18 AS base [STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>]
+| +-vector_search.distance#19 AS distance [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=vector_search.[query#17, base#18, distance#19]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=vector_search.[query#17, base#18, distance#19]
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, literal JSON, literal INT64, literal STRING, DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=base_table.[id#9, embedding#10, string_col#11], node_source="table_clause", table=base_table, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=base_table.[id#9, embedding#10, string_col#11]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="embedding")
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16], node_source="table_clause", table=query_table, column_index_list=[0, 1, 2, 3, 4])
+        | | +-argument_column_list=query_table.[id#12, query_embedding#13, embedding#14, float_embedding#15, string_query_col#16]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="query_embedding")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=JSON, value={"key1":1,"key2":"value2"}, has_explicit_type=TRUE, preserve_in_literal_remover=TRUE)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=INT64, value=10)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="COSINE")
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-FunctionCall(GoogleSQL:$add(DOUBLE, DOUBLE) -> DOUBLE)
+        |       +-Literal(type=DOUBLE, value=0.8, float_literal_id=3)
+        |       +-Literal(type=DOUBLE, value=0.9, float_literal_id=4)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) JSON options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUPS:
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+    MAXIMUM,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
 --
 QueryStmt
 +-output_column_list=
@@ -555,7 +858,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, literal STRING, DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -592,24 +895,39 @@ QueryStmt
         |       +-Literal(type=DOUBLE, value=0.9, float_literal_id=2)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE, STRING column_to_search, ANY TABLE, optional(1) STRING query_column_to_search, optional(1) PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> options, optional(1) INT64 top_k, optional(1) STRING distance_type, optional(1) DOUBLE max_distance) -> ANY TABLE
+--
+ALTERNATION GROUP: MAXIMUM,JSON '{"key1": 1, "key2": "value2"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
 ==
 
-# Batch Vector_SEARCH, options proto not passed with named argument
+# Batch Vector_SEARCH, options not passed with named argument
+[language_features={{MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF|MAXIMUM}}]
 SELECT * FROM vector_search(
   TABLE base_table,
   'embedding',
   TABLE query_table,
   'query_embedding',
-  new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value),
+  {{new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)|JSON '{"key1": 1, "key2": "value2"}'}},
   max_distance => 0.8,
   distance_type => 'COSINE'
 )
-
 --
-ERROR: No matching signature for vector_search
-  Argument types: TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, STRING, googlesql_test.TestApproxDistanceFunctionOptionsProto, DOUBLE, STRING
-  Signature: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE])
-    Positional argument at 5 is invalid because argument `options` can only be referred to by name [at 1:15]
+ALTERNATION GROUPS:
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+    MAXIMUM,+SINGLE_HYBRID_VECTOR_SEARCH_TVF,JSON '{"key1": 1, "key2": "value2"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<FLOAT>, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<FLOAT>, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<DOUBLE>, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => ARRAY<DOUBLE>, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => STRING, [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]); VECTOR_SEARCH(TABLE, column_to_search => STRING, query_value => STRING, [options => JSON], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
+SELECT * FROM vector_search(
+              ^
+--
+ALTERNATION GROUPS:
+    MAXIMUM,new googlesql_test.TestApproxDistanceFunctionOptionsProto(1 as key, "value2" as value)
+    MAXIMUM,JSON '{"key1": 1, "key2": "value2"}'
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 1:15]
 SELECT * FROM vector_search(
               ^
 ==
@@ -663,7 +981,7 @@ QueryStmt
     +-input_scan=
       +-TVFScan
         +-column_list=vector_search.[query#9, base#10, distance#11]
-        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+        +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
         +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, literal STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, null STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
         +-argument_list=
         | +-FunctionArgument
@@ -737,7 +1055,7 @@ CreateFunctionStmt
             +-input_scan=
             | +-TVFScan
             |   +-column_list=[VECTOR_SEARCH.distance#11]
-            |   +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
+            |   +-tvf=GoogleSQL:vector_search((ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ANY TABLE, optional STRING query_column_to_search, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<FLOAT> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, ARRAY<DOUBLE> {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto> {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE; (ANY TABLE, STRING {must_be_non_null: true} column_to_search, STRING {must_be_non_null: true} query_value, optional JSON {must_be_immutable_constant: true} options, optional INT64 {default_value: 10} top_k, optional STRING {default_value: "EUCLIDEAN"} distance_type, optional DOUBLE {default_value: NULL} max_distance) -> ANY TABLE)
             |   +-signature=(TABLE<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, STRING, TABLE<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, literal STRING, null PROTO<googlesql_test.TestApproxDistanceFunctionOptionsProto>, literal INT64, STRING, null DOUBLE) -> TABLE<query STRUCT<id INT64, query_embedding ARRAY<DOUBLE>, embedding ARRAY<DOUBLE>, float_embedding ARRAY<FLOAT>, string_query_col STRING>, base STRUCT<id INT64, embedding ARRAY<DOUBLE>, string_col STRING>, distance DOUBLE>
             |   +-argument_list=
             |   | +-FunctionArgument
@@ -782,3 +1100,20 @@ SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table, 'q
 ERROR: Table-valued function not found: vector_search [at 2:15]
 SELECT * FROM vector_search(TABLE base_table, 'embedding', TABLE query_table,...
               ^
+
+==
+
+[language_features=MAXIMUM, -SINGLE_HYBRID_VECTOR_SEARCH_TVF]
+# SINGLE_HYBRID_VECTOR_SEARCH_TVF language feature disabled, calling with JSON options is not supported.
+SELECT * FROM vector_search(
+  TABLE base_table,
+  'embedding',
+  TABLE query_table,
+  'query_embedding',
+  options => JSON '{"key1": 1, "key2": "value2"}'
+)
+--
+ERROR: No matching signature for table valued function : VECTOR_SEARCH. Supported Signatures: VECTOR_SEARCH(TABLE, column_to_search => STRING, TABLE, [query_column_to_search => STRING], [options => googlesql_test.TestApproxDistanceFunctionOptionsProto], [top_k => INT64], [distance_type => STRING], [max_distance => DOUBLE]) [at 2:15]
+SELECT * FROM vector_search(
+              ^
+

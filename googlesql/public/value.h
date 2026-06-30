@@ -674,7 +674,7 @@ class Value {
   // REQUIRES: T is one of int32, int64, uint32, uint64, bool, float, double,
   // string, NumericValue, BigNumericValue, IntervalValue, UuidValue,
   template <typename T>
-  inline static Value Make(T value) {
+  static Value Make(T value) {
     if constexpr (std::is_same_v<T, NumericValue>) {
       return Value::Numeric(value);
     } else if constexpr (std::is_same_v<T, BigNumericValue>) {
@@ -717,7 +717,7 @@ class Value {
   // REQUIRES: T is one of int32, int64, uint32, uint64, bool, float, double,
   // string.
   template <typename T>
-  inline static Value MakeNull() {
+  static Value MakeNull() {
     if constexpr (std::is_same_v<T, NumericValue>) {
       return Value::NullNumeric();
     } else if constexpr (std::is_same_v<T, BigNumericValue>) {

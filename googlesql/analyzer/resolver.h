@@ -411,6 +411,8 @@ class Resolver {
 
   const AnalyzerOptions& analyzer_options() const { return analyzer_options_; }
 
+  TypeFactory* type_factory() const { return type_factory_; }
+
   const LanguageOptions& language() const {
     return analyzer_options_.language();
   }
@@ -638,6 +640,10 @@ class Resolver {
   // layer can then detect that the generated column it was attempting to
   // resolve has a dependency on 'unresolved_column_name_in_generated_column_'.
   IdString unresolved_column_name_in_generated_column_;
+
+  // When resolving a graph measure expression fails due to an unrecognized
+  // name, this stores the unrecognized name.
+  IdString unrecognized_graph_measure_name_;
 
   // True if we are analyzing an expression that is stored and non volatile,
   // either as a generated table column or as an expression stored in an index.
@@ -3108,7 +3114,7 @@ class Resolver {
     // for an input scan to have duplicate column names.
     absl::flat_hash_set<IdString, IdStringCaseHash, IdStringCaseEqualFunc>
     GetAllColumnNames(
-        const std::vector<ResolvedInputResult>& resolved_inputs) const;
+        absl::Span<const ResolvedInputResult> resolved_inputs) const;
 
     struct FinalColumnList {
       // The calculated final column list of the set operation.
@@ -4411,6 +4417,24 @@ class Resolver {
 
   absl::StatusOr<std::unique_ptr<const ResolvedLiteral>> ResolveRangeLiteral(
       const ASTRangeLiteral* ast_range_literal);
+
+  absl::StatusOr<std::unique_ptr<const ResolvedWithinBoundExpr>>
+  ResolveWithinBoundExpr(
+      const ASTAlignWithinBoundExpr* /*absl_nonnull*/ ast_within_bound_expr,
+      const NameScope* /*absl_nonnull*/ name_scope);
+
+  absl::StatusOr<std::unique_ptr<const ResolvedWithinBounds>>
+  ResolveWithinBounds(
+      const ASTAlignWithinClause* /*absl_nonnull*/ ast_within_clause,
+      const NameScope* /*absl_nonnull*/ name_scope);
+
+  absl::Status ValidateWithinBoundExpr(
+      const ASTAlignWithinBoundExpr* /*absl_nonnull*/ ast_within_bound_expr,
+      const ResolvedWithinBoundExpr* /*absl_nonnull*/ node);
+
+  absl::Status ValidateWithinBounds(
+      const ASTAlignWithinClause* /*absl_nonnull*/ ast_within_clause,
+      const ResolvedWithinBounds* /*absl_nonnull*/ node);
 
   absl::Status ValidateColumnForAggregateOrAnalyticSupport(
       const ResolvedColumn& resolved_column, IdString first_name,
@@ -6306,6 +6330,11 @@ class Resolver {
       std::unique_ptr<FunctionSignature>& result_signature,
       std::vector<ResolvedTVFArg>& resolved_tvf_args,
       std::vector<TVFInputArgumentType>& tvf_input_arguments);
+
+  // Ensures that the TVF arguments do not have any unsupported annotations.
+  absl::Status CheckTVFArgumentHasNoUnsupportedAnnotations(
+      bool is_sql_tvf, std::vector<ResolvedTVFArg>& resolved_tvf_args,
+      const std::vector<const ASTNode*>& ast_locations);
 
   // Generates an error status about a TVF call not matching a signature.
   // It is made to avoid redundant code in MatchTVFSignature.

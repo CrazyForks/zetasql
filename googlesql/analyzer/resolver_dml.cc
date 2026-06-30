@@ -1648,10 +1648,10 @@ absl::Status Resolver::PopulateUpdateTargetInfos(
       // Apply a simple subtraction rewrite for ORDINAL() to make it 0-based.
       if (function_name == kArrayAtOrdinal) {
         // 'info.array_offset' is 1-based. Subtract 1 to make it 0-based.
-        absl::string_view subtraction_name =
-            FunctionResolver::BinaryOperatorToFunctionName(
-                ASTBinaryExpression::MINUS, /*is_not=*/false,
-                /*not_handled=*/nullptr);
+        GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view subtraction_name,
+                         FunctionResolver::BinaryOperatorToFunctionName(
+                             ASTBinaryExpression::MINUS, /*is_not=*/false,
+                             /*not_handled=*/nullptr));
 
         std::vector<std::unique_ptr<const ResolvedExpr>> subtraction_args;
         subtraction_args.push_back(std::move(info.subscript_expr));

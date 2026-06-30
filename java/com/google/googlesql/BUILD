@@ -28,6 +28,8 @@ package(
 
 TYPES_SRCS = [
     "ArrayType.java",
+    "DeclarativeType.java",
+    "DeclarativeTypeDescriptor.java",
     "BuiltinDescriptorPool.java",
     "CivilTimeEncoder.java",
     "EnumType.java",

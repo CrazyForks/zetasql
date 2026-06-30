@@ -28,37 +28,47 @@
 
 namespace googlesql::functions::match_recognize {
 
-void RowEdgeList::ClearRows() { bits_.clear(); }
-
-int RowEdgeList::num_rows() const {
-  return static_cast<int>(bits_.size() / num_edges());
+void RowEdgeList::ClearRows() {
+  bits_.clear();
+  num_rows_ = 0;
 }
 
+int RowEdgeList::num_rows() const { return num_rows_; }
+
 int RowEdgeList::AddRow() {
-  int row_index = num_rows();
-  bits_.resize(bits_.size() + num_edges());
+  int row_index = num_rows_;
+  ++num_rows_;
+  size_t num_bits = static_cast<size_t>(num_rows_) * num_edges();
+  size_t num_words = (num_bits + 63) / 64;
+  bits_.resize(num_words, 0);
   return row_index;
 }
 
-int RowEdgeList::GetBitIndex(int row_number, int edge_number) const {
-  int bit_index = row_number * num_edges() + edge_number;
-  ABSL_DCHECK(bit_index >= 0 && bit_index < bits_.size())
+size_t RowEdgeList::GetBitIndex(int row_number, int edge_number) const {
+  ABSL_DCHECK_GE(row_number, 0);
+  ABSL_DCHECK_GE(edge_number, 0);
+  size_t bit_index =
+      static_cast<size_t>(row_number) * num_edges() + edge_number;
+  ABSL_DCHECK_LT(bit_index, static_cast<size_t>(num_rows_) * num_edges())
       << "bit index out of bounds: " << bit_index
       << " (row_number: " << row_number << ", edge_number: " << edge_number
-      << ", size: " << bits_.size() << ")";
+      << ", size: " << static_cast<size_t>(num_rows_) * num_edges() << ")";
   return bit_index;
 }
 
 void RowEdgeList::MarkEdge(int row_number, int edge_number) {
-  bits_[GetBitIndex(row_number, edge_number)] = true;
+  size_t bit_index = GetBitIndex(row_number, edge_number);
+  bits_[bit_index / 64] |= (1ULL << (bit_index % 64));
 }
 
 void RowEdgeList::UnmarkEdge(int row_number, int edge_number) {
-  bits_[GetBitIndex(row_number, edge_number)] = false;
+  size_t bit_index = GetBitIndex(row_number, edge_number);
+  bits_[bit_index / 64] &= ~(1ULL << (bit_index % 64));
 }
 
 bool RowEdgeList::IsMarked(int row_number, int edge_number) const {
-  return bits_[GetBitIndex(row_number, edge_number)];
+  size_t bit_index = GetBitIndex(row_number, edge_number);
+  return (bits_[bit_index / 64] & (1ULL << (bit_index % 64))) != 0;
 }
 
 const Edge* /*absl_nullable*/ RowEdgeList::GetHighestPrecedenceMarkedEdge(

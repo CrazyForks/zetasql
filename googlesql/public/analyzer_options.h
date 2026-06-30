@@ -71,6 +71,14 @@ struct StringVectorCaseLess {
 // achieve case-insensitive matching.
 typedef std::map<std::string, const Type*> QueryParametersMap;
 
+struct GraphPropertyDefinitionInfo {
+  const Type* type = nullptr;
+  bool is_same_name_column_def = false;
+};
+// TODO: Consider changing the map key type to IdString for consistency.
+typedef absl::flat_hash_map<std::string, GraphPropertyDefinitionInfo>
+    GraphPropertyDefinitionMap;
+
 // Key = name path of system variable.  Value = type of variable.
 // Name elements in the key do not include the "@@" prefix.
 // For example, if @@foo.bar has type INT32, the corresponding map entry is:
@@ -206,7 +214,7 @@ struct AllowedHintsAndOptions {
           {"group_selection_strategy",
            {types::DifferentialPrivacyGroupSelectionStrategyEnumType()}},
           {"min_privacy_units_per_group", {types::Int64Type()}},
-  };
+      };
 
   // Options allowed in ResolvedDifferentialPrivacyAggregateScan.
   absl::flat_hash_map<std::string, AllowedOptionProperties>
@@ -222,7 +230,7 @@ struct AllowedHintsAndOptions {
           {"group_selection_strategy",
            {types::DifferentialPrivacyGroupSelectionStrategyEnumType()}},
           {"min_privacy_units_per_group", {types::Int64Type()}},
-  };
+      };
 
  private:
   absl::Status AddHintImpl(absl::string_view qualifier, absl::string_view name,
@@ -557,7 +565,7 @@ class AnalyzerOptions {
     return data_->expression_columns;
   }
 
-  const QueryParametersMap& graph_properties() const {
+  const GraphPropertyDefinitionMap& graph_properties() const {
     return data_->graph_properties;
   }
 
@@ -942,7 +950,7 @@ class AnalyzerOptions {
     QueryParametersMap expression_columns;
 
     // Maps of graph properties. The keys are lowercased.
-    QueryParametersMap graph_properties;
+    GraphPropertyDefinitionMap graph_properties;
 
     // Maps system variables to their types.
     SystemVariablesMap system_variables;

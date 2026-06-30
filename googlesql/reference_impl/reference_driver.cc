@@ -166,6 +166,8 @@ ReferenceDriver::ReferenceDriver(
         googlesql::FEATURE_DIFFERENTIAL_PRIVACY_REPORT_FUNCTIONS);
   }
 
+  // TODO: Remove this once the feature is not in development.
+  language_options_.EnableLanguageFeature(googlesql::FEATURE_TUMBLE_HOP_TVFS);
   // Optional evaluator features need to be enabled "manually" here since we do
   // not go through the public PreparedExpression/PreparedQuery interface, which
   // normally handles it.

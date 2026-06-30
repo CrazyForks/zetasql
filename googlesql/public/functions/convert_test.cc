@@ -97,8 +97,7 @@ inline void TestMonotonicity(ToType max) {
       EXPECT_GE(converted_x, prev_converted_x);
       EXPECT_LE(converted_y, prev_converted_y);
     }
-    if (std::is_integral<FromType>::value ||
-        std::is_same<FromType, ToType>::value) {
+    if (std::is_integral_v<FromType> || std::is_same_v<FromType, ToType>) {
       EXPECT_EQ(static_cast<ToType>(x), converted_x);
       EXPECT_EQ(static_cast<ToType>(y), converted_y);
     }

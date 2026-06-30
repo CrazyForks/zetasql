@@ -54,6 +54,21 @@ static absl::StatusOr<const Type*> ReconstructFromComponents(
     return type;
   }
 
+  // Exit early if the component types are unchanged.
+  std::vector<const Type*> component_types = type->ComponentTypes();
+  if (component_types.size() == rewritten_components.size()) {
+    bool all_equal = true;
+    for (int i = 0; i < component_types.size(); ++i) {
+      if (!component_types[i]->Equals(rewritten_components[i].type)) {
+        all_equal = false;
+        break;
+      }
+    }
+    if (all_equal) {
+      return type;
+    }
+  }
+
   switch (type->kind()) {
     case TYPE_ARRAY: {
       const Type* output;

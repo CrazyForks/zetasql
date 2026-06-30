@@ -437,21 +437,6 @@ SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTE
 --
 ERROR: generic::out_of_range: Window size must be greater than or equal to step size.
 ==
-[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
-[name=timestamp_col_wrong_type]
-WITH CteWithWrongType AS (
-  SELECT 1 AS id
-)
-SELECT * FROM hop(TABLE CteWithWrongType, "id", INTERVAL 2 DAY, INTERVAL 1 DAY);
---
-ERROR: generic::out_of_range: Timestamp column 'id' is not of TIMESTAMP type.
-==
-[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
-[name=timestamp_col_not_found]
-SELECT * FROM hop(TABLE TableWithTimestampColumn, "non_existent_ts_col", INTERVAL 1 DAY, INTERVAL 2 DAY);
---
-ERROR: generic::out_of_range: Timestamp column 'non_existent_ts_col' not found in input table.
-==
 [required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS,NAMED_ARGUMENTS]
 [name=null_origin]
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 1 DAY, origin => NULL);

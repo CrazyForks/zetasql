@@ -42,8 +42,7 @@ namespace functions {
 
 template <typename T>
 inline T GetDummyValue() {
-  static_assert(std::is_arithmetic<T>::value,
-                "Only arithmetic types are supported");
+  static_assert(std::is_arithmetic_v<T>, "Only arithmetic types are supported");
   return static_cast<T>(0xDEADBEEF);
 }
 

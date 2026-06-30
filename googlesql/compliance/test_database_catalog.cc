@@ -241,19 +241,30 @@ static std::unique_ptr<SimpleTable> MakeSimpleTable(
   if (!table.options.is_value_table()) {
     // Non-value tables are represented as arrays of structs.
     const StructType* row_type = element_type->AsStruct();
-    std::vector<SimpleTable::NameAndAnnotatedType> columns;
+    std::vector<std::unique_ptr<const Column>> columns;
     const std::vector<const AnnotationMap*>& column_annotations =
         table.options.column_annotations();
     ABSL_CHECK(column_annotations.empty() ||
           column_annotations.size() == row_type->num_fields());
+    std::vector<bool> pseudo_columns = table.options.pseudo_columns();
+    ABSL_CHECK(pseudo_columns.empty() ||
+          pseudo_columns.size() == row_type->num_fields());
     columns.reserve(row_type->num_fields());
     for (int i = 0; i < row_type->num_fields(); i++) {
-      columns.push_back(
-          {row_type->field(i).name,
-           {row_type->field(i).type,
-            column_annotations.empty() ? nullptr : column_annotations[i]}});
+      const std::string& col_name = row_type->field(i).name;
+      const Type* col_type = row_type->field(i).type;
+      const AnnotationMap* col_annot =
+          column_annotations.empty() ? nullptr : column_annotations[i];
+
+      SimpleColumn::Attributes attrs;
+      attrs.is_pseudo_column =
+          pseudo_columns.empty() ? false : pseudo_columns[i];
+
+      columns.push_back(std::make_unique<SimpleColumn>(
+          table_name, col_name, AnnotatedType(col_type, col_annot), attrs));
     }
-    simple_table = std::make_unique<SimpleTable>(table_name, columns);
+    simple_table =
+        std::make_unique<SimpleTable>(table_name, std::move(columns));
   } else {
     // We got a value table. Create a table with a single column named "value".
     ABSL_CHECK(table.measure_column_defs.empty());

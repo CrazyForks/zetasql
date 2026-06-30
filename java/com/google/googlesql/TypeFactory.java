@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Ascii;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +38,7 @@ import com.google.googlesql.DescriptorPool.GoogleSQLDescriptor;
 import com.google.googlesql.DescriptorPool.GoogleSQLEnumDescriptor;
 import com.google.googlesql.GoogleSQLOptions.ProductMode;
 import com.google.googlesql.GoogleSQLType.ArrayTypeProto;
+import com.google.googlesql.GoogleSQLType.DeclarativeTypeProto;
 import com.google.googlesql.GoogleSQLType.EnumTypeProto;
 import com.google.googlesql.GoogleSQLType.MapTypeProto;
 import com.google.googlesql.GoogleSQLType.MeasureTypeProto;
@@ -53,6 +55,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * A factory for {@link Type} objects.
@@ -198,6 +202,9 @@ public abstract class TypeFactory implements Serializable {
     return new MeasureType(resultType);
   }
 
+  /** Returns a DeclarativeType with the given properties. */
+  public abstract DeclarativeType createDeclarativeType(DeclarativeTypeDescriptor descriptor);
+
   /** Returns a GraphElementType that contains the given {@code properties}. */
   public static GraphElementType createGraphElementType(
       List<String> graphReference,
@@ -312,6 +319,75 @@ public abstract class TypeFactory implements Serializable {
    */
   private abstract static class AbstractTypeFactory extends TypeFactory {
 
+    private static final ConcurrentMap<DeclarativeTypeDescriptor.TypeId, DeclarativeType>
+        STATIC_DECLARATIVE_TYPES = new ConcurrentHashMap<>();
+
+    private final Map<DeclarativeTypeDescriptor.TypeId, DeclarativeType> cachedDeclarativeTypes =
+        new HashMap<>();
+
+    private static boolean isStaticType(Type type) {
+      if (type.isSimpleType()) {
+        return true;
+      }
+      if (type.isDeclarativeType()) {
+        return STATIC_DECLARATIVE_TYPES.containsKey(type.asDeclarativeType().getId());
+      }
+      return false;
+    }
+
+    @Override
+    public final DeclarativeType createDeclarativeType(DeclarativeTypeDescriptor descriptor) {
+      Preconditions.checkNotNull(descriptor, "descriptor must not be null");
+      Preconditions.checkNotNull(descriptor.getDisplayName(), "displayName must not be null");
+      Preconditions.checkArgument(
+          !descriptor.getDisplayName().isEmpty(), "displayName must not be empty");
+      Type backingType = descriptor.getBackingType();
+      Preconditions.checkNotNull(backingType, "backingType must not be null");
+
+      // TODO: b/479854648 - Decide on supporting declarative types with returning.
+      Preconditions.checkArgument(
+          descriptor.getReturningStrategy()
+              == DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED,
+          "Returning is not supported for declarative types");
+
+      DeclarativeType declarativeType = new DeclarativeType(descriptor);
+
+      Preconditions.checkNotNull(descriptor.getTypeId(), "typeId must not be null");
+      DeclarativeTypeDescriptor.TypeId typeId = descriptor.getTypeId();
+
+      // Cache in static memory if it is backed by a type residing in static memory, and this type
+      // is a GoogleSQL built-in type.
+      if (typeId.isGoogleSqlBuiltin() && isStaticType(backingType)) {
+        DeclarativeType existing = STATIC_DECLARATIVE_TYPES.putIfAbsent(typeId, declarativeType);
+        if (existing != null) {
+          Preconditions.checkState(
+              existing.isIdenticalTo(declarativeType),
+              "Conflicting declarative types found for NameSpace: %s ID: %s Counter: %s",
+              typeId.getNameSpace(),
+              typeId.getLocalId(),
+              typeId.getCounter());
+          return existing;
+        }
+        return declarativeType;
+      }
+
+      // Instance level caching for dynamic / user-defined ones.
+      DeclarativeType existing;
+      synchronized (cachedDeclarativeTypes) {
+        existing = cachedDeclarativeTypes.putIfAbsent(typeId, declarativeType);
+      }
+      if (existing != null) {
+        Preconditions.checkState(
+            existing.isIdenticalTo(declarativeType),
+            "Conflicting declarative types found for NameSpace: %s ID: %s Counter: %s",
+            typeId.getNameSpace(),
+            typeId.getLocalId(),
+            typeId.getCounter());
+        return existing;
+      }
+      return declarativeType;
+    }
+
     /**
      * Creates a {@link ProtoType} using the given {@link Descriptor}.
      *
@@ -403,6 +479,9 @@ public abstract class TypeFactory implements Serializable {
 
         case TYPE_MEASURE:
           return deserializeMeasureType(proto, pools);
+
+        case TYPE_DECLARATIVE:
+          return deserializeDeclarativeType(proto, pools);
 
         default:
           throw new IllegalArgumentException(
@@ -536,6 +615,30 @@ public abstract class TypeFactory implements Serializable {
         TypeProto proto, List<? extends DescriptorPool> pools) {
       MeasureTypeProto measureType = proto.getMeasureType();
       return createMeasureType(deserialize(measureType.getResultType(), pools));
+    }
+
+    private DeclarativeType deserializeDeclarativeType(
+        TypeProto proto, List<? extends DescriptorPool> pools) {
+      DeclarativeTypeProto declarativeType = proto.getDeclarativeType();
+
+      DeclarativeTypeProto.TypeIdProto typeIdProto = declarativeType.getTypeId();
+      DeclarativeTypeDescriptor.TypeId typeId =
+          new DeclarativeTypeDescriptor.TypeId(
+              typeIdProto.getNameSpace(), typeIdProto.getLocalId(), typeIdProto.getCounter());
+
+      DeclarativeTypeDescriptor descriptor =
+          DeclarativeTypeDescriptor.builder()
+              .setTypeId(typeId)
+              .setDisplayName(declarativeType.getDisplayName())
+              .setBackingType(deserialize(declarativeType.getBackingType(), pools))
+              .setCoercionFromBackingType(declarativeType.getCoercionFromBackingType())
+              .setCoercionToBackingType(declarativeType.getCoercionToBackingType())
+              .setReturningStrategy(declarativeType.getReturningStrategy())
+              .setEqualityStrategy(declarativeType.getEqualityStrategy())
+              .setAdditionalRequiredLanguageFeatures(
+                  ImmutableSet.copyOf(declarativeType.getAdditionalRequiredLanguageFeaturesList()))
+              .build();
+      return createDeclarativeType(descriptor);
     }
   }
 

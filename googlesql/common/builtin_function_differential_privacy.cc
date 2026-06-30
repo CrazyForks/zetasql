@@ -65,9 +65,9 @@ static std::string SupportedSignaturesForDPCountStar(
          "[, report_format => DIFFERENTIAL_PRIVACY_REPORT_FORMAT])";
 }
 
-void GetAnonFunctions(TypeFactory* type_factory,
-                      const GoogleSQLBuiltinFunctionOptions& options,
-                      NameToFunctionMap* functions) {
+absl::Status GetAnonFunctions(TypeFactory* type_factory,
+                              const GoogleSQLBuiltinFunctionOptions& options,
+                              NameToFunctionMap* functions) {
   const Type* int64_type = type_factory->get_int64();
   const Type* uint64_type = type_factory->get_uint64();
   const Type* double_type = type_factory->get_double();
@@ -131,7 +131,7 @@ void GetAnonFunctions(TypeFactory* type_factory,
       new AnonFunction(
           "anon_count", Function::kGoogleSQLFunctionGroupName,
           {{int64_type,
-            {/*expr=*/ARG_TYPE_ANY_2,
+            {/*expr=*/ARG_KIND_EXPR_ANY_2,
              /*lower_bound=*/{int64_type, optional_const_arg_options},
              /*upper_bound=*/{int64_type, optional_const_arg_options}},
             FN_ANON_COUNT}},
@@ -338,7 +338,7 @@ void GetAnonFunctions(TypeFactory* type_factory,
       new AnonFunction(
           "$anon_count_with_report_json", Function::kGoogleSQLFunctionGroupName,
           {{json_type,
-            {/*expr=*/ARG_TYPE_ANY_2,
+            {/*expr=*/ARG_KIND_EXPR_ANY_2,
              /*lower_bound=*/{int64_type, optional_const_arg_options},
              /*upper_bound=*/{int64_type, optional_const_arg_options}},
             FN_ANON_COUNT_WITH_REPORT_JSON}},
@@ -353,7 +353,7 @@ void GetAnonFunctions(TypeFactory* type_factory,
           "$anon_count_with_report_proto",
           Function::kGoogleSQLFunctionGroupName,
           {{anon_output_with_report_proto_type,
-            {/*expr=*/ARG_TYPE_ANY_2,
+            {/*expr=*/ARG_KIND_EXPR_ANY_2,
              /*lower_bound=*/{int64_type, optional_const_arg_options},
              /*upper_bound=*/{int64_type, optional_const_arg_options}},
             FN_ANON_COUNT_WITH_REPORT_PROTO}},
@@ -475,6 +475,7 @@ void GetAnonFunctions(TypeFactory* type_factory,
               .set_sql_name("anon_avg")
               .set_get_sql_callback(&AnonAvgWithReportProtoFunctionSQL),
           "avg"));
+  return absl::OkStatus();
 }
 
 static std::string DpSignatureTextCallback(
@@ -749,7 +750,7 @@ absl::Status GetDifferentialPrivacyFunctions(
               {
                   {int64_type,
                    {
-                       /*expr=*/ARG_TYPE_ANY_2,
+                       /*expr=*/ARG_KIND_EXPR_ANY_2,
                        /*contribution_bounds_per_group=*/
                        {int64_pair_type,
                         optional_contribution_bounds_per_group_arg_options},
@@ -757,7 +758,7 @@ absl::Status GetDifferentialPrivacyFunctions(
                    FN_DIFFERENTIAL_PRIVACY_COUNT},
                   {json_type,
                    {
-                       /*expr=*/ARG_TYPE_ANY_2,
+                       /*expr=*/ARG_KIND_EXPR_ANY_2,
                        /*report_format=*/
                        {report_format_type, report_arg_options},
                        /*contribution_bounds_per_group=*/
@@ -770,7 +771,7 @@ absl::Status GetDifferentialPrivacyFunctions(
                        functions::DifferentialPrivacyEnums::JSON, 1)},
                   {report_proto_type,
                    {
-                       /*expr=*/ARG_TYPE_ANY_2,
+                       /*expr=*/ARG_KIND_EXPR_ANY_2,
                        /*report_format=*/
                        {report_format_type, report_arg_options},
                        /*contribution_bounds_per_group=*/
@@ -1221,7 +1222,7 @@ absl::Status GetDifferentialPrivacyFunctions(
                    Function::kGoogleSQLFunctionGroupName, Function::AGGREGATE,
                    /*function_signatures*/
                    {{bytes_type,
-                     {/*expr=*/{ARG_TYPE_ANY_2, supports_grouping}},
+                     {/*expr=*/{ARG_KIND_EXPR_ANY_2, supports_grouping}},
                      FN_DIFFERENTIAL_PRIVACY_INIT_FOR_DP_APPROX_COUNT_DISTINCT,
                      internal_collation_rejecting_option}},
                    dp_options.Copy()
@@ -1235,7 +1236,7 @@ absl::Status GetDifferentialPrivacyFunctions(
       new AnonFunction(
           kApproxCountDistinct, Function::kGoogleSQLFunctionGroupName,
           {{int64_type,
-            {/*expr=*/{ARG_TYPE_ANY_2, supports_grouping},
+            {/*expr=*/{ARG_KIND_EXPR_ANY_2, supports_grouping},
              /*contribution_bounding_strategy=*/
              {contribution_bounding_strategy_type,
               contribution_bounding_strategy_arg_options},
@@ -1244,7 +1245,7 @@ absl::Status GetDifferentialPrivacyFunctions(
             FN_DIFFERENTIAL_PRIVACY_APPROX_COUNT_DISTINCT,
             FunctionSignatureOptions().set_rejects_collation()},
            {json_type,
-            {/*expr=*/{ARG_TYPE_ANY_2, supports_grouping},
+            {/*expr=*/{ARG_KIND_EXPR_ANY_2, supports_grouping},
              /*report_format=*/{report_format_type, report_arg_options},
              /*contribution_bounding_strategy=*/
              {contribution_bounding_strategy_type,
@@ -1257,7 +1258,7 @@ absl::Status GetDifferentialPrivacyFunctions(
                                      1)
                 .set_rejects_collation()},
            {report_proto_type,
-            {/*expr=*/{ARG_TYPE_ANY_2, supports_grouping},
+            {/*expr=*/{ARG_KIND_EXPR_ANY_2, supports_grouping},
              /*report_format=*/{report_format_type, report_arg_options},
              /*contribution_bounding_strategy=*/
              {contribution_bounding_strategy_type,

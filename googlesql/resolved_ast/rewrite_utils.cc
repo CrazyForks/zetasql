@@ -56,6 +56,7 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
@@ -83,7 +84,7 @@ static absl::StatusOr<FunctionSignature> MakeConcreteSignature(
     const FunctionSignature& signature, const Type* result_type,
     std::vector<ConcreteArgument> concrete_args) {
   // Some best-effort checks.
-  if (signature.result_type().kind() == ARG_TYPE_FIXED) {
+  if (signature.result_type().kind() == ARG_KIND_EXPR_FIXED) {
     GOOGLESQL_RET_CHECK(result_type->Equals(signature.result_type().type()))
         << "result_type: " << result_type->DebugString()
         << " signature.result_type(): "
@@ -200,15 +201,17 @@ class CorrelateColumnRefVisitor : public ResolvedASTDeepCopyVisitor {
 
   absl::Status VisitResolvedSubqueryExpr(
       const ResolvedSubqueryExpr* node) override {
-    ++in_subquery_or_lambda_;
-    absl::Status s =
-        ResolvedASTDeepCopyVisitor::VisitResolvedSubqueryExpr(node);
-    --in_subquery_or_lambda_;
+    {
+      ++in_subquery_or_lambda_;
+      absl::Cleanup decrementer = [&] { --in_subquery_or_lambda_; };
+      GOOGLESQL_RETURN_IF_ERROR(
+          ResolvedASTDeepCopyVisitor::VisitResolvedSubqueryExpr(node));
+    }
 
     // If this is the first lambda or subquery encountered, we need to correlate
     // the column references in the parameter list and for the in expression.
     // Column references of outer columns are already correlated.
-    if (!in_subquery_or_lambda_) {
+    if (in_subquery_or_lambda_ == 0) {
       std::unique_ptr<ResolvedSubqueryExpr> expr =
           ConsumeTopOfStack<ResolvedSubqueryExpr>();
       CorrelateParameterList(expr.get());
@@ -219,20 +222,22 @@ class CorrelateColumnRefVisitor : public ResolvedASTDeepCopyVisitor {
       }
       PushNodeToStack(std::move(expr));
     }
-    return s;
+    return absl::OkStatus();
   }
 
   absl::Status VisitResolvedInlineLambda(
       const ResolvedInlineLambda* node) override {
-    ++in_subquery_or_lambda_;
-    absl::Status s =
-        ResolvedASTDeepCopyVisitor::VisitResolvedInlineLambda(node);
-    --in_subquery_or_lambda_;
+    {
+      ++in_subquery_or_lambda_;
+      absl::Cleanup decrementer = [&] { --in_subquery_or_lambda_; };
+      GOOGLESQL_RETURN_IF_ERROR(
+          ResolvedASTDeepCopyVisitor::VisitResolvedInlineLambda(node));
+    }
 
     // If this is the first lambda or subquery encountered, we need to correlate
     // the column references in the parameter list. Column references of outer
     // columns are already correlated.
-    if (!in_subquery_or_lambda_) {
+    if (in_subquery_or_lambda_ == 0) {
       std::unique_ptr<ResolvedInlineLambda> expr =
           ConsumeTopOfStack<ResolvedInlineLambda>();
       CorrelateParameterList(expr.get());
@@ -1343,8 +1348,8 @@ FunctionCallBuilder::Greater(std::unique_ptr<const ResolvedExpr> left_expr,
     for (const FunctionSignature& signature :
          greater_or_equal_function->signatures()) {
       if (signature.arguments().size() == 2 &&
-          signature.argument(0).kind() == ARG_TYPE_ANY_1 &&
-          signature.argument(1).kind() == ARG_TYPE_ANY_1) {
+          signature.argument(0).kind() == ARG_KIND_EXPR_ANY_1 &&
+          signature.argument(1).kind() == ARG_KIND_EXPR_ANY_1) {
         symmetric_signature = &signature;
         break;
       }

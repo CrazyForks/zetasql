@@ -70,7 +70,7 @@ constexpr static auto kPositionalOrNamed = FunctionEnums::POSITIONAL_OR_NAMED;
 constexpr static auto kNamedOnly = FunctionEnums::NAMED_ONLY;
 
 ABSL_DEPRECATED("Inline me!")
-constexpr SignatureArgumentKind ARG_RANGE_TYPE_ANY = ARG_RANGE_TYPE_ANY_1;
+constexpr SignatureArgumentKind ARG_RANGE_TYPE_ANY = ARG_KIND_EXPR_RANGE_ANY_1;
 
 // This class specifies options on a function argument, including
 // argument cardinality.  This includes some options that are used to specify
@@ -603,25 +603,27 @@ class FunctionArgumentType {
   static constexpr ArgumentCardinality REPEATED = FunctionEnums::REPEATED;
   static constexpr ArgumentCardinality OPTIONAL = FunctionEnums::OPTIONAL;
 
-  // Construct a templated argument of <kind>, which must not be ARG_TYPE_FIXED.
-  // The num_occurrences default value (-1) indicates a non-concrete argument.
-  // Concrete arguments must have this set to a non-negative number.
+  // Construct a templated argument of <kind>, which must not be
+  // ARG_KIND_EXPR_FIXED. The num_occurrences default value (-1) indicates
+  // a non-concrete argument. Concrete arguments must have this set to a
+  // non-negative number.
   FunctionArgumentType(SignatureArgumentKind kind,
                        ArgumentCardinality cardinality,
                        int num_occurrences = -1);
-  FunctionArgumentType(SignatureArgumentKind kind,
-                       FunctionArgumentTypeOptions options,
-                       int num_occurrences = -1,
-                       TypeModifiers type_modifiers = TypeModifiers());
+  FunctionArgumentType(
+      SignatureArgumentKind kind, FunctionArgumentTypeOptions options,
+      int num_occurrences = -1,
+      std::optional<TypeModifiers> type_modifiers = std::nullopt);
   FunctionArgumentType(SignatureArgumentKind kind,  // implicit; NOLINT
                        int num_occurrences = -1);
   // Construct a non-templated argument kind fixed type <type>.
   // Does not take ownership of <type>.
   FunctionArgumentType(const Type* type, ArgumentCardinality cardinality,
                        int num_occurrences = -1);
-  FunctionArgumentType(const Type* type, FunctionArgumentTypeOptions options,
-                       int num_occurrences = -1,
-                       TypeModifiers type_modifiers = TypeModifiers());
+  FunctionArgumentType(
+      const Type* type, FunctionArgumentTypeOptions options,
+      int num_occurrences = -1,
+      std::optional<TypeModifiers> type_modifiers = TypeModifiers());
   FunctionArgumentType(const Type* type,  // implicit; NOLINT
                        int num_occurrences = -1);
   // For convenience when manually crafting concrete signatures.
@@ -636,25 +638,25 @@ class FunctionArgumentType {
   // Construct a relation argument type for a table-valued function. This
   // argument will accept any input relation of any schema.
   static FunctionArgumentType AnyRelation() {
-    return FunctionArgumentType(ARG_TYPE_RELATION);
+    return FunctionArgumentType(ARG_KIND_RELATION);
   }
 
   // Construct a model argument type for a table-valued function. This argument
   // will accept any model.
   static FunctionArgumentType AnyModel() {
-    return FunctionArgumentType(ARG_TYPE_MODEL);
+    return FunctionArgumentType(ARG_KIND_MODEL);
   }
 
   // Construct a graph argument type for a table-valued function. This argument
   // will accept any graph.
   static FunctionArgumentType AnyGraph() {
-    return FunctionArgumentType(ARG_TYPE_GRAPH);
+    return FunctionArgumentType(ARG_KIND_GRAPH);
   }
 
   // Constructs a connection argument type for a table-valued function. This
   // argument will accept any connection.
   static FunctionArgumentType AnyConnection() {
-    return FunctionArgumentType(ARG_TYPE_CONNECTION);
+    return FunctionArgumentType(ARG_KIND_CONNECTION);
   }
 
   // Constructs a descriptor argument type for a table-valued function. This
@@ -667,7 +669,7 @@ class FunctionArgumentType {
     if (table_offset >= 0) {
       option.set_resolve_descriptor_names_table_offset(table_offset);
     }
-    return FunctionArgumentType(ARG_TYPE_DESCRIPTOR, option);
+    return FunctionArgumentType(ARG_KIND_DESCRIPTOR, option);
   }
 
   // Construct a lambda argument type with lambda_argument_types and
@@ -688,7 +690,7 @@ class FunctionArgumentType {
   // Constructs a sequence argument type for a function. This argument will
   // accept any sequence.
   static FunctionArgumentType AnySequence() {
-    return FunctionArgumentType(ARG_TYPE_SEQUENCE);
+    return FunctionArgumentType(ARG_KIND_SEQUENCE);
   }
 
   // Construct a relation argument type for a table-valued function.
@@ -711,7 +713,7 @@ class FunctionArgumentType {
       const TVFRelation& relation_input_schema,
       bool extra_relation_input_columns_allowed) {
     return FunctionArgumentType(
-        ARG_TYPE_RELATION,
+        ARG_KIND_RELATION,
         FunctionArgumentTypeOptions(relation_input_schema,
                                     extra_relation_input_columns_allowed));
   }
@@ -760,14 +762,16 @@ class FunctionArgumentType {
   void IncrementNumOccurrences() { ++num_occurrences_; }
   void set_num_occurrences(int num) { num_occurrences_ = num; }
 
-  // Returns NULL if kind_ is not ARG_TYPE_FIXED or ARG_TYPE_LAMBDA. If kind_ is
-  // ARG_TYPE_LAMBDA, returns the type of lambda body type, which could be NULL
-  // if the body type is templated.
+  // Returns NULL if kind_ is not ARG_KIND_EXPR_FIXED or ARG_KIND_LAMBDA.
+  // If kind_ is ARG_KIND_LAMBDA, returns the type of lambda body type, which
+  // could be NULL if the body type is templated.
   const Type* type() const { return type_; }
 
   SignatureArgumentKind kind() const { return kind_; }
 
-  const TypeModifiers& type_modifiers() const { return type_modifiers_; }
+  const std::optional<TypeModifiers>& type_modifiers() const {
+    return type_modifiers_;
+  }
 
   SignatureArgumentKind original_kind() const {
     ABSL_DCHECK_NE(original_kind_,
@@ -787,39 +791,39 @@ class FunctionArgumentType {
   const ArgumentTypeLambda& lambda() const {
     ABSL_DCHECK(IsLambda());
     ABSL_DCHECK(lambda_ != nullptr)
-        << "FunctionArgumentType with ARG_TYPE_LAMBDA constructed directly is "
+        << "FunctionArgumentType with ARG_KIND_LAMBDA constructed directly is "
            "not allowed. Use FunctionArgumentType::Lambda instead.";
     return *lambda_;
   }
 
-  // Returns TRUE if kind_ is ARG_TYPE_FIXED or ARG_TYPE_RELATION and the number
-  // of occurrences is greater than -1.
+  // Returns TRUE if kind_ is ARG_KIND_EXPR_FIXED or ARG_KIND_RELATION and
+  // the number of occurrences is greater than -1.
   bool IsConcrete() const;
 
   bool IsTemplated() const;
 
   bool IsScalar() const;
-  bool IsRelation() const { return kind_ == ARG_TYPE_RELATION; }
-  bool IsModel() const { return kind_ == ARG_TYPE_MODEL; }
-  bool IsConnection() const { return kind_ == ARG_TYPE_CONNECTION; }
-  bool IsLambda() const { return kind_ == ARG_TYPE_LAMBDA; }
-  bool IsSequence() const { return kind_ == ARG_TYPE_SEQUENCE; }
-  bool IsGraph() const { return kind_ == ARG_TYPE_GRAPH; }
+  bool IsRelation() const { return kind_ == ARG_KIND_RELATION; }
+  bool IsModel() const { return kind_ == ARG_KIND_MODEL; }
+  bool IsConnection() const { return kind_ == ARG_KIND_CONNECTION; }
+  bool IsLambda() const { return kind_ == ARG_KIND_LAMBDA; }
+  bool IsSequence() const { return kind_ == ARG_KIND_SEQUENCE; }
+  bool IsGraph() const { return kind_ == ARG_KIND_GRAPH; }
   bool IsFixedRelation() const {
-    return kind_ == ARG_TYPE_RELATION && options_->has_relation_input_schema();
+    return kind_ == ARG_KIND_RELATION && options_->has_relation_input_schema();
   }
-  bool IsVoid() const { return kind_ == ARG_TYPE_VOID; }
+  bool IsVoid() const { return kind_ == ARG_KIND_VOID; }
 
-  bool IsDescriptor() const { return kind_ == ARG_TYPE_DESCRIPTOR; }
+  bool IsDescriptor() const { return kind_ == ARG_KIND_DESCRIPTOR; }
   std::optional<int> GetDescriptorResolutionTableOffset() const {
     return options_->get_resolve_descriptor_names_table_offset();
   }
 
   // Returns TRUE if kind() can be used to derive something about kind.
-  // For example, if kind() is ARG_ARRAY_TYPE_ANY_1, it can be used to derive
-  // information about ARG_TYPE_ANY_1, but not ARG_TYPE_ANY_2. Likewise, a
-  // proto map key can be used to derive information about the map itself, but
-  // not about the map value.
+  // For example, if kind() is ARG_KIND_EXPR_ARRAY_ANY_1, it can be used to
+  // derive information about ARG_KIND_EXPR_ANY_1, but not
+  // ARG_KIND_EXPR_ANY_2. Likewise, a proto map key can be used to derive
+  // information about the map itself, but not about the map value.
   bool TemplatedKindIsRelated(SignatureArgumentKind kind) const;
 
   bool AllowCoercionFrom(const googlesql::Type* actual_arg_type) const {
@@ -895,7 +899,7 @@ class FunctionArgumentType {
   FunctionArgumentType(
       SignatureArgumentKind kind, const Type* type,
       std::shared_ptr<const FunctionArgumentTypeOptions> options,
-      int num_occurrences, TypeModifiers type_modifiers);
+      int num_occurrences, std::optional<TypeModifiers> type_modifiers);
 
   // Checks that 'arg_type' could be used as lambda argument type and body type.
   static absl::Status CheckLambdaArgType(const FunctionArgumentType& arg_type);
@@ -927,11 +931,12 @@ class FunctionArgumentType {
 
   // The type modifiers of the argument as declared in the function
   // definition. This is independent of any invocation or what the input is.
-  // When it's not empty, the `kind_` must be ARG_TYPE_FIXED, and it must have a
-  // compatible structure with `type_`.
+  // It must be present (not std::nullopt) if and only if `kind_` is
+  // ARG_KIND_EXPR_FIXED. When present, it must have a compatible structure
+  // with `type_`.
   //
   // It's only used in user defined functions for now.
-  TypeModifiers type_modifiers_;
+  std::optional<TypeModifiers> type_modifiers_;
 
   // This holds lambda type specifications.
   // It is a shared pointer to
@@ -945,7 +950,7 @@ class FunctionArgumentType {
   // Copyable.
 };
 
-// Contains type information for ARG_TYPE_LAMBDA, which represents the lambda
+// Contains type information for ARG_KIND_LAMBDA, which represents the lambda
 // type of a function argument. A lambda has a list of arguments and a body.
 // Both the lambda arguments and body could be templated or nontemplated.
 // Putting them together to minimize stack usage of FunctionArgumentType.

@@ -969,7 +969,15 @@ absl::Status SQLBuilder::VisitResolvedCatalogColumnRef(
 
 absl::Status SQLBuilder::VisitResolvedFunctionRef(
     const ResolvedFunctionRef* node) {
-  PushQueryFragment(node, ToIdentifierLiteral(node->function()->Name()));
+  // We prepend "FUNCTION " to the unparsed function name because currently
+  // ResolvedFunctionRef is only used to represent UDF lambda parameters,
+  // which require the FUNCTION keyword at the call site.
+  // TODO: If ResolvedFunctionRef is generalized to represent other
+  // function references in the future, this prefix might need to be
+  // conditional.
+  PushQueryFragment(
+      node,
+      absl::StrCat("FUNCTION ", ToIdentifierLiteral(node->function()->Name())));
   return absl::OkStatus();
 }
 absl::Status SQLBuilder::VisitResolvedLiteral(const ResolvedLiteral* node) {
@@ -1115,6 +1123,10 @@ absl::Status SQLBuilder::VisitResolvedFunctionCall(
         GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                          ProcessNode(argument->sequence()));
         inputs.push_back(result->GetSQL());
+      } else if (argument->model() != nullptr) {
+        GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
+                         ProcessNode(argument->model()));
+        inputs.push_back(result->GetSQL());
       } else {
         GOOGLESQL_RET_CHECK_FAIL() << "Unexpected function call argument: "
                          << argument->DebugString();
@@ -1172,6 +1184,13 @@ absl::Status SQLBuilder::VisitResolvedSequence(const ResolvedSequence* node) {
   const std::string sequence_alias =
       ToIdentifierLiteral(node->sequence()->Name());
   PushQueryFragment(node, absl::StrCat("SEQUENCE ", sequence_alias));
+  return absl::OkStatus();
+}
+
+absl::Status SQLBuilder::VisitResolvedModel(const ResolvedModel* node) {
+  ABSL_DCHECK(node->model());
+  const std::string model_alias = ToIdentifierLiteral(node->model()->Name());
+  PushQueryFragment(node, absl::StrCat("MODEL ", model_alias));
   return absl::OkStatus();
 }
 
@@ -3261,6 +3280,72 @@ absl::Status SQLBuilder::VisitResolvedUnpivotScan(
   return absl::OkStatus();
 }
 
+static absl::StatusOr<absl::string_view> GetBoundKindString(
+    ResolvedWithinBoundExpr::BoundKind bound_kind) {
+  switch (bound_kind) {
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+      return " UNBOUNDED PRECEDING";
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+      return " UNBOUNDED FOLLOWING";
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+      return " PERIOD PRECEDING";
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+      return " PERIOD FOLLOWING";
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+      return " PRECEDING";
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+      return " FOLLOWING";
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return "";
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::NOT_SET:
+      GOOGLESQL_RET_CHECK_FAIL() << "Unexpected bound kind: "
+                       << ResolvedWithinBoundExpr::BoundKindToString(
+                              bound_kind);
+  }
+}
+
+absl::Status SQLBuilder::VisitResolvedWithinBoundExpr(
+    const ResolvedWithinBoundExpr* node) {
+  std::string sql;
+  if (node->expr() != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> fragment,
+                     ProcessNode(node->expr()));
+    sql = fragment->GetSQL();
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(absl::string_view bound_kind,
+                   GetBoundKindString(node->bound_kind()));
+  absl::StrAppend(&sql, bound_kind);
+  PushQueryFragment(node, sql);
+  return absl::OkStatus();
+}
+
+absl::Status SQLBuilder::VisitResolvedWithinBounds(
+    const ResolvedWithinBounds* node) {
+  std::string sql = "RANGE";
+  if (node->lower_bound()->bound_kind() !=
+      ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> lower,
+                     ProcessNode(node->lower_bound()));
+    absl::StrAppend(&sql, " FROM ", lower->GetSQL());
+  } else {
+    node->lower_bound()->MarkFieldsAccessed();
+  }
+
+  if (node->upper_bound()->bound_kind() !=
+      ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> upper,
+                     ProcessNode(node->upper_bound()));
+    absl::StrAppend(&sql, " TO ", upper->GetSQL());
+  } else {
+    node->upper_bound()->MarkFieldsAccessed();
+  }
+
+  PushQueryFragment(node, sql);
+  return absl::OkStatus();
+}
+
 absl::Status SQLBuilder::VisitResolvedAlignScan(const ResolvedAlignScan* node) {
   // Generate SQL for the input scan.
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> input,
@@ -3288,6 +3373,14 @@ absl::Status SQLBuilder::VisitResolvedAlignScan(const ResolvedAlignScan* node) {
     absl::StrAppend(&align, "\n  ORIGIN ", origin_fragment->GetSQL());
   }
 
+  // OUTPUT WITHIN
+  if (node->output_within() != nullptr) {
+    absl::StrAppend(&align, "\n  OUTPUT WITHIN ");
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> within,
+                     ProcessNode(node->output_within()));
+    absl::StrAppend(&align, within->GetSQL());
+  }
+
   // PARTITION BY
   if (node->partition_by_list_size() > 0) {
     absl::StrAppend(&align, "\n  PARTITION BY ");
@@ -3299,7 +3392,7 @@ absl::Status SQLBuilder::VisitResolvedAlignScan(const ResolvedAlignScan* node) {
     }
   }
 
-  // TODO: b/477116035 - Add SQL for OUTPUT WITHIN and METRICS clauses.
+  // TODO: b/477116035 - Add SQL for METRICS clauses.
   absl::StrAppend(&align, "\n)");
 
   std::string scan_alias = GetScanAlias(node);

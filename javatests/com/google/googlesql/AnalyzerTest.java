@@ -466,7 +466,7 @@ public class AnalyzerTest {
   @Test
   public void testSelectColumnsFromForwardInputSchemaToOutputSchemaWithAppendedColumnTVF() {
     FunctionArgumentType tableType =
-        new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_RELATION);
+        new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_RELATION);
     TableValuedFunction tvf =
         new ForwardInputSchemaToOutputSchemaWithAppendedColumnTVF(
             ImmutableList.of("test_tvf"),

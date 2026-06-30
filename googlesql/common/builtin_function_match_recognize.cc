@@ -67,8 +67,8 @@ void GetMatchRecognizeFunctions(TypeFactory* type_factory,
   // FIRST<T>(T) -> T
   // This is a navigation function used only inside MATCH_RECOGNZIE.
   InsertFunction(functions, options, "first", Function::AGGREGATE,
-                 {{ARG_TYPE_ANY_1,
-                   {ARG_TYPE_ANY_1},
+                 {{ARG_KIND_EXPR_ANY_1,
+                   {ARG_KIND_EXPR_ANY_1},
                    FN_FIRST_AGG,
                    SetRewriter(REWRITE_MATCH_RECOGNIZE_FUNCTION)}},
                  nav_agg_options);
@@ -76,8 +76,8 @@ void GetMatchRecognizeFunctions(TypeFactory* type_factory,
   // LAST<T>(T) -> T
   // This is a navigation function used only inside MATCH_RECOGNZIE.
   InsertFunction(functions, options, "last", Function::AGGREGATE,
-                 {{ARG_TYPE_ANY_1,
-                   {ARG_TYPE_ANY_1},
+                 {{ARG_KIND_EXPR_ANY_1,
+                   {ARG_KIND_EXPR_ANY_1},
                    FN_LAST_AGG,
                    SetRewriter(REWRITE_MATCH_RECOGNIZE_FUNCTION)}},
                  nav_agg_options);
@@ -87,8 +87,8 @@ void GetMatchRecognizeFunctions(TypeFactory* type_factory,
   // Note that it's marked as SCALAR, but not allowed to be nested.
   InsertFunction(
       functions, options, "next", Function::SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {ARG_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
+        {ARG_KIND_EXPR_ANY_1,
          {type_factory->get_int64(), optional_non_null_non_agg_constant}},
         FN_NEXT}},
       nav_agg_options);
@@ -98,8 +98,8 @@ void GetMatchRecognizeFunctions(TypeFactory* type_factory,
   // Note that it's marked as SCALAR, but not allowed to be nested.
   InsertFunction(
       functions, options, "prev", Function::SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {ARG_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
+        {ARG_KIND_EXPR_ANY_1,
          {type_factory->get_int64(), optional_non_null_non_agg_constant}},
         FN_PREV}},
       nav_agg_options);

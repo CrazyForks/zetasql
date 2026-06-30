@@ -17,6 +17,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -57,11 +58,21 @@ namespace {
 // Type to be defined through BuiltinFunctionOptions.
 static constexpr int kBatchVectorSearchTVFOptionsArgIdx = 4;
 
-absl::Status CheckBatchVectorSearchPostResolutionArguments(
+// This constant represents the index of the `options` argument of
+// single VECTOR_SEARCH TVF. Only the `options` argument allows a
+// Type to be defined through BuiltinFunctionOptions.
+static constexpr int kSingleVectorSearchTVFOptionsArgIdx = 3;
+
+absl::Status CheckVectorSearchPostResolutionArguments(
     const FunctionSignature& signature,
     absl::Span<const TVFInputArgumentType> arguments,
     const LanguageOptions& language_options) {
-  GOOGLESQL_RET_CHECK_EQ(arguments.size(), 8);
+  if (signature.context_id() == FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS ||
+      signature.context_id() == FN_BATCH_VECTOR_SEARCH_TVF_WITH_JSON_OPTIONS) {
+    GOOGLESQL_RET_CHECK_EQ(arguments.size(), 8);
+  } else {
+    GOOGLESQL_RET_CHECK_EQ(arguments.size(), 7);
+  }
   return absl::OkStatus();
 }
 
@@ -126,7 +137,7 @@ absl::StatusOr<googlesql::TVFRelation::Column> BuildStructColumn(
 }
 
 absl::StatusOr<std::shared_ptr<TVFSignature>>
-ComputeResultTypeForVectorSearchTVF(
+ComputeResultTypeForBatchVectorSearchTVF(
     Catalog* catalog, TypeFactory* type_factory,
     const FunctionSignature& signature,
     const std::vector<TVFInputArgumentType>& input_arguments,
@@ -139,12 +150,45 @@ ComputeResultTypeForVectorSearchTVF(
       auto query_struct_column,
       BuildStructColumn(type_factory, input_arguments[2].relation(), "query"));
 
-  std::vector<TVFRelation::Column> output_columns = {
+  TVFRelation::ColumnList output_columns = {
       query_struct_column, base_struct_column,
       googlesql::TVFRelation::Column("distance", type_factory->get_double())};
 
   googlesql::TVFRelation output_schema(output_columns);
   return TVFSignature::Create(input_arguments, output_schema);
+}
+
+absl::StatusOr<std::shared_ptr<TVFSignature>>
+ComputeResultTypeForSingleVectorSearchTVF(
+    Catalog* catalog, TypeFactory* type_factory,
+    const FunctionSignature& signature,
+    const std::vector<TVFInputArgumentType>& input_arguments,
+    const AnalyzerOptions& analyzer_options) {
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      auto base_struct_column,
+      BuildStructColumn(type_factory, input_arguments[0].relation(), "base"));
+
+  TVFRelation::ColumnList output_columns = {
+      base_struct_column,
+      googlesql::TVFRelation::Column("distance", type_factory->get_double())};
+
+  googlesql::TVFRelation output_schema(output_columns);
+  return TVFSignature::Create(input_arguments, output_schema);
+}
+
+absl::StatusOr<std::shared_ptr<TVFSignature>>
+ComputeResultTypeForVectorSearchTVF(
+    Catalog* catalog, TypeFactory* type_factory,
+    const FunctionSignature& signature,
+    const std::vector<TVFInputArgumentType>& input_arguments,
+    const AnalyzerOptions& analyzer_options) {
+  if (signature.context_id() == FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS ||
+      signature.context_id() == FN_BATCH_VECTOR_SEARCH_TVF_WITH_JSON_OPTIONS) {
+    return ComputeResultTypeForBatchVectorSearchTVF(
+        catalog, type_factory, signature, input_arguments, analyzer_options);
+  }
+  return ComputeResultTypeForSingleVectorSearchTVF(
+      catalog, type_factory, signature, input_arguments, analyzer_options);
 }
 
 absl::StatusOr<std::shared_ptr<TVFSignature>> ComputeResultTypeForKmeansTVF(
@@ -162,7 +206,7 @@ absl::StatusOr<std::shared_ptr<TVFSignature>> ComputeResultTypeForKmeansTVF(
       GetVectorColumnTypeKMeans(input_table_arg, vectors_column_name_arg,
                                 argument_name, analyzer_options));
 
-  std::vector<TVFRelation::Column> output_columns = {
+  TVFRelation::ColumnList output_columns = {
       googlesql::TVFRelation::Column("cluster_id", type_factory->get_int64()),
       googlesql::TVFRelation::Column("cluster_vector",
                                      vector_column_type.type)};
@@ -231,48 +275,158 @@ absl::Status MaybeAddVectorSearchTVFProtoOptionsArgument(
   return absl::OkStatus();
 }
 
-absl::Status InsertBatchVectorSearchTVFSignatures(
+absl::Status GetBatchVectorSearchTVFSignatures(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
     NameToTableValuedFunctionMap* table_valued_functions,
-    BuiltinsOutputProperties& output_properties) {
+    BuiltinsOutputProperties& output_properties,
+    std::vector<FunctionSignatureOnHeap>& signatures) {
   std::vector<googlesql::FunctionArgumentType> common_vector_search_arguments =
       CommonVectorSearchArguments();
   GOOGLESQL_RET_CHECK_EQ(common_vector_search_arguments.size(), 5);
-  FunctionArgumentTypeList batch_vector_search_arguments = {
-      // Base table.
-      common_vector_search_arguments[0],
-      // Column to search.
-      common_vector_search_arguments[1],
-      // Query data.
-      {googlesql::FunctionArgumentType::AnyRelation()},
-      // Query column to search.
-      {googlesql::FunctionArgumentType(
-          googlesql::types::StringType(),
+  for (const auto& [proto_options, signature_id] :
+       std::vector<std::pair<bool, FunctionSignatureId>>{
+           {true, FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS},
+           {false, FN_BATCH_VECTOR_SEARCH_TVF_WITH_JSON_OPTIONS}}) {
+    FunctionSignatureOptions function_signature_options;
+    FunctionArgumentTypeList batch_vector_search_arguments = {
+        // Base table.
+        common_vector_search_arguments[0],
+        // Column to search.
+        common_vector_search_arguments[1],
+        // Query data.
+        {googlesql::FunctionArgumentType::AnyRelation()},
+        // Query column to search.
+        {googlesql::FunctionArgumentType(
+            googlesql::types::StringType(),
+            googlesql::FunctionArgumentTypeOptions()
+                .set_cardinality(googlesql::FunctionArgumentType::OPTIONAL)
+                .set_argument_name("query_column_to_search",
+                                   googlesql::kPositionalOrNamed))}};
+    if (proto_options) {
+      GOOGLESQL_RETURN_IF_ERROR(MaybeAddVectorSearchTVFProtoOptionsArgument(
+          options, "vector_search",
+          FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS, output_properties,
+          batch_vector_search_arguments, kBatchVectorSearchTVFOptionsArgIdx));
+    } else {
+      batch_vector_search_arguments.push_back({googlesql::FunctionArgumentType(
+          googlesql::types::JsonType(),
           googlesql::FunctionArgumentTypeOptions()
               .set_cardinality(googlesql::FunctionArgumentType::OPTIONAL)
-              .set_argument_name("query_column_to_search",
-                                 googlesql::kPositionalOrNamed))}};
-  GOOGLESQL_RETURN_IF_ERROR(MaybeAddVectorSearchTVFProtoOptionsArgument(
-      options, "vector_search", FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS,
-      output_properties, batch_vector_search_arguments,
-      kBatchVectorSearchTVFOptionsArgIdx));
-  // top_k
-  batch_vector_search_arguments.push_back(common_vector_search_arguments[2]);
-  // distance_type
-  batch_vector_search_arguments.push_back(common_vector_search_arguments[3]);
-  // max_distance
-  batch_vector_search_arguments.push_back(common_vector_search_arguments[4]);
+              .set_argument_name("options", googlesql::kNamedOnly)
+              .set_must_be_immutable_constant())});
+      function_signature_options.AddRequiredLanguageFeature(
+          FEATURE_SINGLE_HYBRID_VECTOR_SEARCH_TVF);
+    }
+    // top_k
+    batch_vector_search_arguments.push_back(common_vector_search_arguments[2]);
+    // distance_type
+    batch_vector_search_arguments.push_back(common_vector_search_arguments[3]);
+    // max_distance
+    batch_vector_search_arguments.push_back(common_vector_search_arguments[4]);
+
+    signatures.push_back(FunctionSignatureOnHeap(
+        /*result_type=*/googlesql::FunctionArgumentType::AnyRelation(),
+        /*arguments=*/batch_vector_search_arguments,
+        /*context_id=*/
+        signature_id, function_signature_options));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status GetSingleVectorSearchTVFSignatures(
+    TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
+    NameToTableValuedFunctionMap* table_valued_functions,
+    BuiltinsOutputProperties& output_properties,
+    std::vector<FunctionSignatureOnHeap>& signatures) {
+  for (const auto& [query_type, proto_signature_id, json_signature_id] :
+       std::vector<std::tuple<const googlesql::Type*, FunctionSignatureId,
+                              FunctionSignatureId>>{
+           {googlesql::types::FloatArrayType(),
+            FN_SINGLE_VECTOR_SEARCH_TVF_FLOAT_ARRAY_WITH_PROTO_OPTIONS,
+            FN_SINGLE_VECTOR_SEARCH_TVF_FLOAT_ARRAY_WITH_JSON_OPTIONS},
+           {googlesql::types::DoubleArrayType(),
+            FN_SINGLE_VECTOR_SEARCH_TVF_DOUBLE_ARRAY_WITH_PROTO_OPTIONS,
+            FN_SINGLE_VECTOR_SEARCH_TVF_DOUBLE_ARRAY_WITH_JSON_OPTIONS},
+           {googlesql::types::StringType(),
+            FN_SINGLE_VECTOR_SEARCH_TVF_STRING_WITH_PROTO_OPTIONS,
+            FN_SINGLE_VECTOR_SEARCH_TVF_STRING_WITH_JSON_OPTIONS},
+       }) {
+    for (const auto& [proto_options, signature_id] :
+         std::vector<std::pair<bool, FunctionSignatureId>>{
+             {true, proto_signature_id}, {false, json_signature_id}}) {
+      std::vector<googlesql::FunctionArgumentType>
+          common_vector_search_arguments = CommonVectorSearchArguments();
+      GOOGLESQL_RET_CHECK_EQ(common_vector_search_arguments.size(), 5);
+      FunctionArgumentTypeList single_vector_search_arguments = {
+          // Base table.
+          common_vector_search_arguments[0],
+          // Column to search.
+          common_vector_search_arguments[1],
+          // Query value.
+          googlesql::FunctionArgumentType(
+              query_type,
+              googlesql::FunctionArgumentTypeOptions()
+                  .set_argument_name("query_value", googlesql::kNamedOnly)
+                  .set_must_be_non_null()),
+      };
+
+      if (proto_options) {
+        GOOGLESQL_RETURN_IF_ERROR(MaybeAddVectorSearchTVFProtoOptionsArgument(
+            options, "vector_search", signature_id, output_properties,
+            single_vector_search_arguments,
+            kSingleVectorSearchTVFOptionsArgIdx));
+      } else {
+        single_vector_search_arguments.push_back(
+            {googlesql::FunctionArgumentType(
+                googlesql::types::JsonType(),
+                googlesql::FunctionArgumentTypeOptions()
+                    .set_cardinality(googlesql::FunctionArgumentType::OPTIONAL)
+                    .set_argument_name("options", googlesql::kNamedOnly)
+                    .set_must_be_immutable_constant())});
+      }
+
+      // top_k
+      single_vector_search_arguments.push_back(
+          common_vector_search_arguments[2]);
+      // distance_type
+      single_vector_search_arguments.push_back(
+          common_vector_search_arguments[3]);
+      // max_distance
+      single_vector_search_arguments.push_back(
+          common_vector_search_arguments[4]);
+
+      FunctionSignatureOptions function_signature_options;
+      function_signature_options.AddRequiredLanguageFeature(
+          FEATURE_SINGLE_HYBRID_VECTOR_SEARCH_TVF);
+      signatures.push_back(FunctionSignatureOnHeap(
+          /*result_type=*/googlesql::FunctionArgumentType::AnyRelation(),
+          /*arguments=*/single_vector_search_arguments,
+          /*context_id=*/
+          signature_id, function_signature_options));
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status InsertVectorSearchTVFSignatures(
+    TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
+    NameToTableValuedFunctionMap* table_valued_functions,
+    BuiltinsOutputProperties& output_properties) {
+  std::vector<FunctionSignatureOnHeap> signatures;
+  signatures.reserve(8);
+  GOOGLESQL_RETURN_IF_ERROR(GetBatchVectorSearchTVFSignatures(
+      type_factory, options, table_valued_functions, output_properties,
+      signatures));
+  GOOGLESQL_RETURN_IF_ERROR(GetSingleVectorSearchTVFSignatures(
+      type_factory, options, table_valued_functions, output_properties,
+      signatures));
 
   GOOGLESQL_RETURN_IF_ERROR(InsertSimpleTableValuedFunction(
-      table_valued_functions, options, "vector_search",
-      {{FunctionSignatureOnHeap(
-          /*result_type=*/googlesql::FunctionArgumentType::AnyRelation(),
-          /*arguments=*/batch_vector_search_arguments,
-          /*context_id=*/FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS)}},
+      table_valued_functions, options, "vector_search", signatures,
       TableValuedFunctionOptions()
           .AddRequiredLanguageFeature(FEATURE_VECTOR_SEARCH_TVF)
           .set_post_resolution_argument_constraint(
-              &CheckBatchVectorSearchPostResolutionArguments)
+              &CheckVectorSearchPostResolutionArguments)
           .set_compute_result_type_callback(
               &ComputeResultTypeForVectorSearchTVF)));
   return absl::OkStatus();
@@ -332,7 +486,7 @@ absl::Status GetVectorSearchTableValuedFunctions(
     TypeFactory* type_factory, const GoogleSQLBuiltinFunctionOptions& options,
     NameToTableValuedFunctionMap* table_valued_functions,
     BuiltinsOutputProperties& output_properties) {
-  GOOGLESQL_RETURN_IF_ERROR(InsertBatchVectorSearchTVFSignatures(
+  GOOGLESQL_RETURN_IF_ERROR(InsertVectorSearchTVFSignatures(
       type_factory, options, table_valued_functions, output_properties));
   return absl::OkStatus();
 }

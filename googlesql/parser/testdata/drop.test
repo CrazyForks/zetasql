@@ -999,3 +999,17 @@ DropStatement CONNECTION [0-19] [DROP CONNECTION foo]
     Identifier(foo) [16-19] [foo]
 --
 DROP CONNECTION foo
+==
+
+DROP TABLE foo ON bar;
+--
+ERROR: Syntax error: Expected end of input but got keyword ON [at 1:16]
+DROP TABLE foo ON bar;
+               ^
+==
+
+DROP VIEW foo ON bar;
+--
+ERROR: DROP VIEW does not support the ON clause [at 1:15]
+DROP VIEW foo ON bar;
+              ^

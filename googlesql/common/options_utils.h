@@ -105,7 +105,7 @@ absl::StatusOr<EnumOptionsEntry<LanguageFeature>> ParseEnabledLanguageFeatures(
 // Wrapper class for use in flags.
 struct EnabledLanguageFeatures {
   absl::btree_set<LanguageFeature> enabled_language_features;
-  static inline constexpr absl::string_view kFlagDescription =
+  static constexpr absl::string_view kFlagDescription =
       R"(The Language Features to enable in parser and analyzer, the format is:
         <BASE>[,+<ADDED_OPTION>][,-<REMOVED_OPTION>]...
       Where BASE is one of:

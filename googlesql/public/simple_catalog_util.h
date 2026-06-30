@@ -28,6 +28,7 @@
 #include "googlesql/public/analyzer_output.h"
 #include "googlesql/public/catalog.h"
 #include "googlesql/public/function.h"
+#include "googlesql/public/property_graph.h"
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/sql_constant.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
@@ -179,6 +180,12 @@ absl::Status AddConstantFromCreateConstant(
     const AnalyzerOptions& analyzer_options,
     std::unique_ptr<const AnalyzerOutput>& analyzer_output,
     SimpleCatalog& catalog);
+
+// Resolves the property definitions of a property graph in a SimpleCatalog.
+absl::Status ResolveGraphPropertyDefinitions(
+    LanguageOptions language_options, const PropertyGraph* graph,
+    SimpleCatalog* catalog,
+    std::vector<std::unique_ptr<const AnalyzerOutput>>& artifacts);
 
 }  // namespace googlesql
 

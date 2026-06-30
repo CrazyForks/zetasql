@@ -460,6 +460,11 @@ absl::Status Validator::ValidateGenericArgumentsAgainstConcreteArguments(
       VALIDATOR_RET_CHECK(concrete_argument.IsSequence())
           << " Found Sequence argument for concrete_argument: "
           << concrete_argument.DebugString();
+    } else if (generic_arg->model() != nullptr) {
+      only_expr_is_used = false;
+      VALIDATOR_RET_CHECK(concrete_argument.IsModel())
+          << " Found Model argument for concrete_argument: "
+          << concrete_argument.DebugString();
     } else {
       only_expr_is_used = false;
       // For non expr arguments, we need to check argument type against the type
@@ -3135,6 +3140,11 @@ absl::Status Validator::ValidateResolvedAlignScan(
     VALIDATOR_RET_CHECK(scan->origin()->type()->IsTimestamp());
   }
 
+  if (scan->output_within() != nullptr) {
+    GOOGLESQL_RETURN_IF_ERROR(ValidateResolvedWithinBounds(scan->output_within(),
+                                                 visible_parameters));
+  }
+
   // Partitioning columns can never be duplicates nor correlated, and must
   // come from the input scan directly.
   absl::flat_hash_set<ResolvedColumn> partitioning_columns_seen;
@@ -3181,6 +3191,164 @@ absl::Status Validator::ValidateResolvedAlignScan(
   }
 
   return absl::OkStatus();
+}
+
+absl::Status Validator::ValidateResolvedWithinBoundExpr(
+    const ResolvedWithinBoundExpr* within_bound_expr,
+    const std::set<ResolvedColumn>& visible_parameters) {
+  VALIDATOR_RET_CHECK(within_bound_expr != nullptr);
+  PushErrorContext push(this, within_bound_expr);
+
+  switch (within_bound_expr->bound_kind()) {
+    case ResolvedWithinBoundExpr::NOT_SET:
+      VALIDATOR_RET_CHECK_FAIL() << "Unhandled bound kind: "
+                                 << within_bound_expr->GetBoundKindString();
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+      VALIDATOR_RET_CHECK(within_bound_expr->expr() == nullptr)
+          << "ALIGN WITHIN bound of kind "
+          << within_bound_expr->GetBoundKindString()
+          << " must not specify a bound expression\n"
+          << within_bound_expr->DebugString();
+      return absl::OkStatus();
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+      VALIDATOR_RET_CHECK(within_bound_expr->expr() != nullptr &&
+                          (within_bound_expr->expr()->type()->IsInt64() ||
+                           within_bound_expr->expr()->type()->IsDouble()))
+          << "ALIGN WITHIN bound of kind "
+          << within_bound_expr->GetBoundKindString()
+          << " must specify a bound expression of type INT64 or DOUBLE\n"
+          << within_bound_expr->DebugString();
+      return ValidateResolvedExpr(
+          /*visible_columns=*/{}, visible_parameters,
+          within_bound_expr->expr());
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+      VALIDATOR_RET_CHECK(within_bound_expr->expr() != nullptr &&
+                          within_bound_expr->expr()->type()->IsInterval())
+          << "ALIGN WITHIN bound of kind "
+          << within_bound_expr->GetBoundKindString()
+          << " must specify a bound expression of type INTERVAL\n"
+          << within_bound_expr->DebugString();
+      return ValidateResolvedExpr(
+          /*visible_columns=*/{}, visible_parameters,
+          within_bound_expr->expr());
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      VALIDATOR_RET_CHECK(within_bound_expr->expr() != nullptr &&
+                          within_bound_expr->expr()->type()->IsTimestamp())
+          << "ALIGN WITHIN bound of kind "
+          << within_bound_expr->GetBoundKindString()
+          << " must specify a bound expression of type TIMESTAMP\n"
+          << within_bound_expr->DebugString();
+      return ValidateResolvedExpr(
+          /*visible_columns=*/{}, visible_parameters,
+          within_bound_expr->expr());
+  }
+}
+
+static bool IsFiniteRelativeResolvedWithinBound(
+    const ResolvedWithinBoundExpr* within_bound_expr) {
+  switch (within_bound_expr->bound_kind()) {
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+      return true;
+    case ResolvedWithinBoundExpr::NOT_SET:
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return false;
+  }
+}
+
+static bool IsFiniteAbsoluteResolvedWithinBound(
+    const ResolvedWithinBoundExpr* within_bound_expr) {
+  switch (within_bound_expr->bound_kind()) {
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return true;
+    case ResolvedWithinBoundExpr::NOT_SET:
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+      return false;
+  }
+}
+
+static bool IsInvalidBoundCombination(
+    const ResolvedWithinBoundExpr* lower_bound,
+    const ResolvedWithinBoundExpr* upper_bound) {
+  return (IsFiniteAbsoluteResolvedWithinBound(lower_bound) &&
+          IsFiniteRelativeResolvedWithinBound(upper_bound)) ||
+         (IsFiniteAbsoluteResolvedWithinBound(upper_bound) &&
+          IsFiniteRelativeResolvedWithinBound(lower_bound));
+}
+
+absl::Status Validator::ValidateResolvedWithinBounds(
+    const ResolvedWithinBounds* within_bounds,
+    const std::set<ResolvedColumn>& visible_parameters) {
+  VALIDATOR_RET_CHECK(within_bounds != nullptr);
+  PushErrorContext push(this, within_bounds);
+
+  GOOGLESQL_RETURN_IF_ERROR(ValidateResolvedWithinBoundExpr(within_bounds->lower_bound(),
+                                                  visible_parameters));
+
+  GOOGLESQL_RETURN_IF_ERROR(ValidateResolvedWithinBoundExpr(within_bounds->upper_bound(),
+                                                  visible_parameters));
+
+  const ResolvedWithinBoundExpr* lower_bound = within_bounds->lower_bound();
+  const ResolvedWithinBoundExpr* upper_bound = within_bounds->upper_bound();
+
+  if (IsInvalidBoundCombination(lower_bound, upper_bound)) {
+    VALIDATOR_RET_CHECK_FAIL()
+        << "A WITHIN clause cannot mix absolute (TIMESTAMP) and relative "
+           "(INTERVAL or PERIOD) bounds\n"
+        << within_bounds->DebugString();
+  }
+
+  if (upper_bound->bound_kind() ==
+      ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING) {
+    VALIDATOR_RET_CHECK_FAIL()
+        << "Invalid WITHIN clause, represents empty WITHIN bound\n"
+        << within_bounds->DebugString();
+  }
+
+  switch (lower_bound->bound_kind()) {
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING: {
+      VALIDATOR_RET_CHECK_FAIL()
+          << "Invalid WITHIN clause, represents empty WITHIN bound\n"
+          << within_bounds->DebugString();
+    }
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING: {
+      switch (upper_bound->bound_kind()) {
+        case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+        case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+        case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+        case ResolvedWithinBoundExpr::TIMESTAMP:
+          return absl::OkStatus();
+        default:
+          VALIDATOR_RET_CHECK_FAIL()
+              << "Invalid WITHIN clause, represents empty WITHIN bound\n"
+              << within_bounds->DebugString();
+      }
+    }
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return absl::OkStatus();
+    case ResolvedWithinBoundExpr::NOT_SET:
+      VALIDATOR_RET_CHECK_FAIL() << "Within bound kind is not set";
+  }
 }
 
 absl::Status Validator::CheckUniqueColumnId(const ResolvedColumn& column) {
@@ -3743,28 +3911,28 @@ absl::Status Validator::ValidateResolvedTVFScan(
       // once ResolvedFunctionCall supports more of these kinds.
       const SignatureArgumentKind kind = concrete_arg->kind();
       switch (kind) {
-        case ARG_TYPE_RELATION:
+        case ARG_KIND_RELATION:
           VALIDATOR_RET_CHECK(resolved_arg->scan() != nullptr);
           break;
-        case ARG_TYPE_MODEL:
+        case ARG_KIND_MODEL:
           VALIDATOR_RET_CHECK(resolved_arg->model() != nullptr);
           break;
-        case ARG_TYPE_CONNECTION:
+        case ARG_KIND_CONNECTION:
           VALIDATOR_RET_CHECK(resolved_arg->connection() != nullptr);
           break;
-        case ARG_TYPE_DESCRIPTOR:
+        case ARG_KIND_DESCRIPTOR:
           VALIDATOR_RET_CHECK(resolved_arg->descriptor_arg() != nullptr);
           break;
-        case ARG_TYPE_LAMBDA:
+        case ARG_KIND_LAMBDA:
           VALIDATOR_RET_CHECK(resolved_arg->inline_lambda() != nullptr);
           break;
-        case ARG_TYPE_SEQUENCE:
+        case ARG_KIND_SEQUENCE:
           VALIDATOR_RET_CHECK(resolved_arg->sequence() != nullptr);
           break;
-        case ARG_TYPE_GRAPH:
+        case ARG_KIND_GRAPH:
           VALIDATOR_RET_CHECK(resolved_arg->graph() != nullptr);
           break;
-        case ARG_TYPE_FIXED:
+        case ARG_KIND_EXPR_FIXED:
           // Descriptor argument types can resolve to be an integer offset so
           // we allow either an expr or a descriptor arg here.
           VALIDATOR_RET_CHECK(resolved_arg->expr() != nullptr ||
@@ -3919,10 +4087,21 @@ absl::Status Validator::ValidateResolvedTVFScan(
       VALIDATOR_RET_CHECK_GE(tvf_schema_column_index, 0);
       VALIDATOR_RET_CHECK_LT(tvf_schema_column_index,
                              result_schema.num_columns());
-      VALIDATOR_RET_CHECK(
-          resolved_tvf_scan->column_list(column_index)
-              .type()
-              ->Equals(result_schema.column(tvf_schema_column_index).type));
+      const Type* scan_column_type =
+          resolved_tvf_scan->column_list(column_index).type();
+      const Type* schema_column_type =
+          result_schema.column(tvf_schema_column_index).type;
+      if (scan_column_type->IsMeasureType() &&
+          schema_column_type->IsMeasureType()) {
+        // Each MeasureType is unique (and not considered equal to other
+        // MeasureTypes, even if they have the same result type). Here we
+        // only need to validate the two MeasureTypes have the same result type.
+        VALIDATOR_RET_CHECK(
+            scan_column_type->AsMeasure()->result_type()->Equals(
+                schema_column_type->AsMeasure()->result_type()));
+      } else {
+        VALIDATOR_RET_CHECK(scan_column_type->Equals(schema_column_type));
+      }
     }
   }
 
@@ -3963,10 +4142,21 @@ absl::Status Validator::ValidateResolvedTVFScan(
           << "Passthrough TVF output column " << i
           << " name does not match: " << output_col.name << " vs "
           << input_col.name;
-      VALIDATOR_RET_CHECK(output_col.type->Equals(input_col.type))
-          << "Passthrough TVF output column " << i
-          << " type does not match: " << output_col.type->DebugString()
-          << " vs " << input_col.type->DebugString();
+      if (output_col.type->IsMeasureType() && input_col.type->IsMeasureType()) {
+        // Each MeasureType is unique (and not considered equal to other
+        // MeasureTypes, even if they have the same result type). Here we
+        // only need to validate the two MeasureTypes have the same result type.
+        VALIDATOR_RET_CHECK(output_col.type->AsMeasure()->result_type()->Equals(
+            input_col.type->AsMeasure()->result_type()))
+            << "Passthrough TVF output column " << i
+            << " type does not match: " << output_col.type->DebugString()
+            << " vs " << input_col.type->DebugString();
+      } else {
+        VALIDATOR_RET_CHECK(output_col.type->Equals(input_col.type))
+            << "Passthrough TVF output column " << i
+            << " type does not match: " << output_col.type->DebugString()
+            << " vs " << input_col.type->DebugString();
+      }
     }
   }
 
@@ -5530,10 +5720,10 @@ absl::Status Validator::CheckFunctionArgumentType(
     absl::string_view statement_type) {
   for (const FunctionArgumentType& arg_type : argument_type_list) {
     switch (arg_type.kind()) {
-      case ARG_TYPE_FIXED:
-      case ARG_TYPE_ARBITRARY:
-      case ARG_TYPE_RELATION:
-      case ARG_TYPE_STRING_ANY:
+      case ARG_KIND_EXPR_FIXED:
+      case ARG_KIND_EXPR_ARBITRARY:
+      case ARG_KIND_RELATION:
+      case ARG_KIND_EXPR_STRING_ANY:
         continue;
       default:
         VALIDATOR_RET_CHECK_FAIL()
@@ -9058,7 +9248,7 @@ absl::Status Validator::ValidateResolvedCreatePropertyGraphStmt(
     const ResolvedCreatePropertyGraphStmt* stmt) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
   PushErrorContext push(this, stmt);
-  ABSL_CHECK(stmt != nullptr);  // Crash OK
+  VALIDATOR_RET_CHECK(stmt != nullptr);
   VALIDATOR_RET_CHECK(!stmt->name_path().empty());
   GOOGLESQL_RETURN_IF_ERROR(ValidateOptionsList(stmt->option_list()));
 
@@ -9066,7 +9256,7 @@ absl::Status Validator::ValidateResolvedCreatePropertyGraphStmt(
   for (const std::unique_ptr<const ResolvedGraphPropertyDeclaration>&
            property_dcl : stmt->property_declaration_list()) {
     VALIDATOR_RET_CHECK(!property_dcl->name().empty());
-    ABSL_CHECK(property_dcl->type() != nullptr);  // Crash OK
+    VALIDATOR_RET_CHECK(property_dcl->type() != nullptr);
     VALIDATOR_RET_CHECK(
         property_dcl_name_map
             .insert({property_dcl->name(),

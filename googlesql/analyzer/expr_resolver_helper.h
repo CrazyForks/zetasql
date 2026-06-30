@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "googlesql/analyzer/name_scope.h"
 #include "googlesql/analyzer/query_resolver_helper.h"
 #include "googlesql/parser/parse_tree.h"
@@ -32,6 +31,7 @@
 #include "googlesql/public/with_modifier_mode.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_column.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "googlesql/base/ret_check.h"
 
@@ -112,12 +112,13 @@ class FlattenState {
   // but also causes the active flatten to propagate back to parent after
   // destruction so a child ExprResolutionInfo can essentially share
   // FlattenState.
-  void SetParent(FlattenState* parent) {
-    ABSL_DCHECK(parent_ == nullptr) << "Parent shouldn't be set more than once";
-    ABSL_CHECK(parent);
+  absl::Status SetParent(FlattenState* parent) {
+    GOOGLESQL_RET_CHECK(parent_ == nullptr) << "Parent shouldn't be set more than once";
+    GOOGLESQL_RET_CHECK(parent != nullptr);
     parent_ = parent;
     can_flatten_ = parent->can_flatten_;
     active_flatten_ = parent->active_flatten_;
+    return absl::OkStatus();
   }
 
   // Helper to allow restoring original `can_flatten` state when desired.

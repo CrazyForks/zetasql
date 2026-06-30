@@ -487,17 +487,17 @@ absl::Status SelectColumnStateList::ValidateAggregateAndAnalyticSupport(
   return absl::OkStatus();
 }
 
-SelectColumnState* SelectColumnStateList::GetSelectColumnState(
+absl::StatusOr<SelectColumnState*> SelectColumnStateList::GetSelectColumnState(
     int select_list_position) {
-  ABSL_CHECK_GE(select_list_position, 0);
-  ABSL_CHECK_LT(select_list_position, select_column_state_list_.size());
+  GOOGLESQL_RET_CHECK_GE(select_list_position, 0);
+  GOOGLESQL_RET_CHECK_LT(select_list_position, select_column_state_list_.size());
   return select_column_state_list_[select_list_position].get();
 }
 
-const SelectColumnState* SelectColumnStateList::GetSelectColumnState(
-    int select_list_position) const {
-  ABSL_CHECK_GE(select_list_position, 0);
-  ABSL_CHECK_LT(select_list_position, select_column_state_list_.size());
+absl::StatusOr<const SelectColumnState*>
+SelectColumnStateList::GetSelectColumnState(int select_list_position) const {
+  GOOGLESQL_RET_CHECK_GE(select_list_position, 0);
+  GOOGLESQL_RET_CHECK_LT(select_list_position, select_column_state_list_.size());
   return select_column_state_list_[select_list_position].get();
 }
 
@@ -514,8 +514,14 @@ std::string SelectColumnStateList::DebugString() const {
   std::string debug_string("SelectColumnStateList, size = ");
   absl::StrAppend(&debug_string, Size(), "\n");
   for (int idx = 0; idx < Size(); ++idx) {
-    absl::StrAppend(&debug_string, "    [", idx, "]:\n",
-                    GetSelectColumnState(idx)->DebugString("       "), "\n");
+    auto status_or_column_state = GetSelectColumnState(idx);
+    GOOGLESQL_DCHECK_OK(status_or_column_state);
+    std::string column_state_string =
+        status_or_column_state.ok()
+            ? status_or_column_state.value()->DebugString("       ")
+            : status_or_column_state.status().ToString();
+    absl::StrAppend(&debug_string, "    [", idx, "]:\n", column_state_string,
+                    "\n");
   }
   absl::StrAppend(&debug_string, "  alias map:\n");
   for (const auto& alias_to_position : column_alias_to_state_list_position_) {

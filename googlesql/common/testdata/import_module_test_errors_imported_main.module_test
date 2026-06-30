@@ -194,7 +194,7 @@ Lazy_resolution_function:foo
   (INT64 a) -> INT64
 
 Initialization errors:
-INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
+INVALID_ARGUMENT: FUNCTINO is not a supported object type [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
 CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
                ^
 
@@ -462,7 +462,7 @@ Lazy_resolution_function:foo
   (INT64 a) -> INT64
 
 Initialization errors:
-INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
+INVALID_ARGUMENT: FUNCTINO is not a supported object type [at .../googlesql/testdata/modules/module_test_errors_imported_b.sqlm:8:16]
 CREATE PRIVATE FUNCTINO bat(a INT64) AS (a);
                ^
 
@@ -715,6 +715,6 @@ INVALID_ARGUMENT: Unsupported statement kind: QueryStatement [at .../googlesql/t
 SELECT * FROM some_table;
 ^
 
-INVALID_ARGUMENT: Syntax error: Unexpected identifier "FUNCTINO" [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:146:16]
+INVALID_ARGUMENT: FUNCTINO is not a supported object type [at .../googlesql/testdata/modules/module_test_errors_main.sqlm:146:16]
 CREATE PRIVATE FUNCTINO udf_parse_error(a INT64) AS (a);
                ^

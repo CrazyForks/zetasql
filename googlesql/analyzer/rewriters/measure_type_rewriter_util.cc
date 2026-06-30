@@ -54,9 +54,6 @@
 
 namespace googlesql {
 
-static constexpr int kReferencedColumnsFieldIndex = 0;
-static constexpr int kKeyColumnsFieldIndex = 1;
-
 ////////////////////////////////////////////////////////////////////////
 // Utility functions.
 ////////////////////////////////////////////////////////////////////////
@@ -150,23 +147,36 @@ class UnsupportedQueryShapeFinder : public ResolvedASTVisitor {
       const ResolvedExpr* arg = node->argument_list()[0].get();
       const bool allow_get_struct_field =
           language_options_.LanguageFeatureEnabled(FEATURE_MEASURES_IN_STRUCT);
+      const bool allow_get_row_field =
+          language_options_.LanguageFeatureEnabled(FEATURE_ROW_TYPE);
       const bool is_valid_arg =
           arg->Is<ResolvedColumnRef>() ||
-          (allow_get_struct_field && arg->Is<ResolvedGetStructField>());
+          (allow_get_struct_field && arg->Is<ResolvedGetStructField>()) ||
+          (allow_get_row_field && arg->Is<ResolvedGetRowField>());
       if (!is_valid_arg) {
         // The measure rewriter currently assumes that the argument to the AGG
-        // function invocation is a column ref or a struct field access
-        // resolving to measure. The MeasureColumnRewriter makes this assumption
-        // as well, since it skips mapping measure typed columns to closure
-        // columns if the measure typed column is rooted within an AGG function
-        // call sub-tree. Removing this check will require relaxing that
-        // assumption.
+        // function invocation is:
+        //
+        // - A column reference, or
+        // - A struct field access, or
+        // - A row field access
+        //
+        // resolving to a measure.
+        //
+        // The MeasureColumnRewriter makes this assumption as well, since it
+        // skips mapping measure typed columns to closure columns if the measure
+        // typed column is rooted within an AGG function call sub-tree. Removing
+        // this check will require relaxing that assumption.
         std::string error_message =
             "Measure type rewriter expects argument to AGG function to be a "
             "direct column reference";
         if (allow_get_struct_field) {
           absl::StrAppend(&error_message,
                           " or a struct field access resolving to measure");
+        }
+        if (allow_get_row_field) {
+          absl::StrAppend(&error_message,
+                          ", or a row field access resolving to measure");
         }
         return absl::UnimplementedError(error_message);
       }

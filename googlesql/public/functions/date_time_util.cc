@@ -228,7 +228,7 @@ static bool CheckRemainingLength(absl::string_view str, int current_idx,
 template <class T>
 static bool ParseDigits(absl::string_view str, int min_digits, int max_digits,
                         int* idx, T* part_value) {
-  static_assert(std::is_same<T, int>::value || std::is_same<T, int64_t>::value,
+  static_assert(std::is_same_v<T, int> || std::is_same_v<T, int64_t>,
                 "T must be int or int64_t");
   int num_digits = 0;
   *part_value = 0;
@@ -1204,9 +1204,8 @@ static absl::Status AddTimestampNanos(int64_t nanos, absl::TimeZone timezone,
 
 template <typename T>
 static void NarrowTimestampIfPossible(T* timestamp, TimestampScale* scale) {
-  static_assert(
-      std::is_same<T, int64_t>::value || std::is_same<T, absl::int128>::value,
-      "T must be either int64_t or absl::int128");
+  static_assert(std::is_same_v<T, int64_t> || std::is_same_v<T, absl::int128>,
+                "T must be either int64_t or absl::int128");
   while (*timestamp % 1000 == 0) {
     switch (*scale) {
       case kSeconds:

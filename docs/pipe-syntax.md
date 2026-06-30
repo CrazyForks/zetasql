@@ -1606,9 +1606,7 @@ SELECT 1 AS one_digit, 10 AS two_digit
 <a id="recursive_union_pipe_operator"></a>
 
 <pre class="lang-sql prettyprint no-copy">
-|> RECURSIVE UNION
-   { ALL | DISTINCT }
-   [ BY NAME ]
+|> RECURSIVE UNION { ALL | DISTINCT } [ BY NAME ]
    ( query | subpipeline )
    [ AS alias ]
 </pre>
@@ -1668,7 +1666,7 @@ The `RECURSIVE UNION` operator syntax is shorter, clearer, and easier to read
 and maintain than the corresponding `WITH RECURSIVE` clause syntax.
 
 The following comparison shows the basic structure of a `WITH RECURSIVE` clause
-and a `RECURSIVE UNION` operator equivalent:
+and `RECURSIVE UNION` operator equivalents:
 
 ```googlesql
 -- Standard syntax
@@ -1679,32 +1677,30 @@ WITH RECURSIVE name AS (
 )
 final_query
 
--- Pipe syntax equivalent with RECURSIVE UNION operator
-WITH name AS (
-  base_query
-  |> RECURSIVE UNION ALL (
-    recursive_query
-  ) AS name
-)
-final_query
-```
-
-Converting recursive queries to pipe syntax is usually just a matter of
-replacing the `UNION ALL` clause with the `RECURSIVE UNION` operator. After
-that, if the recursive query is in pipe syntax and starts with a `FROM` clause,
-the `FROM` clause can be removed and replaced with the subpipeline form.
-
-In addition, you can also remove the initial `WITH` clause if the rest of the
-query previously started with a `FROM` clause:
-
-```googlesql
--- Example query with no WITH clause
+-- Pipe syntax equivalent (typical pattern without WITH)
 base_query
 |> RECURSIVE UNION ALL (
      recursive_query
    ) AS name
 final_query
+
+-- Pipe syntax equivalent (keeping WITH)
+WITH name AS (
+  base_query
+  |> RECURSIVE UNION ALL (
+       recursive_query
+     ) AS name
+)
+final_query
 ```
+
+Converting recursive queries to pipe syntax is usually a matter of replacing
+the `UNION ALL` clause with the `RECURSIVE UNION` operator. Removing the
+initial `WITH` clause is the typical way to structure the query, but keeping
+`WITH` with a `RECURSIVE UNION` operation inside is also possible.
+
+In addition, if the recursive query is in pipe syntax and starts with a `FROM`
+clause, the `FROM` clause can be removed and replaced with the subpipeline form.
 
 **Style guidance**
 
@@ -1729,62 +1725,7 @@ CREATE TEMP TABLE Employees(
 
 The following example looks up a manager with `employee_id = 123456`,
 performs a recursive traversal to retrieve all employees who report transitively
-to that manager, and counts how many of those reports are in one state.
-
-Here is the standard syntax that accomplishes this, using the
-`WITH RECURSIVE` clause:
-
-```googlesql
-WITH RECURSIVE
-  AllReportees AS (
-    SELECT employee_id, manager_id, state
-    FROM Employees
-    WHERE employee_id = 123456
-    UNION ALL
-    SELECT e.employee_id, e.manager_id, e.state
-    FROM AllReportees r  -- Recursive input table
-    JOIN Employees e
-      ON e.manager_id = r.employee_id
-  )
-SELECT COUNT(*) AS num_employees
-FROM AllReportees
-WHERE State = 'AK';
-
--- Example of recursive count of employees reporting to 123456 in AK.
-/*-----------------+
- | num_employees   |
- +-----------------+
- | 46              |
- +-----------------*/
-```
-
-The following example accomplishes the same task using the `RECURSIVE UNION`
-pipe operator with a subquery:
-
-```googlesql
-FROM Employees
-|> WHERE employee_id = 123456
-|> RECURSIVE UNION ALL
-(
-  FROM AllReportees r  -- Recursive input table
-  |> JOIN Employees e ON e.manager_id = r.employee_id
-  |> SELECT e.*
-) AS AllReportees
-|> WHERE State = 'AK'
-|> AGGREGATE COUNT(*) AS num_employees;
-
--- Example of recursive count of employees reporting to 123456 in AK.
-/*-----------------+
- | num_employees   |
- +-----------------+
- | 46              |
- +-----------------*/
-```
-
-You can also define recursive queries using the `RECURSIVE UNION` pipe operator
-using a subpipeline, which removes the need for an inner `FROM` clause. The
-recursive input table is scanned by the subpipeline automatically and isn't
-explicitly written in the pipe syntax:
+to that manager, and counts how many of those reports are in one state:
 
 ```googlesql
 FROM Employees
@@ -1805,25 +1746,25 @@ FROM Employees
  +-----------------*/
 ```
 
-It's also still possible to define recursive queries in `WITH` using pipe
-syntax. Using `RECURSIVE UNION` inside `WITH` can be clearer than using
-`WITH RECURSIVE` syntax:
+The previous example uses the `RECURSIVE UNION` pipe operator with a subpipeline,
+which removes the need for an inner `FROM` clause. The recursive input table is
+scanned by the subpipeline automatically and isn't explicitly written in the
+pipe syntax.
+
+You can also define recursive queries using an inner `FROM` clause to
+explicitly scan the recursive input table:
 
 ```googlesql
-WITH
-  AllReportees AS (
-    FROM
-      Employees
-    |> WHERE employee_id = 123456
-    |> RECURSIVE UNION ALL   -- Clearer than using a WITH RECURSIVE equivalent.
-    (
-      |> JOIN Employees e ON e.manager_id = r.employee_id
-      |> SELECT e.*
-    ) AS r -- Recursive input table
-  )
-SELECT COUNT(*) AS num_employees
-FROM AllReportees
-WHERE State = 'AK';
+FROM Employees
+|> WHERE employee_id = 123456
+|> RECURSIVE UNION ALL
+(
+  FROM AllReportees r  -- Recursive input table
+  |> JOIN Employees e ON e.manager_id = r.employee_id
+  |> SELECT e.*
+) AS AllReportees
+|> WHERE State = 'AK'
+|> AGGREGATE COUNT(*) AS num_employees;
 
 -- Example of recursive count of employees reporting to 123456 in AK.
 /*-----------------+

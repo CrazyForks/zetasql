@@ -183,10 +183,11 @@ AnalyticFunctionResolver::ReleaseNamedWindowInfoMap() {
   return std::move(named_window_info_map_);
 }
 
-void AnalyticFunctionResolver::DisableNamedWindowRefs(
+absl::Status AnalyticFunctionResolver::DisableNamedWindowRefs(
     const char* clause_name) {
-  ABSL_CHECK_NE(clause_name[0], '\0');
+  GOOGLESQL_RET_CHECK_NE(clause_name[0], '\0');
   named_window_not_allowed_here_name_ = clause_name;
+  return absl::OkStatus();
 }
 
 absl::Status AnalyticFunctionResolver::SetMatchRecognizeWindowContext(
@@ -1325,9 +1326,9 @@ absl::Status AnalyticFunctionResolver::AddColumnForWindowExpression(
     // referenced a SELECT list alias.  This is only valid if the analytic
     // function appears in the ORDER BY, in which case all SELECT list
     // ResolvedColumns are assigned and initialized.
-    const SelectColumnState* select_column_state =
-        select_column_state_list->GetSelectColumnState(
-            window_expr_info->select_list_index);
+    GOOGLESQL_ASSIGN_OR_RETURN(const SelectColumnState* select_column_state,
+                     select_column_state_list->GetSelectColumnState(
+                         window_expr_info->select_list_index));
     GOOGLESQL_RET_CHECK(select_column_state->resolved_select_column.IsInitialized());
     resolved_column_ref =
         resolver_->MakeColumnRef(select_column_state->resolved_select_column);

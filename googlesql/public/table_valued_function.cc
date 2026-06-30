@@ -463,9 +463,9 @@ absl::StatusOr<TVFSchemaColumn> TVFSchemaColumn::FromProto(
     GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
                      TypeModifiers::Deserialize(proto.type_modifiers()));
   }
-  TVFRelation::Column column(proto.name(), {type, annotation_map},
-                             proto.is_pseudo_column(),
-                             proto.is_passthrough_column(), type_modifiers);
+  TVFRelation::Column column(
+      proto.name(), {type, annotation_map}, proto.is_pseudo_column(),
+      proto.is_passthrough_column(), std::move(type_modifiers));
   ParseLocationRange location_range;
   if (proto.has_name_parse_location_range()) {
     GOOGLESQL_ASSIGN_OR_RETURN(

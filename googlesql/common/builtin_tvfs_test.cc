@@ -35,6 +35,25 @@ class GetVectorSearchTableValuedFunctionsTest : public ::testing::Test {
  protected:
   GetVectorSearchTableValuedFunctionsTest() {
     language_options_.EnableLanguageFeature(FEATURE_VECTOR_SEARCH_TVF);
+    language_options_.EnableLanguageFeature(
+        FEATURE_SINGLE_HYBRID_VECTOR_SEARCH_TVF);
+    language_options_.EnableLanguageFeature(FEATURE_JSON_TYPE);
+    options_ =
+        std::make_unique<GoogleSQLBuiltinFunctionOptions>(language_options_);
+  }
+
+  TypeFactory type_factory_;
+  BuiltinsOutputProperties output_properties_;
+  LanguageOptions language_options_;
+  std::unique_ptr<GoogleSQLBuiltinFunctionOptions> options_;
+};
+
+class GetVectorSearchTVFsWithoutHybridVectorSearchTest
+    : public ::testing::Test {
+ protected:
+  GetVectorSearchTVFsWithoutHybridVectorSearchTest() {
+    language_options_.EnableLanguageFeature(FEATURE_VECTOR_SEARCH_TVF);
+    language_options_.EnableLanguageFeature(FEATURE_JSON_TYPE);
     options_ =
         std::make_unique<GoogleSQLBuiltinFunctionOptions>(language_options_);
   }
@@ -71,9 +90,75 @@ TEST_F(GetVectorSearchTableValuedFunctionsTest, VectorSearchFunction) {
       "STRING query_column_to_search, optional INT64 top_k, optional STRING "
       "distance_type, optional DOUBLE max_distance) "
       "-> "
-      "ANY TABLE");
+      "ANY TABLE\n  (ANY TABLE, STRING column_to_search, ANY TABLE, optional "
+      "STRING query_column_to_search, optional JSON options, optional INT64 "
+      "top_k, optional STRING distance_type, optional DOUBLE max_distance) -> "
+      "ANY TABLE\n  (ANY TABLE, STRING column_to_search, ARRAY<FLOAT> "
+      "query_value, optional INT64 top_k, optional STRING distance_type, "
+      "optional DOUBLE max_distance) -> ANY TABLE\n  (ANY TABLE, STRING "
+      "column_to_search, ARRAY<FLOAT> query_value, optional JSON options, "
+      "optional INT64 top_k, optional STRING distance_type, optional DOUBLE "
+      "max_distance) -> ANY TABLE\n  (ANY TABLE, STRING "
+      "column_to_search, ARRAY<DOUBLE> query_value, optional INT64 top_k, "
+      "optional STRING distance_type, optional DOUBLE max_distance) -> ANY "
+      "TABLE\n  (ANY TABLE, STRING column_to_search, ARRAY<DOUBLE> "
+      "query_value, optional JSON options, optional INT64 top_k, optional "
+      "STRING distance_type, optional DOUBLE max_distance) -> ANY TABLE\n  "
+      "(ANY TABLE, STRING column_to_search, STRING query_value, "
+      "optional INT64 top_k, optional STRING distance_type, optional DOUBLE "
+      "max_distance) -> ANY TABLE\n  (ANY TABLE, STRING column_to_search, "
+      "STRING query_value, optional JSON options, optional INT64 top_k, "
+      "optional STRING distance_type, optional DOUBLE max_distance) -> ANY "
+      "TABLE");
   EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
                 FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS, 4),
+            true);
+}
+
+TEST_F(GetVectorSearchTVFsWithoutHybridVectorSearchTest, VectorSearchFunction) {
+  NameToTableValuedFunctionMap functions;
+  GOOGLESQL_ASSERT_OK(GetVectorSearchTableValuedFunctions(
+      &type_factory_, *options_, &functions, output_properties_));
+  constexpr absl::string_view kVectorSearch = "vector_search";
+  ASSERT_TRUE(functions.contains(kVectorSearch));
+  EXPECT_EQ(
+      functions[kVectorSearch]->DebugString(),
+      "GoogleSQL:vector_search\n  (ANY TABLE, STRING column_to_search, ANY "
+      "TABLE, optional "
+      "STRING query_column_to_search, optional INT64 top_k, optional STRING "
+      "distance_type, optional DOUBLE max_distance) "
+      "-> "
+      "ANY TABLE\n  (ANY TABLE, STRING column_to_search, ANY TABLE, optional "
+      "STRING query_column_to_search, optional JSON options, optional INT64 "
+      "top_k, optional STRING distance_type, optional DOUBLE max_distance) -> "
+      "ANY TABLE\n  (ANY TABLE, STRING column_to_search, ARRAY<FLOAT> "
+      "query_value, optional INT64 top_k, optional STRING distance_type, "
+      "optional DOUBLE max_distance) -> ANY TABLE\n  (ANY TABLE, STRING "
+      "column_to_search, ARRAY<FLOAT> query_value, optional JSON options, "
+      "optional INT64 top_k, optional STRING distance_type, optional DOUBLE "
+      "max_distance) -> ANY TABLE\n  (ANY TABLE, STRING "
+      "column_to_search, ARRAY<DOUBLE> query_value, optional INT64 top_k, "
+      "optional STRING distance_type, optional DOUBLE max_distance) -> ANY "
+      "TABLE\n  (ANY TABLE, STRING column_to_search, ARRAY<DOUBLE> "
+      "query_value, optional JSON options, optional INT64 top_k, optional "
+      "STRING distance_type, optional DOUBLE max_distance) -> ANY TABLE\n  "
+      "(ANY TABLE, STRING column_to_search, STRING query_value, "
+      "optional INT64 top_k, optional STRING distance_type, optional DOUBLE "
+      "max_distance) -> ANY TABLE\n  (ANY TABLE, STRING column_to_search, "
+      "STRING query_value, optional JSON options, optional INT64 top_k, "
+      "optional STRING distance_type, optional DOUBLE max_distance) -> ANY "
+      "TABLE");
+  EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
+                FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS, 4),
+            true);
+  EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
+                FN_SINGLE_VECTOR_SEARCH_TVF_FLOAT_ARRAY_WITH_PROTO_OPTIONS, 3),
+            true);
+  EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
+                FN_SINGLE_VECTOR_SEARCH_TVF_DOUBLE_ARRAY_WITH_PROTO_OPTIONS, 3),
+            true);
+  EXPECT_EQ(output_properties_.SupportsSuppliedArgumentType(
+                FN_SINGLE_VECTOR_SEARCH_TVF_STRING_WITH_PROTO_OPTIONS, 3),
             true);
 }
 

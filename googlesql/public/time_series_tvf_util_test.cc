@@ -17,16 +17,25 @@
 #include "googlesql/public/time_series_tvf_util.h"
 
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "google/protobuf/timestamp.pb.h"
+#include "googlesql/public/table_valued_function.h"
 #include "googlesql/public/testing/error_matchers.h"
+#include "googlesql/public/type.h"
+#include "googlesql/public/types/struct_type.h"
+#include "googlesql/public/types/type_factory.h"
+#include "googlesql/testdata/test_proto3.pb.h"
+#include "googlesql/testdata/test_schema.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/descriptor.h"
 
 namespace googlesql {
 namespace {
@@ -62,16 +71,13 @@ TEST_P(ParseSimpleIdentifierPathTest, ParseSimpleIdentifierPath) {
                          ParseSimpleIdentifierPath(input_no_null_term));
     EXPECT_EQ(result_no_term, test.expected_output);
   } else {
-    absl::StatusOr<std::vector<std::string>> result =
-        ParseSimpleIdentifierPath(test.input);
-    ASSERT_FALSE(result.ok());
-    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
-    EXPECT_THAT(result.status().message(), HasSubstr(test.expected_error));
+    EXPECT_THAT(ParseSimpleIdentifierPath(test.input),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr(test.expected_error)));
 
-    absl::StatusOr<std::vector<std::string>> result_no_term =
-        ParseSimpleIdentifierPath(input_no_null_term);
-    EXPECT_THAT(result_no_term, StatusIs(absl::StatusCode::kInvalidArgument,
-                                         HasSubstr(test.expected_error)));
+    EXPECT_THAT(ParseSimpleIdentifierPath(input_no_null_term),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr(test.expected_error)));
   }
 }
 
@@ -158,6 +164,566 @@ INSTANTIATE_TEST_SUITE_P(
     }),
     [](const ::testing::TestParamInfo<ParseSimpleIdentifierPathTest::ParamType>&
            info) { return info.param.name; });
+
+// =====================================================================
+// ResolveTimestampColumnPath Tests
+// =====================================================================
+
+struct ResolveTimestampColumnPathTestCase {
+  std::string name;
+  std::string path;
+  int expected_column_index = -1;
+  struct ExpectedStep {
+    TypeFieldPathStep::Kind kind;
+    int struct_field_index = -1;
+    std::string proto_field_name;
+  };
+  std::vector<ExpectedStep> expected_steps;
+  std::string expected_leaf_type_name;
+  std::string expected_error;
+  absl::StatusCode expected_status_code = absl::StatusCode::kInvalidArgument;
+
+  enum RelationKind {
+    SQL_TABLE,
+    VALUE_TABLE,
+    VALUE_TABLE_SCALAR,
+    VALUE_TABLE_PROTO,
+    VALUE_TABLE_NESTED_STRUCT,
+  };
+  RelationKind relation_kind = SQL_TABLE;
+};
+
+class ResolveTimestampColumnPathTest
+    : public ::testing::TestWithParam<ResolveTimestampColumnPathTestCase> {
+ protected:
+  void SetUp() override {
+    const Type* ts_type = type_factory_.get_timestamp();
+
+    const ProtoType* proto3_kitchen_sink_type = nullptr;
+    GOOGLESQL_ASSERT_OK(type_factory_.MakeProtoType(
+        googlesql_test::Proto3KitchenSink::descriptor(),
+        &proto3_kitchen_sink_type));
+
+    const ProtoType* proto_ts_type = nullptr;
+    GOOGLESQL_ASSERT_OK(type_factory_.MakeProtoType(
+        google::protobuf::Timestamp::descriptor(), &proto_ts_type));
+
+    const StructType* nested_struct_type = nullptr;
+    GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
+        {{"timestamp_field", ts_type},
+         {"int64_field", type_factory_.get_int64()}},
+        &nested_struct_type));
+
+    const StructType* struct_col_type = nullptr;
+    GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
+        {{"int64_field", type_factory_.get_int64()},
+         {"timestamp_field", ts_type},
+         {"struct_field", nested_struct_type},
+         {"ambiguous_field", type_factory_.get_int64()},
+         {"Ambiguous_Field", ts_type}},
+        &struct_col_type));
+
+    relations_[ResolveTimestampColumnPathTestCase::SQL_TABLE] =
+        std::make_unique<TVFRelation>(TVFRelation::ColumnList{
+            {"timestamp_col", ts_type},
+            {"proto_timestamp_col", proto_ts_type},
+            {"struct_col", struct_col_type},
+            {"proto_col", proto3_kitchen_sink_type},
+            {"ambiguous_col", type_factory_.get_int64()},
+            {"Ambiguous_Col", ts_type}});
+
+    // Value Table Relation (Type is STRUCT<timestamp_field TIMESTAMP,
+    // int64_field INT64>)
+    const StructType* val_row_type = nullptr;
+    GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
+        {{"timestamp_field", ts_type},
+         {"int64_field", type_factory_.get_int64()}},
+        &val_row_type));
+
+    relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE] =
+        std::make_unique<TVFRelation>(TVFRelation::ValueTable(val_row_type));
+
+    // Value Table Scalar Relation (Type is TIMESTAMP)
+    relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_SCALAR] =
+        std::make_unique<TVFRelation>(TVFRelation::ValueTable(ts_type));
+
+    // Value Table Proto Relation (Type is Proto3KitchenSink)
+    relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO] =
+        std::make_unique<TVFRelation>(
+            TVFRelation::ValueTable(proto3_kitchen_sink_type));
+
+    // Value Table Nested Struct Relation (Type is struct_col_type)
+    relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT] =
+        std::make_unique<TVFRelation>(TVFRelation::ValueTable(struct_col_type));
+  }
+
+  const TVFRelation* GetRelation(
+      ResolveTimestampColumnPathTestCase::RelationKind kind) const {
+    auto it = relations_.find(kind);
+    if (it == relations_.end()) {
+      return nullptr;
+    }
+    return it->second.get();
+  }
+
+  TypeFactory type_factory_;
+  std::map<ResolveTimestampColumnPathTestCase::RelationKind,
+           std::unique_ptr<TVFRelation>>
+      relations_;
+};
+
+TEST_P(ResolveTimestampColumnPathTest, ResolveTimestampColumnPath) {
+  const auto& test = GetParam();
+
+  // Get the TVFRelation indicated by the test case.
+  const TVFRelation* relation = GetRelation(test.relation_kind);
+  ASSERT_NE(relation, nullptr)
+      << "Relation not found for kind: " << test.relation_kind;
+
+  absl::StatusOr<ResolvedTimestampColumnPath> result =
+      ResolveTimestampColumnPath(*relation, test.path, &type_factory_);
+
+  if (test.expected_error.empty()) {
+    GOOGLESQL_ASSERT_OK(result);
+    EXPECT_EQ(result->column_index, test.expected_column_index);
+
+    // Verify the field path steps.
+    ASSERT_EQ(result->steps.size(), test.expected_steps.size());
+    for (size_t i = 0; i < result->steps.size(); ++i) {
+      const auto& actual_step = result->steps[i];
+      const auto& expected_step = test.expected_steps[i];
+      EXPECT_EQ(actual_step.kind, expected_step.kind);
+
+      if (expected_step.kind == TypeFieldPathStep::STRUCT_FIELD) {
+        EXPECT_EQ(actual_step.struct_field_index,
+                  expected_step.struct_field_index);
+      } else {
+        ASSERT_NE(actual_step.proto_field_descriptor, nullptr);
+        EXPECT_EQ(actual_step.proto_field_descriptor->name(),
+                  expected_step.proto_field_name);
+      }
+    }
+
+    // Verify the leaf type.
+    ASSERT_NE(result->leaf_type, nullptr);
+    EXPECT_EQ(result->leaf_type->DebugString(), test.expected_leaf_type_name);
+  } else {
+    EXPECT_THAT(result, StatusIs(test.expected_status_code,
+                                 HasSubstr(test.expected_error)));
+  }
+}
+
+// The test cases in ResolveTimestampColumnPathTests run against 5 distinct
+// test relations set up in ResolveTimestampColumnPathTest::SetUp():
+//
+// 1. SQL_TABLE:
+//    Columns:
+//      - {"timestamp_col", ts_type}
+//      - {"proto_timestamp_col", proto_ts_type}
+//      - {"struct_col", struct_col_type}  // STRUCT<int64_field INT64,
+//                                         //        timestamp_field TIMESTAMP,
+//                                         //        struct_field STRUCT<
+//                                         //         timestamp_field TIMESTAMP,
+//                                         //         int64_field INT64>,
+//                                         //        ambiguous_field INT64,
+//                                         //        Ambiguous_Field TIMESTAMP>
+//      - {"proto_col", proto3_kitchen_sink_type}
+//      - {"ambiguous_col", type_factory_.get_int64()}
+//      - {"Ambiguous_Col", ts_type}
+//
+// 2. VALUE_TABLE (STRUCT<timestamp_field TIMESTAMP, int64_field INT64>):
+//
+// 3. VALUE_TABLE_SCALAR (scalar TIMESTAMP):
+//    Tested for failure when attempting identifier path traversals.
+//
+// 4. VALUE_TABLE_PROTO (PROTO<Proto3KitchenSink>):
+//
+// 5. VALUE_TABLE_NESTED_STRUCT (struct_col's type):
+INSTANTIATE_TEST_SUITE_P(
+    ResolveTimestampColumnPathTests, ResolveTimestampColumnPathTest,
+    ::testing::ValuesIn(std::vector<ResolveTimestampColumnPathTestCase>{
+        // =====================================================================
+        // SQL Table: Success Cases
+        // =====================================================================
+
+        // Standard googlesql timestamp column.
+        {.name = "SqlSimpleTs",
+         .path = "timestamp_col",
+         .expected_column_index = 0,
+         .expected_steps = {},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Standard googlesql timestamp column, case-insensitive.
+        {.name = "SqlSimpleTsCaseInsensitive",
+         .path = "Timestamp_Col",
+         .expected_column_index = 0,
+         .expected_steps = {},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Standard proto timestamp column.
+        {.name = "SqlSimpleProtoTs",
+         .path = "proto_timestamp_col",
+         .expected_column_index = 1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Nested struct timestamp field.
+        {.name = "SqlNestedStruct",
+         .path = "struct_col.timestamp_field",
+         .expected_column_index = 2,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 1}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Multiple level nested struct timestamp field.
+        {.name = "SqlDoubleNestedStruct",
+         .path = "struct_col.struct_field.timestamp_field",
+         .expected_column_index = 2,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 2},
+                            {.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 0}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Nested proto timestamp field.
+        {.name = "SqlNestedProto",
+         .path = "proto_col.timestamp_wkt",
+         .expected_column_index = 3,
+         .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
+                             .proto_field_name = "timestamp_wkt"}},
+         .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Proto int64 field with googlesql annotation.
+        {.name = "SqlAnnotatedInt64ProtoTs",
+         .path = "proto_col.timestamp_millis_format",
+         .expected_column_index = 3,
+         .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
+                             .proto_field_name = "timestamp_millis_format"}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Path containing backtick-quoted segments.
+        {.name = "SqlQuotedSegments",
+         .path = "`struct_col`.`struct_field`.`timestamp_field`",
+         .expected_column_index = 2,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 2},
+                            {.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 0}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // =====================================================================
+        // SQL Table: Failure Cases
+        // =====================================================================
+
+        // Column does not exist.
+        {.name = "SqlColNotFound",
+         .path = "non_existent",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'non_existent' (path "
+                           "component #1): Column not found",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Column is ambiguous.
+        {.name = "SqlAmbiguousCol",
+         .path = "ambiguous_col",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'ambiguous_col' (path "
+                           "component #1): Ambiguous column reference",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Struct field name not found.
+        {.name = "SqlFieldNotFound",
+         .path = "struct_col.xyz",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'xyz' (path component #2): "
+                           "Field not found in struct",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Leaf type not timestamp.
+        {.name = "SqlLeafNotTimestamp",
+         .path = "struct_col.int64_field",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error =
+             "Unable to resolve 'int64_field' (path component #2): Leaf "
+             "field type must be TIMESTAMP or google.protobuf.Timestamp",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Proto field name not found.
+        {.name = "SqlProtoFieldNotFound",
+         .path = "proto_col.xyz",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'xyz' (path component #2): "
+                           "Field not found in proto "
+                           "googlesql_test.Proto3KitchenSink",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Repeated proto field not supported.
+        {.name = "SqlRepeatedFieldTraversal",
+         .path = "proto_col.repeated_int32_val",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error =
+             "Unable to resolve 'repeated_int32_val' (path "
+             "component #2): Proto repeated field is not supported",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Map proto field not supported.
+        {.name = "SqlMapFieldTraversal",
+         .path = "proto_col.test_map",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'test_map' (path component #2): "
+                           "Proto map field is not supported",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Leaf type non-timestamp proto field.
+        {.name = "SqlLeafNotTimestampProto",
+         .path = "proto_col.nested_value.nested_int64",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error =
+             "Unable to resolve 'nested_int64' (path component #3): Leaf "
+             "field type must be TIMESTAMP or google.protobuf.Timestamp",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Struct field name reference ambiguous.
+        {.name = "SqlStructFieldAmbiguous",
+         .path = "struct_col.ambiguous_field",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'ambiguous_field' (path "
+                           "component #2): Struct field name is ambiguous",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Traversing leaf type component.
+        {.name = "SqlTraverseLeafType",
+         .path = "struct_col.int64_field.timestamp_field",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'timestamp_field' (path "
+                           "component #3): Cannot traverse non-struct/proto "
+                           "field",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // Proto extension syntax is not supported by parser.
+        {.name = "SqlProtoExtensionNotSupported",
+         .path = "proto_col.(ext)",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "invalid character '('",
+         .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
+
+        // =====================================================================
+        // Value Table: Success Cases
+        // =====================================================================
+        // Top-level struct field of a value table.
+        {.name = "ValueTableTs",
+         .path = "timestamp_field",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 0}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
+
+        // Top-level struct field of a value table, case-insensitive.
+        {.name = "ValueTableTsCaseInsensitive",
+         .path = "Timestamp_Field",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 0}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
+
+        // Nested struct field of a value table.
+        {.name = "ValueTableNestedStruct",
+         .path = "timestamp_field",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 1}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT},
+
+        // Multiple level nested struct field of a value table.
+        {.name = "ValueTableDoubleNestedStruct",
+         .path = "struct_field.timestamp_field",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 2},
+                            {.kind = TypeFieldPathStep::STRUCT_FIELD,
+                             .struct_field_index = 0}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT},
+
+        // Nested proto field of a value table.
+        {.name = "ValueTableNestedProto",
+         .path = "timestamp_wkt",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
+                             .proto_field_name = "timestamp_wkt"}},
+         .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
+         .expected_error = "",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO},
+
+        // Value table proto int64 field with googlesql annotation.
+        {.name = "ValueTableAnnotatedInt64ProtoTs",
+         .path = "timestamp_millis_format",
+         .expected_column_index = 0,
+         .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
+                             .proto_field_name = "timestamp_millis_format"}},
+         .expected_leaf_type_name = "TIMESTAMP",
+         .expected_error = "",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO},
+
+        // =====================================================================
+        // Value Table: Failure Cases
+        // =====================================================================
+
+        // Value table struct field not found.
+        {.name = "ValueTableFieldNotFound",
+         .path = "xyz",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'xyz' (path component #1): "
+                           "Field not found in struct",
+         .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
+
+        // Value table struct field not found, table name is not supported to be
+        // part of the path.
+        {.name = "ValueTableNameInPath",
+         .path = "my_val_table.xyz",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'my_val_table' (path component "
+                           "#1): Field not found in struct",
+         .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
+
+        // Value table has a scalar type.
+        {.name = "ValueTableScalarTableNotSupported",
+         .path = "my_scalar_table",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Value table type must be a struct or proto",
+         .expected_status_code = absl::StatusCode::kInternal,
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_SCALAR},
+
+        // Value table struct field name reference ambiguous.
+        {.name = "ValueTableStructFieldAmbiguous",
+         .path = "ambiguous_field",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'ambiguous_field' (path "
+                           "component #1): Struct field name is ambiguous",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT},
+
+        // Traversing value table leaf type component.
+        {.name = "ValueTableTraverseLeafType",
+         .path = "int64_field.timestamp_field",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'timestamp_field' (path "
+                           "component #2): Cannot traverse non-struct/proto "
+                           "field",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT},
+
+        // Value table proto field not found.
+        {.name = "ValueTableProtoFieldNotFound",
+         .path = "xyz",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'xyz' (path component #1): "
+                           "Field not found in proto "
+                           "googlesql_test.Proto3KitchenSink",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO},
+
+        // Value table repeated proto field not supported.
+        {.name = "ValueTableRepeatedFieldNotSupported",
+         .path = "repeated_int32_val",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error =
+             "Unable to resolve 'repeated_int32_val' (path "
+             "component #1): Proto repeated field is not supported",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO},
+
+        // Traversing map proto field of a value table.
+        {.name = "ValueTableMapFieldNotSupported",
+         .path = "test_map",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'test_map' (path component #1): "
+                           "Proto map field is not supported",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO},
+
+        // Leaf type non-timestamp proto field of a value table.
+        {.name = "ValLeafNotTimestampProto",
+         .path = "nested_value.nested_int64",
+         .expected_column_index = -1,
+         .expected_steps = {},
+         .expected_leaf_type_name = "",
+         .expected_error = "Unable to resolve 'nested_int64' (path component "
+                           "#2): Leaf field type must be TIMESTAMP or "
+                           "google.protobuf.Timestamp",
+         .relation_kind =
+             ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO}}),
+
+    [](const ::testing::TestParamInfo<
+        ResolveTimestampColumnPathTest::ParamType>& info) {
+      return info.param.name;
+    });
 
 }  // namespace
 }  // namespace googlesql

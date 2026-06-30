@@ -590,14 +590,14 @@ TEST_F(FetchAllModuleContentsTest, FetchNestedModuleContentsWithSyntaxError) {
       TestDataModuleNamePath({"module_test_errors_main_2"}));
   FetchContentsAndAssertErrorCount(module_name_path, 2);
   // We hit two syntax errors.
-  EXPECT_THAT(
-      module_fetch_errors_[0],
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Syntax error")));
+  EXPECT_THAT(module_fetch_errors_[0],
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("FUNCTINO is not a supported object type")));
   EXPECT_THAT(FormatError(module_fetch_errors_[0]),
               HasSubstr("module_test_errors_main_2.sqlm"));
-  EXPECT_THAT(
-      module_fetch_errors_[1],
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Syntax error")));
+  EXPECT_THAT(module_fetch_errors_[1],
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("FUNCTINO is not a supported object type")));
   EXPECT_THAT(FormatError(module_fetch_errors_[1]),
               HasSubstr("module_test_errors_imported_b.sqlm"));
   // We still found contents for 6 modules.
@@ -615,15 +615,15 @@ TEST_F(FetchAllModuleContentsTest, FetchModuleContentsWithNestedLookupError) {
   // errors are populated.  The order isn't guaranteed by the function
   // contract, so if this test becomes a maintenance problem then we need
   // to update the test to more accurately reflect the contract.
-  EXPECT_THAT(
-      module_fetch_errors_[0],
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Syntax error")));
+  EXPECT_THAT(module_fetch_errors_[0],
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("FUNCTINO is not a supported object type")));
   EXPECT_THAT(module_fetch_errors_[1],
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("Module googlesql.foo not found")));
-  EXPECT_THAT(
-      module_fetch_errors_[2],
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Syntax error")));
+  EXPECT_THAT(module_fetch_errors_[2],
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("FUNCTINO is not a supported object type")));
   EXPECT_THAT(
       module_fetch_errors_[3],
       StatusIs(absl::StatusCode::kNotFound,

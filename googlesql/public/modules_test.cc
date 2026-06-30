@@ -919,7 +919,7 @@ TEST_F(ModuleTest, append_module_errors_test) {
   std::vector<std::string> expected_top_level_init_errors = {
       "Module googlesql.foo not found",
       "Unsupported statement kind: QueryStatement",
-      "Unexpected identifier \"FUNCTINO\"",  // (broken link)
+      "FUNCTINO is not a supported object type",  // (broken link)
       "Function udf_init_error is invalid",
       "Function templated_udf_init_error is invalid",
       "Function uda_init_error is invalid",
@@ -2242,6 +2242,46 @@ CONSTANT lorem=Uninitialized value (unknown type)
 
 )",
                    "Initialization errors:\n", unsupported_statement_error));
+}
+
+TEST_F(ModuleTest, CreateSemanticModelUnsupportedInModule) {
+  const std::vector<std::string> stmts = {
+      "CREATE PUBLIC SEMANTIC_MODEL m OPTIONS(a=1);",
+      "CREATE PRIVATE SEMANTIC_MODEL m OPTIONS(a=1);",
+      "CREATE TEMP SEMANTIC_MODEL m OPTIONS(a=1);",
+      "CREATE SEMANTIC_MODEL m OPTIONS(a=1);",
+  };
+  // Without turning on the corresponding language feature, the module catalog
+  // will return an error.
+  {
+    mutable_analyzer_options()
+        ->mutable_language()
+        ->SetSupportedGenericEntityTypes({});
+    for (const std::string& stmt : stmts) {
+      const std::string module_contents = absl::StrCat("MODULE m;\n", stmt);
+      GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "alias", &module_contents));
+      EXPECT_THAT(module_catalog()->module_errors(),
+                  ElementsAre(StatusIs(
+                      _, HasSubstr("SEMANTIC_MODEL is not a supported object "
+                                   "type"))));
+    }
+  }
+  // After adding SEMANTIC_MODEL as a supported generic entity type, the module
+  // catalog will return an error for the unsupported statement kind.
+  {
+    mutable_analyzer_options()
+        ->mutable_language()
+        ->SetSupportedGenericEntityTypes({"SEMANTIC_MODEL"});
+    for (const std::string& stmt : stmts) {
+      const std::string module_contents = absl::StrCat("MODULE m;\n", stmt);
+      GOOGLESQL_ASSERT_OK(CreateModuleCatalog({"m"}, "alias", &module_contents));
+      EXPECT_THAT(
+          module_catalog()->module_errors(),
+          ElementsAre(StatusIs(
+              _,
+              HasSubstr("Unsupported statement kind: CreateEntityStatement"))));
+    }
+  }
 }
 
 //  A mock callback for evaluating named constants.

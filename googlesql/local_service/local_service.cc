@@ -46,7 +46,9 @@
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/lenient_formatter.h"
 #include "googlesql/public/prepared_expression_constant_evaluator.h"
+#include "googlesql/public/property_graph.h"
 #include "googlesql/public/simple_catalog.h"
+#include "googlesql/public/simple_catalog_util.h"
 #include "googlesql/public/simple_table.pb.h"
 #include "googlesql/public/sql_formatter.h"
 #include "googlesql/public/table_from_proto.h"
@@ -162,6 +164,18 @@ absl::StatusOr<EvaluateModifyResponse::Row::Operation> SerializeModifyOperation(
       return ::googlesql_base::InvalidArgumentErrorBuilder()
              << "Unknown Modify operation";
   }
+}
+
+absl::Status ResolvePropertyDefinitionsForSimpleCatalog(
+    const AnalyzerOptions& options, SimpleCatalog& catalog,
+    std::vector<std::unique_ptr<const AnalyzerOutput>>& artifacts) {
+  absl::flat_hash_set<const PropertyGraph*> graphs;
+  GOOGLESQL_RETURN_IF_ERROR(catalog.GetPropertyGraphs(&graphs));
+  for (const PropertyGraph* graph : graphs) {
+    GOOGLESQL_RETURN_IF_ERROR(ResolveGraphPropertyDefinitions(options.language(), graph,
+                                                    &catalog, artifacts));
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -1242,10 +1256,16 @@ absl::Status GoogleSqlLocalServiceImpl::AnalyzeImpl(
     const AnalyzeRequest& request,
     const std::vector<const google::protobuf::DescriptorPool*>& pools, Catalog* catalog,
     AnalyzeResponse* response) {
+  GOOGLESQL_RET_CHECK(catalog->Is<SimpleCatalog>());
+  GOOGLESQL_RET_CHECK_NE(catalog, nullptr);
+
   AnalyzerOptions options;
   TypeFactory factory;
   GOOGLESQL_RETURN_IF_ERROR(AnalyzerOptions::Deserialize(request.options(), pools,
                                                &factory, &options));
+  std::vector<std::unique_ptr<const AnalyzerOutput>> property_graph_artifacts;
+  GOOGLESQL_RETURN_IF_ERROR(ResolvePropertyDefinitionsForSimpleCatalog(
+      options, *catalog->GetAs<SimpleCatalog>(), property_graph_artifacts));
   std::unique_ptr<const ConstantEvaluator> constant_evaluator =
       MaybeSetConstantEvaluator(request.options(), &options,
                                 EvaluatorOptions{});
@@ -1282,10 +1302,16 @@ absl::Status GoogleSqlLocalServiceImpl::AnalyzeExpressionImpl(
     const AnalyzeRequest& request,
     const std::vector<const google::protobuf::DescriptorPool*>& pools, Catalog* catalog,
     AnalyzeResponse* response) {
+  GOOGLESQL_RET_CHECK(catalog->Is<SimpleCatalog>());
+  GOOGLESQL_RET_CHECK_NE(catalog, nullptr);
+
   AnalyzerOptions options;
   TypeFactory factory;
   GOOGLESQL_RETURN_IF_ERROR(AnalyzerOptions::Deserialize(request.options(), pools,
                                                &factory, &options));
+  std::vector<std::unique_ptr<const AnalyzerOutput>> property_graph_artifacts;
+  GOOGLESQL_RETURN_IF_ERROR(ResolvePropertyDefinitionsForSimpleCatalog(
+      options, *catalog->GetAs<SimpleCatalog>(), property_graph_artifacts));
   std::unique_ptr<const ConstantEvaluator> constant_evaluator =
       MaybeSetConstantEvaluator(request.options(), &options,
                                 EvaluatorOptions{});

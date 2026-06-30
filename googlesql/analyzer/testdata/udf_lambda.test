@@ -269,6 +269,42 @@ CreateFunctionStmt
 
 [use_database=udf_db]
 
+# Lambda parameter f shadows column f in table during propagation.
+CREATE TEMP FUNCTION Table_with_f_column_propagate (
+  f FUNCTION<INT64 -> BOOL>) AS (
+    (SELECT f FROM Table_with_f_column T
+    WHERE my_filter(FUNCTION f))
+  );
+--
+CreateFunctionStmt
++-name_path=Table_with_f_column_propagate
++-create_scope=CREATE_TEMP
++-return_type=INT64
++-argument_name_list=[f]
++-signature=(FUNCTION<INT64->BOOL> f) -> INT64
++-language="SQL"
++-code="(SELECT f FROM Table_with_f_column T\n    WHERE my_filter(FUNCTION f))"
++-function_expression=
+  +-SubqueryExpr
+    +-type=INT64
+    +-subquery_type=SCALAR
+    +-subquery=
+      +-ProjectScan
+        +-column_list=[Table_with_f_column.f#1]
+        +-input_scan=
+          +-FilterScan
+            +-column_list=[Table_with_f_column.f#1]
+            +-input_scan=
+            | +-TableScan(column_list=[Table_with_f_column.f#1], table=Table_with_f_column, column_index_list=[0], alias="T")
+            +-filter_expr=
+              +-FunctionCall(Lazy_resolution_function:my_filter(FUNCTION<INT64->BOOL> p) -> BOOL)
+                +-FunctionArgument
+                  +-function_ref=
+                    +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f, signature=(INT64) -> BOOL)
+==
+
+[use_database=udf_db]
+
 # Qualified column name T.f does not conflict with lambda parameter f.
 
 CREATE TEMP FUNCTION Table_with_f_column_filter_qualified (
@@ -307,8 +343,35 @@ CreateFunctionStmt
 #####
 
 [use_database=udf_db]
+CREATE FUNCTION propagate_without_keyword(p FUNCTION<INT64 -> BOOL>) AS (my_filter(p));
+--
+ERROR: Function-typed UDF arguments must be prefixed with the FUNCTION keyword [at 1:84]
+...p FUNCTION<INT64 -> BOOL>) AS (my_filter(p));
+                                            ^
+==
+
+[use_database=udf_db]
+CREATE FUNCTION propagate_multipart_path(p FUNCTION<INT64 -> BOOL>) AS (my_filter(FUNCTION p.b));
+--
+ERROR: Function reference argument must be a simple identifier [at 1:83]
+...p FUNCTION<INT64 -> BOOL>) AS (my_filter(FUNCTION p.b));
+                                            ^
+==
+
+[use_database=udf_db]
+CREATE FUNCTION propagate_non_existent(p FUNCTION<INT64 -> BOOL>) AS (my_filter(FUNCTION non_existent));
+--
+ERROR: No matching signature for function Lazy_resolution_function:my_filter
+  Argument types: LAMBDA
+  Signature: my_filter(FUNCTION<INT64->BOOL>)
+    Argument 1: Argument 'non_existent' does not refer to a function-typed parameter [at 1:71]
+...p FUNCTION<INT64 -> BOOL>) AS (my_filter(FUNCTION non_existent));
+                                  ^
+==
+
+[use_database=udf_db]
 # Create a function that passes its lambda parameter to my_filter.
-CREATE FUNCTION propagate_lambda(p FUNCTION<INT64 -> BOOL>) AS (my_filter(p));
+CREATE FUNCTION propagate_lambda(p FUNCTION<INT64 -> BOOL>) AS (my_filter(FUNCTION p));
 --
 CreateFunctionStmt
 +-name_path=propagate_lambda
@@ -316,12 +379,33 @@ CreateFunctionStmt
 +-argument_name_list=[p]
 +-signature=(FUNCTION<INT64->BOOL> p) -> BOOL
 +-language="SQL"
-+-code="my_filter(p)"
++-code="my_filter(FUNCTION p)"
 +-function_expression=
   +-FunctionCall(Lazy_resolution_function:my_filter(FUNCTION<INT64->BOOL> p) -> BOOL)
     +-FunctionArgument
       +-function_ref=
         +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:p, signature=(INT64) -> BOOL)
+==
+
+[use_database=udf_db]
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+WITH_EXPRESSION,+NAMED_ARGUMENTS]
+# Create a function that passes its lambda parameter to my_filter as a named argument.
+CREATE FUNCTION propagate_lambda(f FUNCTION<INT64 -> BOOL>) AS (
+  my_filter(p => FUNCTION f)
+);
+--
+CreateFunctionStmt
++-name_path=propagate_lambda
++-return_type=BOOL
++-argument_name_list=[f]
++-signature=(FUNCTION<INT64->BOOL> f) -> BOOL
++-language="SQL"
++-code="my_filter(p => FUNCTION f)"
++-function_expression=
+  +-FunctionCall(Lazy_resolution_function:my_filter(FUNCTION<INT64->BOOL> p) -> BOOL)
+    +-FunctionArgument
+      +-function_ref=
+        +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f, signature=(INT64) -> BOOL)
 ==
 
 # Propagate a lambda twice (same lambda is passed as two different lambda args),
@@ -330,7 +414,7 @@ CreateFunctionStmt
 [use_database=udf_db]
 
 CREATE FUNCTION propagate_and_call_lambda(p FUNCTION<INT64 -> INT64>) AS (
-  f_multi_lambda_arg(p, p, p(10))
+  f_multi_lambda_arg(FUNCTION p, FUNCTION p, p(10))
 );
 --
 CreateFunctionStmt
@@ -339,7 +423,7 @@ CreateFunctionStmt
 +-argument_name_list=[p]
 +-signature=(FUNCTION<INT64->INT64> p) -> INT64
 +-language="SQL"
-+-code="f_multi_lambda_arg(p, p, p(10))"
++-code="f_multi_lambda_arg(FUNCTION p, FUNCTION p, p(10))"
 +-function_expression=
   +-FunctionCall(Lazy_resolution_function:f_multi_lambda_arg(FUNCTION<INT64->INT64> p1, FUNCTION<INT64->INT64> p2, INT64 x) -> INT64)
     +-FunctionArgument
@@ -376,7 +460,7 @@ CreateFunctionStmt
 # Without the fix, this triggers a compiler crash (RET_CHECK failure).
 CREATE TEMP FUNCTION CaseMismatchPropagation(
   my_lambda FUNCTION<INT64 -> INT64>) AS (
-    array_transform([1, 2], MY_LAMBDA)
+    array_transform([1, 2], FUNCTION MY_LAMBDA)
   );
 --
 CreateFunctionStmt
@@ -386,7 +470,7 @@ CreateFunctionStmt
 +-argument_name_list=[my_lambda]
 +-signature=(FUNCTION<INT64->INT64> my_lambda) -> ARRAY<INT64>
 +-language="SQL"
-+-code="array_transform([1, 2], MY_LAMBDA)"
++-code="array_transform([1, 2], FUNCTION MY_LAMBDA)"
 +-function_expression=
   +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->INT64> transformation) -> ARRAY<INT64>)
     +-FunctionArgument
@@ -407,6 +491,24 @@ ERROR: Unrecognized name: abs [at 1:79]
                                               ^
 ==
 
+# Catalog/Built-in Function Name Passing (Negative).
+# Verifies that passing a built-in function directly by name fails cleanly
+# TODO b/529561498 - Support passing built-in functions directly.
+# with a name resolution error ("Table column or parameter not found").
+CREATE FUNCTION f_try_pass_builtin(arr ARRAY<INT64>) AS (
+  array_transform(arr, FUNCTION abs)
+);
+--
+ERROR: No matching signature for function ARRAY_TRANSFORM
+  Argument types: ARRAY<INT64>, LAMBDA
+  Signature: ARRAY_TRANSFORM(ARRAY<T1>, FUNCTION<T1->T2>)
+    Argument 2: Argument 'abs' does not refer to a function-typed parameter
+  Signature: ARRAY_TRANSFORM(ARRAY<T1>, FUNCTION<(T1, INT64)->T2>)
+    Argument 2: Argument 'abs' does not refer to a function-typed parameter [at 2:3]
+  array_transform(arr, FUNCTION abs)
+  ^
+==
+
 # Propagation to Templated UDF (Positive).
 # Tests passing a lambda parameter transitively to a templated UDF,
 # verifying type inference works correctly.
@@ -419,7 +521,7 @@ CreateFunctionStmt(name_path=templated_udf, return_type=STRUCT<>, argument_name_
 
 # Propagation to Templated UDF (Positive).
 [use_database=udf_db_templated]
-CREATE FUNCTION propagate_to_templated(f FUNCTION<INT64 -> BOOL>) AS (templated_udf(1, f));
+CREATE FUNCTION propagate_to_templated(f FUNCTION<INT64 -> BOOL>) AS (templated_udf(1, FUNCTION f));
 --
 CreateFunctionStmt
 +-name_path=propagate_to_templated
@@ -427,7 +529,7 @@ CreateFunctionStmt
 +-argument_name_list=[f]
 +-signature=(FUNCTION<INT64->BOOL> f) -> BOOL
 +-language="SQL"
-+-code="templated_udf(1, f)"
++-code="templated_udf(1, FUNCTION f)"
 +-function_expression=
   +-FunctionCall(Templated_SQL_Function:templated_udf(INT64 x, FUNCTION<INT64->BOOL> p) -> BOOL)
     +-FunctionArgument
@@ -846,10 +948,10 @@ CreateFunctionStmt
 # Test coercion of function types (invalid).
 # This requires coercing FUNCTION<INT64 -> BOOL> to FUNCTION<DOUBLE -> BOOL>.
 # We expect it to fail because GoogleSQL requires exact matches for function types.
-create function f_test_coercion(p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(p));
+create function f_test_coercion(p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(FUNCTION p));
 --
 ERROR: Lambda argument type mismatch at index 0: expected DOUBLE, found INT64 [at 4:81]
-...p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(p));
+...p FUNCTION<INT64 -> BOOL>) AS (f_expects_double(FUNCTION p));
                                                    ^
 ==
 
@@ -857,10 +959,10 @@ ERROR: Lambda argument type mismatch at index 0: expected DOUBLE, found INT64 [a
 # This requires matching FUNCTION<DOUBLE -> INT64> to FUNCTION<DOUBLE -> BOOL> (defined in f_expects_double).
 # We expect it to fail because GoogleSQL requires exact matches for function types.
 [use_database=udf_db_coercion]
-create function f_test_mismatched_return(p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(p));
+create function f_test_mismatched_return(p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(FUNCTION p));
 --
 ERROR: Lambda result type mismatch: expected BOOL, found INT64 [at 1:92]
-...p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(p));
+...p FUNCTION<DOUBLE -> INT64>) AS (f_expects_double(FUNCTION p));
                                                      ^
 ==
 
@@ -894,7 +996,7 @@ CreateFunctionStmt
 
 # Pass a function-typed parameter where a lambda is expected.
 create function PropagateTransform(arr array<int64>, f function<int64 -> bool>)
-as (array_transform(arr, f));
+as (array_transform(arr, FUNCTION f));
 --
 CreateFunctionStmt
 +-name_path=PropagateTransform
@@ -902,7 +1004,7 @@ CreateFunctionStmt
 +-argument_name_list=[arr, f]
 +-signature=(ARRAY<INT64> arr, FUNCTION<INT64->BOOL> f) -> ARRAY<BOOL>
 +-language="SQL"
-+-code="array_transform(arr, f)"
++-code="array_transform(arr, FUNCTION f)"
 +-function_expression=
   +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->BOOL> transformation) -> ARRAY<BOOL>)
     +-FunctionArgument
@@ -916,7 +1018,7 @@ CreateFunctionStmt
 
 # Multiple function-typed parameters passed where lambdas are expected.
 create function MultiPropagate(arr array<int64>, f1 function<int64 -> int64>, f2 function<int64 -> bool>)
-as (array_transform(array_transform(arr, f1), f2));
+as (array_transform(array_transform(arr, FUNCTION f1), FUNCTION f2));
 --
 CreateFunctionStmt
 +-name_path=MultiPropagate
@@ -924,7 +1026,7 @@ CreateFunctionStmt
 +-argument_name_list=[arr, f1, f2]
 +-signature=(ARRAY<INT64> arr, FUNCTION<INT64->INT64> f1, FUNCTION<INT64->BOOL> f2) -> ARRAY<BOOL>
 +-language="SQL"
-+-code="array_transform(array_transform(arr, f1), f2)"
++-code="array_transform(array_transform(arr, FUNCTION f1), FUNCTION f2)"
 +-function_expression=
   +-FunctionCall(GoogleSQL:array_transform(ARRAY<INT64> array_to_transform, FUNCTION<INT64->BOOL> transformation) -> ARRAY<BOOL>)
     +-FunctionArgument
@@ -941,4 +1043,6 @@ CreateFunctionStmt
         +-FunctionRef(function=FUNCTION_TYPED_PARAMETER:f2, signature=(INT64) -> BOOL)
 
 ==
+
+
 

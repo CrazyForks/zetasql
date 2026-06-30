@@ -1,0 +1,486 @@
+# TODO: - Add Java support for VECTOR.
+[default no_java]
+[default language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+
+# VECTOR disallows casting from its backing type, BYTES.
+SELECT dot_product(b"abc", b"def")
+--
+ERROR: No matching signature for function DOT_PRODUCT
+  Argument types: BYTES, BYTES
+  Signature: DOT_PRODUCT(ARRAY<INT64>, ARRAY<INT64>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<INT64>
+  Signature: DOT_PRODUCT(ARRAY<FLOAT>, ARRAY<FLOAT>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<FLOAT>
+  Signature: DOT_PRODUCT(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<DOUBLE>
+  Signature: DOT_PRODUCT(VECTOR, VECTOR)
+    Argument 1: Unable to coerce type BYTES to expected type VECTOR [at 2:8]
+SELECT dot_product(b"abc", b"def")
+       ^
+==
+
+# No implicit casting from ARRAY to VECTOR if element type doesn't match.
+SELECT dot_product(["a"], ["b"])
+--
+ERROR: No matching signature for function DOT_PRODUCT
+  Argument types: ARRAY<STRING>, ARRAY<STRING>
+  Signature: DOT_PRODUCT(ARRAY<INT64>, ARRAY<INT64>)
+    Argument 1: Unable to coerce type ARRAY<STRING> to expected type ARRAY<INT64>
+  Signature: DOT_PRODUCT(ARRAY<FLOAT>, ARRAY<FLOAT>)
+    Argument 1: Unable to coerce type ARRAY<STRING> to expected type ARRAY<FLOAT>
+  Signature: DOT_PRODUCT(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
+    Argument 1: Unable to coerce type ARRAY<STRING> to expected type ARRAY<DOUBLE>
+  Signature: DOT_PRODUCT(VECTOR, VECTOR)
+    Argument 1: Unable to coerce type ARRAY<STRING> to expected type VECTOR [at 1:8]
+SELECT dot_product(["a"], ["b"])
+       ^
+==
+
+# Make sure BYTES are not implicitly casted to VECTOR and computed.
+SELECT dot_product(CAST(b"abc" AS BYTES), CAST(b"def" AS BYTES))
+--
+ERROR: No matching signature for function DOT_PRODUCT
+  Argument types: BYTES, BYTES
+  Signature: DOT_PRODUCT(ARRAY<INT64>, ARRAY<INT64>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<INT64>
+  Signature: DOT_PRODUCT(ARRAY<FLOAT>, ARRAY<FLOAT>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<FLOAT>
+  Signature: DOT_PRODUCT(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
+    Argument 1: Unable to coerce type BYTES to expected type ARRAY<DOUBLE>
+  Signature: DOT_PRODUCT(VECTOR, VECTOR)
+    Argument 1: Unable to coerce type BYTES to expected type VECTOR [at 1:8]
+SELECT dot_product(CAST(b"abc" AS BYTES), CAST(b"def" AS BYTES))
+       ^
+==
+
+# Implicit coercion from BYTES to VECTOR is not allowed
+SELECT dot_product(ENCODE_VECTOR([1.0, 2.0]), [1, 2])
+--
+ERROR: No matching signature for function DOT_PRODUCT
+  Argument types: VECTOR, ARRAY<INT64>
+  Signature: DOT_PRODUCT(ARRAY<INT64>, ARRAY<INT64>)
+    Argument 1: Unable to coerce type VECTOR to expected type ARRAY<INT64>
+  Signature: DOT_PRODUCT(ARRAY<FLOAT>, ARRAY<FLOAT>)
+    Argument 1: Unable to coerce type VECTOR to expected type ARRAY<FLOAT>
+  Signature: DOT_PRODUCT(ARRAY<DOUBLE>, ARRAY<DOUBLE>)
+    Argument 1: Unable to coerce type VECTOR to expected type ARRAY<DOUBLE>
+  Signature: DOT_PRODUCT(VECTOR, VECTOR)
+    Argument 2: Unable to coerce type ARRAY<INT64> to expected type VECTOR [at 1:8]
+SELECT dot_product(ENCODE_VECTOR([1.0, 2.0]), [1, 2])
+       ^
+==
+
+# Converting to BYTES is not allowed, even though it's the backing type.
+# Similarly, converting back to ARRAY<DOUBLE> is not allowed.
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS {{BYTES|ARRAY<DOUBLE>}})
+--
+ALTERNATION GROUP: BYTES
+--
+ERROR: Invalid cast from VECTOR to BYTES [at 1:13]
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS BYTES)
+            ^
+--
+ALTERNATION GROUP: ARRAY<DOUBLE>
+--
+ERROR: Invalid cast from VECTOR to ARRAY<DOUBLE> [at 1:13]
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS ARRAY<DOUBLE>)
+            ^
+==
+
+# EXPLICIT CAST from BYTES to VECTOR is disallowed, even though it's the
+# backing type.
+SELECT CAST(b'abc' AS VECTOR),
+       CAST([b'abc'] AS ARRAY<VECTOR>)
+--
+
+ERROR: Invalid cast from BYTES to VECTOR [at 1:13]
+SELECT CAST(b'abc' AS VECTOR),
+            ^
+==
+
+# EXPLICIT CAST from empty array to VECTOR is disallowed.
+SELECT CAST([] AS VECTOR)
+--
+ERROR: Invalid cast from ARRAY<INT64> to VECTOR [at 1:13]
+SELECT CAST([] AS VECTOR)
+            ^
+==
+
+
+# The NULL counts as INT64 here, and cannot coerce to VECTOR.
+SELECT CAST([NULL] AS ARRAY<VECTOR>) AS cast_array_with_null_element
+--
+ERROR: Casting between arrays with incompatible element types is not supported: Invalid cast from ARRAY<INT64> to ARRAY<VECTOR> [at 1:13]
+SELECT CAST([NULL] AS ARRAY<VECTOR>) AS cast_array_with_null_element
+            ^
+==
+
+# An ARRAY with an untyped NULL literal (e.g. `[NULL]`) is typed as `ARRAY<INT64>` by default.
+# Since there is no common supertype between INT64 and VECTOR, array concatenation fails.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v
+)
+SELECT ARRAY_CONCAT([NULL], [v])
+FROM t
+--
+ERROR: No matching signature for function ARRAY_CONCAT
+  Argument types: ARRAY<INT64>, ARRAY<VECTOR>
+  Signature: ARRAY_CONCAT(ARRAY<T1>, [ARRAY<T1>, ...])
+    Unable to find common supertype for templated argument <T1>
+      Input types for <T1>: {INT64, VECTOR} [at 4:8]
+SELECT ARRAY_CONCAT([NULL], [v])
+       ^
+==
+
+# Equality comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 = v2
+FROM t
+--
+ERROR: Equality is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 = v2
+       ^
+==
+
+# Inequality comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 != v2
+FROM t
+--
+ERROR: Inequality is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 != v2
+       ^
+==
+
+# Less-than comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 < v2
+FROM t
+--
+ERROR: Less than is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 < v2
+       ^
+==
+
+# Greater-than comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 > v2
+FROM t
+--
+ERROR: Greater than is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 > v2
+       ^
+==
+
+# Less-than-or-equal comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 <= v2
+FROM t
+--
+ERROR: Less than is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 <= v2
+       ^
+==
+
+# Greater-than-or-equal comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 >= v2
+FROM t
+--
+ERROR: Greater than is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 >= v2
+       ^
+==
+
+# DISTINCT comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 IS NOT DISTINCT FROM v2
+FROM t
+--
+ERROR: Grouping is not defined for arguments of type VECTOR [at 4:8]
+SELECT v1 IS NOT DISTINCT FROM v2
+       ^
+==
+
+# CAST(NULL AS MAP<VECTOR, DOUBLE>) fails because VECTOR is not groupable.
+SELECT CAST(NULL AS MAP<VECTOR, DOUBLE>)
+--
+ERROR: MAP key type VECTOR is not groupable [at 1:21]
+SELECT CAST(NULL AS MAP<VECTOR, DOUBLE>)
+                    ^
+==
+
+# MIN/MAX aggregation is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1
+)
+SELECT MIN(v1)
+FROM t
+--
+ERROR: MIN is not defined for arguments of type VECTOR [at 4:8]
+SELECT MIN(v1)
+       ^
+==
+
+# HAVING MIN/MAX aggregation is disallowed for VECTOR.
+WITH t AS (
+  SELECT 1 AS id, ENCODE_VECTOR([1.0, 2.0]) AS v1
+)
+SELECT id
+FROM t
+GROUP BY id
+HAVING MIN(v1) IS NOT NULL
+--
+ERROR: MIN is not defined for arguments of type VECTOR [at 7:8]
+HAVING MIN(v1) IS NOT NULL
+       ^
+==
+
+# IS NULL is allowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1
+)
+SELECT v1 IS NULL
+FROM t
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#3 AS `$col1` [BOOL]
++-query=
+  +-WithScan
+    +-column_list=[$query.$col1#3]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[t.v1#1]
+    |       +-expr_list=
+    |       | +-v1#1 :=
+    |       |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    |       |     +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[$query.$col1#3]
+        +-expr_list=
+        | +-$col1#3 :=
+        |   +-FunctionCall(GoogleSQL:$is_null(VECTOR) -> BOOL)
+        |     +-ColumnRef(type=VECTOR, column=t.v1#2)
+        +-input_scan=
+          +-WithRefScan(column_list=[t.v1#2], with_query_name="t")
+==
+
+# IN list comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT v1 IN (v1, v2)
+FROM t
+--
+ERROR: IN is not defined for arguments of type VECTOR [at 4:11]
+SELECT v1 IN (v1, v2)
+          ^
+==
+
+# GREATEST templated comparison is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1, ENCODE_VECTOR([3.0, 4.0]) AS v2
+)
+SELECT GREATEST(v1, v2)
+FROM t
+--
+ERROR: GREATEST is not defined for arguments of type VECTOR [at 4:8]
+SELECT GREATEST(v1, v2)
+       ^
+==
+
+# MAX aggregation is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1
+)
+SELECT MAX(v1)
+FROM t
+--
+ERROR: MAX is not defined for arguments of type VECTOR [at 4:8]
+SELECT MAX(v1)
+       ^
+==
+
+# GROUP BY is disallowed for VECTOR.
+WITH t AS (
+  SELECT ENCODE_VECTOR([1.0, 2.0]) AS v1
+)
+SELECT v1 FROM t GROUP BY v1
+--
+ERROR: Grouping by expressions of type VECTOR is not allowed [at 4:27]
+SELECT v1 FROM t GROUP BY v1
+                          ^
+==
+
+# Basic concrete VECTOR functions
+SELECT DECODE_VECTOR(ENCODE_VECTOR([1.0, 2.0])),
+       VECTOR_LENGTH(ENCODE_VECTOR([1.0, 2.0])),
+       VECTOR_ENCODING(ENCODE_VECTOR([1.0, 2.0])),
+       COSINE_DISTANCE(ENCODE_VECTOR([1.0, 2.0]), ENCODE_VECTOR([3.0, 4.0])),
+       DOT_PRODUCT(ENCODE_VECTOR([1.0, 2.0]), ENCODE_VECTOR([3.0, 4.0])),
+       MANHATTAN_DISTANCE(ENCODE_VECTOR([1.0, 2.0]), ENCODE_VECTOR([3.0, 4.0])),
+       L1_NORM(ENCODE_VECTOR([1.0, 2.0])),
+       L2_NORM(ENCODE_VECTOR([1.0, 2.0]))
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<FLOAT>]
+| +-$query.$col2#2 AS `$col2` [INT64]
+| +-$query.$col3#3 AS `$col3` [STRING]
+| +-$query.$col4#4 AS `$col4` [DOUBLE]
+| +-$query.$col5#5 AS `$col5` [DOUBLE]
+| +-$query.$col6#6 AS `$col6` [DOUBLE]
+| +-$query.$col7#7 AS `$col7` [DOUBLE]
+| +-$query.$col8#8 AS `$col8` [DOUBLE]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2, $col3#3, $col4#4, $col5#5, $col6#6, $col7#7, $col8#8]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | +-$col2#2 :=
+    | | +-FunctionCall(GoogleSQL:vector_length(VECTOR) -> INT64)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | +-$col3#3 :=
+    | | +-FunctionCall(GoogleSQL:vector_encoding(VECTOR) -> STRING)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | +-$col4#4 :=
+    | | +-FunctionCall(GoogleSQL:cosine_distance(VECTOR, VECTOR) -> DOUBLE)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |   | +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[3, 4])
+    | +-$col5#5 :=
+    | | +-FunctionCall(GoogleSQL:dot_product(VECTOR, VECTOR) -> DOUBLE)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |   | +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[3, 4])
+    | +-$col6#6 :=
+    | | +-FunctionCall(GoogleSQL:manhattan_distance(VECTOR, VECTOR) -> DOUBLE)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |   | +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[3, 4])
+    | +-$col7#7 :=
+    | | +-FunctionCall(GoogleSQL:l1_norm(VECTOR) -> DOUBLE)
+    | |   +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |     +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | +-$col8#8 :=
+    |   +-FunctionCall(GoogleSQL:l2_norm(VECTOR) -> DOUBLE)
+    |     +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    |       +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# CAST VECTOR to STRING is disallowed.
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS STRING)
+--
+ERROR: Invalid cast from VECTOR to STRING [at 1:13]
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS STRING)
+            ^
+==
+
+# FORMAT with VECTOR is disallowed.
+SELECT FORMAT("%t", CAST(NULL AS VECTOR))
+--
+ERROR: generic::unimplemented: Cannot format type VECTOR [at 1:8]
+SELECT FORMAT("%t", CAST(NULL AS VECTOR))
+       ^
+==
+
+# TODO: Support type parameters for VECTOR.
+# CAST to parameterized VECTOR(3) handles type parameter constraint check.
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(3))
+--
+ERROR: Type VECTOR does not support type parameters [at 1:48]
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(3))
+                                               ^
+==
+
+# TODO: Support type parameters for VECTOR.
+# CAST to parameterized VECTOR(2) handles type parameter constraint check.
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(2))
+--
+ERROR: Type VECTOR does not support type parameters [at 1:48]
+SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(2))
+                                               ^
+==
+
+# DECODE_VECTOR with NULL and untyped parameters
+SELECT DECODE_VECTOR(NULL), DECODE_VECTOR(CAST(NULL AS VECTOR))
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<FLOAT>]
+| +-$query.$col2#2 AS `$col2` [ARRAY<FLOAT>]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    | |   +-Literal(type=VECTOR, value=NULL)
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    |     +-Literal(type=VECTOR, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# DECODE_VECTOR with untyped parameter
+[allow_undeclared_parameters]
+SELECT DECODE_VECTOR(@test_param)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<FLOAT>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    |     +-Parameter(parse_location=21-32, type=VECTOR, name="test_param")
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+test_param: VECTOR
+==
+
+# DECODE_VECTOR with empty array literal
+SELECT DECODE_VECTOR([])
+--
+ERROR: No matching signature for function DECODE_VECTOR
+  Argument types: []
+  Signature: DECODE_VECTOR(VECTOR)
+    Argument 1: Unable to coerce type ARRAY<INT64> to expected type VECTOR [at 1:8]
+SELECT DECODE_VECTOR([])
+       ^
+==

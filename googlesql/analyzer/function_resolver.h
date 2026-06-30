@@ -225,7 +225,7 @@ class FunctionResolver {
   //
   // <not_handled> may be nullptr in code paths where <is_not> is known to
   // be false.
-  static absl::string_view BinaryOperatorToFunctionName(
+  static absl::StatusOr<absl::string_view> BinaryOperatorToFunctionName(
       ASTBinaryExpression::Op op, bool is_not, bool* not_handled);
 
   // Returns the Coercer from <resolver_>.

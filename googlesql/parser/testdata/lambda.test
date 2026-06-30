@@ -358,3 +358,52 @@ QueryStatement [0-106] [select ARRAY_TRAN...e->e+1)))]
 SELECT
   ARRAY_TRANSFORM(ARRAY[1, 2, 3], (e) -> ARRAY_TRANSFORM(ARRAY[1, e], (e) -> ARRAY_TRANSFORM(ARRAY[2, e],
         (e) -> e + 1)))
+==
+
+# Function call with function reference argument prefixed by FUNCTION keyword
+select Func([1,2,3], FUNCTION p);
+--
+QueryStatement [0-32] [select Func...FUNCTION p)]
+  Query [0-32] [select Func...FUNCTION p)]
+    Select [0-32] [select Func...FUNCTION p)]
+      SelectList [7-32] [Func([1,2,3], FUNCTION p)]
+        SelectColumn [7-32] [Func([1,2,3], FUNCTION p)]
+          FunctionCall [7-32] [Func([1,2,3], FUNCTION p)]
+            PathExpression [7-11] [Func]
+              Identifier(Func) [7-11] [Func]
+            ArrayConstructor [12-19] [[1,2,3]]
+              IntLiteral(1) [13-14] [1]
+              IntLiteral(2) [15-16] [2]
+              IntLiteral(3) [17-18] [3]
+            FunctionRefArg [21-31] [FUNCTION p]
+              PathExpression [30-31] [p]
+                Identifier(p) [30-31] [p]
+--
+SELECT
+  Func(ARRAY[1, 2, 3], FUNCTION p)
+==
+
+# FUNCTION as identifier followed by CLAMPED BETWEEN in function call.
+# This hits a shift/reduce conflict on CLAMPED.
+# It should parse successfully as 'FUNCTION' identifier argument with CLAMPED modifier.
+select Func(function CLAMPED BETWEEN 1 AND 2);
+--
+QueryStatement [0-45] [select Func...BETWEEN 1 AND 2)]
+  Query [0-45] [select Func...BETWEEN 1 AND 2)]
+    Select [0-45] [select Func...BETWEEN 1 AND 2)]
+      SelectList [7-45] [Func(function...TWEEN 1 AND 2)]
+        SelectColumn [7-45] [Func(function...TWEEN 1 AND 2)]
+          FunctionCall [7-45] [Func(function...TWEEN 1 AND 2)]
+            PathExpression [7-11] [Func]
+              Identifier(Func) [7-11] [Func]
+            PathExpression [12-20] [function]
+              Identifier(`function`) [12-20] [function]
+            ClampedBetweenModifier [21-44] [CLAMPED BETWEEN 1 AND 2]
+              IntLiteral(1) [37-38] [1]
+              IntLiteral(2) [43-44] [2]
+--
+SELECT
+  Func(`function`
+    CLAMPED BETWEEN 1 AND 2)
+
+

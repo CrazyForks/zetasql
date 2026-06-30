@@ -1,5 +1,6 @@
-[default language_features={{NONE|MAXIMUM}},+TABLE_VALUED_FUNCTIONS, +TUMBLE_HOP_TVFS, +INTERVAL_TYPE, +NAMED_ARGUMENTS]
+[default language_features={{NONE|MAXIMUM}},+TABLE_VALUED_FUNCTIONS, +TUMBLE_HOP_TVFS, +INTERVAL_TYPE, +NAMED_ARGUMENTS, +TIME_BUCKET_FUNCTIONS]
 [default no_enable_literal_replacement]
+[default enabled_ast_rewrites=DEFAULTS,+TUMBLE_FUNCTION]
 # Disable literal replacement for TUMBLE AND HOP TVFs because timestamp_column
 # must be a string literal.
 
@@ -38,6 +39,162 @@ QueryStmt
         |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tumble.ts_col#2 AS ts_col [TIMESTAMP]
+| +-tumble.WINDOW_START#3 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#4 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+    +-input_scan=
+      +-WithScan
+        +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#7, origin#10]
+        |       +-expr_list=
+        |       | +-window_size#7 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#5)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#9]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#9 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#8]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#8 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#5, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#10 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#6)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#12]
+        |       |         +-expr_list=
+        |       |         | +-$col1#12 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#11)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#11)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#11]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#11 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#6, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#5, origin#6]
+        |           +-expr_list=
+        |           | +-window_size#5 :=
+        |           | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |           | |   +-Literal(type=INT64, value=1)
+        |           | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |           | +-origin#6 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+            +-expr_list=
+            | +-ts_col#2 := ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | +-WINDOW_START#3 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#15]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#15 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#13)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#13, origin#14], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#18]
+            | |         +-expr_list=
+            | |         | +-origin#18 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#17)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#16, origin#17], with_query_name="_tumble_params")
+            | +-WINDOW_END#4 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#21]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#21 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#19)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#19, origin#20], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#24]
+            |     |       +-expr_list=
+            |     |       | +-origin#24 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#23)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#22, origin#23], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#27]
+            |           +-expr_list=
+            |           | +-window_size#27 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#25)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#25, origin#26], with_query_name="_tumble_params")
+            +-input_scan=
+              +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], node_source="table_clause", table=TableWithTimestampColumn, column_index_list=[0])
 ==
 
 # HOP resolves correctly, adds the window start and end columns.
@@ -118,6 +275,164 @@ QueryStmt
         |       +-Literal(type=STRING, value="1970-01-01")
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tumble.ts_col#2 AS ts_col [TIMESTAMP]
+| +-tumble.WINDOW_START#3 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#4 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+    +-input_scan=
+      +-WithScan
+        +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#7, origin#10]
+        |       +-expr_list=
+        |       | +-window_size#7 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#5)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#9]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#9 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#8)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#8]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#8 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#5, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#10 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#6)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#12]
+        |       |         +-expr_list=
+        |       |         | +-$col1#12 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#11)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#11)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#11]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#11 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#6, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#5, origin#6]
+        |           +-expr_list=
+        |           | +-window_size#5 :=
+        |           | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |           | |   +-Literal(type=INT64, value=1)
+        |           | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |           | +-origin#6 :=
+        |           |   +-FunctionCall(GoogleSQL:timestamp(STRING, optional(0) STRING) -> TIMESTAMP)
+        |           |     +-Literal(type=STRING, value="1970-01-01")
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=tumble.[ts_col#2, WINDOW_START#3, WINDOW_END#4]
+            +-expr_list=
+            | +-ts_col#2 := ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | +-WINDOW_START#3 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#15]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#15 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#13)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#13, origin#14], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#18]
+            | |         +-expr_list=
+            | |         | +-origin#18 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#17)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#16, origin#17], with_query_name="_tumble_params")
+            | +-WINDOW_END#4 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#21]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#21 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#19)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#19, origin#20], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#24]
+            |     |       +-expr_list=
+            |     |       | +-origin#24 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#23)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#22, origin#23], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#27]
+            |           +-expr_list=
+            |           | +-window_size#27 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#25)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#25, origin#26], with_query_name="_tumble_params")
+            +-input_scan=
+              +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], node_source="table_clause", table=TableWithTimestampColumn, column_index_list=[0])
 ==
 
 # HOP with optional origin argument.
@@ -204,6 +519,167 @@ QueryStmt
         |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tumble.ts_col#3 AS ts_col [TIMESTAMP]
+| +-tumble.WINDOW_START#4 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#5 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+    +-input_scan=
+      +-WithScan
+        +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#8, origin#11]
+        |       +-expr_list=
+        |       | +-window_size#8 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#6)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#10]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#10 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#9]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#9 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#6, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#11 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#7)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#13]
+        |       |         +-expr_list=
+        |       |         | +-$col1#13 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#12)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#12)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#12]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#12 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#7, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#6, origin#7]
+        |           +-expr_list=
+        |           | +-window_size#6 :=
+        |           | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |           | |   +-Literal(type=INT64, value=1)
+        |           | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |           | +-origin#7 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+            +-expr_list=
+            | +-ts_col#3 := ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | +-WINDOW_START#4 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#16]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#16 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#14)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#14, origin#15], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#19]
+            | |         +-expr_list=
+            | |         | +-origin#19 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#18)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#17, origin#18], with_query_name="_tumble_params")
+            | +-WINDOW_END#5 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#22]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#22 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#20)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#20, origin#21], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#25]
+            |     |       +-expr_list=
+            |     |       | +-origin#25 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#24)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#23, origin#24], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#28]
+            |           +-expr_list=
+            |           | +-window_size#28 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#26)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#26, origin#27], with_query_name="_tumble_params")
+            +-input_scan=
+              +-ProjectScan
+                +-column_list=[TableWithTimestampColumn.ts_col#1, $subquery1.Window_Start#2]
+                +-expr_list=
+                | +-Window_Start#2 := Literal(type=INT64, value=1)
+                +-input_scan=
+                  +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], table=TableWithTimestampColumn, column_index_list=[0])
 ==
 
 # HOP ignores input window start column regardless of column type
@@ -295,6 +771,167 @@ QueryStmt
         |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
         +-column_index_list=[0, 1, 2]
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tumble.ts_col#3 AS ts_col [TIMESTAMP]
+| +-tumble.WINDOW_START#4 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#5 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+    +-input_scan=
+      +-WithScan
+        +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#8, origin#11]
+        |       +-expr_list=
+        |       | +-window_size#8 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#6)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#10]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#10 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#9)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#9]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#9 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#6, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#11 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#7)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#13]
+        |       |         +-expr_list=
+        |       |         | +-$col1#13 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#12)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#12)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#12]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#12 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#7, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#6, origin#7]
+        |           +-expr_list=
+        |           | +-window_size#6 :=
+        |           | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |           | |   +-Literal(type=INT64, value=1)
+        |           | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |           | +-origin#7 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=tumble.[ts_col#3, WINDOW_START#4, WINDOW_END#5]
+            +-expr_list=
+            | +-ts_col#3 := ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | +-WINDOW_START#4 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#16]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#16 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#14)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#14, origin#15], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#19]
+            | |         +-expr_list=
+            | |         | +-origin#19 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#18)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#17, origin#18], with_query_name="_tumble_params")
+            | +-WINDOW_END#5 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#22]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#22 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#20)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#20, origin#21], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#25]
+            |     |       +-expr_list=
+            |     |       | +-origin#25 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#24)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#23, origin#24], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#28]
+            |           +-expr_list=
+            |           | +-window_size#28 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#26)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#26, origin#27], with_query_name="_tumble_params")
+            +-input_scan=
+              +-ProjectScan
+                +-column_list=[TableWithTimestampColumn.ts_col#1, $subquery1.Window_End#2]
+                +-expr_list=
+                | +-Window_End#2 := Literal(type=INT64, value=1)
+                +-input_scan=
+                  +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], table=TableWithTimestampColumn, column_index_list=[0])
 ==
 
 # HOP ignores input window end column regardless of column type
@@ -345,24 +982,264 @@ QueryStmt
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
 ==
 
-# Validates that TUMBLE fails at pre-resolution time if the signature
-# does not match.
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports proto fields in timestamp_column.
+# TUMBLE resolves correctly with a proto field path leading to a google.protobuf.Timestamp.
 
-SELECT * FROM tumble("string1", "string2", "string3");
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.timestamp_val", INTERVAL 1 DAY);
 --
-ERROR: No matching signature for table valued function : TUMBLE. Supported Signatures: TUMBLE(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, [origin => TIMESTAMP]) [at 1:15]
-SELECT * FROM tumble("string1", "string2", "string3");
-              ^
+QueryStmt
++-output_column_list=
+| +-tumble.key#3 AS key [INT32]
+| +-tumble.ProtoColumn#4 AS ProtoColumn [PROTO<googlesql_test.TestHopAndTumblePB>]
+| +-tumble.WINDOW_START#5 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#6 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tumble.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2], node_source="table_clause", table=TableWithTestHopAndTumbleProto, column_index_list=[0, 1])
+        | | +-argument_column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="ProtoColumn.timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
 ==
 
-# Validates that HOP fails at pre-resolution time if the signature
-# does not match.
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports proto fields in timestamp_column.
+# HOP resolves correctly with a proto field path leading to a google.protobuf.Timestamp.
 
-SELECT * FROM hop("string1", "string2", "string3");
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.timestamp_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
 --
-ERROR: No matching signature for table valued function : HOP. Supported Signatures: HOP(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, step_size => INTERVAL, [origin => TIMESTAMP]) [at 1:15]
-SELECT * FROM hop("string1", "string2", "string3");
-              ^
+QueryStmt
++-output_column_list=
+| +-hop.key#3 AS key [INT32]
+| +-hop.ProtoColumn#4 AS ProtoColumn [PROTO<googlesql_test.TestHopAndTumblePB>]
+| +-hop.WINDOW_START#5 AS WINDOW_START [TIMESTAMP]
+| +-hop.WINDOW_END#6 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=hop.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=hop.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+        +-tvf=GoogleSQL:hop((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>>, literal STRING, INTERVAL, INTERVAL, literal TIMESTAMP) -> TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2], node_source="table_clause", table=TableWithTestHopAndTumbleProto, column_index_list=[0, 1])
+        | | +-argument_column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="ProtoColumn.timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+==
+
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports proto fields in timestamp_column.
+
+# TUMBLE resolves correctly with a proto field path leading to a googlesql annotation timestamp.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.annotated_timestamp_val", INTERVAL 1 DAY);
+--
+QueryStmt
++-output_column_list=
+| +-tumble.key#3 AS key [INT32]
+| +-tumble.ProtoColumn#4 AS ProtoColumn [PROTO<googlesql_test.TestHopAndTumblePB>]
+| +-tumble.WINDOW_START#5 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#6 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tumble.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2], node_source="table_clause", table=TableWithTestHopAndTumbleProto, column_index_list=[0, 1])
+        | | +-argument_column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="ProtoColumn.annotated_timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+==
+
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports proto fields in timestamp_column.
+
+# HOP resolves correctly with a proto field path leading to a googlesql annotation timestamp.
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.annotated_timestamp_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+QueryStmt
++-output_column_list=
+| +-hop.key#3 AS key [INT32]
+| +-hop.ProtoColumn#4 AS ProtoColumn [PROTO<googlesql_test.TestHopAndTumblePB>]
+| +-hop.WINDOW_START#5 AS WINDOW_START [TIMESTAMP]
+| +-hop.WINDOW_END#6 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=hop.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=hop.[key#3, ProtoColumn#4, WINDOW_START#5, WINDOW_END#6]
+        +-tvf=GoogleSQL:hop((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>>, literal STRING, INTERVAL, INTERVAL, literal TIMESTAMP) -> TABLE<key INT32, ProtoColumn PROTO<googlesql_test.TestHopAndTumblePB>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2], node_source="table_clause", table=TableWithTestHopAndTumbleProto, column_index_list=[0, 1])
+        | | +-argument_column_list=TableWithTestHopAndTumbleProto.[key#1, ProtoColumn#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="ProtoColumn.annotated_timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+==
+
+[no_run_sqlbuilder]
+[enabled_ast_rewrites=NONE]
+# TODO: Enable SQLBuilder once it supports value tables as TVF arguments.
+# TODO: Enable rewrite once rewrite supports value tables.
+
+# TUMBLE resolves correctly with a value table.
+
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "proto_field.timestamp_val", INTERVAL 1 DAY);
+--
+QueryStmt
++-output_column_list=
+| +-tumble.$col0#2 AS `$col0` [STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>]
+| +-tumble.WINDOW_START#3 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#4 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[$col0#2, WINDOW_START#3, WINDOW_END#4]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tumble.[$col0#2, WINDOW_START#3, WINDOW_END#4]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE< STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=[ValueTableWithStructContainingTestHopAndTumbleProto.value#1], node_source="table_clause", table=ValueTableWithStructContainingTestHopAndTumbleProto, column_index_list=[0])
+        | | +-argument_column_list=[ValueTableWithStructContainingTestHopAndTumbleProto.value#1]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="proto_field.timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+==
+
+[no_run_sqlbuilder]
+[enabled_ast_rewrites=NONE]
+# TODO: Enable SQLBuilder once it supports value tables as TVF arguments.
+# TODO: Enable rewrite once rewrite supports value tables.
+# HOP resolves correctly with a value table.
+
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "proto_field.timestamp_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+QueryStmt
++-output_column_list=
+| +-hop.$col0#2 AS `$col0` [STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>]
+| +-hop.WINDOW_START#3 AS WINDOW_START [TIMESTAMP]
+| +-hop.WINDOW_END#4 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=hop.[$col0#2, WINDOW_START#3, WINDOW_END#4]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=hop.[$col0#2, WINDOW_START#3, WINDOW_END#4]
+        +-tvf=GoogleSQL:hop((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>>, literal STRING, INTERVAL, INTERVAL, literal TIMESTAMP) -> TABLE< STRUCT<ambiguous_field INT32, ambiguous_field STRING, proto_field PROTO<googlesql_test.TestHopAndTumblePB>>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=[ValueTableWithStructContainingTestHopAndTumbleProto.value#1], node_source="table_clause", table=ValueTableWithStructContainingTestHopAndTumbleProto, column_index_list=[0])
+        | | +-argument_column_list=[ValueTableWithStructContainingTestHopAndTumbleProto.value#1]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="proto_field.timestamp_val")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
 ==
 
 # TUMBLE preserves the letter case of column names.
@@ -401,6 +1278,164 @@ QueryStmt
         |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
         +-column_index_list=[0, 1, 2, 3]
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-tumble.ts_col#3 AS ts_col [TIMESTAMP]
+| +-tumble.MiXeD_cAsE#4 AS MiXeD_cAsE [STRING]
+| +-tumble.WINDOW_START#5 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#6 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[ts_col#3, MiXeD_cAsE#4, WINDOW_START#5, WINDOW_END#6]
+    +-input_scan=
+      +-WithScan
+        +-column_list=tumble.[ts_col#3, MiXeD_cAsE#4, WINDOW_START#5, WINDOW_END#6]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#9, origin#12]
+        |       +-expr_list=
+        |       | +-window_size#9 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#7)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#11]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#11 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#10)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#10)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#10)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#10]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#10 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#7, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#12 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#8)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#14]
+        |       |         +-expr_list=
+        |       |         | +-$col1#14 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#13)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#13)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#13]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#13 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#8, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#7, origin#8]
+        |           +-expr_list=
+        |           | +-window_size#7 :=
+        |           | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |           | |   +-Literal(type=INT64, value=1)
+        |           | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |           | +-origin#8 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=tumble.[ts_col#3, MiXeD_cAsE#4, WINDOW_START#5, WINDOW_END#6]
+            +-expr_list=
+            | +-ts_col#3 := ColumnRef(type=TIMESTAMP, column=TableWithMixedCaseColumn.ts_col#1)
+            | +-MiXeD_cAsE#4 := ColumnRef(type=STRING, column=TableWithMixedCaseColumn.MiXeD_cAsE#2)
+            | +-WINDOW_START#5 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TableWithMixedCaseColumn.ts_col#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#17]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#17 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#15)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#15, origin#16], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#20]
+            | |         +-expr_list=
+            | |         | +-origin#20 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#19)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#18, origin#19], with_query_name="_tumble_params")
+            | +-WINDOW_END#6 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TableWithMixedCaseColumn.ts_col#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#23]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#23 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#21)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#21, origin#22], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#26]
+            |     |       +-expr_list=
+            |     |       | +-origin#26 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#25)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#24, origin#25], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#29]
+            |           +-expr_list=
+            |           | +-window_size#29 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#27)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#27, origin#28], with_query_name="_tumble_params")
+            +-input_scan=
+              +-TableScan(column_list=TableWithMixedCaseColumn.[ts_col#1, MiXeD_cAsE#2], node_source="table_clause", table=TableWithMixedCaseColumn, column_index_list=[0, 1])
 ==
 
 # HOP preserves the letter case of column names.
@@ -446,43 +1481,855 @@ QueryStmt
         +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
 ==
 
-[language_features=MAXIMUM{{,-TUMBLE_HOP_TVFS|}}]
-# TODO: Remove this test once the tumble hop tvfs are enabled by
-# default.
-# TUMBLE fails when the feature is not enabled.
-SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY);
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports backtick-quoted paths.
+# TUMBLE resolves correctly with backtick-quoted paths containing spaces and keywords.
+
+SELECT * FROM tumble((SELECT STRUCT(ts_col AS `col with space`) AS struct_col FROM TableWithTimestampColumn), "`struct_col`.`col with space`", INTERVAL 1 DAY);
 --
-ERROR: Table-valued function not found: tumble [at 4:15]
-SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY);
-              ^
+QueryStmt
++-output_column_list=
+| +-tumble.struct_col#3 AS struct_col [STRUCT<`col with space` TIMESTAMP>]
+| +-tumble.WINDOW_START#4 AS WINDOW_START [TIMESTAMP]
+| +-tumble.WINDOW_END#5 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=tumble.[struct_col#3, WINDOW_START#4, WINDOW_END#5]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=tumble.[struct_col#3, WINDOW_START#4, WINDOW_END#5]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<struct_col STRUCT<`col with space` TIMESTAMP>>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<struct_col STRUCT<`col with space` TIMESTAMP>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-ProjectScan
+        | | |   +-column_list=[$subquery1.struct_col#2]
+        | | |   +-expr_list=
+        | | |   | +-struct_col#2 :=
+        | | |   |   +-MakeStruct
+        | | |   |     +-type=STRUCT<`col with space` TIMESTAMP>
+        | | |   |     +-field_list=
+        | | |   |       +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+        | | |   +-input_scan=
+        | | |     +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], table=TableWithTimestampColumn, column_index_list=[0])
+        | | +-argument_column_list=[$subquery1.struct_col#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="`struct_col`.`col with space`")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
 ==
 
-[language_features=MAXIMUM{{,-TUMBLE_HOP_TVFS|}}]
-# TODO: Remove this test once the tumble hop tvfs are enabled by
-# default.
-# HOP fails when the feature is not enabled.
-SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+[enabled_ast_rewrites=NONE]
+# TODO: Enable rewrite once rewrite supports backtick-quoted paths.
+# HOP resolves correctly with backtick-quoted paths containing spaces and keywords.
+
+SELECT * FROM hop((SELECT STRUCT(ts_col AS `col with space`) AS struct_col FROM TableWithTimestampColumn), "`struct_col`.`col with space`", INTERVAL 1 DAY, INTERVAL 1 HOUR);
 --
-ERROR: Table-valued function not found: hop [at 4:15]
-SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, I...
-              ^
+QueryStmt
++-output_column_list=
+| +-hop.struct_col#3 AS struct_col [STRUCT<`col with space` TIMESTAMP>]
+| +-hop.WINDOW_START#4 AS WINDOW_START [TIMESTAMP]
+| +-hop.WINDOW_END#5 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=hop.[struct_col#3, WINDOW_START#4, WINDOW_END#5]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=hop.[struct_col#3, WINDOW_START#4, WINDOW_END#5]
+        +-tvf=GoogleSQL:hop((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, INTERVAL step_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<struct_col STRUCT<`col with space` TIMESTAMP>>, literal STRING, INTERVAL, INTERVAL, literal TIMESTAMP) -> TABLE<struct_col STRUCT<`col with space` TIMESTAMP>, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-ProjectScan
+        | | |   +-column_list=[$subquery1.struct_col#2]
+        | | |   +-expr_list=
+        | | |   | +-struct_col#2 :=
+        | | |   |   +-MakeStruct
+        | | |   |     +-type=STRUCT<`col with space` TIMESTAMP>
+        | | |   |     +-field_list=
+        | | |   |       +-ColumnRef(type=TIMESTAMP, column=TableWithTimestampColumn.ts_col#1)
+        | | |   +-input_scan=
+        | | |     +-TableScan(column_list=[TableWithTimestampColumn.ts_col#1], table=TableWithTimestampColumn, column_index_list=[0])
+        | | +-argument_column_list=[$subquery1.struct_col#2]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="`struct_col`.`col with space`")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        | |     +-Literal(type=INT64, value=1)
+        | |     +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=HOUR)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, INTERVAL step_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
 ==
 
-# Validates that the timestamp_column argument must be a literal for TUMBLE.
-
-SELECT * FROM tumble(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTERVAL 1 DAY);
+[prepare_database=time_window_catalog]
+CREATE TABLE TimeSeries (
+  event_time TIMESTAMP,
+  user_id INT64,
+  metric DOUBLE
+);
 --
-ERROR: Invalid table-valued function tumble [at 1:15]
-SELECT * FROM tumble(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), IN...
-              ^
-Argument 'timestamp_column' must be a string literal
+
+CreateTableStmt
++-name_path=TimeSeries
++-column_definition_list=
+  +-ColumnDefinition(name="event_time", type=TIMESTAMP, column=TimeSeries.event_time#1)
+  +-ColumnDefinition(name="user_id", type=INT64, column=TimeSeries.user_id#2)
+  +-ColumnDefinition(name="metric", type=DOUBLE, column=TimeSeries.metric#3)
 ==
 
-# Validates that the timestamp_column argument must be a literal for HOP.
-
-SELECT * FROM hop(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTERVAL 1 DAY, INTERVAL 1 HOUR);
+[prepare_database=time_window_catalog]
+CREATE TABLE WindowParams (
+  id INT64,
+  info STRING,
+  window_size INTERVAL,
+  step_size INTERVAL
+);
 --
-ERROR: Invalid table-valued function hop [at 1:15]
-SELECT * FROM hop(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTER...
-              ^
-Argument 'timestamp_column' must be a string literal
+
+CreateTableStmt
++-name_path=WindowParams
++-column_definition_list=
+  +-ColumnDefinition(name="id", type=INT64, column=WindowParams.id#1)
+  +-ColumnDefinition(name="info", type=STRING, column=WindowParams.info#2)
+  +-ColumnDefinition(name="window_size", type=INTERVAL, column=WindowParams.window_size#3)
+  +-ColumnDefinition(name="step_size", type=INTERVAL, column=WindowParams.step_size#4)
+==
+
+[default use_database=time_window_catalog]
+
+# Test case verifying that correlated references in TUMBLE arguments are explicitly unsupported.
+SELECT *
+FROM WindowParams
+CROSS JOIN LATERAL TUMBLE(
+  TABLE TimeSeries,
+  'event_time',
+  WindowParams.window_size
+);
+--
+
+[PRE-REWRITE AST]
+QueryStmt
++-output_column_list=
+| +-WindowParams.id#1 AS id [INT64]
+| +-WindowParams.info#2 AS info [STRING]
+| +-WindowParams.window_size#3 AS window_size [INTERVAL]
+| +-WindowParams.step_size#4 AS step_size [INTERVAL]
+| +-TUMBLE.event_time#8 AS event_time [TIMESTAMP]
+| +-TUMBLE.user_id#9 AS user_id [INT64]
+| +-TUMBLE.metric#10 AS metric [DOUBLE]
+| +-TUMBLE.WINDOW_START#11 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#12 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=[WindowParams.id#1, WindowParams.info#2, WindowParams.window_size#3, WindowParams.step_size#4, TUMBLE.event_time#8, TUMBLE.user_id#9, TUMBLE.metric#10, TUMBLE.WINDOW_START#11, TUMBLE.WINDOW_END#12]
+    +-input_scan=
+      +-JoinScan
+        +-column_list=[WindowParams.id#1, WindowParams.info#2, WindowParams.window_size#3, WindowParams.step_size#4, TUMBLE.event_time#8, TUMBLE.user_id#9, TUMBLE.metric#10, TUMBLE.WINDOW_START#11, TUMBLE.WINDOW_END#12]
+        +-left_scan=
+        | +-TableScan(column_list=WindowParams.[id#1, info#2, window_size#3, step_size#4], table=WindowParams, column_index_list=[0, 1, 2, 3])
+        +-right_scan=
+        | +-TVFScan
+        |   +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+        |   +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        |   +-signature=(TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        |   +-argument_list=
+        |   | +-FunctionArgument
+        |   | | +-scan=
+        |   | | | +-TableScan(column_list=TimeSeries.[event_time#5, user_id#6, metric#7], node_source="table_clause", table=TimeSeries, column_index_list=[0, 1, 2])
+        |   | | +-argument_column_list=TimeSeries.[event_time#5, user_id#6, metric#7]
+        |   | +-FunctionArgument
+        |   | | +-expr=
+        |   | |   +-Literal(type=STRING, value="event_time")
+        |   | +-FunctionArgument
+        |   | | +-expr=
+        |   | |   +-ColumnRef(type=INTERVAL, column=WindowParams.window_size#3, is_correlated=TRUE)
+        |   | +-FunctionArgument
+        |   |   +-expr=
+        |   |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |   +-column_index_list=[0, 1, 2, 3, 4]
+        |   +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+        +-is_lateral=TRUE
+        +-parameter_list=
+          +-ColumnRef(type=INTERVAL, column=WindowParams.window_size#3)
+
+Rewrite ERROR: generic::unimplemented: TUMBLE arguments must not contain correlated references to columns defined outside the scope of the argument expression itself
+==
+
+# Test case verifying that complex expressions (e.g., CASE statements) are accepted as arguments.
+SELECT * FROM TUMBLE(
+  TABLE TimeSeries,
+  'event_time',
+  CASE WHEN TRUE THEN INTERVAL '10' MINUTE ELSE INTERVAL '1' HOUR END
+);
+--
+
+QueryStmt
++-output_column_list=
+| +-TUMBLE.event_time#4 AS event_time [TIMESTAMP]
+| +-TUMBLE.user_id#5 AS user_id [INT64]
+| +-TUMBLE.metric#6 AS metric [DOUBLE]
+| +-TUMBLE.WINDOW_START#7 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#8 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=TUMBLE.[event_time#4, user_id#5, metric#6, WINDOW_START#7, WINDOW_END#8]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=TUMBLE.[event_time#4, user_id#5, metric#6, WINDOW_START#7, WINDOW_END#8]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TimeSeries.[event_time#1, user_id#2, metric#3], node_source="table_clause", table=TimeSeries, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=TimeSeries.[event_time#1, user_id#2, metric#3]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="event_time")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(1) BOOL, repeated(1) INTERVAL, INTERVAL) -> INTERVAL)
+        | |     +-Literal(type=BOOL, value=true)
+        | |     +-Literal(type=INTERVAL, value=0-0 0 0:10:0)
+        | |     +-Literal(type=INTERVAL, value=0-0 0 1:0:0)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3, 4]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TUMBLE.event_time#4 AS event_time [TIMESTAMP]
+| +-TUMBLE.user_id#5 AS user_id [INT64]
+| +-TUMBLE.metric#6 AS metric [DOUBLE]
+| +-TUMBLE.WINDOW_START#7 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#8 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=TUMBLE.[event_time#4, user_id#5, metric#6, WINDOW_START#7, WINDOW_END#8]
+    +-input_scan=
+      +-WithScan
+        +-column_list=TUMBLE.[event_time#4, user_id#5, metric#6, WINDOW_START#7, WINDOW_END#8]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#11, origin#14]
+        |       +-expr_list=
+        |       | +-window_size#11 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#9)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#13]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#13 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#12)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#12)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#12)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#12]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#12 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#9, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#14 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#10)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#16]
+        |       |         +-expr_list=
+        |       |         | +-$col1#16 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#15)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#15)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#15]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#15 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#10, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#9, origin#10]
+        |           +-expr_list=
+        |           | +-window_size#9 :=
+        |           | | +-FunctionCall(GoogleSQL:$case_no_value(repeated(1) BOOL, repeated(1) INTERVAL, INTERVAL) -> INTERVAL)
+        |           | |   +-Literal(type=BOOL, value=true)
+        |           | |   +-Literal(type=INTERVAL, value=0-0 0 0:10:0)
+        |           | |   +-Literal(type=INTERVAL, value=0-0 0 1:0:0)
+        |           | +-origin#10 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=TUMBLE.[event_time#4, user_id#5, metric#6, WINDOW_START#7, WINDOW_END#8]
+            +-expr_list=
+            | +-event_time#4 := ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            | +-user_id#5 := ColumnRef(type=INT64, column=TimeSeries.user_id#2)
+            | +-metric#6 := ColumnRef(type=DOUBLE, column=TimeSeries.metric#3)
+            | +-WINDOW_START#7 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#19]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#19 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#17)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#17, origin#18], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#22]
+            | |         +-expr_list=
+            | |         | +-origin#22 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#21)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#20, origin#21], with_query_name="_tumble_params")
+            | +-WINDOW_END#8 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#25]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#25 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#23)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#23, origin#24], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#28]
+            |     |       +-expr_list=
+            |     |       | +-origin#28 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#27)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#26, origin#27], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#31]
+            |           +-expr_list=
+            |           | +-window_size#31 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#29)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#29, origin#30], with_query_name="_tumble_params")
+            +-input_scan=
+              +-TableScan(column_list=TimeSeries.[event_time#1, user_id#2, metric#3], node_source="table_clause", table=TimeSeries, column_index_list=[0, 1, 2])
+==
+
+# Test case where input table has conflicting and mixed-case window columns.
+# The rewriter should drop all of them (case-insensitively).
+WITH t AS (
+  SELECT TIMESTAMP '2025-01-01' AS ts_col, 2 AS winDow_start, 3 AS Window_End, 4 AS WINDOW_START, 5 AS WINDOW_END
+)
+SELECT * FROM TUMBLE(TABLE t, 'ts_col', INTERVAL '1' DAY);
+--
+QueryStmt
++-output_column_list=
+| +-TUMBLE.ts_col#11 AS ts_col [TIMESTAMP]
+| +-TUMBLE.WINDOW_START#12 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#13 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-WithScan
+    +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[ts_col#1, winDow_start#2, Window_End#3, WINDOW_START#4, WINDOW_END#5]
+    |       +-expr_list=
+    |       | +-ts_col#1 := Literal(type=TIMESTAMP, value=2025-01-01 08:00:00+00, has_explicit_type=TRUE)
+    |       | +-winDow_start#2 := Literal(type=INT64, value=2)
+    |       | +-Window_End#3 := Literal(type=INT64, value=3)
+    |       | +-WINDOW_START#4 := Literal(type=INT64, value=4)
+    |       | +-WINDOW_END#5 := Literal(type=INT64, value=5)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+        +-input_scan=
+          +-TVFScan
+            +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+            +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+            +-signature=(TABLE<ts_col TIMESTAMP, winDow_start INT64, Window_End INT64, WINDOW_START INT64, WINDOW_END INT64>, literal STRING, literal INTERVAL, literal TIMESTAMP) -> TABLE<ts_col TIMESTAMP, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+            +-argument_list=
+            | +-FunctionArgument
+            | | +-scan=
+            | | | +-WithRefScan(column_list=t.[ts_col#6, winDow_start#7, Window_End#8, WINDOW_START#9, WINDOW_END#10], node_source="table_clause", with_query_name="t")
+            | | +-argument_column_list=t.[ts_col#6, winDow_start#7, Window_End#8, WINDOW_START#9, WINDOW_END#10]
+            | +-FunctionArgument
+            | | +-expr=
+            | |   +-Literal(type=STRING, value="ts_col")
+            | +-FunctionArgument
+            | | +-expr=
+            | |   +-Literal(type=INTERVAL, value=0-0 1 0:0:0)
+            | +-FunctionArgument
+            |   +-expr=
+            |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+            +-column_index_list=[0, 1, 2]
+            +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TUMBLE.ts_col#11 AS ts_col [TIMESTAMP]
+| +-TUMBLE.WINDOW_START#12 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#13 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-WithScan
+    +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="t"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=t.[ts_col#1, winDow_start#2, Window_End#3, WINDOW_START#4, WINDOW_END#5]
+    |       +-expr_list=
+    |       | +-ts_col#1 := Literal(type=TIMESTAMP, value=2025-01-01 08:00:00+00, has_explicit_type=TRUE)
+    |       | +-winDow_start#2 := Literal(type=INT64, value=2)
+    |       | +-Window_End#3 := Literal(type=INT64, value=3)
+    |       | +-WINDOW_START#4 := Literal(type=INT64, value=4)
+    |       | +-WINDOW_END#5 := Literal(type=INT64, value=5)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+        +-input_scan=
+          +-WithScan
+            +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+            +-with_entry_list=
+            | +-WithEntry
+            |   +-with_query_name="_tumble_params"
+            |   +-with_subquery=
+            |     +-ProjectScan
+            |       +-column_list=$tumble_params.[window_size#16, origin#19]
+            |       +-expr_list=
+            |       | +-window_size#16 :=
+            |       | | +-SubqueryExpr
+            |       | |   +-type=INTERVAL
+            |       | |   +-subquery_type=SCALAR
+            |       | |   +-parameter_list=
+            |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#14)
+            |       | |   +-subquery=
+            |       | |     +-ProjectScan
+            |       | |       +-column_list=[$expr_subquery.$col1#18]
+            |       | |       +-expr_list=
+            |       | |       | +-$col1#18 :=
+            |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+            |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+            |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+            |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#17)
+            |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+            |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+            |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#17)
+            |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+            |       | |       |     | |   +-Literal(type=INT64, value=0)
+            |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+            |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#17)
+            |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+            |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+            |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+            |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+            |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+            |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+            |       | |       +-input_scan=
+            |       | |         +-ProjectScan
+            |       | |           +-column_list=[$subquery1.raw_ws#17]
+            |       | |           +-expr_list=
+            |       | |           | +-raw_ws#17 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#14, is_correlated=TRUE)
+            |       | |           +-input_scan=
+            |       | |             +-SingleRowScan
+            |       | +-origin#19 :=
+            |       |   +-SubqueryExpr
+            |       |     +-type=TIMESTAMP
+            |       |     +-subquery_type=SCALAR
+            |       |     +-parameter_list=
+            |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#15)
+            |       |     +-subquery=
+            |       |       +-ProjectScan
+            |       |         +-column_list=[$expr_subquery.$col1#21]
+            |       |         +-expr_list=
+            |       |         | +-$col1#21 :=
+            |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+            |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+            |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+            |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#20)
+            |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#20)
+            |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+            |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+            |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+            |       |         +-input_scan=
+            |       |           +-ProjectScan
+            |       |             +-column_list=[$subquery1.raw_origin#20]
+            |       |             +-expr_list=
+            |       |             | +-raw_origin#20 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#15, is_correlated=TRUE)
+            |       |             +-input_scan=
+            |       |               +-SingleRowScan
+            |       +-input_scan=
+            |         +-ProjectScan
+            |           +-column_list=$precomputed_raw.[window_size#14, origin#15]
+            |           +-expr_list=
+            |           | +-window_size#14 := Literal(type=INTERVAL, value=0-0 1 0:0:0)
+            |           | +-origin#15 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+            |           +-input_scan=
+            |             +-SingleRowScan
+            +-query=
+              +-ProjectScan
+                +-column_list=TUMBLE.[ts_col#11, WINDOW_START#12, WINDOW_END#13]
+                +-expr_list=
+                | +-ts_col#11 := ColumnRef(type=TIMESTAMP, column=t.ts_col#6)
+                | +-WINDOW_START#12 :=
+                | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+                | |   +-ColumnRef(type=TIMESTAMP, column=t.ts_col#6)
+                | |   +-SubqueryExpr
+                | |   | +-type=INTERVAL
+                | |   | +-subquery_type=SCALAR
+                | |   | +-subquery=
+                | |   |   +-ProjectScan
+                | |   |     +-column_list=[$tumble_params.window_size#24]
+                | |   |     +-expr_list=
+                | |   |     | +-window_size#24 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#22)
+                | |   |     +-input_scan=
+                | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#22, origin#23], with_query_name="_tumble_params")
+                | |   +-SubqueryExpr
+                | |     +-type=TIMESTAMP
+                | |     +-subquery_type=SCALAR
+                | |     +-subquery=
+                | |       +-ProjectScan
+                | |         +-column_list=[$tumble_params.origin#27]
+                | |         +-expr_list=
+                | |         | +-origin#27 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#26)
+                | |         +-input_scan=
+                | |           +-WithRefScan(column_list=$tumble_params.[window_size#25, origin#26], with_query_name="_tumble_params")
+                | +-WINDOW_END#13 :=
+                |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+                |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+                |     | +-ColumnRef(type=TIMESTAMP, column=t.ts_col#6)
+                |     | +-SubqueryExpr
+                |     | | +-type=INTERVAL
+                |     | | +-subquery_type=SCALAR
+                |     | | +-subquery=
+                |     | |   +-ProjectScan
+                |     | |     +-column_list=[$tumble_params.window_size#30]
+                |     | |     +-expr_list=
+                |     | |     | +-window_size#30 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#28)
+                |     | |     +-input_scan=
+                |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#28, origin#29], with_query_name="_tumble_params")
+                |     | +-SubqueryExpr
+                |     |   +-type=TIMESTAMP
+                |     |   +-subquery_type=SCALAR
+                |     |   +-subquery=
+                |     |     +-ProjectScan
+                |     |       +-column_list=[$tumble_params.origin#33]
+                |     |       +-expr_list=
+                |     |       | +-origin#33 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#32)
+                |     |       +-input_scan=
+                |     |         +-WithRefScan(column_list=$tumble_params.[window_size#31, origin#32], with_query_name="_tumble_params")
+                |     +-SubqueryExpr
+                |       +-type=INTERVAL
+                |       +-subquery_type=SCALAR
+                |       +-subquery=
+                |         +-ProjectScan
+                |           +-column_list=[$tumble_params.window_size#36]
+                |           +-expr_list=
+                |           | +-window_size#36 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#34)
+                |           +-input_scan=
+                |             +-WithRefScan(column_list=$tumble_params.[window_size#34, origin#35], with_query_name="_tumble_params")
+                +-input_scan=
+                  +-WithRefScan(column_list=t.[ts_col#6, winDow_start#7, Window_End#8, WINDOW_START#9, WINDOW_END#10], node_source="table_clause", with_query_name="t")
+==
+
+# Test case using a scalar subquery as the 'window_size' argument.
+# It uses the catalog tables TimeSeries and WindowParams defined above.
+SELECT * FROM TUMBLE(
+  TABLE TimeSeries,
+  'event_time',
+  (SELECT window_size FROM WindowParams WHERE id = 1)
+);
+--
+
+QueryStmt
++-output_column_list=
+| +-TUMBLE.event_time#8 AS event_time [TIMESTAMP]
+| +-TUMBLE.user_id#9 AS user_id [INT64]
+| +-TUMBLE.metric#10 AS metric [DOUBLE]
+| +-TUMBLE.WINDOW_START#11 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#12 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+    +-input_scan=
+      +-TVFScan
+        +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+        +-tvf=GoogleSQL:tumble((ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE; (ANY TABLE table_expr, INTERVAL window_size, optional TIMESTAMP {default_value: 1970-01-01 00:00:00+00} origin) -> ANY TABLE)
+        +-signature=(TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE>, literal STRING, INTERVAL, literal TIMESTAMP) -> TABLE<event_time TIMESTAMP, user_id INT64, metric DOUBLE, WINDOW_START TIMESTAMP, WINDOW_END TIMESTAMP>
+        +-argument_list=
+        | +-FunctionArgument
+        | | +-scan=
+        | | | +-TableScan(column_list=TimeSeries.[event_time#1, user_id#2, metric#3], node_source="table_clause", table=TimeSeries, column_index_list=[0, 1, 2])
+        | | +-argument_column_list=TimeSeries.[event_time#1, user_id#2, metric#3]
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-Literal(type=STRING, value="event_time")
+        | +-FunctionArgument
+        | | +-expr=
+        | |   +-SubqueryExpr
+        | |     +-type=INTERVAL
+        | |     +-subquery_type=SCALAR
+        | |     +-subquery=
+        | |       +-ProjectScan
+        | |         +-column_list=[WindowParams.window_size#6]
+        | |         +-input_scan=
+        | |           +-FilterScan
+        | |             +-column_list=WindowParams.[id#4, window_size#6]
+        | |             +-input_scan=
+        | |             | +-TableScan(column_list=WindowParams.[id#4, window_size#6], table=WindowParams, column_index_list=[0, 2])
+        | |             +-filter_expr=
+        | |               +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+        | |                 +-ColumnRef(type=INT64, column=WindowParams.id#4)
+        | |                 +-Literal(type=INT64, value=1)
+        | +-FunctionArgument
+        |   +-expr=
+        |     +-Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        +-column_index_list=[0, 1, 2, 3, 4]
+        +-function_call_signature=(ANY TABLE table_expr, STRING timestamp_column, INTERVAL window_size, optional(1) TIMESTAMP origin) -> ANY TABLE
+
+[REWRITTEN AST]
+QueryStmt
++-output_column_list=
+| +-TUMBLE.event_time#8 AS event_time [TIMESTAMP]
+| +-TUMBLE.user_id#9 AS user_id [INT64]
+| +-TUMBLE.metric#10 AS metric [DOUBLE]
+| +-TUMBLE.WINDOW_START#11 AS WINDOW_START [TIMESTAMP]
+| +-TUMBLE.WINDOW_END#12 AS WINDOW_END [TIMESTAMP]
++-query=
+  +-ProjectScan
+    +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+    +-input_scan=
+      +-WithScan
+        +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+        +-with_entry_list=
+        | +-WithEntry
+        |   +-with_query_name="_tumble_params"
+        |   +-with_subquery=
+        |     +-ProjectScan
+        |       +-column_list=$tumble_params.[window_size#15, origin#18]
+        |       +-expr_list=
+        |       | +-window_size#15 :=
+        |       | | +-SubqueryExpr
+        |       | |   +-type=INTERVAL
+        |       | |   +-subquery_type=SCALAR
+        |       | |   +-parameter_list=
+        |       | |   | +-ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#13)
+        |       | |   +-subquery=
+        |       | |     +-ProjectScan
+        |       | |       +-column_list=[$expr_subquery.$col1#17]
+        |       | |       +-expr_list=
+        |       | |       | +-$col1#17 :=
+        |       | |       |   +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$is_null(INTERVAL) -> BOOL)
+        |       | |       |     |   +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#16)
+        |       | |       |     +-FunctionCall(GoogleSQL:if(BOOL, INTERVAL, INTERVAL) -> INTERVAL)
+        |       | |       |     | +-FunctionCall(GoogleSQL:$greater(INTERVAL, INTERVAL) -> BOOL)
+        |       | |       |     | | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#16)
+        |       | |       |     | | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+        |       | |       |     | |   +-Literal(type=INT64, value=0)
+        |       | |       |     | |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=DAY)
+        |       | |       |     | +-ColumnRef(type=INTERVAL, column=$subquery1.raw_ws#16)
+        |       | |       |     | +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |     |   +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |     |     +-Literal(type=STRING, value="TUMBLE window interval must be positive")
+        |       | |       |     +-Cast(INTERVAL -> INTERVAL)
+        |       | |       |       +-FunctionCall(GoogleSQL:error(STRING) -> INTERVAL)
+        |       | |       |         +-Literal(type=STRING, value="TUMBLE window_size argument cannot be NULL")
+        |       | |       +-input_scan=
+        |       | |         +-ProjectScan
+        |       | |           +-column_list=[$subquery1.raw_ws#16]
+        |       | |           +-expr_list=
+        |       | |           | +-raw_ws#16 := ColumnRef(type=INTERVAL, column=$precomputed_raw.window_size#13, is_correlated=TRUE)
+        |       | |           +-input_scan=
+        |       | |             +-SingleRowScan
+        |       | +-origin#18 :=
+        |       |   +-SubqueryExpr
+        |       |     +-type=TIMESTAMP
+        |       |     +-subquery_type=SCALAR
+        |       |     +-parameter_list=
+        |       |     | +-ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#14)
+        |       |     +-subquery=
+        |       |       +-ProjectScan
+        |       |         +-column_list=[$expr_subquery.$col1#20]
+        |       |         +-expr_list=
+        |       |         | +-$col1#20 :=
+        |       |         |   +-FunctionCall(GoogleSQL:if(BOOL, TIMESTAMP, TIMESTAMP) -> TIMESTAMP)
+        |       |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |       |         |     | +-FunctionCall(GoogleSQL:$is_null(TIMESTAMP) -> BOOL)
+        |       |         |     |   +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#19)
+        |       |         |     +-ColumnRef(type=TIMESTAMP, column=$subquery1.raw_origin#19)
+        |       |         |     +-Cast(TIMESTAMP -> TIMESTAMP)
+        |       |         |       +-FunctionCall(GoogleSQL:error(STRING) -> TIMESTAMP)
+        |       |         |         +-Literal(type=STRING, value="TUMBLE origin argument cannot be NULL")
+        |       |         +-input_scan=
+        |       |           +-ProjectScan
+        |       |             +-column_list=[$subquery1.raw_origin#19]
+        |       |             +-expr_list=
+        |       |             | +-raw_origin#19 := ColumnRef(type=TIMESTAMP, column=$precomputed_raw.origin#14, is_correlated=TRUE)
+        |       |             +-input_scan=
+        |       |               +-SingleRowScan
+        |       +-input_scan=
+        |         +-ProjectScan
+        |           +-column_list=$precomputed_raw.[window_size#13, origin#14]
+        |           +-expr_list=
+        |           | +-window_size#13 :=
+        |           | | +-SubqueryExpr
+        |           | |   +-type=INTERVAL
+        |           | |   +-subquery_type=SCALAR
+        |           | |   +-subquery=
+        |           | |     +-ProjectScan
+        |           | |       +-column_list=[WindowParams.window_size#6]
+        |           | |       +-input_scan=
+        |           | |         +-FilterScan
+        |           | |           +-column_list=WindowParams.[id#4, window_size#6]
+        |           | |           +-input_scan=
+        |           | |           | +-TableScan(column_list=WindowParams.[id#4, window_size#6], table=WindowParams, column_index_list=[0, 2])
+        |           | |           +-filter_expr=
+        |           | |             +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+        |           | |               +-ColumnRef(type=INT64, column=WindowParams.id#4)
+        |           | |               +-Literal(type=INT64, value=1)
+        |           | +-origin#14 := Literal(type=TIMESTAMP, value=1970-01-01 00:00:00+00)
+        |           +-input_scan=
+        |             +-SingleRowScan
+        +-query=
+          +-ProjectScan
+            +-column_list=TUMBLE.[event_time#8, user_id#9, metric#10, WINDOW_START#11, WINDOW_END#12]
+            +-expr_list=
+            | +-event_time#8 := ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            | +-user_id#9 := ColumnRef(type=INT64, column=TimeSeries.user_id#2)
+            | +-metric#10 := ColumnRef(type=DOUBLE, column=TimeSeries.metric#3)
+            | +-WINDOW_START#11 :=
+            | | +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            | |   +-ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            | |   +-SubqueryExpr
+            | |   | +-type=INTERVAL
+            | |   | +-subquery_type=SCALAR
+            | |   | +-subquery=
+            | |   |   +-ProjectScan
+            | |   |     +-column_list=[$tumble_params.window_size#23]
+            | |   |     +-expr_list=
+            | |   |     | +-window_size#23 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#21)
+            | |   |     +-input_scan=
+            | |   |       +-WithRefScan(column_list=$tumble_params.[window_size#21, origin#22], with_query_name="_tumble_params")
+            | |   +-SubqueryExpr
+            | |     +-type=TIMESTAMP
+            | |     +-subquery_type=SCALAR
+            | |     +-subquery=
+            | |       +-ProjectScan
+            | |         +-column_list=[$tumble_params.origin#26]
+            | |         +-expr_list=
+            | |         | +-origin#26 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#25)
+            | |         +-input_scan=
+            | |           +-WithRefScan(column_list=$tumble_params.[window_size#24, origin#25], with_query_name="_tumble_params")
+            | +-WINDOW_END#12 :=
+            |   +-FunctionCall(GoogleSQL:$add(TIMESTAMP, INTERVAL) -> TIMESTAMP)
+            |     +-FunctionCall(GoogleSQL:timestamp_bucket(TIMESTAMP, INTERVAL, optional(1) TIMESTAMP) -> TIMESTAMP)
+            |     | +-ColumnRef(type=TIMESTAMP, column=TimeSeries.event_time#1)
+            |     | +-SubqueryExpr
+            |     | | +-type=INTERVAL
+            |     | | +-subquery_type=SCALAR
+            |     | | +-subquery=
+            |     | |   +-ProjectScan
+            |     | |     +-column_list=[$tumble_params.window_size#29]
+            |     | |     +-expr_list=
+            |     | |     | +-window_size#29 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#27)
+            |     | |     +-input_scan=
+            |     | |       +-WithRefScan(column_list=$tumble_params.[window_size#27, origin#28], with_query_name="_tumble_params")
+            |     | +-SubqueryExpr
+            |     |   +-type=TIMESTAMP
+            |     |   +-subquery_type=SCALAR
+            |     |   +-subquery=
+            |     |     +-ProjectScan
+            |     |       +-column_list=[$tumble_params.origin#32]
+            |     |       +-expr_list=
+            |     |       | +-origin#32 := ColumnRef(type=TIMESTAMP, column=$tumble_params.origin#31)
+            |     |       +-input_scan=
+            |     |         +-WithRefScan(column_list=$tumble_params.[window_size#30, origin#31], with_query_name="_tumble_params")
+            |     +-SubqueryExpr
+            |       +-type=INTERVAL
+            |       +-subquery_type=SCALAR
+            |       +-subquery=
+            |         +-ProjectScan
+            |           +-column_list=[$tumble_params.window_size#35]
+            |           +-expr_list=
+            |           | +-window_size#35 := ColumnRef(type=INTERVAL, column=$tumble_params.window_size#33)
+            |           +-input_scan=
+            |             +-WithRefScan(column_list=$tumble_params.[window_size#33, origin#34], with_query_name="_tumble_params")
+            +-input_scan=
+              +-TableScan(column_list=TimeSeries.[event_time#1, user_id#2, metric#3], node_source="table_clause", table=TimeSeries, column_index_list=[0, 1, 2])

@@ -740,6 +740,14 @@ Algebrizer::AlgebrizeFunctionArgs(
                              "_sequence_", sequence->sequence()->FullName()))));
         arguments.push_back(
             std::make_unique<ExprArg>(std::move(sequence_name)));
+      } else if (function_arg->model() != nullptr) {
+        // ResolvedModel is algebrized to a string constant containing the
+        // model name.
+        const ResolvedModel* model = function_arg->model();
+        GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ValueExpr> model_name,
+                         ConstExpr::Create(Value::StringValue(absl::StrCat(
+                             "_model_", model->model()->FullName()))));
+        arguments.push_back(std::make_unique<ExprArg>(std::move(model_name)));
       } else if (function_arg->inline_lambda() != nullptr) {
         GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<InlineLambdaExpr> lambda,
                          AlgebrizeLambda(function_arg->inline_lambda()));
@@ -8523,9 +8531,19 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
     const TVFSchemaColumn& signature_column =
         tvf_scan->signature()->result_schema().column(
             tvf_scan->column_index_list(i));
-    GOOGLESQL_RET_CHECK(column.type()->Equals(signature_column.type))
-        << column.type()->DebugString()
-        << " != " << signature_column.type->DebugString();
+    if (column.type()->IsMeasureType() &&
+        signature_column.type->IsMeasureType()) {
+      // The resolver allocates a unique MeasureType for each measure column
+      // out of a TVFScan, so here we compare the result types instead.
+      GOOGLESQL_RET_CHECK(column.type()->AsMeasure()->result_type()->Equals(
+          signature_column.type->AsMeasure()->result_type()))
+          << column.type()->DebugString()
+          << " != " << signature_column.type->DebugString();
+    } else {
+      GOOGLESQL_RET_CHECK(column.type()->Equals(signature_column.type))
+          << column.type()->DebugString()
+          << " != " << signature_column.type->DebugString();
+    }
     output_columns.push_back(signature_column);
     variables.push_back(column_to_variable_->GetVariableNameFromColumn(column));
     output_column_indices.push_back(tvf_scan->column_index_list(i));

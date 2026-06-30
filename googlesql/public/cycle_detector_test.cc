@@ -40,8 +40,8 @@ class CycleDetectorTest : public ::testing::Test {
     return &cycle_detector_;
   }
 
-  static inline void ObjectInfoNameFormatter(
-      std::string* out, const CycleDetector::ObjectInfo* info) {
+  static void ObjectInfoNameFormatter(std::string* out,
+                                      const CycleDetector::ObjectInfo* info) {
     absl::StrAppend(out, info->name());
   }
 

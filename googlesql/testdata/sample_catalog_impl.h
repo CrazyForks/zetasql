@@ -97,7 +97,7 @@ class SampleCatalogImpl {
   absl::Status LoadTypes();
   absl::Status LoadTables();
   absl::Status LoadProtoTables();
-  absl::Status LoadMeasureTables();
+  absl::Status LoadMeasureTables(const LanguageOptions& language_options);
   void LoadViews(const LanguageOptions& language_options);
   absl::Status LoadNestedCatalogs();
 
@@ -280,6 +280,7 @@ class SampleCatalogImpl {
   const ProtoType* proto_field_formats_proto_;
   const ProtoType* proto_MessageWithMapField_;
   const ProtoType* proto_approx_distance_function_options_;
+  const ProtoType* proto_test_hop_and_tumble_pb_;
 
   // STRUCT<a INT32, b STRING>
   const StructType* struct_type_;
@@ -287,6 +288,9 @@ class SampleCatalogImpl {
   const StructType* nested_struct_type_;
   // STRUCT<e INT32, f STRUCT<c INT32, d STRUCT<a INT32, b STRING>>>
   const StructType* doubly_nested_struct_type_;
+  // STRUCT<ambiguous_field INT32, ambiguous_field STRING,
+  //        proto_field TestHopAndTumblePB>
+  const StructType* struct_with_proto_type_;
   // STRUCT<x INT64, y STRUCT<a INT32, b STRING>,
   //        z ARRAY<STRUCT<a INT32, b STRING>>>
   const StructType* struct_with_array_field_type_;

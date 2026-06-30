@@ -62,7 +62,7 @@ TEST(ProcedureTest, SerializeDeserializeTest) {
                          "name_path: 'procedure_name' "
                          "signature {"
                          "  return_type {"
-                         "    kind: ARG_TYPE_FIXED"
+                         "    kind: ARG_KIND_EXPR_FIXED"
                          "    type {"
                          "      type_kind: TYPE_INT64"
                          "    }"

@@ -1121,7 +1121,7 @@ absl::Status ModuleCatalog::MaybeUpdateCatalogFromImportProtoStatement(
     return absl::OkStatus();
   }
 
-  const google::protobuf::FileDescriptor* proto_file_descriptor;
+  const google::protobuf::FileDescriptor* proto_file_descriptor = nullptr;
   absl::Status proto_fetch_status = module_factory_->GetProtoFileDescriptor(
       import_statement->file_path(), &proto_file_descriptor);
   if (!proto_fetch_status.ok()) {

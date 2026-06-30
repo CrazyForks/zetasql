@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -37,7 +36,6 @@
 
 namespace googlesql {
 
-// TypeId uniquely identifies a DeclarativeType.
 struct TypeId {
   static constexpr absl::string_view kGoogleSqlNamespace = "GoogleSQL";
 
@@ -225,15 +223,15 @@ class DeclarativeType final : public Type {
 
   const DeclarativeType* AsDeclarativeType() const override { return this; }
 
-  DeclarativeTypeDescriptor::AllowCoercionMode coercion_from_backing_type()
-      const {
-    return data_.coercion_from_backing_type();
-  }
+  // Indicates whether this type can be coerced to the given `to_type`.
+  // `is_explicit` indicates whether this is for an explicit or implicit
+  // coercion.
+  bool CanCoerceTo(const Type* to_type, bool is_explicit) const;
 
-  DeclarativeTypeDescriptor::AllowCoercionMode coercion_to_backing_type()
-      const {
-    return data_.coercion_to_backing_type();
-  }
+  // Indicates whether `from_type` can coerce to this type.
+  // `is_explicit` indicates whether this is for an explicit or implicit
+  // coercion.
+  bool CanCoerceFrom(const Type* from_type, bool is_explicit) const;
 
   std::string CapitalizedName() const final;
 
@@ -252,6 +250,9 @@ class DeclarativeType final : public Type {
   void ClearValueContent(const ValueContent& value) const final;
 
   void CopyValueContent(const ValueContent& from, ValueContent* to) const final;
+
+  // Returns the candidate supertypes for this declarative type.
+  TypeListView GetCandidateSuperTypes() const { return candidate_super_types_; }
 
  protected:
   absl::Status SerializeToProtoAndDistinctFileDescriptorsImpl(
@@ -304,6 +305,8 @@ class DeclarativeType final : public Type {
   friend class TypeFactory;
 
   DeclarativeTypeDescriptor data_;
+
+  std::vector<const Type*> candidate_super_types_;
 };
 
 }  // namespace googlesql

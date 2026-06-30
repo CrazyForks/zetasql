@@ -42,7 +42,7 @@ enum class WithModifierMode {
   AGGREGATION_THRESHOLD,
 };
 
-inline constexpr absl::string_view WithModifierModeToString(
+constexpr absl::string_view WithModifierModeToString(
     WithModifierMode with_modifier_mode) {
   switch (with_modifier_mode) {
     case WithModifierMode::NONE:

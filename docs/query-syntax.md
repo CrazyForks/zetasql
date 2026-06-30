@@ -3722,11 +3722,11 @@ WITH
     SELECT 'shirt', 'polo', 25 UNION ALL
     SELECT 'pants', 'jeans', 6
   )
-SELECT product_type, NULL, SUM(product_count) AS product_sum
+SELECT product_type, NULL AS product_name, SUM(product_count) AS product_sum
 FROM Products
 GROUP BY product_type
 UNION ALL
-SELECT NULL, product_name, SUM(product_count) AS product_sum
+SELECT NULL AS product_type, product_name, SUM(product_count) AS product_sum
 FROM Products
 GROUP BY product_name
 ORDER BY product_name
@@ -3772,7 +3772,7 @@ WITH
     SELECT 'shirt', 'polo', 25 UNION ALL
     SELECT 'pants', 'jeans', 6
   )
-SELECT product_type, NULL, SUM(product_count) AS product_sum
+SELECT product_type, NULL AS product_name, SUM(product_count) AS product_sum
 FROM Products
 GROUP BY product_type
 UNION ALL
@@ -6679,6 +6679,10 @@ rules. There can be multiple columns with the same alias in the `SELECT` list.
 +  For field access using the "dot" member field access operator, the alias is
    the field name. For example, `SELECT (struct_function()).fname` implies `AS
    fname`.
+
+Note: If you omit whitespace between a literal and an alias, GoogleSQL
+returns a "Missing whitespace" error. For example, `SELECT 123 abc` implies
+`SELECT 123 AS abc, but `SELECT 123abc` produces the error.
 
 In all other cases, there is no implicit alias, so the column is anonymous and
 can't be referenced by name. The data from that column will still be returned

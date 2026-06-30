@@ -42,6 +42,7 @@
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
@@ -240,6 +241,27 @@ class MeasureExpressionValidator : public ResolvedASTVisitor {
  protected:
   absl::Status VisitResolvedAggregateFunctionCall(
       const ResolvedAggregateFunctionCall* node) override {
+    if (node->function()->IsGoogleSQLBuiltin(FN_AGG)) {
+      if (!language_options_.LanguageFeatureEnabled(FEATURE_DERIVED_MEASURE)) {
+        return googlesql_base::InvalidArgumentErrorBuilder()
+               << "Measure expressions referencing other measures are not "
+                  "supported";
+      }
+    }
+
+    if (aggregate_function_nesting_depth_ > 0 &&
+        node->function()->IsGoogleSQLBuiltin(FN_AGG)) {
+      return googlesql_base::InvalidArgumentErrorBuilder()
+             << "Nested AGG calls under another aggregate function call are "
+                "not supported: "
+             << measure_expr_str_;
+    }
+
+    ++aggregate_function_nesting_depth_;
+    absl::Cleanup depth_cleaner = [this] {
+      --aggregate_function_nesting_depth_;
+    };
+
     if (node->having_modifier() != nullptr) {
       return googlesql_base::InvalidArgumentErrorBuilder()
              << "Measure expression must not contain an aggregate function "
@@ -291,6 +313,10 @@ class MeasureExpressionValidator : public ResolvedASTVisitor {
   }
 
  private:
+  // The nesting depth of ResolvedAggregateFunctionCall nodes. Tracking this to
+  // prevent nested AGG calls under another aggregate function, e.g.,
+  // `SUM(AGG(x) GROUP BY key)`, which is not supported currently.
+  int aggregate_function_nesting_depth_ = 0;
   absl::string_view measure_expr_str_;
   const LanguageOptions& language_options_;
   absl::string_view measure_column_name_;

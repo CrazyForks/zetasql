@@ -266,13 +266,13 @@ UnpivotRewriterVisitor::CreateArrayScanWithStructElements(
   FunctionArgumentType function_arg(
       *struct_type, FunctionArgumentType::REPEATED,
       static_cast<int>(struct_elements_list.size()));
-  function_arg.set_original_kind(ARG_TYPE_ANY_1);
+  function_arg.set_original_kind(ARG_KIND_EXPR_ANY_1);
   GOOGLESQL_RET_CHECK_EQ(make_array_function->signatures().size(), 1);
   FunctionSignature signature(
       struct_array_type, {function_arg},
       make_array_function->GetSignature(0)->context_id());
-  signature.SetConcreteResultType(struct_array_type,
-                                  SignatureArgumentKind::ARG_ARRAY_TYPE_ANY_1);
+  signature.SetConcreteResultType(
+      struct_array_type, SignatureArgumentKind::ARG_KIND_EXPR_ARRAY_ANY_1);
   GOOGLESQL_ASSIGN_OR_RETURN(
       auto resolved_function_call,
       fn_builder_.MakeArray(*struct_type, std::move(struct_elements_list),

@@ -68,10 +68,14 @@ TEST(TestDriverTest, ClassAndProtoSize) {
     double nullable_probability;
     std::set<LanguageFeature> required_features;
     std::string userid_column;
+    std::vector<const AnnotationMap*> column_annotations;
+    std::vector<bool> pseudo_columns;
   };
   struct MockTestTable {
     Value table_as_value;
     MockTestTestTableOptions options;
+    std::vector<MeasureColumnDef> measure_column_defs;
+    std::vector<int> row_identity_columns;
   };
   static_assert(sizeof(TestDatabase) == sizeof(MockTestDatabase),
                 "Please change SerializeTestDatabase (test_driver.cc) and "
@@ -88,7 +92,7 @@ TEST(TestDriverTest, ClassAndProtoSize) {
                 "TestDatabaseProto (test_driver.proto) tests if "
                 "MeasureColumnDef is modified.");
   EXPECT_EQ(TestDatabaseProto::descriptor()->field_count(), 8);
-  EXPECT_EQ(7, TestTableOptionsProto::descriptor()->field_count());
+  EXPECT_EQ(8, TestTableOptionsProto::descriptor()->field_count());
   EXPECT_EQ(5, TestTableProto::descriptor()->field_count());
   EXPECT_EQ(4, MeasureColumnDefProto::descriptor()->field_count());
 }
@@ -177,6 +181,7 @@ TEST(TestDriverTest, SerializeDeserializeTableOptions) {
       FEATURE_ALTER_TABLE_RENAME_COLUMN);
   t.options.set_userid_column("abc");
   t.options.set_nullable_probability(0.12345);
+  t.options.set_pseudo_columns({true, true});
 
   TypeFactory type_factory;
   std::unique_ptr<AnnotationMap> annotation_map1 =
@@ -211,6 +216,9 @@ TEST(TestDriverTest, SerializeDeserializeTableOptions) {
               deserialized_t.options.required_features().end());
   ASSERT_EQ(deserialized_t.options.userid_column(), "abc");
   ASSERT_EQ(deserialized_t.options.nullable_probability(), 0.12345);
+  ASSERT_EQ(deserialized_t.options.pseudo_columns().size(), 2);
+  EXPECT_TRUE(deserialized_t.options.pseudo_columns()[0]);
+  EXPECT_TRUE(deserialized_t.options.pseudo_columns()[1]);
   ASSERT_EQ(deserialized_t.options.column_annotations().size(), 1);
   ASSERT_TRUE(deserialized_t.options.column_annotations().at(0) != nullptr);
   ASSERT_TRUE(deserialized_t.options.column_annotations().at(0)->GetAnnotation(

@@ -189,34 +189,37 @@ public class DeserializationHelperTest {
     List<FunctionArgumentType> arguments = new ArrayList<>();
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.REQUIRED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.REQUIRED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_3, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_3, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_ARRAY_TYPE_ANY_3, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ARRAY_ANY_3, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_4, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_4, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_ARRAY_TYPE_ANY_4, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ARRAY_ANY_4, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_5, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_5, ArgumentCardinality.OPTIONAL, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_ARRAY_TYPE_ANY_5, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ARRAY_ANY_5, ArgumentCardinality.OPTIONAL, -1));
     FunctionSignature signature =
         new FunctionSignature(
-            new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2), arguments, -1, options);
+            new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
+            arguments,
+            -1,
+            options);
     FileDescriptorSetsBuilder fileDescriptorSetsBuilder = new FileDescriptorSetsBuilder();
     signature.serialize(fileDescriptorSetsBuilder);
     DeserializationHelper helper =

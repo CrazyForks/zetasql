@@ -50,7 +50,7 @@ constexpr absl::string_view kOptionsArgName = "options";
 // data payload fields.
 static absl::Status ValidateStructPrompt(
     const FunctionSignature& signature,
-    const std::vector<InputArgumentType>& args,
+    absl::Span<const InputArgumentType> args,
     const LanguageOptions& language_options) {
   GOOGLESQL_RET_CHECK(signature.arguments().size() == args.size());
   GOOGLESQL_RET_CHECK(!args.empty());
@@ -84,9 +84,9 @@ static absl::StatusOr<std::string> GetSignatureIdFromArgs(
   std::string id = "FN_AI_IF_WITH";
   for (const FunctionArgumentType& arg : args) {
     std::string arg_name_upper = absl::AsciiStrToUpper(arg.argument_name());
-    if (arg.kind() == ARG_STRUCT_ANY) {
+    if (arg.kind() == ARG_KIND_EXPR_STRUCT_ANY) {
       absl::StrAppend(&id, "_STRUCT_", arg_name_upper);
-    } else if (arg.kind() == ARG_TYPE_ANY_1) {
+    } else if (arg.kind() == ARG_KIND_EXPR_ANY_1) {
       absl::StrAppend(&id, "_ANY_", arg_name_upper);
     } else {
       GOOGLESQL_RET_CHECK_NE(arg.type(), nullptr) << "Unsupported argument type.";
@@ -154,15 +154,15 @@ std::vector<FunctionArgumentTypeList> GenerateAiIfSignatureArgs() {
   const Type* json_type = types::JsonType();
   FunctionArgumentTypeList prompt_types = {
       FunctionArgumentType(string_type, prompt_arg_type_options),
-      FunctionArgumentType(ARG_STRUCT_ANY, prompt_arg_type_options)};
+      FunctionArgumentType(ARG_KIND_EXPR_STRUCT_ANY, prompt_arg_type_options)};
   std::vector<std::optional<FunctionArgumentType>> payload_arg_types = {
       std::nullopt,
-      FunctionArgumentType(ARG_TYPE_ANY_1, payload_arg_type_options)};
+      FunctionArgumentType(ARG_KIND_EXPR_ANY_1, payload_arg_type_options)};
   std::vector<std::optional<FunctionArgumentType>> model_arg_types = {
       std::nullopt, FunctionArgumentType(string_type, model_arg_type_options)};
   std::vector<std::optional<FunctionArgumentType>> options_arg_types = {
       std::nullopt, FunctionArgumentType(json_type, options_arg_type_options),
-      FunctionArgumentType(ARG_STRUCT_ANY, options_arg_type_options),
+      FunctionArgumentType(ARG_KIND_EXPR_STRUCT_ANY, options_arg_type_options),
       FunctionArgumentType(string_type, options_arg_type_options)};
 
   std::vector<FunctionArgumentTypeList> all_sigs;

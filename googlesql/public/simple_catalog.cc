@@ -55,6 +55,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "googlesql/base/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
@@ -1701,6 +1702,15 @@ absl::Status SimpleCatalog::GetProcedures(
   return absl::OkStatus();
 }
 
+absl::Status SimpleCatalog::GetPropertyGraphs(
+    absl::flat_hash_set<const PropertyGraph*>* output) const {
+  GOOGLESQL_RET_CHECK_NE(output, nullptr);
+  GOOGLESQL_RET_CHECK(output->empty());
+  absl::MutexLock lock(mutex_);
+  InsertValuesFromMap(property_graphs_, output);
+  return absl::OkStatus();
+}
+
 std::vector<std::string> SimpleCatalog::table_names() const {
   absl::MutexLock l(&mutex_);
   std::vector<std::string> table_names;
@@ -1856,6 +1866,16 @@ SimpleTable::SimpleTable(absl::string_view name,
     : name_(name), id_(serialization_id) {
   for (const Column* column : columns) {
     GOOGLESQL_CHECK_OK(AddColumn(column, take_ownership));
+  }
+}
+
+SimpleTable::SimpleTable(absl::string_view name,
+                         std::vector<std::unique_ptr<const Column>> columns,
+                         const int64_t serialization_id)
+    : name_(name), id_(serialization_id) {
+  for (std::unique_ptr<const Column>& column : columns) {
+    absl::Status status = AddColumn(std::move(column));
+    GOOGLESQL_DCHECK_OK(status);
   }
 }
 

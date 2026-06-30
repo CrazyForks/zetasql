@@ -543,7 +543,7 @@ PopulatePropertyGraph(
   return std::move(graph);
 }
 
-static absl::Status ResolveGraphPropertyDefinitions(
+absl::Status ResolveGraphPropertyDefinitions(
     LanguageOptions language_options, const PropertyGraph* graph,
     SimpleCatalog* catalog,
     std::vector<std::unique_ptr<const AnalyzerOutput>>& artifacts) {
@@ -582,6 +582,10 @@ static absl::Status ResolveGraphPropertyDefinitions(
     absl::flat_hash_set<const GraphPropertyDefinition*> property_definitions;
     GOOGLESQL_RETURN_IF_ERROR(
         element_table->GetPropertyDefinitions(property_definitions));
+    // TODO: b/527119708 - Resolve property definitions that respect the
+    // topological sorted order. This order is not recorded in SimpleCatalog
+    // today. So we need to find a way to record it and support its
+    // serialization/deserialization in SimpleCatalogProto.
     for (const GraphPropertyDefinition* definition : property_definitions) {
       GOOGLESQL_RET_CHECK(definition->Is<SimpleGraphPropertyDefinition>());
       std::unique_ptr<const AnalyzerOutput> analyzer_output;

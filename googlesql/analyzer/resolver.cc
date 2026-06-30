@@ -454,7 +454,7 @@ absl::Status Resolver::ResolveQueryStatementWithFunctionArguments(
     // code is invoked only after a signature is matched.
     FunctionArgumentTypeOptions argument_type_options(
         tvf_relation, /*extra_relation_input_columns_allowed=*/true);
-    FunctionArgumentType arg_type(ARG_TYPE_RELATION, argument_type_options);
+    FunctionArgumentType arg_type(ARG_KIND_RELATION, argument_type_options);
     GOOGLESQL_RETURN_IF_ERROR(arg_info->AddRelationArg(arg_name, arg_type));
   }
   auto scoped_reset = SetArgumentInfo(arg_info.get());

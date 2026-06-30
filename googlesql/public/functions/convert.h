@@ -83,14 +83,13 @@ static inline bool CheckRange(const FromType& value) {
 
 template <typename FromType, typename ToType>
 static inline bool CheckFloatToIntRange(const FromType& value) {
-  static_assert((std::is_same<FromType, float>::value ||
-                 std::is_same<FromType, double>::value),
-                "Invalid FromType");
-  static_assert((std::is_same<ToType, int32_t>::value ||
-                 std::is_same<ToType, int64_t>::value ||
-                 std::is_same<ToType, uint32_t>::value ||
-                 std::is_same<ToType, uint64_t>::value),
-                "Invalid ToType");
+  static_assert(
+      (std::is_same_v<FromType, float> || std::is_same_v<FromType, double>),
+      "Invalid FromType");
+  static_assert(
+      (std::is_same_v<ToType, int32_t> || std::is_same_v<ToType, int64_t> ||
+       std::is_same_v<ToType, uint32_t> || std::is_same_v<ToType, uint64_t>),
+      "Invalid ToType");
   return convert_internal::InRangeNoTruncate<FromType, ToType>(value);
 }
 
@@ -119,26 +118,21 @@ template <typename FromType> struct Converter<FromType, bool> {
 template <typename FromType, typename ToType>
 inline bool Convert(
     const FromType& in, ToType* out, absl::Status* error) {
-  static_assert((std::is_same<FromType, int32_t>::value ||
-                 std::is_same<FromType, int64_t>::value ||
-                 std::is_same<FromType, uint32_t>::value ||
-                 std::is_same<FromType, uint64_t>::value ||
-                 std::is_same<FromType, bool>::value ||
-                 std::is_same<FromType, float>::value ||
-                 std::is_same<FromType, double>::value ||
-                 std::is_same<FromType, NumericValue>::value ||
-                 std::is_same<FromType, BigNumericValue>::value),
-                "Invalid FromType");
-  static_assert((std::is_same<ToType, int32_t>::value ||
-                 std::is_same<ToType, int64_t>::value ||
-                 std::is_same<ToType, uint32_t>::value ||
-                 std::is_same<ToType, uint64_t>::value ||
-                 std::is_same<ToType, bool>::value ||
-                 std::is_same<ToType, float>::value ||
-                 std::is_same<ToType, double>::value ||
-                 std::is_same<ToType, NumericValue>::value ||
-                 std::is_same<ToType, BigNumericValue>::value),
-                "Invalid ToType");
+  static_assert(
+      (std::is_same_v<FromType, int32_t> || std::is_same_v<FromType, int64_t> ||
+       std::is_same_v<FromType, uint32_t> ||
+       std::is_same_v<FromType, uint64_t> || std::is_same_v<FromType, bool> ||
+       std::is_same_v<FromType, float> || std::is_same_v<FromType, double> ||
+       std::is_same_v<FromType, NumericValue> ||
+       std::is_same_v<FromType, BigNumericValue>),
+      "Invalid FromType");
+  static_assert(
+      (std::is_same_v<ToType, int32_t> || std::is_same_v<ToType, int64_t> ||
+       std::is_same_v<ToType, uint32_t> || std::is_same_v<ToType, uint64_t> ||
+       std::is_same_v<ToType, bool> || std::is_same_v<ToType, float> ||
+       std::is_same_v<ToType, double> || std::is_same_v<ToType, NumericValue> ||
+       std::is_same_v<ToType, BigNumericValue>),
+      "Invalid ToType");
   return internal::Converter<FromType, ToType>::Convert(in, out, error);
 }
 

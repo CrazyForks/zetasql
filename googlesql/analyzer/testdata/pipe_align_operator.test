@@ -44,6 +44,12 @@ QueryStmt
     | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
     |   +-Literal(type=INT64, value=1)
     |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+    +-output_within=
+    | +-WithinBounds
+    |   +-lower_bound=
+    |   | +-WithinBoundExpr(within_bound_kind=UNBOUNDED PRECEDING)
+    |   +-upper_bound=
+    |     +-WithinBoundExpr(within_bound_kind=ANCHOR TIMESTAMP)
     +-aligned_timestamp_column=$align.aligned_timestamp#6
 ==
 
@@ -84,24 +90,52 @@ QueryStmt
     +-origin=
     | +-FunctionCall(GoogleSQL:timestamp(STRING, optional(0) STRING) -> TIMESTAMP)
     |   +-Literal(type=STRING, value="2000-01-01 00:00:00+00")
+    +-output_within=
+    | +-WithinBounds
+    |   +-lower_bound=
+    |   | +-WithinBoundExpr(within_bound_kind=UNBOUNDED PRECEDING)
+    |   +-upper_bound=
+    |     +-WithinBoundExpr(within_bound_kind=ANCHOR TIMESTAMP)
     +-partition_by_list=
     | +-ColumnRef(type=STRING, column=$align.borg_job#6)
     | +-ColumnRef(type=INT64, column=$align.task_num#7)
     +-aligned_timestamp_column=$align.aligned_timestamp#8
 ==
 
-# TODO: b/513155223 - Support OUTPUT WITHIN clause.
 FROM TimeseriesTable
 |> ALIGN (
   TIMESTAMP ts_col
   PERIOD INTERVAL 1 MINUTE
   ORIGIN TIMESTAMP('2000-01-01')
-  OUTPUT WITHIN 1 PERIOD PRECEDING
+  OUTPUT WITHIN RANGE FROM 1.5 PERIOD PRECEDING TO 2.5 PERIOD FOLLOWING
 )
 --
-ERROR: OUTPUT WITHIN clause is not supported [at 6:17]
-  OUTPUT WITHIN 1 PERIOD PRECEDING
-                ^
+QueryStmt
++-output_column_list=
+| +-$align.aligned_timestamp#6 AS ts_col [TIMESTAMP]
++-query=
+  +-AlignScan
+    +-column_list=[$align.aligned_timestamp#6]
+    +-input_scan=
+    | +-TableScan(column_list=[TimeseriesTable.ts_col#3], table=TimeseriesTable, column_index_list=[2])
+    +-timestamp_column=
+    | +-ColumnRef(type=TIMESTAMP, column=TimeseriesTable.ts_col#3)
+    +-period=
+    | +-FunctionCall(GoogleSQL:$interval(INT64, ENUM<googlesql.functions.DateTimestampPart>) -> INTERVAL)
+    |   +-Literal(type=INT64, value=1)
+    |   +-Literal(type=ENUM<googlesql.functions.DateTimestampPart>, value=MINUTE)
+    +-origin=
+    | +-FunctionCall(GoogleSQL:timestamp(STRING, optional(0) STRING) -> TIMESTAMP)
+    |   +-Literal(type=STRING, value="2000-01-01")
+    +-output_within=
+    | +-WithinBounds
+    |   +-lower_bound=
+    |   | +-WithinBoundExpr(within_bound_kind=PERIOD PRECEDING)
+    |   |   +-Literal(type=DOUBLE, value=1.5)
+    |   +-upper_bound=
+    |     +-WithinBoundExpr(within_bound_kind=PERIOD FOLLOWING)
+    |       +-Literal(type=DOUBLE, value=2.5)
+    +-aligned_timestamp_column=$align.aligned_timestamp#6
 ==
 
 # TODO: b/500603925 - Support METRICS clause.
@@ -189,6 +223,12 @@ QueryStmt
             | +-ColumnRef(type=INTERVAL, column=$subquery1.a_col#1, is_correlated=TRUE)
             +-origin=
             | +-ColumnRef(type=TIMESTAMP, column=$subquery1.b_col#2, is_correlated=TRUE)
+            +-output_within=
+            | +-WithinBounds
+            |   +-lower_bound=
+            |   | +-WithinBoundExpr(within_bound_kind=UNBOUNDED PRECEDING)
+            |   +-upper_bound=
+            |     +-WithinBoundExpr(within_bound_kind=ANCHOR TIMESTAMP)
             +-partition_by_list=
             | +-ColumnRef(type=TIMESTAMP, column=$align.b#9)
             | +-ColumnRef(type=TIMESTAMP, column=$align.t#10)

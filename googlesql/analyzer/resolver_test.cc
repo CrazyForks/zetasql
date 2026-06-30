@@ -2197,7 +2197,7 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
     FunctionArgumentTypeOptions options(
         schema, /*extra_relation_input_columns_allowed=*/true);
     GOOGLESQL_ASSERT_OK(info.AddRelationArg(
-        name2, FunctionArgumentType(SignatureArgumentKind::ARG_TYPE_RELATION,
+        name2, FunctionArgumentType(SignatureArgumentKind::ARG_KIND_RELATION,
                                     options)));
     EXPECT_TRUE(info.HasArg(name2));
     EXPECT_EQ(info.FindScalarArg(name2), nullptr);
@@ -2217,7 +2217,7 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
     IdString name3 = IdString::MakeGlobal("name3");
     GOOGLESQL_ASSERT_OK(info.AddScalarArg(
         name3, ResolvedArgumentDef::SCALAR,
-        FunctionArgumentType(SignatureArgumentKind::ARG_TYPE_ARBITRARY,
+        FunctionArgumentType(SignatureArgumentKind::ARG_KIND_EXPR_ARBITRARY,
                              /*num_occurrences=*/1),
         /*annotation_map=*/nullptr));
     EXPECT_TRUE(info.contains_templated_arguments());
@@ -2231,7 +2231,7 @@ TEST(FunctionArgumentInfoTest, BasicUse) {
     IdString name4 = IdString::MakeGlobal("name4");
     FunctionArgumentTypeOptions empty_options;
     GOOGLESQL_ASSERT_OK(info.AddRelationArg(
-        name4, FunctionArgumentType(SignatureArgumentKind::ARG_TYPE_RELATION,
+        name4, FunctionArgumentType(SignatureArgumentKind::ARG_KIND_RELATION,
                                     empty_options,
                                     /*num_occurrences=*/1)));
     EXPECT_TRUE(info.HasArg(name4));

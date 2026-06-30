@@ -813,65 +813,69 @@ TEST_F(FunctionSerializationTests,
   FunctionSignature templated_signature(
       /*result_type=*/googlesql::types::Int64Type(),
       /*arguments=*/
-      {{ARG_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                            .set_argument_name("arg_any", kPositionalOrNamed)
-                            .set_cardinality(FunctionEnums::OPTIONAL)
-                            .set_default(values::NullInt64())},
-       {ARG_TYPE_ANY_2,
+      {{ARG_KIND_EXPR_ANY_1,
+        FunctionArgumentTypeOptions()
+            .set_argument_name("arg_any", kPositionalOrNamed)
+            .set_cardinality(FunctionEnums::OPTIONAL)
+            .set_default(values::NullInt64())},
+       {ARG_KIND_EXPR_ANY_2,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_double_arr", kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::EmptyArray(array_double_type))},
-       {ARG_PROTO_ANY,
+       {ARG_KIND_EXPR_PROTO_ANY,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_proto", kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Proto(proto_type, proto_value))},
-       {ARG_ARRAY_TYPE_ANY_1,
+       {ARG_KIND_EXPR_ARRAY_ANY_1,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_proto_arr", kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Array(
                 array_proto_type, {values::Proto(proto_type, proto_value),
                                    values::Proto(proto_type, proto_value)}))},
-       {ARG_TYPE_ARBITRARY,
+       {ARG_KIND_EXPR_ARBITRARY,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_proto_null", kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Null(proto_type))},
-       {ARG_ARRAY_TYPE_ANY_2,
+       {ARG_KIND_EXPR_ARRAY_ANY_2,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_proto_arr_null", kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Null(array_proto_type))},
-       {ARG_TYPE_ANY_3, FunctionArgumentTypeOptions()
-                            .set_argument_name("arg_any_3_empty_int64_array",
-                                               kPositionalOrNamed)
-                            .set_cardinality(FunctionEnums::OPTIONAL)
-                            .set_default(values::EmptyArray(array_int64_type))},
-       {ARG_ARRAY_TYPE_ANY_3,
+       {ARG_KIND_EXPR_ANY_3,
+        FunctionArgumentTypeOptions()
+            .set_argument_name("arg_any_3_empty_int64_array",
+                               kPositionalOrNamed)
+            .set_cardinality(FunctionEnums::OPTIONAL)
+            .set_default(values::EmptyArray(array_int64_type))},
+       {ARG_KIND_EXPR_ARRAY_ANY_3,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_array_any_3_proto_arr_null",
                                kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Null(array_proto_type))},
-       {ARG_TYPE_ANY_4, FunctionArgumentTypeOptions()
-                            .set_argument_name("arg_any_4_empty_int64_array",
-                                               kPositionalOrNamed)
-                            .set_cardinality(FunctionEnums::OPTIONAL)
-                            .set_default(values::EmptyArray(array_int64_type))},
-       {ARG_ARRAY_TYPE_ANY_4,
+       {ARG_KIND_EXPR_ANY_4,
+        FunctionArgumentTypeOptions()
+            .set_argument_name("arg_any_4_empty_int64_array",
+                               kPositionalOrNamed)
+            .set_cardinality(FunctionEnums::OPTIONAL)
+            .set_default(values::EmptyArray(array_int64_type))},
+       {ARG_KIND_EXPR_ARRAY_ANY_4,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_array_any_4_proto_arr_null",
                                kPositionalOrNamed)
             .set_cardinality(FunctionEnums::OPTIONAL)
             .set_default(values::Null(array_proto_type))},
-       {ARG_TYPE_ANY_5, FunctionArgumentTypeOptions()
-                            .set_argument_name("arg_any_5_empty_int64_array",
-                                               kPositionalOrNamed)
-                            .set_cardinality(FunctionEnums::OPTIONAL)
-                            .set_default(values::EmptyArray(array_int64_type))},
-       {ARG_ARRAY_TYPE_ANY_5,
+       {ARG_KIND_EXPR_ANY_5,
+        FunctionArgumentTypeOptions()
+            .set_argument_name("arg_any_5_empty_int64_array",
+                               kPositionalOrNamed)
+            .set_cardinality(FunctionEnums::OPTIONAL)
+            .set_default(values::EmptyArray(array_int64_type))},
+       {ARG_KIND_EXPR_ARRAY_ANY_5,
         FunctionArgumentTypeOptions()
             .set_argument_name("arg_array_any_5_proto_arr_null",
                                kPositionalOrNamed)
@@ -1067,13 +1071,13 @@ TEST_F(FunctionSerializationTests,
   {
     FunctionArgumentTypeOptions options;
     options.set_argument_alias_kind(FunctionEnums::ARGUMENT_ALIASED);
-    FunctionArgumentType argument_type(ARG_ARRAY_TYPE_ANY_1, options);
+    FunctionArgumentType argument_type(ARG_KIND_EXPR_ARRAY_ANY_1, options);
     CheckSerializationAndDeserialization(argument_type);
   }
   {
     FunctionArgumentTypeOptions options;
     options.set_argument_alias_kind(FunctionEnums::ARGUMENT_NON_ALIASED);
-    FunctionArgumentType argument_type(ARG_ARRAY_TYPE_ANY_1, options);
+    FunctionArgumentType argument_type(ARG_KIND_EXPR_ARRAY_ANY_1, options);
     CheckSerializationAndDeserialization(argument_type);
   }
 }

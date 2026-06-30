@@ -32,11 +32,12 @@
 namespace googlesql {
 
 // Returns the component argument kinds related to a given argument kind,
-// for example, returns {ARG_TYPE_ANY_1} for ARG_ARRAY_TYPE_ANY_1.
-// This must be called only for arg kinds that indicate relationships across
-// arguments of a function signature. So an ARG_TYPE_FIXED that is a struct
-// in some invocation is still unrelated to any other arguments and does not
-// appear in this map. Retrieval will result in a GOOGLESQL_RET_CHECK.
+// for example, returns {ARG_KIND_EXPR_ANY_1} for
+// ARG_KIND_EXPR_ARRAY_ANY_1. This must be called only for arg kinds that
+// indicate relationships across arguments of a function signature. So an
+// ARG_KIND_EXPR_FIXED that is a struct in some invocation is still
+// unrelated to any other arguments and does not appear in this map. Retrieval
+// will result in a GOOGLESQL_RET_CHECK.
 //
 // The following kinds are *INTENTIONALLY* excluded from this map, as they
 // should never be looked up here:
@@ -47,7 +48,7 @@ namespace googlesql {
 //     Note that these types may have component types, like GRAPH_NODE, but the
 //     argument nevertheless acts like FIXED or ARBITRARY, just with the extra
 //     requirement that it is a GRAPH_NODE.
-//  2. LAMBDA, because the ARG_TYPE_LAMBDA kind itself does not statically
+//  2. LAMBDA, because the ARG_KIND_LAMBDA kind itself does not statically
 //     relate to other argument kinds. Instead, the propagation logic checks the
 //     FunctionArgumentTypes of this particular invocation.
 //  2. VOID is only ever a return type, and never a value, so nothing is ever
@@ -64,9 +65,9 @@ GetComponentSignatureArgumentKinds(SignatureArgumentKind kind);
 // according to the original templated SignatureArgumentKind.
 // This is the reliable way to propagate information (e.g. annotation
 // propagation) between related templated arguments, including their component
-// arguments (e.g. ARG_MAP_TYPE_ANY_1_2 is related to ARG_TYPE_ANY_1 and
-// ARG_TYPE_ANY_2).
-// At each step, the visitor calls the virtual `Process` method.
+// arguments (e.g. ARG_KIND_EXPR_MAP_ANY_1_2 is related to
+// ARG_KIND_EXPR_ANY_1 and ARG_KIND_EXPR_ANY_2). At each step, the
+// visitor calls the virtual `Process` method.
 template <typename T>
 class AnnotatedTypeAndSignatureArgumentKindVisitor {
  public:
@@ -94,57 +95,57 @@ class AnnotatedTypeAndSignatureArgumentKindVisitor {
     switch (original_kind) {
       // These kinds are unrelated to any other arguments, there's nothing to
       // propagate or merge.
-      case ARG_TYPE_FIXED:
-      case ARG_TYPE_ARBITRARY:
+      case ARG_KIND_EXPR_FIXED:
+      case ARG_KIND_EXPR_ARBITRARY:
 
       // Similarly, graph element args are not related to other args.
-      case ARG_TYPE_GRAPH_NODE:
-      case ARG_TYPE_GRAPH_EDGE:
-      case ARG_TYPE_GRAPH_ELEMENT:
-      case ARG_TYPE_GRAPH_PATH:
+      case ARG_KIND_EXPR_GRAPH_NODE:
+      case ARG_KIND_EXPR_GRAPH_EDGE:
+      case ARG_KIND_EXPR_GRAPH_ELEMENT:
+      case ARG_KIND_EXPR_GRAPH_PATH:
 
       // These are not values and do not have annotations to propagate.
-      case ARG_TYPE_VOID:
-      case ARG_TYPE_MODEL:
-      case ARG_TYPE_CONNECTION:
-      case ARG_TYPE_DESCRIPTOR:
-      case ARG_TYPE_SEQUENCE:
-      case ARG_TYPE_RELATION:
+      case ARG_KIND_VOID:
+      case ARG_KIND_MODEL:
+      case ARG_KIND_CONNECTION:
+      case ARG_KIND_DESCRIPTOR:
+      case ARG_KIND_SEQUENCE:
+      case ARG_KIND_RELATION:
         // Nothing to do or propagate, return directly.
         return nullptr;
 
-      // ARG_TYPE_LAMBDA is not directly related to other argument kinds.
+      // ARG_KIND_LAMBDA is not directly related to other argument kinds.
       // Instead, the propagation logic needs to check the concrete
       // FunctionArgumentTypes of the lambda for this invocation.
-      case ARG_TYPE_LAMBDA:
-        GOOGLESQL_RET_CHECK_FAIL() << "ARG_TYPE_LAMBDA should not be passed here. The "
+      case ARG_KIND_LAMBDA:
+        GOOGLESQL_RET_CHECK_FAIL() << "ARG_KIND_LAMBDA should not be passed here. The "
                             "caller should instead use the concrete "
                             "FunctionArgumentTypes on the lambda argument";
 
       // All of these can relate to other arguments.
-      case ARG_STRUCT_ANY:
-      case ARG_PROTO_MAP_ANY:
-      case ARG_PROTO_MAP_KEY_ANY:
-      case ARG_PROTO_MAP_VALUE_ANY:
-      case ARG_PROTO_ANY:
-      case ARG_ENUM_ANY:
-      case ARG_TYPE_STRING_ANY:
+      case ARG_KIND_EXPR_STRUCT_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_KEY_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY:
+      case ARG_KIND_EXPR_PROTO_ANY:
+      case ARG_KIND_EXPR_ENUM_ANY:
+      case ARG_KIND_EXPR_STRING_ANY:
 
-      case ARG_TYPE_ANY_1:
-      case ARG_TYPE_ANY_2:
-      case ARG_TYPE_ANY_3:
-      case ARG_TYPE_ANY_4:
-      case ARG_TYPE_ANY_5:
+      case ARG_KIND_EXPR_ANY_1:
+      case ARG_KIND_EXPR_ANY_2:
+      case ARG_KIND_EXPR_ANY_3:
+      case ARG_KIND_EXPR_ANY_4:
+      case ARG_KIND_EXPR_ANY_5:
 
-      case ARG_ARRAY_TYPE_ANY_1:
-      case ARG_ARRAY_TYPE_ANY_2:
-      case ARG_ARRAY_TYPE_ANY_3:
-      case ARG_ARRAY_TYPE_ANY_4:
-      case ARG_ARRAY_TYPE_ANY_5:
+      case ARG_KIND_EXPR_ARRAY_ANY_1:
+      case ARG_KIND_EXPR_ARRAY_ANY_2:
+      case ARG_KIND_EXPR_ARRAY_ANY_3:
+      case ARG_KIND_EXPR_ARRAY_ANY_4:
+      case ARG_KIND_EXPR_ARRAY_ANY_5:
 
-      case ARG_RANGE_TYPE_ANY_1:
-      case ARG_MEASURE_TYPE_ANY_1:
-      case ARG_MAP_TYPE_ANY_1_2: {
+      case ARG_KIND_EXPR_RANGE_ANY_1:
+      case ARG_KIND_EXPR_MEASURE_ANY_1:
+      case ARG_KIND_EXPR_MAP_ANY_1_2: {
         // Call the logic at the current level.
         GOOGLESQL_RETURN_IF_ERROR(PreVisitChildren(annotated_type, original_kind));
 

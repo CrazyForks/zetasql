@@ -1309,7 +1309,7 @@ class FixedInt final {
   #if defined(__GNUC__) && !defined(__llvm__)
   __attribute__((optimize("O0")))
   #endif
-  inline FixedInt& InternalDivMod(const T& divisor) {
+  FixedInt& InternalDivMod(const T& divisor) {
     bool neg = is_negative();
     bool should_negate_again =
         neg != (use_divisor_sign && internal_is_negative(divisor));

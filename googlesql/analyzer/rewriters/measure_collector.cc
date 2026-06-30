@@ -59,8 +59,11 @@ absl::StatusOr<ResolvedColumn> MeasureCollector::GetClosureColumn(
   }
 
   const MeasureInfo& measure_info = it->second;
-  if (m == measure_info.measure_source_column) {
-    return measure_info.closure_struct;
+  // This function should only be called when not reusing the original measure
+  // column id to hold the closure struct.
+  GOOGLESQL_RET_CHECK(measure_info.closure_column.has_value());
+  if (m == measure_info.closure_column->measure_source_column) {
+    return measure_info.closure_column->closure_struct;
   }
 
   auto propagated_it = propagated_closure_columns_.find(m);
@@ -72,7 +75,7 @@ absl::StatusOr<ResolvedColumn> MeasureCollector::GetClosureColumn(
   // new closure column for it.
   const std::string closure_column_name = absl::StrCat(
       "struct_for_measures_from_table_", m.table_name_id().ToStringView());
-  const Type* closure_type = measure_info.closure_struct.type();
+  const Type* closure_type = measure_info.closure_struct_type;
   ResolvedColumn new_closure_column = column_factory_.MakeCol(
       m.table_name_id().ToStringView(), closure_column_name, closure_type);
   propagated_closure_columns_[m] = new_closure_column;

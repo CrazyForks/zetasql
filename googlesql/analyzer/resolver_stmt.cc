@@ -4597,7 +4597,7 @@ absl::Status Resolver::ResolveAndAdaptQueryAndOutputColumns(
 }
 
 // Get an appropriate string to identify a create scope in an error message.
-static std::string CreateScopeErrorString(
+static absl::StatusOr<std::string> CreateScopeErrorString(
     ResolvedCreateStatement::CreateScope create_scope) {
   switch (create_scope) {
     case ResolvedCreateStatement::CREATE_PUBLIC:
@@ -4607,7 +4607,7 @@ static std::string CreateScopeErrorString(
     case ResolvedCreateStatement::CREATE_TEMP:
       return "TEMP";
     case ResolvedCreateStatement::CREATE_DEFAULT_SCOPE:
-      ABSL_LOG(FATAL) << "Unexpected error scope default.";
+      GOOGLESQL_RET_CHECK_FAIL() << "Unexpected error scope default.";
   }
 }
 
@@ -4675,9 +4675,11 @@ absl::Status Resolver::ResolveCreateViewStatementBaseProperties(
   if ((*create_scope == ResolvedCreateStatementEnums::CREATE_PUBLIC ||
        *create_scope == ResolvedCreateStatementEnums::CREATE_PRIVATE) &&
       *sql_security != ResolvedCreateStatementEnums::SQL_SECURITY_UNSPECIFIED) {
+    GOOGLESQL_ASSIGN_OR_RETURN(const std::string scope_str,
+                     CreateScopeErrorString(*create_scope));
     return MakeSqlErrorAt(ast_statement)
            << "SQL SECURITY clause is not supported on statements with the "
-           << CreateScopeErrorString(*create_scope) << " modifier.";
+           << scope_str << " modifier.";
   }
 
   return absl::OkStatus();
@@ -5289,6 +5291,15 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
       }
     }
 
+    if (has_explicit_return_type) {
+      if (CollationAnnotation::ExistsIn(resolved_expr->type_annotation_map())) {
+        GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
+            FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS));
+        analyzer_output_properties_.AddFeatureLabel(
+            Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
+      }
+    }
+
     if (!has_return_type) {
       return_type = resolved_expr->type();
       has_return_type = true;
@@ -5348,7 +5359,7 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
         FunctionArgumentType(return_type, options),
         arg_info->SignatureArguments(), /*context_id=*/0, signature_options);
   } else {
-    const FunctionArgumentType any_type(ARG_TYPE_ARBITRARY,
+    const FunctionArgumentType any_type(ARG_KIND_EXPR_ARBITRARY,
                                         /*num_occurrences=*/1);
     signature = std::make_unique<FunctionSignature>(
         any_type, arg_info->SignatureArguments(), /*context_id=*/0,
@@ -5394,9 +5405,11 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
 
   if (create_scope != ResolvedCreateStatementEnums::CREATE_DEFAULT_SCOPE &&
       sql_security != ResolvedCreateStatementEnums::SQL_SECURITY_UNSPECIFIED) {
+    GOOGLESQL_ASSIGN_OR_RETURN(const std::string scope_str,
+                     CreateScopeErrorString(create_scope));
     return MakeSqlErrorAt(ast_statement)
            << "SQL SECURITY clause is not supported on statements with the "
-           << CreateScopeErrorString(create_scope) << " modifier.";
+           << scope_str << " modifier.";
   }
 
   std::unique_ptr<const ResolvedConnection> resolved_connection;
@@ -5714,9 +5727,11 @@ absl::Status Resolver::ResolveCreateTableFunctionStatement(
 
   if (create_scope != ResolvedCreateStatementEnums::CREATE_DEFAULT_SCOPE &&
       sql_security != ResolvedCreateStatementEnums::SQL_SECURITY_UNSPECIFIED) {
+    GOOGLESQL_ASSIGN_OR_RETURN(const std::string scope_str,
+                     CreateScopeErrorString(create_scope));
     return MakeSqlErrorAt(ast_statement)
            << "SQL SECURITY clause is not supported on statements with the "
-           << CreateScopeErrorString(create_scope) << " modifier.";
+           << scope_str << " modifier.";
   }
 
   // Option resolution is done with an empty namescope. That includes any
@@ -5917,6 +5932,12 @@ absl::Status Resolver::CheckSQLBodyReturnTypesAndCoerceIfNeeded(
         } else {
           return MakeSqlError() << error;
         }
+      }
+
+      if (CollationAnnotation::ExistsIn(
+              provided_column.type_annotation_map())) {
+        analyzer_output_properties_.AddFeatureLabel(
+            kCollationPropagatedToSqlFunctionFeatureLabel);
       }
     }
 
@@ -6130,7 +6151,7 @@ absl::Status Resolver::ResolveCreateProcedureStatement(
       arg_info.get()));
 
   auto signature = std::make_unique<FunctionSignature>(
-      FunctionArgumentType(ARG_TYPE_VOID), arg_info->SignatureArguments(),
+      FunctionArgumentType(ARG_KIND_VOID), arg_info->SignatureArguments(),
       /*context_id=*/0);
 
   auto external_security =
@@ -6427,7 +6448,7 @@ absl::Status Resolver::ResolveRelationalFunctionParameter(
   if (IsAnyTableArg(function_param)) {
     return arg_info.AddRelationArg(
         function_param.name()->GetAsIdString(),
-        FunctionArgumentType(ARG_TYPE_RELATION,
+        FunctionArgumentType(ARG_KIND_RELATION,
                              std::move(argument_type_options),
                              /*num_occurrences=*/1));
   }
@@ -6444,7 +6465,7 @@ absl::Status Resolver::ResolveRelationalFunctionParameter(
   RecordArgumentParseLocationsIfPresent(function_param, &argument_type_options);
   return arg_info.AddRelationArg(
       function_param.name()->GetAsIdString(),
-      FunctionArgumentType(ARG_TYPE_RELATION,
+      FunctionArgumentType(ARG_KIND_RELATION,
                            std::move(argument_type_options)));
 }
 
@@ -6535,10 +6556,10 @@ absl::Status Resolver::ResolveScalarFunctionParameter(
 
     return arg_info.AddScalarArg(
         function_param.name()->GetAsIdString(), arg_kind,
-        FunctionArgumentType(
-            is_any_string_arg ? ARG_TYPE_STRING_ANY : ARG_TYPE_ARBITRARY,
-            std::move(argument_type_options),
-            /*num_occurrences=*/1),
+        FunctionArgumentType(is_any_string_arg ? ARG_KIND_EXPR_STRING_ANY
+                                               : ARG_KIND_EXPR_ARBITRARY,
+                             std::move(argument_type_options),
+                             /*num_occurrences=*/1),
         /*annotation_map=*/nullptr);
   }
 
@@ -7740,7 +7761,7 @@ absl::Status Resolver::ResolveDropFunctionStatement(
     }
     arguments = MakeResolvedArgumentList(std::move(resolved_args));
     signature = MakeResolvedFunctionSignatureHolder(
-        FunctionSignature{{ARG_TYPE_VOID} /* return_type */,
+        FunctionSignature{{ARG_KIND_VOID} /* return_type */,
                           signature_arguments,
                           /*context_ptr=*/nullptr});
   }
@@ -8316,6 +8337,21 @@ absl::Status Resolver::ResolveCreateEntityStatement(
       /*statement_type=*/
       absl::StrCat("CREATE ", ast_statement->type()->GetAsString()),
       &create_scope, &create_mode));
+
+  // Should have been rejected by ResolveCreateStatementOptions or
+  // ResolveStatement because PUBLIC and PRIVATE are only supported inside a
+  // module.
+  GOOGLESQL_RET_CHECK(create_scope != ResolvedCreateStatement::CREATE_PUBLIC &&
+            create_scope != ResolvedCreateStatement::CREATE_PRIVATE)
+      << "PUBLIC and PRIVATE modifiers are not supported for CREATE ENTITY";
+
+  // CREATE TEMP is guarded by a language feature.
+  if (create_scope == ResolvedCreateStatement::CREATE_TEMP &&
+      !language().LanguageFeatureEnabled(FEATURE_CREATE_TEMP_GENERIC_DDL)) {
+    return MakeSqlErrorAt(ast_statement)
+           << "CREATE TEMP " << ast_statement->type()->GetAsString()
+           << " is not supported";
+  }
 
   std::vector<std::unique_ptr<const ResolvedOption>> options;
   GOOGLESQL_RETURN_IF_ERROR(ResolveOptionsList(ast_statement->options_list(),

@@ -790,9 +790,7 @@ absl::StatusOr<Type::HasFieldResult> NameScope::LookupFieldTargetLocalOnly(
           // the value table column has name path "a.b.c", then
           // we return an error NameTarget for "a" with valid name
           // path of "b.c" that can be accessed from "a".
-          //
-          // ABSL_CHECK validated: !value_table_column.is_valid_to_access.
-          GOOGLESQL_CHECK_OK(CreateGetFieldTargetFromInvalidValueTableColumn(
+          GOOGLESQL_RETURN_IF_ERROR(CreateGetFieldTargetFromInvalidValueTableColumn(
               value_table_column, name, field_target));
         }
         break;

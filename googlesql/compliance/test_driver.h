@@ -165,6 +165,11 @@ class TestTableOptions {
     column_annotations_ = std::move(column_annotations);
   }
 
+  const std::vector<bool>& pseudo_columns() const { return pseudo_columns_; }
+  void set_pseudo_columns(std::vector<bool> pseudo_columns) {
+    pseudo_columns_ = std::move(pseudo_columns);
+  }
+
  private:
   // LINT.IfChange
   // Defines expected table size after populating it with random data. The
@@ -196,6 +201,13 @@ class TestTableOptions {
   // the table. May have nullptr to indicate the corresponding table column
   // doesn't have annotation.
   std::vector<const AnnotationMap*> column_annotations_;
+
+  // Pseudo-columns for each column of the table. <pseudo_columns_> is either
+  // empty or has the same number of elements as the number of the columns in
+  // the table.
+  //
+  // Pseudo-columns can be selected explicitly but do not show up in SELECT *.
+  std::vector<bool> pseudo_columns_;
 };
 
 // This describes a table that should be present in the created database.

@@ -1016,12 +1016,17 @@ TEST_F(CreateIteratorTest, EvaluatorTableScanOp) {
 
 TEST_F(CreateIteratorTest, EvaluatorTableScanOpWithColumnFilter) {
   VariableId x("x"), y("y"), z("z");
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column0",
+                                                   types::Int64Type()));
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column1",
+                                                   types::Int64Type()));
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column2",
+                                                   types::StringType()));
+  columns.push_back(
+      std::make_unique<SimpleColumn>("TestTable", "column3", proto_type_));
   EvaluatorTestTable table(
-      "TestTable",
-      {{"column0", types::Int64Type()},
-       {"column1", types::Int64Type()},
-       {"column2", types::StringType()},
-       {"column3", proto_type_}},
+      "TestTable", std::move(columns),
       {{Int64(10), Int64(100), String("foo1"), GetProtoValue(0)},
        {Int64(20), Int64(200), String("foo2"), GetProtoValue(1)}},
       /*end_status=*/absl::OkStatus(), /*column_filter_idxs=*/{0, 1});
@@ -1075,7 +1080,10 @@ TEST_F(CreateIteratorTest, EvaluatorTableScanOpFailure) {
   const std::string error = "Failed to read row from TestTable";
   const absl::Status failure = googlesql_base::OutOfRangeErrorBuilder() << error;
 
-  EvaluatorTestTable table("TestTable", {{"column0", types::Int64Type()}},
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column0",
+                                                   types::Int64Type()));
+  EvaluatorTestTable table("TestTable", std::move(columns),
                            {{Int64(10)}, {Int64(20)}}, failure);
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
       auto scan_op,
@@ -1103,7 +1111,10 @@ TEST_F(CreateIteratorTest, EvaluatorTableScanOpCancellation) {
   const std::function<void()> cancel_cb = [&num_cancel_calls]() {
     ++num_cancel_calls;
   };
-  EvaluatorTestTable table("TestTable", {{"column0", types::Int64Type()}},
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column0",
+                                                   types::Int64Type()));
+  EvaluatorTestTable table("TestTable", std::move(columns),
                            {{Int64(10)}, {Int64(20)}}, absl::OkStatus(),
                            /*column_filter_idxs=*/{}, cancel_cb);
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
@@ -1137,7 +1148,10 @@ TEST_F(CreateIteratorTest, EvaluatorTableScanOpDeadlineExceeded) {
       [&deadlines](absl::Time deadline) { deadlines.push_back(deadline); };
 
   googlesql_base::SimulatedClock clock(absl::UnixEpoch());
-  EvaluatorTestTable table("TestTable", {{"column0", types::Int64Type()}},
+  std::vector<std::unique_ptr<const Column>> columns;
+  columns.push_back(std::make_unique<SimpleColumn>("TestTable", "column0",
+                                                   types::Int64Type()));
+  EvaluatorTestTable table("TestTable", std::move(columns),
                            {{Int64(10)}, {Int64(20)}}, absl::OkStatus(),
                            /*column_filter_idxs=*/{}, cancel_cb,
                            set_deadline_cb, &clock);

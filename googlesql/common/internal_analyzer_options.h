@@ -71,8 +71,8 @@ class InternalAnalyzerOptions {
   }
 
   static absl::Status AddGraphProperty(const AnalyzerOptions& options,
-                                       absl::string_view name,
-                                       const Type* type) {
+                                       absl::string_view name, const Type* type,
+                                       bool is_same_name_column_def) {
     if (type == nullptr) {
       return MakeSqlError()
              << "Type associated with graph property cannot be NULL";
@@ -83,7 +83,9 @@ class InternalAnalyzerOptions {
 
     if (!googlesql_base::InsertIfNotPresent(
             &(options.data_->graph_properties),
-            std::make_pair(absl::AsciiStrToLower(name), type))) {
+            std::make_pair(
+                absl::AsciiStrToLower(name),
+                GraphPropertyDefinitionInfo{type, is_same_name_column_def}))) {
       return MakeSqlError()
              << "Duplicate graph property name " << absl::AsciiStrToLower(name);
     }

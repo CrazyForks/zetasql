@@ -127,6 +127,7 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
+#include "googlesql/resolved_ast/resolved_ast_enums.pb.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
@@ -135,6 +136,7 @@
 #include "googlesql/base/string_numbers.h"  
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -1139,8 +1141,8 @@ absl::Status Resolver::ResolveExpr(
              << "Dot-star is only supported in SELECT expression";
 
     case AST_PATH_EXPRESSION:
-      expr_resolution_info->flatten_state.SetParent(
-          &parent_expr_resolution_info->flatten_state);
+      GOOGLESQL_RETURN_IF_ERROR(expr_resolution_info->flatten_state.SetParent(
+          &parent_expr_resolution_info->flatten_state));
       GOOGLESQL_RETURN_IF_ERROR(ResolvePathExpressionAsExpression(
           PathExpressionSpan(*ast_expr->GetAsOrDie<ASTPathExpression>()),
           expr_resolution_info.get(), ResolvedStatement::READ,
@@ -1153,16 +1155,16 @@ absl::Status Resolver::ResolveExpr(
       break;
 
     case AST_DOT_IDENTIFIER:
-      expr_resolution_info->flatten_state.SetParent(
-          &parent_expr_resolution_info->flatten_state);
+      GOOGLESQL_RETURN_IF_ERROR(expr_resolution_info->flatten_state.SetParent(
+          &parent_expr_resolution_info->flatten_state));
       GOOGLESQL_RETURN_IF_ERROR(
           ResolveDotIdentifier(ast_expr->GetAsOrDie<ASTDotIdentifier>(),
                                expr_resolution_info.get(), resolved_expr_out));
       break;
 
     case AST_DOT_GENERALIZED_FIELD:
-      expr_resolution_info->flatten_state.SetParent(
-          &parent_expr_resolution_info->flatten_state);
+      GOOGLESQL_RETURN_IF_ERROR(expr_resolution_info->flatten_state.SetParent(
+          &parent_expr_resolution_info->flatten_state));
       GOOGLESQL_RETURN_IF_ERROR(ResolveDotGeneralizedField(
           ast_expr->GetAsOrDie<ASTDotGeneralizedField>(),
           expr_resolution_info.get(), resolved_expr_out));
@@ -1241,8 +1243,8 @@ absl::Status Resolver::ResolveExpr(
       break;
 
     case AST_ARRAY_ELEMENT:
-      expr_resolution_info->flatten_state.SetParent(
-          &parent_expr_resolution_info->flatten_state);
+      GOOGLESQL_RETURN_IF_ERROR(expr_resolution_info->flatten_state.SetParent(
+          &parent_expr_resolution_info->flatten_state));
       GOOGLESQL_RETURN_IF_ERROR(
           ResolveArrayElement(ast_expr->GetAsOrDie<ASTArrayElement>(),
                               expr_resolution_info.get(), resolved_expr_out));
@@ -2107,16 +2109,29 @@ absl::Status Resolver::ResolvePathExpressionAsExpression(
         }
 
         if (expr_resolution_info->is_graph_measure_expression) {
-          // Indicates whether there exists a graph property with the same name.
-          // If so, this means the property is added with any equivalent form of
-          // "x as x", so resolution succeeds even if
-          // FEATURE_SQL_GRAPH_MEASURE_ALLOW_COLUMNS is not enabled.
-          bool exists_as_property =
-              (googlesql_base::FindPtrOrNull(analyzer_options_.graph_properties(),
-                                  lowercase_name) != nullptr);
+          const auto* found_prop = googlesql_base::FindOrNull(
+              analyzer_options_.graph_properties(), lowercase_name);
+          bool exists_as_property = found_prop != nullptr;
+          bool is_same_name_column_as_property =
+              found_prop != nullptr && found_prop->is_same_name_column_def;
+
+          if (exists_as_property) {
+            if (is_same_name_column_as_property) {
+              // Breaks out of the switch statement to defer to case 5 for
+              // resolving name as a graph property.
+              num_names_consumed = 0;
+              break;
+            } else {
+              return MakeSqlErrorAtPoint(path_parse_location.start())
+                     << "Name " << path_expr.ToIdentifierPathString()
+                     << " is ambiguous because it exists as both a column and "
+                        "a "
+                        "graph property";
+            }
+          }
+
           if (!language().LanguageFeatureEnabled(
-                  FEATURE_SQL_GRAPH_MEASURE_ALLOW_COLUMNS) &&
-              !exists_as_property) {
+                  FEATURE_SQL_GRAPH_MEASURE_ALLOW_COLUMNS)) {
             return MakeSqlErrorAtPoint(path_parse_location.start())
                    << "Columns are not supported in graph measure property "
                       "expressions";
@@ -2124,12 +2139,12 @@ absl::Status Resolver::ResolvePathExpressionAsExpression(
 
           // For graph measure property expressions, columns are resolved to
           // ResolvedCatalogColumnRef.
+          const Column* catalog_column =
+              googlesql_base::FindPtrOrNull(resolved_columns_from_table_scans_,
+                                 resolved_column_ref->column());
           std::unique_ptr<ResolvedCatalogColumnRef>
-              resolved_catalog_column_ref =
-                  MakeResolvedCatalogColumnRef(resolved_column_ref->type(),
-                                               /*column=*/nullptr);
-          resolved_catalog_column_ref->set_name(
-              resolved_column_ref->column().name());
+              resolved_catalog_column_ref = MakeResolvedCatalogColumnRef(
+                  catalog_column->GetType(), catalog_column);
           resolved_expr = std::move(resolved_catalog_column_ref);
         } else {
           resolved_expr = std::move(resolved_column_ref);
@@ -2282,13 +2297,15 @@ absl::Status Resolver::ResolvePathExpressionAsExpression(
       expr_resolution_info->is_graph_measure_expression) {
     // (5) We still haven't found a matching name. See if we can find it in an
     // graph property (for graph measure expression only).
-    const Type* property_type = googlesql_base::FindPtrOrNull(
-        analyzer_options_.graph_properties(), lowercase_name);
+    const auto* found_prop =
+        googlesql_base::FindOrNull(analyzer_options_.graph_properties(), lowercase_name);
+    const Type* property_type =
+        found_prop != nullptr ? found_prop->type : nullptr;
     if (property_type != nullptr) {
       std::unique_ptr<ResolvedCatalogColumnRef> resolved_catalog_column_ref =
           MakeResolvedCatalogColumnRef(property_type,
                                        /*column=*/nullptr);
-      resolved_catalog_column_ref->set_name(lowercase_name);
+      resolved_catalog_column_ref->set_name(first_name.ToString());
       resolved_expr = std::move(resolved_catalog_column_ref);
       num_names_consumed = 1;
     }
@@ -2324,6 +2341,10 @@ absl::Status Resolver::ResolvePathExpressionAsExpression(
       // 'generated_column_cycle_detector_' will be set to 'b' in this case so
       // that the resolver tries to resolve 'b' next.
       unresolved_column_name_in_generated_column_ = first_name;
+    }
+    if (expr_resolution_info != nullptr &&
+        expr_resolution_info->is_graph_measure_expression) {
+      unrecognized_graph_measure_name_ = first_name;
     }
     return GetUnrecognizedNameError(path_expr.GetParseLocationRange().start(),
                                     path_expr.ToIdentifierVector(),
@@ -3910,9 +3931,10 @@ absl::Status Resolver::ResolveBinaryExpr(
         binary_expr, function_name, {binary_expr->lhs()},
         *kEmptyArgumentOptionMap, expr_resolution_info, &resolved_binary_expr));
   } else {
-    absl::string_view function_name =
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        absl::string_view function_name,
         FunctionResolver::BinaryOperatorToFunctionName(
-            binary_expr->op(), binary_expr->is_not(), &not_handled);
+            binary_expr->op(), binary_expr->is_not(), &not_handled));
     GOOGLESQL_RETURN_IF_ERROR(ResolveFunctionCallByNameWithoutAggregatePropertyCheck(
         binary_expr, function_name, {binary_expr->lhs(), binary_expr->rhs()},
         *kEmptyArgumentOptionMap, expr_resolution_info, &resolved_binary_expr));
@@ -10693,6 +10715,19 @@ static const ASTLambda* GetLambdaArgument(const ASTExpression* arg) {
   return nullptr;
 }
 
+// Returns the nested ASTFunctionRefArg if the argument is a function reference,
+// unwrapping named arguments if necessary. Returns nullptr otherwise.
+static const ASTFunctionRefArg* GetFunctionRefArgument(
+    const ASTExpression* arg) {
+  if (arg->Is<ASTFunctionRefArg>()) {
+    return arg->GetAsOrDie<ASTFunctionRefArg>();
+  }
+  if (arg->Is<ASTNamedArgument>()) {
+    return GetFunctionRefArgument(arg->GetAsOrDie<ASTNamedArgument>()->expr());
+  }
+  return nullptr;
+}
+
 ABSL_ATTRIBUTE_NOINLINE
 absl::Status Resolver::ResolveExpressionArguments(
     ExprResolutionInfo* expr_resolution_info,
@@ -10747,6 +10782,24 @@ absl::Status Resolver::ResolveExpressionArguments(
     } else if (arg->Is<ASTSequenceArg>()) {
       if (!language().LanguageFeatureEnabled(FEATURE_SEQUENCE_ARG)) {
         return MakeSqlErrorAt(arg) << "Sequence args are not supported";
+      }
+      resolved_arguments_out->push_back(nullptr);
+      ast_arguments_out->push_back(arg);
+    } else if (const ASTFunctionRefArg* func_ref = GetFunctionRefArgument(arg);
+               func_ref != nullptr) {
+      if (!language().LanguageFeatureEnabled(FEATURE_UDF_LAMBDA_ARGUMENTS)) {
+        return MakeSqlErrorAt(func_ref)
+               << "Function references are not supported";
+      }
+      // Function references (like UDF lambda parameters) cannot be resolved as
+      // standard expressions. We put nullptrs in place of function references,
+      // and resolve them during signature matching when the expected signature
+      // is known.
+      resolved_arguments_out->push_back(nullptr);
+      ast_arguments_out->push_back(arg);
+    } else if (arg->Is<ASTModelArg>()) {
+      if (!language().LanguageFeatureEnabled(FEATURE_MODEL_ARG)) {
+        return MakeSqlErrorAt(arg) << "Model args are not supported";
       }
       resolved_arguments_out->push_back(nullptr);
       ast_arguments_out->push_back(arg);
@@ -12602,6 +12655,223 @@ absl::Status Resolver::ResolveWithExpr(
       parent_expr_resolution_info->findings.has_aggregation ||
       child_has_aggregation;
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedWithinBounds>>
+Resolver::ResolveWithinBounds(
+    const ASTAlignWithinClause* /*absl_nonnull*/ ast_within_clause,
+    const NameScope* /*absl_nonnull*/ name_scope) {
+  RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
+
+  auto ast_within_lower_bound = ast_within_clause->lower_bound();
+  auto ast_within_upper_bound = ast_within_clause->upper_bound();
+  std::unique_ptr<const ResolvedWithinBoundExpr> lower_bound;
+  if (ast_within_lower_bound != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(lower_bound, ResolveWithinBoundExpr(ast_within_lower_bound,
+                                                         name_scope));
+  } else {
+    lower_bound = MakeResolvedWithinBoundExpr(
+        ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING, /*expr=*/nullptr);
+  }
+  std::unique_ptr<const ResolvedWithinBoundExpr> upper_bound;
+  if (ast_within_upper_bound != nullptr) {
+    GOOGLESQL_ASSIGN_OR_RETURN(upper_bound, ResolveWithinBoundExpr(ast_within_upper_bound,
+                                                         name_scope));
+  } else {
+    upper_bound = MakeResolvedWithinBoundExpr(
+        ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP, /*expr=*/nullptr);
+  }
+
+  std::unique_ptr<ResolvedWithinBounds> resolved_within_bounds =
+      MakeResolvedWithinBounds(std::move(lower_bound), std::move(upper_bound));
+  GOOGLESQL_RETURN_IF_ERROR(
+      ValidateWithinBounds(ast_within_clause, resolved_within_bounds.get()));
+
+  return resolved_within_bounds;
+}
+
+static bool IsFiniteRelativeResolvedWithinBound(
+    const ResolvedWithinBoundExpr* bound) {
+  switch (bound->bound_kind()) {
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+      return true;
+    case ResolvedWithinBoundExpr::NOT_SET:
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return false;
+  }
+}
+
+static bool IsFiniteAbsoluteResolvedWithinBound(
+    const ResolvedWithinBoundExpr* bound) {
+  switch (bound->bound_kind()) {
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return true;
+    case ResolvedWithinBoundExpr::NOT_SET:
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+      return false;
+  }
+}
+
+static bool IsInvalidBoundCombination(
+    const ResolvedWithinBoundExpr* lower_bound,
+    const ResolvedWithinBoundExpr* upper_bound) {
+  return (IsFiniteAbsoluteResolvedWithinBound(lower_bound) &&
+          IsFiniteRelativeResolvedWithinBound(upper_bound)) ||
+         (IsFiniteAbsoluteResolvedWithinBound(upper_bound) &&
+          IsFiniteRelativeResolvedWithinBound(lower_bound));
+}
+
+static absl::StatusOr<ResolvedWithinBoundExpr::BoundKind> GetBoundKind(
+    ASTAlignWithinBoundExpr::AlignWithinBoundType bound_type) {
+  switch (bound_type) {
+    case ASTAlignWithinBoundExpr::NOT_SET:
+      GOOGLESQL_RET_CHECK_FAIL() << "Within bound kind is not set";
+    case ASTAlignWithinBoundExpr::UNBOUNDED_PRECEDING:
+      return ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING;
+    case ASTAlignWithinBoundExpr::UNBOUNDED_FOLLOWING:
+      return ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING;
+    case ASTAlignWithinBoundExpr::PERIOD_PRECEDING:
+      return ResolvedWithinBoundExpr::PERIOD_PRECEDING;
+    case ASTAlignWithinBoundExpr::PERIOD_FOLLOWING:
+      return ResolvedWithinBoundExpr::PERIOD_FOLLOWING;
+    case ASTAlignWithinBoundExpr::INTERVAL_PRECEDING:
+      return ResolvedWithinBoundExpr::INTERVAL_PRECEDING;
+    case ASTAlignWithinBoundExpr::INTERVAL_FOLLOWING:
+      return ResolvedWithinBoundExpr::INTERVAL_FOLLOWING;
+    case ASTAlignWithinBoundExpr::TIMESTAMP:
+      return ResolvedWithinBoundExpr::TIMESTAMP;
+  }
+}
+
+absl::Status Resolver::ValidateWithinBounds(
+    const ASTAlignWithinClause* /*absl_nonnull*/ ast_within_clause,
+    const ResolvedWithinBounds* /*absl_nonnull*/ node) {
+  const ResolvedWithinBoundExpr* lower_bound = node->lower_bound();
+  const ResolvedWithinBoundExpr* upper_bound = node->upper_bound();
+
+  if (IsInvalidBoundCombination(lower_bound, upper_bound)) {
+    return MakeSqlErrorAt(ast_within_clause)
+           << "A WITHIN clause cannot mix absolute (TIMESTAMP) and relative "
+              "(INTERVAL or PERIOD) bounds";
+  }
+  if (upper_bound->bound_kind() ==
+      ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING) {
+    return MakeSqlErrorAt(ast_within_clause)
+           << "Invalid WITHIN clause, represents an empty WITHIN range";
+  }
+
+  switch (lower_bound->bound_kind()) {
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING: {
+      return MakeSqlErrorAt(ast_within_clause)
+             << "Invalid WITHIN clause, represents an empty WITHIN range";
+    }
+    // Both PERIOD and INTERVAL represent positive durations. Although we
+    // cannot verify that the query-const expressions are positive at
+    // resolution time (this check occurs at runtime), we can statically
+    // determine that these bound combinations always result in an empty
+    // range.
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING: {
+      switch (upper_bound->bound_kind()) {
+        case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+        case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+        case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+        case ResolvedWithinBoundExpr::TIMESTAMP:
+          return absl::OkStatus();
+        default:
+          return MakeSqlErrorAt(ast_within_clause)
+                 << "Invalid WITHIN clause, represents an empty WITHIN range";
+      }
+    }
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      return absl::OkStatus();
+    case ResolvedWithinBoundExpr::NOT_SET:
+      GOOGLESQL_RET_CHECK_FAIL() << "Within bound kind is not set";
+  }
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedWithinBoundExpr>>
+Resolver::ResolveWithinBoundExpr(
+    const ASTAlignWithinBoundExpr* /*absl_nonnull*/ ast_within_bound_expr,
+    const NameScope* /*absl_nonnull*/ name_scope) {
+  RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
+  std::unique_ptr<const ResolvedExpr> resolved_expr;
+
+  if (ast_within_bound_expr->expr() != nullptr) {
+    GOOGLESQL_RETURN_IF_ERROR(ResolveScalarExpr(ast_within_bound_expr->expr(), name_scope,
+                                      "WITHIN bound expression",
+                                      &resolved_expr));
+    if (!IsQueryConstant(resolved_expr.get())) {
+      return MakeSqlErrorAt(ast_within_bound_expr->expr())
+             << "WITHIN bound expression must be a query constant";
+    }
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(ResolvedWithinBoundExpr::BoundKind bound_kind,
+                   GetBoundKind(ast_within_bound_expr->bound_type()));
+
+  std::unique_ptr<ResolvedWithinBoundExpr> resolved_within_bound_expr =
+      MakeResolvedWithinBoundExpr(bound_kind, std::move(resolved_expr));
+
+  GOOGLESQL_RETURN_IF_ERROR(ValidateWithinBoundExpr(ast_within_bound_expr,
+                                          resolved_within_bound_expr.get()));
+  return resolved_within_bound_expr;
+}
+
+absl::Status Resolver::ValidateWithinBoundExpr(
+    const ASTAlignWithinBoundExpr* /*absl_nonnull*/ ast_within_bound_expr,
+    const ResolvedWithinBoundExpr* /*absl_nonnull*/ node) {
+  switch (node->bound_kind()) {
+    case ResolvedWithinBoundExpr::NOT_SET:
+      GOOGLESQL_RET_CHECK_FAIL() << "Within bound kind is not set";
+    case ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING:
+    case ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING:
+    case ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP:
+      GOOGLESQL_RET_CHECK(node->expr() == nullptr);
+      return absl::OkStatus();
+    case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+    case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+      GOOGLESQL_RET_CHECK(node->expr() != nullptr);
+      if (node->expr()->type()->IsInt64() || node->expr()->type()->IsDouble()) {
+        return absl::OkStatus();
+      }
+      return MakeSqlErrorAt(ast_within_bound_expr)
+             << "Expression must be of type INT64 or DOUBLE, but has type "
+             << node->expr()->type()->ShortTypeName(language().product_mode());
+    case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+    case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+      GOOGLESQL_RET_CHECK(node->expr() != nullptr);
+      if (node->expr()->type()->IsInterval()) {
+        return absl::OkStatus();
+      }
+      return MakeSqlErrorAt(ast_within_bound_expr)
+             << "Expression must be of type INTERVAL, but has type "
+             << node->expr()->type()->ShortTypeName(language().product_mode());
+    case ResolvedWithinBoundExpr::TIMESTAMP:
+      GOOGLESQL_RET_CHECK(node->expr() != nullptr);
+      if (node->expr()->type()->IsTimestamp()) {
+        return absl::OkStatus();
+      }
+      return MakeSqlErrorAt(ast_within_bound_expr)
+             << "Expression must be of type TIMESTAMP, but has type "
+             << node->expr()->type()->ShortTypeName(language().product_mode());
+  }
 }
 
 }  // namespace googlesql

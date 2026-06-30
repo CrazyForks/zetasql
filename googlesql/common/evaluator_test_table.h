@@ -30,9 +30,13 @@
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/value.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/clock.h"
 
@@ -44,7 +48,7 @@ class EvaluatorTestTable : public SimpleTable {
   // 'values[i][j]' is the value of 'columns[j]' in the i-th row.
   EvaluatorTestTable(
       absl::string_view name,
-      absl::Span<const std::pair<std::string, const Type*>> columns,
+      std::vector<std::unique_ptr<const Column>> columns,
       absl::Span<const std::vector<Value>> values,
       const absl::Status& end_status,
       const absl::flat_hash_set<int>& column_filter_idxs = {},
@@ -52,7 +56,7 @@ class EvaluatorTestTable : public SimpleTable {
       const std::function<void(absl::Time)>& set_deadline_cb =
           [](absl::Time deadline) {},
       googlesql_base::Clock* clock = googlesql_base::Clock::RealClock())
-      : SimpleTable(name, columns),
+      : SimpleTable(name, std::move(columns)),
         end_status_(end_status),
         column_filter_idxs_(column_filter_idxs),
         cancel_cb_(cancel_cb),

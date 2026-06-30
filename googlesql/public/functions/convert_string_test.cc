@@ -50,10 +50,10 @@ void TestRoundtripValueHex(T value) {}
 
 template <typename UIntT>
 void TestRoundtripValueHex(
-    typename std::enable_if<std::is_integral<UIntT>::value &&
-                                !std::is_signed<UIntT>::value &&
-                                !std::is_same<UIntT, bool>::value,
-                            UIntT>::type value) {
+    std::enable_if_t<std::is_integral_v<UIntT> && !std::is_signed_v<UIntT> &&
+                         !std::is_same_v<UIntT, bool>,
+                     UIntT>
+        value) {
   std::string hexstr = absl::StrCat("0x", absl::Hex(value));
   UIntT hexout;
   absl::Status error;
@@ -65,9 +65,8 @@ void TestRoundtripValueHex(
 
 template <typename IntT>
 void TestRoundtripValueHex(
-    typename std::enable_if<std::is_integral<IntT>::value &&
-                                std::is_signed<IntT>::value,
-                            IntT>::type value) {
+    std::enable_if_t<std::is_integral_v<IntT> && std::is_signed_v<IntT>, IntT>
+        value) {
   std::string sign = value < 0 ? "-" : "";
   uint64_t abs_value;
   if (value == std::numeric_limits<IntT>::min()) {
@@ -140,7 +139,7 @@ void TestSingleChar() {
     char buf = i;
     T out;
     absl::Status error;
-    if (absl::ascii_isdigit(i) && !std::is_same<bool, T>::value) {
+    if (absl::ascii_isdigit(i) && !std::is_same_v<bool, T>) {
       EXPECT_TRUE(StringToNumeric<T>(absl::string_view(&buf, 1), &out, &error));
       EXPECT_TRUE(error.ok());
     } else {

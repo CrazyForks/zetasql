@@ -25,6 +25,7 @@
 
 #include "googlesql/analyzer/rewriters/measure_collector.h"
 #include "googlesql/public/catalog.h"
+#include "googlesql/public/types/measure_type.h"
 #include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/column_factory.h"
@@ -59,6 +60,92 @@ using CaseInsensitiveStringSet =
 
 static constexpr char kReferencedColumnsFieldName[] = "referenced_columns";
 static constexpr char kKeyColumnsFieldName[] = "key_columns";
+
+class ExpressionColumnNameCollector : public ResolvedASTVisitor {
+ public:
+  static absl::StatusOr<CaseInsensitiveStringSet> GetExpressionColumnNames(
+      const ResolvedExpr* expr) {
+    ExpressionColumnNameCollector collector;
+    GOOGLESQL_RETURN_IF_ERROR(expr->Accept(&collector));
+    return collector.column_names_;
+  }
+
+  absl::Status VisitResolvedExpressionColumn(
+      const ResolvedExpressionColumn* node) override {
+    column_names_.insert(node->name());
+    return absl::OkStatus();
+  }
+
+ private:
+  CaseInsensitiveStringSet column_names_;
+};
+
+absl::StatusOr<CaseInsensitiveStringSet> GetExpressionColumnNames(
+    const ResolvedExpr* expr) {
+  return ExpressionColumnNameCollector::GetExpressionColumnNames(expr);
+}
+
+absl::StatusOr<std::vector<int>> GetRowIdentityColumnIndices(
+    const Column* column, const Table* table) {
+  GOOGLESQL_RET_CHECK(column->GetExpression().has_value());
+  if (std::optional<std::vector<int>> column_level_row_identity_columns =
+          column->GetExpression()->RowIdentityColumns();
+      column_level_row_identity_columns.has_value()) {
+    return *column_level_row_identity_columns;
+  }
+  return table->RowIdentityColumns().value_or(std::vector<int>{});
+}
+
+absl::StatusOr<const StructType*> BuildClosureType(const Column* measure_column,
+                                                   const Table* table,
+                                                   TypeFactory& type_factory) {
+  GOOGLESQL_RET_CHECK(measure_column->HasMeasureExpression() &&
+            measure_column->GetExpression()->HasResolvedExpression());
+  const ResolvedExpr* measure_expr =
+      measure_column->GetExpression()->GetResolvedExpression();
+
+  GOOGLESQL_ASSIGN_OR_RETURN(CaseInsensitiveStringSet referenced_column_names,
+                   GetExpressionColumnNames(measure_expr));
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::vector<int> row_identity_column_indices,
+                   GetRowIdentityColumnIndices(measure_column, table));
+  GOOGLESQL_RET_CHECK(!row_identity_column_indices.empty());
+  absl::c_sort(row_identity_column_indices);
+
+  // Build referenced_columns struct type
+  std::vector<StructType::StructField> ref_fields;
+  for (int table_col_idx = 0; table_col_idx < table->NumColumns();
+       ++table_col_idx) {
+    const Column* column = table->GetColumn(table_col_idx);
+    if (referenced_column_names.contains(column->Name())) {
+      ref_fields.push_back(
+          StructType::StructField(column->Name(), column->GetType()));
+    }
+  }
+  const StructType* ref_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory.MakeStructType(ref_fields, &ref_struct_type));
+
+  // Build key_columns struct type
+  std::vector<StructType::StructField> key_fields;
+  key_fields.reserve(row_identity_column_indices.size());
+  for (int row_id_col_idx : row_identity_column_indices) {
+    const Column* column = table->GetColumn(row_id_col_idx);
+    key_fields.push_back(
+        StructType::StructField(column->Name(), column->GetType()));
+  }
+  const StructType* key_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory.MakeStructType(key_fields, &key_struct_type));
+
+  // Build wrapping struct type
+  std::vector<StructType::StructField> wrapping_fields = {
+      {kReferencedColumnsFieldName, ref_struct_type},
+      {kKeyColumnsFieldName, key_struct_type}};
+  const StructType* wrapping_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(
+      type_factory.MakeStructType(wrapping_fields, &wrapping_struct_type));
+
+  return wrapping_struct_type;
+}
 
 // Provides scan-type-specific information for measure source scans.
 template <typename ScanType>
@@ -99,24 +186,6 @@ static absl::StatusOr<std::unique_ptr<ResolvedMakeStruct>> MakeWrappingStruct(
                                 std::move(final_struct_field_exprs));
 }
 
-class ExpressionColumnNameCollector : public ResolvedASTVisitor {
- public:
-  static absl::StatusOr<CaseInsensitiveStringSet> GetExpressionColumnNames(
-      const ResolvedExpr* expr) {
-    ExpressionColumnNameCollector collector;
-    GOOGLESQL_RETURN_IF_ERROR(expr->Accept(&collector));
-    return collector.column_names_;
-  }
-
-  absl::Status VisitResolvedExpressionColumn(
-      const ResolvedExpressionColumn* node) override {
-    column_names_.insert(node->name());
-    return absl::OkStatus();
-  }
-
- private:
-  CaseInsensitiveStringSet column_names_;
-};
 
 // Used to build the `referenced_columns` and `key_columns` structs when
 // building the closure struct in BuildClosureColumn().
@@ -211,9 +280,11 @@ class MeasureSourceColumnReplacer {
       GOOGLESQL_RETURN_IF_ERROR(measure_collector_.AddMeasureInfo(
           info.measure_col.type()->AsMeasure(),
           {.measure_expr = info.measure_expr,
-           .closure_struct = closure->column(),
            .row_identity_column_names = std::move(row_identity_column_names),
-           .measure_source_column = info.measure_col}));
+           .closure_struct_type = closure->column().type(),
+           .closure_column = MeasureInfo::ClosureColumn{
+               .closure_struct = closure->column(),
+               .measure_source_column = info.measure_col}}));
     }
 
     // Step 4: Add a ProjectScan to project the closure column.
@@ -249,19 +320,10 @@ class MeasureSourceColumnReplacer {
           catalog_column->GetExpression()->GetResolvedExpression();
 
       GOOGLESQL_ASSIGN_OR_RETURN(CaseInsensitiveStringSet referenced_column_names,
-                       ExpressionColumnNameCollector::GetExpressionColumnNames(
-                           measure_expr));
+                       GetExpressionColumnNames(measure_expr));
 
-      std::vector<int> row_identity_column_indices;
-      if (std::optional<std::vector<int>> column_level_row_identity_columns =
-              catalog_column->GetExpression()->RowIdentityColumns();
-          column_level_row_identity_columns.has_value()) {
-        row_identity_column_indices =
-            *std::move(column_level_row_identity_columns);
-      } else {
-        row_identity_column_indices =
-            table->RowIdentityColumns().value_or(std::vector<int>{});
-      }
+      GOOGLESQL_ASSIGN_OR_RETURN(std::vector<int> row_identity_column_indices,
+                       GetRowIdentityColumnIndices(catalog_column, table));
       GOOGLESQL_RET_CHECK(!row_identity_column_indices.empty());
       absl::c_sort(row_identity_column_indices);
 
@@ -459,20 +521,83 @@ class MeasureSourceColumnReplacer {
   ColumnFactory& column_factory_;
 };
 
-// Injects closure columns for measure source scans that contain AGG'ed measures
-// with measure expressions.
+// Collects measure sources and computes the corresponding closure struct
+// types.
 //
-// This class identifies the possible source scans for measure columns, and
-// delegates the actual rewrite to MeasureSourceColumnReplacer.
-class ClosureInjector : public ResolvedASTRewriteVisitor {
+// If the measure source is a TableScan or TVFScan, it also creates a closure
+// column and adds it to the source scan by adding a ProjectScan on top of it.
+class MeasureSourceCollector : public ResolvedASTRewriteVisitor {
  public:
-  ClosureInjector(MeasureCollector& measure_collector,
-                  TypeFactory& type_factory, ColumnFactory& column_factory)
+  MeasureSourceCollector(MeasureCollector& measure_collector,
+                         TypeFactory& type_factory,
+                         ColumnFactory& column_factory)
       : measure_collector_(measure_collector),
         type_factory_(type_factory),
         column_factory_(column_factory) {}
 
  protected:
+  // Row field access of a measure-typed column is a source of a measure.
+  //
+  // Here we only collect the measure info and defer replacing the measure
+  // source with the closure struct to `MeasureColumnRewriter` to avoid having
+  // type inconsistencies in the Resolved AST, e.g., between a
+  // `ResolvedGetRowField` and the `ResolvedComputedColumn` that contains
+  // it.
+  absl::StatusOr<std::unique_ptr<const ResolvedNode>>
+  PostVisitResolvedGetRowField(
+      std::unique_ptr<const ResolvedGetRowField> node) override {
+    if (!node->type()->IsMeasureType()) {
+      return node;
+    }
+
+    const MeasureType* measure_type = node->type()->AsMeasure();
+    if (!measure_collector_.IsAgged(measure_type)) {
+      return node;
+    }
+
+    {
+      absl::Status status =
+          measure_collector_.GetMeasureInfo(measure_type).status();
+      if (status.ok()) {
+        // Already registered, skip the collection. This can happen because
+        // the type of a `ResolvedGetRowField` comes from catalog
+        // `Column::type()`.
+        return node;
+      }
+      GOOGLESQL_RET_CHECK(absl::IsNotFound(status))
+          << "Unexpected error getting measure info for measure type: "
+          << measure_type->DebugString() << " error: " << status;
+    }
+
+    const Column* measure_column = node->column();
+    const Table* table = node->expr()->type()->AsRowType()->table();
+    // We currently only support measure columns on tables with DEFAULT column
+    // list mode, i.e., tables that have a column list.
+    GOOGLESQL_RET_CHECK(table->HasColumnList());
+    GOOGLESQL_ASSIGN_OR_RETURN(const StructType* closure_struct_type,
+                     BuildClosureType(measure_column, table, type_factory_));
+
+    const ResolvedExpr* measure_expr =
+        measure_column->GetExpression()->GetResolvedExpression();
+
+    GOOGLESQL_ASSIGN_OR_RETURN(std::vector<int> row_identity_column_indices,
+                     GetRowIdentityColumnIndices(measure_column, table));
+    absl::btree_set<std::string, googlesql_base::CaseLess>
+        row_identity_column_names;
+    for (const int index : row_identity_column_indices) {
+      row_identity_column_names.insert(table->GetColumn(index)->Name());
+    }
+
+    GOOGLESQL_RETURN_IF_ERROR(measure_collector_.AddMeasureInfo(
+        measure_type,
+        {
+            .measure_expr = measure_expr,
+            .row_identity_column_names = std::move(row_identity_column_names),
+            .closure_struct_type = closure_struct_type,
+        }));
+    return node;
+  }
+
   absl::StatusOr<std::unique_ptr<const ResolvedNode>>
   PostVisitResolvedTableScan(
       std::unique_ptr<const ResolvedTableScan> scan) override {
@@ -500,7 +625,8 @@ absl::StatusOr<std::unique_ptr<const ResolvedNode>> AddClosures(
     MeasureCollector& measure_collector,
     std::unique_ptr<const ResolvedNode> resolved_ast, TypeFactory& type_factory,
     ColumnFactory& column_factory) {
-  ClosureInjector visitor(measure_collector, type_factory, column_factory);
+  MeasureSourceCollector visitor(measure_collector, type_factory,
+                                 column_factory);
   return visitor.VisitAll(std::move(resolved_ast));
 }
 

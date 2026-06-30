@@ -1032,15 +1032,15 @@ constexpr __int128 kNumericMin = -kNumericMax;
 inline NumericValue::NumericValue(uint64_t high_bits, uint64_t low_bits)
     : value_(std::array<uint64_t, 2>{low_bits, high_bits}) {}
 
-inline constexpr NumericValue::NumericValue(__int128 value) : value_(value) {}
+constexpr NumericValue::NumericValue(__int128 value) : value_(value) {}
 
-inline constexpr NumericValue::NumericValue()
+constexpr NumericValue::NumericValue()
     : NumericValue(static_cast<__int128>(0)) {}
 
-inline constexpr NumericValue::NumericValue(int value)
+constexpr NumericValue::NumericValue(int value)
     : NumericValue(static_cast<__int128>(value) * kScalingFactor) {}
 
-inline constexpr NumericValue::NumericValue(unsigned int value)
+constexpr NumericValue::NumericValue(unsigned int value)
     : NumericValue(static_cast<__int128>(value) * kScalingFactor) {}
 
 inline constexpr NumericValue::NumericValue(long value)  // NOLINT
@@ -1055,11 +1055,11 @@ inline constexpr NumericValue::NumericValue(long long value)  // NOLINT
 inline constexpr NumericValue::NumericValue(unsigned long long value)  // NOLINT
     : NumericValue(static_cast<__int128>(value) * kScalingFactor) {}
 
-inline constexpr NumericValue NumericValue::MaxValue() {
+constexpr NumericValue NumericValue::MaxValue() {
   return NumericValue(internal::kNumericMax);
 }
 
-inline constexpr NumericValue NumericValue::MinValue() {
+constexpr NumericValue NumericValue::MinValue() {
   return NumericValue(internal::kNumericMin);
 }
 
@@ -1074,7 +1074,7 @@ inline absl::StatusOr<NumericValue> NumericValue::FromPackedInt(
   return ret;
 }
 
-inline constexpr NumericValue NumericValue::FromScaledValue(int64_t value) {
+constexpr NumericValue NumericValue::FromScaledValue(int64_t value) {
   return NumericValue(static_cast<__int128>(value));
 }
 
@@ -1225,17 +1225,15 @@ inline absl::StatusOr<T> NumericValue::To() const {
   return MakeEvalError() << TypeName<T>() << " out of range: " << ToString();
 }
 
-inline constexpr __int128 NumericValue::as_packed_int() const {
+constexpr __int128 NumericValue::as_packed_int() const {
   return __int128{value_};
 }
 
-inline constexpr uint64_t NumericValue::high_bits() const {
+constexpr uint64_t NumericValue::high_bits() const {
   return value_.number()[1];
 }
 
-inline constexpr uint64_t NumericValue::low_bits() const {
-  return value_.number()[0];
-}
+constexpr uint64_t NumericValue::low_bits() const { return value_.number()[0]; }
 
 inline int64_t NumericValue::GetFractionalPart() const {
   int64_t remainder;
@@ -1259,14 +1257,14 @@ inline void NumericValue::SumAggregator::MergeWith(const SumAggregator& other) {
   sum_ += other.sum_;
 }
 
-inline constexpr BigNumericValue::BigNumericValue(
+constexpr BigNumericValue::BigNumericValue(
     const std::array<uint64_t, 4>& uint_array)
     : value_(uint_array) {}
 
-inline constexpr BigNumericValue::BigNumericValue(const FixedInt<64, 4>& value)
+constexpr BigNumericValue::BigNumericValue(const FixedInt<64, 4>& value)
     : value_(value) {}
 
-inline constexpr BigNumericValue::BigNumericValue() = default;
+constexpr BigNumericValue::BigNumericValue() = default;
 
 inline BigNumericValue::BigNumericValue(int value)
     : BigNumericValue(static_cast<long long>(value)) {}  // NOLINT
@@ -1301,25 +1299,24 @@ inline BigNumericValue::BigNumericValue(NumericValue value)
           FixedInt<64, 2>(value.as_packed_int()),
           FixedInt<64, 2>(internal::k1e38 / NumericValue::kScalingFactor))) {}
 
-inline constexpr BigNumericValue BigNumericValue::MaxValue() {
+constexpr BigNumericValue BigNumericValue::MaxValue() {
   return BigNumericValue(FixedInt<64, 4>::max());
 }
 
-inline constexpr BigNumericValue BigNumericValue::MinValue() {
+constexpr BigNumericValue BigNumericValue::MinValue() {
   return BigNumericValue(FixedInt<64, 4>::min());
 }
 
-inline constexpr BigNumericValue BigNumericValue::FromPackedLittleEndianArray(
+constexpr BigNumericValue BigNumericValue::FromPackedLittleEndianArray(
     const std::array<uint64_t, 4>& uint_array) {
   return BigNumericValue(uint_array);
 }
 
-inline constexpr BigNumericValue BigNumericValue::FromScaledValue(
-    __int128 value) {
+constexpr BigNumericValue BigNumericValue::FromScaledValue(__int128 value) {
   return BigNumericValue(FixedInt<64, 4>(value));
 }
 
-inline constexpr const std::array<uint64_t, 4>&
+constexpr const std::array<uint64_t, 4>&
 BigNumericValue::ToPackedLittleEndianArray() const {
   return value_.number();
 }

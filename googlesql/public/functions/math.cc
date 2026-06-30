@@ -113,9 +113,9 @@ static bool module_initialization_complete = []() {
 // This function assumes that the FromType is same or wider than the ToType.
 template <typename FromType, typename ToType>
 static inline bool CastRounded(FromType in, ToType* out) {
-  static_assert(std::is_floating_point<FromType>::value,
+  static_assert(std::is_floating_point_v<FromType>,
                 "FromType must be floating point type");
-  static_assert(std::is_floating_point<ToType>::value,
+  static_assert(std::is_floating_point_v<ToType>,
                 "ToType must be floating point type");
   static_assert(std::numeric_limits<FromType>::lowest() <=
                         std::numeric_limits<ToType>::lowest() &&

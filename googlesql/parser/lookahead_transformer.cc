@@ -783,16 +783,19 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(const Token token) {
       }
       break;
     }
-    case Token::KW_SEQUENCE: {
-      // Force the KW_SEQUENCEs to IDENTIFIERs if they are followed by
-      // KW_CLAMPED to allow the resolution for statements like
-      // SELECT some_func(sequence CLAMPED BETWEEN 1 AND 2).
+    case Token::KW_MODEL:
+    case Token::KW_SEQUENCE:
+    case Token::KW_FUNCTION: {
+      // Force the KW_MODELs, KW_SEQUENCEs and KW_FUNCTION to IDENTIFIERs if
+      // they are followed by KW_CLAMPED to allow the resolution for statements
+      // like SELECT some_func(sequence CLAMPED BETWEEN 1 AND 2).
       //
-      // Without this transformation, bison believes CLAMPED is a sequence arg
-      // and reports "Syntax error: Expected ")" but got keyword BETWEEN".
+      // Without this transformation, textmapper believes CLAMPED is a
+      // model/sequence arg and reports "Syntax error: Expected ")" but got
+      // keyword BETWEEN".
       //
-      // See the comment section "AMBIGUOUS CASE 13: SEQUENCE CLAMPED" in
-      // googlesql.tm for more information.
+      // See the comment section AMBIGUOUS CASE INPUT_ARG_TYPE CLAMPED
+      // in googlesql.tm for more information.
       if (Lookahead1() == Token::KW_CLAMPED) {
         return Token::IDENTIFIER;
       }

@@ -648,6 +648,17 @@ void Unparser::visitASTSequenceArg(const ASTSequenceArg* node, void* data) {
   node->sequence_path()->Accept(this, data);
 }
 
+void Unparser::visitASTModelArg(const ASTModelArg* node, void* data) {
+  print("MODEL ");
+  node->model_path()->Accept(this, data);
+}
+
+void Unparser::visitASTFunctionRefArg(const ASTFunctionRefArg* node,
+                                      void* data) {
+  print("FUNCTION ");
+  node->function_path()->Accept(this, data);
+}
+
 void Unparser::visitASTCreateTableStatement(const ASTCreateTableStatement* node,
                                             void* data) {
   print(GetCreateStatementPrefix(node, "TABLE"));
@@ -2728,10 +2739,24 @@ static bool NeedsInnerParenBeforeDotQualifer(const ASTExpression* node) {
   // integers into floats.
   bool non_parenthesized_system_variable =
       node->node_kind() == AST_SYSTEM_VARIABLE_EXPR && !node->parenthesized();
-  return non_parenthesized_system_variable ||
-         // Literals do not honour the parenthesized flag.
-         node->node_kind() == AST_INT_LITERAL ||
-         node->node_kind() == AST_FLOAT_LITERAL;
+  if (non_parenthesized_system_variable ||
+      // Literals do not honour the parenthesized flag.
+      node->node_kind() == AST_INT_LITERAL ||
+      node->node_kind() == AST_FLOAT_LITERAL) {
+    return true;
+  }
+  if (node->node_kind() == AST_FUNCTION_CALL) {
+    const auto* function_call = node->GetAsOrDie<ASTFunctionCall>();
+    // If the function call has a hint that ends with a number, e.g.,
+    // `func() @1`, we need to wrap the function call with parentheses so that
+    // the ending 1 is not tokenized together with the "." following it.
+    if (function_call->hint() != nullptr &&
+        function_call->hint()->num_shards_hint() != nullptr &&
+        function_call->hint()->hint_entries().empty()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void Unparser::visitASTDotIdentifier(const ASTDotIdentifier* node, void* data) {
@@ -2760,12 +2785,7 @@ void Unparser::visitASTDotGeneralizedField(const ASTDotGeneralizedField* node,
                                            void* data) {
   PrintOpenParenIfNeeded(node);
 
-  // We need an inner paren to avoid the dot (.) binding tightly to the inner
-  // expression for numbers. E.g. `SELECT (1).(x)` should unparse as the same,
-  // and not as `SELECT 1.(x)`, which looks like a function call on a float
-  // literal.
-  bool print_inner_paren = node->expr()->node_kind() == AST_INT_LITERAL ||
-                           node->expr()->node_kind() == AST_FLOAT_LITERAL;
+  bool print_inner_paren = NeedsInnerParenBeforeDotQualifer(node->expr());
   if (print_inner_paren) {
     print("(");
   }

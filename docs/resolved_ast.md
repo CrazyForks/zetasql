@@ -47,314 +47,324 @@ Additional non-generated classes that are documented separately:
 ## Resolved AST Node Hierarchy
 
 <p><pre><code><a href="#ResolvedNode">ResolvedNode</a>
-  <a href="#ResolvedArgument">ResolvedArgument</a>
-    <a href="#ResolvedAggregateHavingModifier">ResolvedAggregateHavingModifier</a>
-    <a href="#ResolvedAlterAction">ResolvedAlterAction</a>
-      <a href="#ResolvedAddColumnAction">ResolvedAddColumnAction</a>
-      <a href="#ResolvedAddColumnIdentifierAction">ResolvedAddColumnIdentifierAction</a>
-      <a href="#ResolvedAddConstraintAction">ResolvedAddConstraintAction</a>
-      <a href="#ResolvedAddSubEntityAction">ResolvedAddSubEntityAction</a>
-      <a href="#ResolvedAddToRestricteeListAction">ResolvedAddToRestricteeListAction</a>
-      <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>
-        <a href="#ResolvedAlterColumnDropDefaultAction">ResolvedAlterColumnDropDefaultAction</a>
-        <a href="#ResolvedAlterColumnDropGeneratedAction">ResolvedAlterColumnDropGeneratedAction</a>
-        <a href="#ResolvedAlterColumnDropNotNullAction">ResolvedAlterColumnDropNotNullAction</a>
-        <a href="#ResolvedAlterColumnOptionsAction">ResolvedAlterColumnOptionsAction</a>
-        <a href="#ResolvedAlterColumnSetDataTypeAction">ResolvedAlterColumnSetDataTypeAction</a>
-        <a href="#ResolvedAlterColumnSetDefaultAction">ResolvedAlterColumnSetDefaultAction</a>
-        <a href="#ResolvedAlterColumnSetGeneratedAction">ResolvedAlterColumnSetGeneratedAction</a>
-      <a href="#ResolvedAlterSubEntityAction">ResolvedAlterSubEntityAction</a>
-      <a href="#ResolvedDropColumnAction">ResolvedDropColumnAction</a>
-      <a href="#ResolvedDropConstraintAction">ResolvedDropConstraintAction</a>
-      <a href="#ResolvedDropPrimaryKeyAction">ResolvedDropPrimaryKeyAction</a>
-      <a href="#ResolvedDropSubEntityAction">ResolvedDropSubEntityAction</a>
-      <a href="#ResolvedFilterUsingAction">ResolvedFilterUsingAction</a>
-      <a href="#ResolvedGrantToAction">ResolvedGrantToAction</a>
-      <a href="#ResolvedRebuildAction">ResolvedRebuildAction</a>
-      <a href="#ResolvedRemoveFromRestricteeListAction">ResolvedRemoveFromRestricteeListAction</a>
-      <a href="#ResolvedRenameColumnAction">ResolvedRenameColumnAction</a>
-      <a href="#ResolvedRenameToAction">ResolvedRenameToAction</a>
-      <a href="#ResolvedRestrictToAction">ResolvedRestrictToAction</a>
-      <a href="#ResolvedRevokeFromAction">ResolvedRevokeFromAction</a>
-      <a href="#ResolvedSetAsAction">ResolvedSetAsAction</a>
-      <a href="#ResolvedSetCollateClause">ResolvedSetCollateClause</a>
-      <a href="#ResolvedSetOptionsAction">ResolvedSetOptionsAction</a>
-    <a href="#ResolvedAnalyticFunctionGroup">ResolvedAnalyticFunctionGroup</a>
-    <a href="#ResolvedArgumentDef">ResolvedArgumentDef</a>
-    <a href="#ResolvedArgumentList">ResolvedArgumentList</a>
-    <a href="#ResolvedAssertRowsModified">ResolvedAssertRowsModified</a>
-    <a href="#ResolvedAuxLoadDataPartitionFilter">ResolvedAuxLoadDataPartitionFilter</a>
-    <a href="#ResolvedColumnAnnotation">ResolvedColumnAnnotations</a>
-    <a href="#ResolvedColumnDefaultValue">ResolvedColumnDefaultValue</a>
-    <a href="#ResolvedColumnDefinition">ResolvedColumnDefinition</a>
-    <a href="#ResolvedColumnHolder">ResolvedColumnHolder</a>
-    <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>
-      <a href="#ResolvedComputedColumnImpl">ResolvedComputedColumnImpl</a>
-        <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a>
-        <a href="#ResolvedDeferredComputedColumn">ResolvedDeferredComputedColumn</a>
-    <a href="#ResolvedConnection">ResolvedConnection</a>
-    <a href="#ResolvedConstraint">ResolvedConstraint</a>
-      <a href="#ResolvedCheckConstraint">ResolvedCheckConstraint</a>
-      <a href="#ResolvedForeignKey">ResolvedForeignKey</a>
-      <a href="#ResolvedPrimaryKey">ResolvedPrimaryKey</a>
-    <a href="#ResolvedCreateModelAliasedQuery">ResolvedCreateModelAliasedQuery</a>
-    <a href="#ResolvedDMLValue">ResolvedDMLValue</a>
-    <a href="#ResolvedDescriptor">ResolvedDescriptor</a>
-    <a href="#ResolvedExecuteImmediateArgument">ResolvedExecuteImmediateArgument</a>
-    <a href="#ResolvedExtendedCast">ResolvedExtendedCast</a>
-    <a href="#ResolvedExtendedCastElement">ResolvedExtendedCastElement</a>
-    <a href="#ResolvedFilterFieldArg">ResolvedFilterFieldArg</a>
-    <a href="#ResolvedFunctionArgument">ResolvedFunctionArgument</a>
-    <a href="#ResolvedFunctionSignatureHolder">ResolvedFunctionSignatureHolder</a>
-    <a href="#ResolvedGeneralizedQuerySubpipeline">ResolvedGeneralizedQuerySubpipeline</a>
-    <a href="#ResolvedGeneratedColumnInfo">ResolvedGeneratedColumnInfo</a>
-    <a href="#ResolvedGraphDynamicLabelSpecification">ResolvedGraphDynamicLabelSpecification</a>
-    <a href="#ResolvedGraphDynamicPropertiesSpecification">ResolvedGraphDynamicPropertiesSpecification</a>
-    <a href="#ResolvedGraphElementIdentifier">ResolvedGraphElementIdentifier</a>
-    <a href="#ResolvedGraphElementLabel">ResolvedGraphElementLabel</a>
-    <a href="#ResolvedGraphElementProperty">ResolvedGraphElementProperty</a>
-    <a href="#ResolvedGraphElementTable">ResolvedGraphElementTable</a>
-    <a href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a>
-      <a href="#ResolvedGraphLabel">ResolvedGraphLabel</a>
-      <a href="#ResolvedGraphLabelNaryExpr">ResolvedGraphLabelNaryExpr</a>
-      <a href="#ResolvedGraphWildCardLabel">ResolvedGraphWildCardLabel</a>
-    <a href="#ResolvedGraphMakeArrayVariable">ResolvedGraphMakeArrayVariable</a>
-    <a href="#ResolvedGraphNodeTableReference">ResolvedGraphNodeTableReference</a>
-    <a href="#ResolvedGraphPathCost">ResolvedGraphPathCost</a>
-    <a href="#ResolvedGraphPathMode">ResolvedGraphPathMode</a>
-    <a href="#ResolvedGraphPathPatternQuantifier">ResolvedGraphPathPatternQuantifier</a>
-    <a href="#ResolvedGraphPathSearchPrefix">ResolvedGraphPathSearchPrefix</a>
-    <a href="#ResolvedGraphPropertyDeclaration">ResolvedGraphPropertyDeclaration</a>
-    <a href="#ResolvedGraphPropertyDefinition">ResolvedGraphPropertyDefinition</a>
-    <a href="#ResolvedGroupingCall">ResolvedGroupingCall</a>
-    <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>
-      <a href="#ResolvedCube">ResolvedCube</a>
-      <a href="#ResolvedGroupingSet">ResolvedGroupingSet</a>
-      <a href="#ResolvedGroupingSetList">ResolvedGroupingSetList</a>
-      <a href="#ResolvedGroupingSetProduct">ResolvedGroupingSetProduct</a>
-      <a href="#ResolvedRollup">ResolvedRollup</a>
-    <a href="#ResolvedGroupingSetMultiColumn">ResolvedGroupingSetMultiColumn</a>
-    <a href="#ResolvedIdentityColumnInfo">ResolvedIdentityColumnInfo</a>
-    <a href="#ResolvedIndexItem">ResolvedIndexItem</a>
-    <a href="#ResolvedInlineLambda">ResolvedInlineLambda</a>
-    <a href="#ResolvedInsertRow">ResolvedInsertRow</a>
-    <a href="#ResolvedLockMode">ResolvedLockMode</a>
-    <a href="#ResolvedMakeProtoField">ResolvedMakeProtoField</a>
-    <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>
-      <a href="#ResolvedMatchRecognizePatternAnchor">ResolvedMatchRecognizePatternAnchor</a>
-      <a href="#ResolvedMatchRecognizePatternEmpty">ResolvedMatchRecognizePatternEmpty</a>
-      <a href="#ResolvedMatchRecognizePatternOperation">ResolvedMatchRecognizePatternOperation</a>
-      <a href="#ResolvedMatchRecognizePatternQuantification">ResolvedMatchRecognizePatternQuantification</a>
-      <a href="#ResolvedMatchRecognizePatternVariableRef">ResolvedMatchRecognizePatternVariableRef</a>
-    <a href="#ResolvedMatchRecognizeVariableDefinition">ResolvedMatchRecognizeVariableDefinition</a>
-    <a href="#ResolvedMeasureGroup">ResolvedMeasureGroup</a>
-    <a href="#ResolvedMergeWhen">ResolvedMergeWhen</a>
-    <a href="#ResolvedModel">ResolvedModel</a>
-    <a href="#ResolvedObjectUnit">ResolvedObjectUnit</a>
-    <a href="#ResolvedOnConflictClause">ResolvedOnConflictClause</a>
-    <a href="#ResolvedOption">ResolvedOption</a>
-    <a href="#ResolvedOrderByItem">ResolvedOrderByItem</a>
-    <a href="#ResolvedOutputColumn">ResolvedOutputColumn</a>
-    <a href="#ResolvedOutputSchema">ResolvedOutputSchema</a>
-    <a href="#ResolvedPipeIfCase">ResolvedPipeIfCase</a>
-    <a href="#ResolvedPivotColumn">ResolvedPivotColumn</a>
-    <a href="#ResolvedPrivilege">ResolvedPrivilege</a>
-    <a href="#ResolvedRecursionDepthModifier">ResolvedRecursionDepthModifier</a>
-    <a href="#ResolvedReplaceFieldItem">ResolvedReplaceFieldItem</a>
-    <a href="#ResolvedReturningClause">ResolvedReturningClause</a>
-    <a href="#ResolvedSequence">ResolvedSequence</a>
-    <a href="#ResolvedSetOperationItem">ResolvedSetOperationItem</a>
-    <a href="#ResolvedStringWithLocation">ResolvedStringWithLocation</a>
-    <a href="#ResolvedSubpipeline">ResolvedSubpipeline</a>
-    <a href="#ResolvedTableAndColumnInfo">ResolvedTableAndColumnInfo</a>
-    <a href="#ResolvedUnnestItem">ResolvedUnnestItem</a>
-    <a href="#ResolvedUnpivotArg">ResolvedUnpivotArg</a>
-    <a href="#ResolvedUpdateFieldItem">ResolvedUpdateFieldItem</a>
-    <a href="#ResolvedUpdateItem">ResolvedUpdateItem</a>
-    <a href="#ResolvedUpdateItemElement">ResolvedUpdateItemElement</a>
-    <a href="#ResolvedWindowFrame">ResolvedWindowFrame</a>
-    <a href="#ResolvedWindowFrameExpr">ResolvedWindowFrameExpr</a>
-    <a href="#ResolvedWindowOrdering">ResolvedWindowOrdering</a>
-    <a href="#ResolvedWindowPartitioning">ResolvedWindowPartitioning</a>
-    <a href="#ResolvedWithEntry">ResolvedWithEntry</a>
-    <a href="#ResolvedWithPartitionColumn">ResolvedWithPartitionColumns</a>
-  <a href="#ResolvedExpr">ResolvedExpr</a>
-    <a href="#ResolvedArgumentRef">ResolvedArgumentRef</a>
-    <a href="#ResolvedArrayAggregate">ResolvedArrayAggregate</a>
-    <a href="#ResolvedCast">ResolvedCast</a>
-    <a href="#ResolvedCatalogColumnRef">ResolvedCatalogColumnRef</a>
-    <a href="#ResolvedColumnRef">ResolvedColumnRef</a>
-    <a href="#ResolvedConstant">ResolvedConstant</a>
-    <a href="#ResolvedDMLDefault">ResolvedDMLDefault</a>
-    <a href="#ResolvedExpressionColumn">ResolvedExpressionColumn</a>
-    <a href="#ResolvedFilterField">ResolvedFilterField</a>
-    <a href="#ResolvedFlatten">ResolvedFlatten</a>
-    <a href="#ResolvedFlattenedArg">ResolvedFlattenedArg</a>
-    <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>
-      <a href="#ResolvedFunctionCall">ResolvedFunctionCall</a>
-      <a href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>
-        <a href="#ResolvedAggregateFunctionCall">ResolvedAggregateFunctionCall</a>
-        <a href="#ResolvedAnalyticFunctionCall">ResolvedAnalyticFunctionCall</a>
-    <a href="#ResolvedGetJsonField">ResolvedGetJsonField</a>
-    <a href="#ResolvedGetProtoField">ResolvedGetProtoField</a>
-    <a href="#ResolvedGetProtoOneof">ResolvedGetProtoOneof</a>
-    <a href="#ResolvedGetRowField">ResolvedGetRowField</a>
-    <a href="#ResolvedGetStructField">ResolvedGetStructField</a>
-    <a href="#ResolvedGraphGetElementProperty">ResolvedGraphGetElementProperty</a>
-    <a href="#ResolvedGraphIsLabeledPredicate">ResolvedGraphIsLabeledPredicate</a>
-    <a href="#ResolvedGraphMakeElement">ResolvedGraphMakeElement</a>
-    <a href="#ResolvedLiteral">ResolvedLiteral</a>
-    <a href="#ResolvedMakeProto">ResolvedMakeProto</a>
-    <a href="#ResolvedMakeStruct">ResolvedMakeStruct</a>
-    <a href="#ResolvedParameter">ResolvedParameter</a>
-    <a href="#ResolvedReplaceField">ResolvedReplaceField</a>
-    <a href="#ResolvedSubqueryExpr">ResolvedSubqueryExpr</a>
-    <a href="#ResolvedSystemVariable">ResolvedSystemVariable</a>
-    <a href="#ResolvedUpdateConstructor">ResolvedUpdateConstructor</a>
-    <a href="#ResolvedWithExpr">ResolvedWithExpr</a>
-  <a href="#ResolvedScan">ResolvedScan</a>
-    <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>
-      <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>
-      <a href="#ResolvedAggregationThresholdAggregateScan">ResolvedAggregationThresholdAggregateScan</a>
-      <a href="#ResolvedAnonymizedAggregateScan">ResolvedAnonymizedAggregateScan</a>
-      <a href="#ResolvedDifferentialPrivacyAggregateScan">ResolvedDifferentialPrivacyAggregateScan</a>
-    <a href="#ResolvedAnalyticScan">ResolvedAnalyticScan</a>
-    <a href="#ResolvedArrayScan">ResolvedArrayScan</a>
-    <a href="#ResolvedAssertScan">ResolvedAssertScan</a>
-    <a href="#ResolvedBarrierScan">ResolvedBarrierScan</a>
-    <a href="#ResolvedDescribeScan">ResolvedDescribeScan</a>
-    <a href="#ResolvedExecuteAsRoleScan">ResolvedExecuteAsRoleScan</a>
-    <a href="#ResolvedFilterScan">ResolvedFilterScan</a>
-    <a href="#ResolvedGraphCallScan">ResolvedGraphCallScan</a>
-    <a href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>
-      <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a>
-        <a href="#ResolvedGraphEdgeScan">ResolvedGraphEdgeScan</a>
-        <a href="#ResolvedGraphNodeScan">ResolvedGraphNodeScan</a>
-      <a href="#ResolvedGraphPathScan">ResolvedGraphPathScan</a>
-    <a href="#ResolvedGraphRefScan">ResolvedGraphRefScan</a>
-    <a href="#ResolvedGraphScanBase">ResolvedGraphScanBase</a>
-      <a href="#ResolvedGraphLinearScan">ResolvedGraphLinearScan</a>
-      <a href="#ResolvedGraphScan">ResolvedGraphScan</a>
-    <a href="#ResolvedGraphTableScan">ResolvedGraphTableScan</a>
-    <a href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a>
-    <a href="#ResolvedJoinScan">ResolvedJoinScan</a>
-    <a href="#ResolvedLimitOffsetScan">ResolvedLimitOffsetScan</a>
-    <a href="#ResolvedLogScan">ResolvedLogScan</a>
-    <a href="#ResolvedMatchRecognizeScan">ResolvedMatchRecognizeScan</a>
-    <a href="#ResolvedOrderByScan">ResolvedOrderByScan</a>
-    <a href="#ResolvedPipeCreateTableScan">ResolvedPipeCreateTableScan</a>
-    <a href="#ResolvedPipeExportDataScan">ResolvedPipeExportDataScan</a>
-    <a href="#ResolvedPipeForkScan">ResolvedPipeForkScan</a>
-    <a href="#ResolvedPipeIfScan">ResolvedPipeIfScan</a>
-    <a href="#ResolvedPipeInsertScan">ResolvedPipeInsertScan</a>
-    <a href="#ResolvedPipeTeeScan">ResolvedPipeTeeScan</a>
-    <a href="#ResolvedPivotScan">ResolvedPivotScan</a>
-    <a href="#ResolvedProjectScan">ResolvedProjectScan</a>
-    <a href="#ResolvedRecursiveRefScan">ResolvedRecursiveRefScan</a>
-    <a href="#ResolvedRecursiveScan">ResolvedRecursiveScan</a>
-    <a href="#ResolvedRelationArgumentScan">ResolvedRelationArgumentScan</a>
-    <a href="#ResolvedSampleScan">ResolvedSampleScan</a>
-    <a href="#ResolvedSetOperationScan">ResolvedSetOperationScan</a>
-    <a href="#ResolvedSingleRowScan">ResolvedSingleRowScan</a>
-    <a href="#ResolvedStaticDescribeScan">ResolvedStaticDescribeScan</a>
-    <a href="#ResolvedSubpipelineInputScan">ResolvedSubpipelineInputScan</a>
-    <a href="#ResolvedTVFScan">ResolvedTVFScan</a>
-    <a href="#ResolvedTableScan">ResolvedTableScan</a>
-    <a href="#ResolvedUnpivotScan">ResolvedUnpivotScan</a>
-    <a href="#ResolvedUnsetArgumentScan">ResolvedUnsetArgumentScan</a>
-    <a href="#ResolvedWithRefScan">ResolvedWithRefScan</a>
-    <a href="#ResolvedWithScan">ResolvedWithScan</a>
-  <a href="#ResolvedStatement">ResolvedStatement</a>
-    <a href="#ResolvedAbortBatchStmt">ResolvedAbortBatchStmt</a>
-    <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>
-      <a href="#ResolvedAlterAllRowAccessPoliciesStmt">ResolvedAlterAllRowAccessPoliciesStmt</a>
-      <a href="#ResolvedAlterApproxViewStmt">ResolvedAlterApproxViewStmt</a>
-      <a href="#ResolvedAlterConnectionStmt">ResolvedAlterConnectionStmt</a>
-      <a href="#ResolvedAlterDatabaseStmt">ResolvedAlterDatabaseStmt</a>
-      <a href="#ResolvedAlterEntityStmt">ResolvedAlterEntityStmt</a>
-      <a href="#ResolvedAlterExternalSchemaStmt">ResolvedAlterExternalSchemaStmt</a>
-      <a href="#ResolvedAlterIndexStmt">ResolvedAlterIndexStmt</a>
-      <a href="#ResolvedAlterMaterializedViewStmt">ResolvedAlterMaterializedViewStmt</a>
-      <a href="#ResolvedAlterModelStmt">ResolvedAlterModelStmt</a>
-      <a href="#ResolvedAlterPrivilegeRestrictionStmt">ResolvedAlterPrivilegeRestrictionStmt</a>
-      <a href="#ResolvedAlterRowAccessPolicyStmt">ResolvedAlterRowAccessPolicyStmt</a>
-      <a href="#ResolvedAlterSchemaStmt">ResolvedAlterSchemaStmt</a>
-      <a href="#ResolvedAlterSequenceStmt">ResolvedAlterSequenceStmt</a>
-      <a href="#ResolvedAlterTableStmt">ResolvedAlterTableStmt</a>
-      <a href="#ResolvedAlterViewStmt">ResolvedAlterViewStmt</a>
-    <a href="#ResolvedAlterTableSetOptionsStmt">ResolvedAlterTableSetOptionsStmt</a>
-    <a href="#ResolvedAnalyzeStmt">ResolvedAnalyzeStmt</a>
-    <a href="#ResolvedAssertStmt">ResolvedAssertStmt</a>
-    <a href="#ResolvedAssignmentStmt">ResolvedAssignmentStmt</a>
-    <a href="#ResolvedAuxLoadDataStmt">ResolvedAuxLoadDataStmt</a>
-    <a href="#ResolvedBeginStmt">ResolvedBeginStmt</a>
-    <a href="#ResolvedCallStmt">ResolvedCallStmt</a>
-    <a href="#ResolvedCloneDataStmt">ResolvedCloneDataStmt</a>
-    <a href="#ResolvedCommitStmt">ResolvedCommitStmt</a>
-    <a href="#ResolvedCreateDatabaseStmt">ResolvedCreateDatabaseStmt</a>
-    <a href="#ResolvedCreateRowAccessPolicyStmt">ResolvedCreateRowAccessPolicyStmt</a>
-    <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>
-      <a href="#ResolvedCreateConnectionStmt">ResolvedCreateConnectionStmt</a>
-      <a href="#ResolvedCreateConstantStmt">ResolvedCreateConstantStmt</a>
-      <a href="#ResolvedCreateEntityStmt">ResolvedCreateEntityStmt</a>
-      <a href="#ResolvedCreateFunctionStmt">ResolvedCreateFunctionStmt</a>
-      <a href="#ResolvedCreateIndexStmt">ResolvedCreateIndexStmt</a>
-      <a href="#ResolvedCreateModelStmt">ResolvedCreateModelStmt</a>
-      <a href="#ResolvedCreatePrivilegeRestrictionStmt">ResolvedCreatePrivilegeRestrictionStmt</a>
-      <a href="#ResolvedCreateProcedureStmt">ResolvedCreateProcedureStmt</a>
-      <a href="#ResolvedCreatePropertyGraphStmt">ResolvedCreatePropertyGraphStmt</a>
-      <a href="#ResolvedCreateSchemaStmtBase">ResolvedCreateSchemaStmtBase</a>
-        <a href="#ResolvedCreateExternalSchemaStmt">ResolvedCreateExternalSchemaStmt</a>
-        <a href="#ResolvedCreateSchemaStmt">ResolvedCreateSchemaStmt</a>
-      <a href="#ResolvedCreateSequenceStmt">ResolvedCreateSequenceStmt</a>
-      <a href="#ResolvedCreateSnapshotTableStmt">ResolvedCreateSnapshotTableStmt</a>
-      <a href="#ResolvedCreateTableFunctionStmt">ResolvedCreateTableFunctionStmt</a>
-      <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>
-        <a href="#ResolvedCreateExternalTableStmt">ResolvedCreateExternalTableStmt</a>
-        <a href="#ResolvedCreateTableAsSelectStmt">ResolvedCreateTableAsSelectStmt</a>
-        <a href="#ResolvedCreateTableStmt">ResolvedCreateTableStmt</a>
-      <a href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a>
-        <a href="#ResolvedCreateApproxViewStmt">ResolvedCreateApproxViewStmt</a>
-        <a href="#ResolvedCreateMaterializedViewStmt">ResolvedCreateMaterializedViewStmt</a>
-        <a href="#ResolvedCreateViewStmt">ResolvedCreateViewStmt</a>
-    <a href="#ResolvedCreateWithEntryStmt">ResolvedCreateWithEntryStmt</a>
-    <a href="#ResolvedDefineTableStmt">ResolvedDefineTableStmt</a>
-    <a href="#ResolvedDeleteStmt">ResolvedDeleteStmt</a>
-    <a href="#ResolvedDescribeStmt">ResolvedDescribeStmt</a>
-    <a href="#ResolvedDropFunctionStmt">ResolvedDropFunctionStmt</a>
-    <a href="#ResolvedDropIndexStmt">ResolvedDropIndexStmt</a>
-    <a href="#ResolvedDropMaterializedViewStmt">ResolvedDropMaterializedViewStmt</a>
-    <a href="#ResolvedDropPrivilegeRestrictionStmt">ResolvedDropPrivilegeRestrictionStmt</a>
-    <a href="#ResolvedDropRowAccessPolicyStmt">ResolvedDropRowAccessPolicyStmt</a>
-    <a href="#ResolvedDropSnapshotTableStmt">ResolvedDropSnapshotTableStmt</a>
-    <a href="#ResolvedDropStmt">ResolvedDropStmt</a>
-    <a href="#ResolvedDropTableFunctionStmt">ResolvedDropTableFunctionStmt</a>
-    <a href="#ResolvedExecuteImmediateStmt">ResolvedExecuteImmediateStmt</a>
-    <a href="#ResolvedExplainStmt">ResolvedExplainStmt</a>
-    <a href="#ResolvedExportDataStmt">ResolvedExportDataStmt</a>
-    <a href="#ResolvedExportMetadataStmt">ResolvedExportMetadataStmt</a>
-    <a href="#ResolvedExportModelStmt">ResolvedExportModelStmt</a>
-    <a href="#ResolvedGeneralizedQueryStmt">ResolvedGeneralizedQueryStmt</a>
-    <a href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a>
-      <a href="#ResolvedGrantStmt">ResolvedGrantStmt</a>
-      <a href="#ResolvedRevokeStmt">ResolvedRevokeStmt</a>
-    <a href="#ResolvedImportStmt">ResolvedImportStmt</a>
-    <a href="#ResolvedInsertStmt">ResolvedInsertStmt</a>
-    <a href="#ResolvedMergeStmt">ResolvedMergeStmt</a>
-    <a href="#ResolvedModuleStmt">ResolvedModuleStmt</a>
-    <a href="#ResolvedMultiStmt">ResolvedMultiStmt</a>
-    <a href="#ResolvedQueryStmt">ResolvedQueryStmt</a>
-    <a href="#ResolvedRenameStmt">ResolvedRenameStmt</a>
-    <a href="#ResolvedRollbackStmt">ResolvedRollbackStmt</a>
-    <a href="#ResolvedRunBatchStmt">ResolvedRunBatchStmt</a>
-    <a href="#ResolvedSetTransactionStmt">ResolvedSetTransactionStmt</a>
-    <a href="#ResolvedShowStmt">ResolvedShowStmt</a>
-    <a href="#ResolvedStartBatchStmt">ResolvedStartBatchStmt</a>
-    <a href="#ResolvedStatementWithPipeOperatorsStmt">ResolvedStatementWithPipeOperatorsStmt</a>
-    <a href="#ResolvedSubpipelineStmt">ResolvedSubpipelineStmt</a>
-    <a href="#ResolvedTruncateStmt">ResolvedTruncateStmt</a>
-    <a href="#ResolvedUndropStmt">ResolvedUndropStmt</a>
-    <a href="#ResolvedUpdateStmt">ResolvedUpdateStmt</a>
+  <a id="ResolvedArgument-toc" href="#ResolvedArgument">ResolvedArgument</a>
+    <a id="ResolvedAggregateHavingModifier-toc" href="#ResolvedAggregateHavingModifier">ResolvedAggregateHavingModifier</a>
+    <a id="ResolvedAlterAction-toc" href="#ResolvedAlterAction">ResolvedAlterAction</a>
+      <a id="ResolvedAddColumnAction-toc" href="#ResolvedAddColumnAction">ResolvedAddColumnAction</a>
+      <a id="ResolvedAddColumnIdentifierAction-toc" href="#ResolvedAddColumnIdentifierAction">ResolvedAddColumnIdentifierAction</a>
+      <a id="ResolvedAddConstraintAction-toc" href="#ResolvedAddConstraintAction">ResolvedAddConstraintAction</a>
+      <a id="ResolvedAddSubEntityAction-toc" href="#ResolvedAddSubEntityAction">ResolvedAddSubEntityAction</a>
+      <a id="ResolvedAddToRestricteeListAction-toc" href="#ResolvedAddToRestricteeListAction">ResolvedAddToRestricteeListAction</a>
+      <a id="ResolvedAlterColumnAction-toc" href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>
+        <a id="ResolvedAlterColumnDropDefaultAction-toc" href="#ResolvedAlterColumnDropDefaultAction">ResolvedAlterColumnDropDefaultAction</a>
+        <a id="ResolvedAlterColumnDropGeneratedAction-toc" href="#ResolvedAlterColumnDropGeneratedAction">ResolvedAlterColumnDropGeneratedAction</a>
+        <a id="ResolvedAlterColumnDropNotNullAction-toc" href="#ResolvedAlterColumnDropNotNullAction">ResolvedAlterColumnDropNotNullAction</a>
+        <a id="ResolvedAlterColumnOptionsAction-toc" href="#ResolvedAlterColumnOptionsAction">ResolvedAlterColumnOptionsAction</a>
+        <a id="ResolvedAlterColumnSetDataTypeAction-toc" href="#ResolvedAlterColumnSetDataTypeAction">ResolvedAlterColumnSetDataTypeAction</a>
+        <a id="ResolvedAlterColumnSetDefaultAction-toc" href="#ResolvedAlterColumnSetDefaultAction">ResolvedAlterColumnSetDefaultAction</a>
+        <a id="ResolvedAlterColumnSetGeneratedAction-toc" href="#ResolvedAlterColumnSetGeneratedAction">ResolvedAlterColumnSetGeneratedAction</a>
+      <a id="ResolvedAlterSubEntityAction-toc" href="#ResolvedAlterSubEntityAction">ResolvedAlterSubEntityAction</a>
+      <a id="ResolvedDropColumnAction-toc" href="#ResolvedDropColumnAction">ResolvedDropColumnAction</a>
+      <a id="ResolvedDropConstraintAction-toc" href="#ResolvedDropConstraintAction">ResolvedDropConstraintAction</a>
+      <a id="ResolvedDropPrimaryKeyAction-toc" href="#ResolvedDropPrimaryKeyAction">ResolvedDropPrimaryKeyAction</a>
+      <a id="ResolvedDropSubEntityAction-toc" href="#ResolvedDropSubEntityAction">ResolvedDropSubEntityAction</a>
+      <a id="ResolvedFilterUsingAction-toc" href="#ResolvedFilterUsingAction">ResolvedFilterUsingAction</a>
+      <a id="ResolvedGrantToAction-toc" href="#ResolvedGrantToAction">ResolvedGrantToAction</a>
+      <a id="ResolvedRebuildAction-toc" href="#ResolvedRebuildAction">ResolvedRebuildAction</a>
+      <a id="ResolvedRemoveFromRestricteeListAction-toc" href="#ResolvedRemoveFromRestricteeListAction">ResolvedRemoveFromRestricteeListAction</a>
+      <a id="ResolvedRenameColumnAction-toc" href="#ResolvedRenameColumnAction">ResolvedRenameColumnAction</a>
+      <a id="ResolvedRenameToAction-toc" href="#ResolvedRenameToAction">ResolvedRenameToAction</a>
+      <a id="ResolvedRestrictToAction-toc" href="#ResolvedRestrictToAction">ResolvedRestrictToAction</a>
+      <a id="ResolvedRevokeFromAction-toc" href="#ResolvedRevokeFromAction">ResolvedRevokeFromAction</a>
+      <a id="ResolvedSetAsAction-toc" href="#ResolvedSetAsAction">ResolvedSetAsAction</a>
+      <a id="ResolvedSetCollateClause-toc" href="#ResolvedSetCollateClause">ResolvedSetCollateClause</a>
+      <a id="ResolvedSetOptionsAction-toc" href="#ResolvedSetOptionsAction">ResolvedSetOptionsAction</a>
+    <a id="ResolvedAnalyticFunctionGroup-toc" href="#ResolvedAnalyticFunctionGroup">ResolvedAnalyticFunctionGroup</a>
+    <a id="ResolvedArgumentDef-toc" href="#ResolvedArgumentDef">ResolvedArgumentDef</a>
+    <a id="ResolvedArgumentList-toc" href="#ResolvedArgumentList">ResolvedArgumentList</a>
+    <a id="ResolvedAssertRowsModified-toc" href="#ResolvedAssertRowsModified">ResolvedAssertRowsModified</a>
+    <a id="ResolvedAuxLoadDataPartitionFilter-toc" href="#ResolvedAuxLoadDataPartitionFilter">ResolvedAuxLoadDataPartitionFilter</a>
+    <a id="ResolvedColumnAnnotations-toc" href="#ResolvedColumnAnnotations">ResolvedColumnAnnotations</a>
+    <a id="ResolvedColumnDefaultValue-toc" href="#ResolvedColumnDefaultValue">ResolvedColumnDefaultValue</a>
+    <a id="ResolvedColumnDefinition-toc" href="#ResolvedColumnDefinition">ResolvedColumnDefinition</a>
+    <a id="ResolvedColumnHolder-toc" href="#ResolvedColumnHolder">ResolvedColumnHolder</a>
+    <a id="ResolvedComputedColumnBase-toc" href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>
+      <a id="ResolvedComputedColumnImpl-toc" href="#ResolvedComputedColumnImpl">ResolvedComputedColumnImpl</a>
+        <a id="ResolvedComputedColumn-toc" href="#ResolvedComputedColumn">ResolvedComputedColumn</a>
+        <a id="ResolvedDeferredComputedColumn-toc" href="#ResolvedDeferredComputedColumn">ResolvedDeferredComputedColumn</a>
+    <a id="ResolvedConnection-toc" href="#ResolvedConnection">ResolvedConnection</a>
+    <a id="ResolvedConstraint-toc" href="#ResolvedConstraint">ResolvedConstraint</a>
+      <a id="ResolvedCheckConstraint-toc" href="#ResolvedCheckConstraint">ResolvedCheckConstraint</a>
+      <a id="ResolvedForeignKey-toc" href="#ResolvedForeignKey">ResolvedForeignKey</a>
+      <a id="ResolvedPrimaryKey-toc" href="#ResolvedPrimaryKey">ResolvedPrimaryKey</a>
+    <a id="ResolvedCreateModelAliasedQuery-toc" href="#ResolvedCreateModelAliasedQuery">ResolvedCreateModelAliasedQuery</a>
+    <a id="ResolvedDMLValue-toc" href="#ResolvedDMLValue">ResolvedDMLValue</a>
+    <a id="ResolvedDescriptor-toc" href="#ResolvedDescriptor">ResolvedDescriptor</a>
+    <a id="ResolvedExecuteImmediateArgument-toc" href="#ResolvedExecuteImmediateArgument">ResolvedExecuteImmediateArgument</a>
+    <a id="ResolvedExtendedCast-toc" href="#ResolvedExtendedCast">ResolvedExtendedCast</a>
+    <a id="ResolvedExtendedCastElement-toc" href="#ResolvedExtendedCastElement">ResolvedExtendedCastElement</a>
+    <a id="ResolvedFilterFieldArg-toc" href="#ResolvedFilterFieldArg">ResolvedFilterFieldArg</a>
+    <a id="ResolvedFunctionArgument-toc" href="#ResolvedFunctionArgument">ResolvedFunctionArgument</a>
+    <a id="ResolvedFunctionRef-toc" href="#ResolvedFunctionRef">ResolvedFunctionRef</a>
+    <a id="ResolvedFunctionSignatureHolder-toc" href="#ResolvedFunctionSignatureHolder">ResolvedFunctionSignatureHolder</a>
+    <a id="ResolvedGeneralizedQuerySubpipeline-toc" href="#ResolvedGeneralizedQuerySubpipeline">ResolvedGeneralizedQuerySubpipeline</a>
+    <a id="ResolvedGeneratedColumnInfo-toc" href="#ResolvedGeneratedColumnInfo">ResolvedGeneratedColumnInfo</a>
+    <a id="ResolvedGraphDMLPropertyItem-toc" href="#ResolvedGraphDMLPropertyItem">ResolvedGraphDMLPropertyItem</a>
+    <a id="ResolvedGraphDynamicLabelSpecification-toc" href="#ResolvedGraphDynamicLabelSpecification">ResolvedGraphDynamicLabelSpecification</a>
+    <a id="ResolvedGraphDynamicPropertiesSpecification-toc" href="#ResolvedGraphDynamicPropertiesSpecification">ResolvedGraphDynamicPropertiesSpecification</a>
+    <a id="ResolvedGraphElementIdentifier-toc" href="#ResolvedGraphElementIdentifier">ResolvedGraphElementIdentifier</a>
+    <a id="ResolvedGraphElementLabel-toc" href="#ResolvedGraphElementLabel">ResolvedGraphElementLabel</a>
+    <a id="ResolvedGraphElementProperty-toc" href="#ResolvedGraphElementProperty">ResolvedGraphElementProperty</a>
+    <a id="ResolvedGraphElementTable-toc" href="#ResolvedGraphElementTable">ResolvedGraphElementTable</a>
+    <a id="ResolvedGraphLabelExpr-toc" href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a>
+      <a id="ResolvedGraphLabel-toc" href="#ResolvedGraphLabel">ResolvedGraphLabel</a>
+      <a id="ResolvedGraphLabelNaryExpr-toc" href="#ResolvedGraphLabelNaryExpr">ResolvedGraphLabelNaryExpr</a>
+      <a id="ResolvedGraphWildCardLabel-toc" href="#ResolvedGraphWildCardLabel">ResolvedGraphWildCardLabel</a>
+    <a id="ResolvedGraphMakeArrayVariable-toc" href="#ResolvedGraphMakeArrayVariable">ResolvedGraphMakeArrayVariable</a>
+    <a id="ResolvedGraphNodeTableReference-toc" href="#ResolvedGraphNodeTableReference">ResolvedGraphNodeTableReference</a>
+    <a id="ResolvedGraphPathCost-toc" href="#ResolvedGraphPathCost">ResolvedGraphPathCost</a>
+    <a id="ResolvedGraphPathMode-toc" href="#ResolvedGraphPathMode">ResolvedGraphPathMode</a>
+    <a id="ResolvedGraphPathPatternQuantifier-toc" href="#ResolvedGraphPathPatternQuantifier">ResolvedGraphPathPatternQuantifier</a>
+    <a id="ResolvedGraphPathSearchPrefix-toc" href="#ResolvedGraphPathSearchPrefix">ResolvedGraphPathSearchPrefix</a>
+    <a id="ResolvedGraphPropertyDeclaration-toc" href="#ResolvedGraphPropertyDeclaration">ResolvedGraphPropertyDeclaration</a>
+    <a id="ResolvedGraphPropertyDefinition-toc" href="#ResolvedGraphPropertyDefinition">ResolvedGraphPropertyDefinition</a>
+    <a id="ResolvedGroupingCall-toc" href="#ResolvedGroupingCall">ResolvedGroupingCall</a>
+    <a id="ResolvedGroupingSetBase-toc" href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>
+      <a id="ResolvedCube-toc" href="#ResolvedCube">ResolvedCube</a>
+      <a id="ResolvedGroupingSet-toc" href="#ResolvedGroupingSet">ResolvedGroupingSet</a>
+      <a id="ResolvedGroupingSetList-toc" href="#ResolvedGroupingSetList">ResolvedGroupingSetList</a>
+      <a id="ResolvedGroupingSetProduct-toc" href="#ResolvedGroupingSetProduct">ResolvedGroupingSetProduct</a>
+      <a id="ResolvedRollup-toc" href="#ResolvedRollup">ResolvedRollup</a>
+    <a id="ResolvedGroupingSetMultiColumn-toc" href="#ResolvedGroupingSetMultiColumn">ResolvedGroupingSetMultiColumn</a>
+    <a id="ResolvedIdentityColumnInfo-toc" href="#ResolvedIdentityColumnInfo">ResolvedIdentityColumnInfo</a>
+    <a id="ResolvedIndexItem-toc" href="#ResolvedIndexItem">ResolvedIndexItem</a>
+    <a id="ResolvedInlineLambda-toc" href="#ResolvedInlineLambda">ResolvedInlineLambda</a>
+    <a id="ResolvedInsertRow-toc" href="#ResolvedInsertRow">ResolvedInsertRow</a>
+    <a id="ResolvedLockMode-toc" href="#ResolvedLockMode">ResolvedLockMode</a>
+    <a id="ResolvedMakeProtoField-toc" href="#ResolvedMakeProtoField">ResolvedMakeProtoField</a>
+    <a id="ResolvedMatchRecognizePatternExpr-toc" href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>
+      <a id="ResolvedMatchRecognizePatternAnchor-toc" href="#ResolvedMatchRecognizePatternAnchor">ResolvedMatchRecognizePatternAnchor</a>
+      <a id="ResolvedMatchRecognizePatternEmpty-toc" href="#ResolvedMatchRecognizePatternEmpty">ResolvedMatchRecognizePatternEmpty</a>
+      <a id="ResolvedMatchRecognizePatternOperation-toc" href="#ResolvedMatchRecognizePatternOperation">ResolvedMatchRecognizePatternOperation</a>
+      <a id="ResolvedMatchRecognizePatternQuantification-toc" href="#ResolvedMatchRecognizePatternQuantification">ResolvedMatchRecognizePatternQuantification</a>
+      <a id="ResolvedMatchRecognizePatternVariableRef-toc" href="#ResolvedMatchRecognizePatternVariableRef">ResolvedMatchRecognizePatternVariableRef</a>
+    <a id="ResolvedMatchRecognizeVariableDefinition-toc" href="#ResolvedMatchRecognizeVariableDefinition">ResolvedMatchRecognizeVariableDefinition</a>
+    <a id="ResolvedMeasureGroup-toc" href="#ResolvedMeasureGroup">ResolvedMeasureGroup</a>
+    <a id="ResolvedMergeWhen-toc" href="#ResolvedMergeWhen">ResolvedMergeWhen</a>
+    <a id="ResolvedModel-toc" href="#ResolvedModel">ResolvedModel</a>
+    <a id="ResolvedObjectUnit-toc" href="#ResolvedObjectUnit">ResolvedObjectUnit</a>
+    <a id="ResolvedOnConflictClause-toc" href="#ResolvedOnConflictClause">ResolvedOnConflictClause</a>
+    <a id="ResolvedOption-toc" href="#ResolvedOption">ResolvedOption</a>
+    <a id="ResolvedOrderByItem-toc" href="#ResolvedOrderByItem">ResolvedOrderByItem</a>
+    <a id="ResolvedOutputColumn-toc" href="#ResolvedOutputColumn">ResolvedOutputColumn</a>
+    <a id="ResolvedOutputSchema-toc" href="#ResolvedOutputSchema">ResolvedOutputSchema</a>
+    <a id="ResolvedPipeIfCase-toc" href="#ResolvedPipeIfCase">ResolvedPipeIfCase</a>
+    <a id="ResolvedPivotColumn-toc" href="#ResolvedPivotColumn">ResolvedPivotColumn</a>
+    <a id="ResolvedPrivilege-toc" href="#ResolvedPrivilege">ResolvedPrivilege</a>
+    <a id="ResolvedRecursionDepthModifier-toc" href="#ResolvedRecursionDepthModifier">ResolvedRecursionDepthModifier</a>
+    <a id="ResolvedReplaceFieldItem-toc" href="#ResolvedReplaceFieldItem">ResolvedReplaceFieldItem</a>
+    <a id="ResolvedReturningClause-toc" href="#ResolvedReturningClause">ResolvedReturningClause</a>
+    <a id="ResolvedSequence-toc" href="#ResolvedSequence">ResolvedSequence</a>
+    <a id="ResolvedSetOperationItem-toc" href="#ResolvedSetOperationItem">ResolvedSetOperationItem</a>
+    <a id="ResolvedStringWithLocation-toc" href="#ResolvedStringWithLocation">ResolvedStringWithLocation</a>
+    <a id="ResolvedSubpipeline-toc" href="#ResolvedSubpipeline">ResolvedSubpipeline</a>
+    <a id="ResolvedTableAndColumnInfo-toc" href="#ResolvedTableAndColumnInfo">ResolvedTableAndColumnInfo</a>
+    <a id="ResolvedUnnestItem-toc" href="#ResolvedUnnestItem">ResolvedUnnestItem</a>
+    <a id="ResolvedUnpivotArg-toc" href="#ResolvedUnpivotArg">ResolvedUnpivotArg</a>
+    <a id="ResolvedUpdateFieldItem-toc" href="#ResolvedUpdateFieldItem">ResolvedUpdateFieldItem</a>
+    <a id="ResolvedUpdateItem-toc" href="#ResolvedUpdateItem">ResolvedUpdateItem</a>
+    <a id="ResolvedUpdateItemElement-toc" href="#ResolvedUpdateItemElement">ResolvedUpdateItemElement</a>
+    <a id="ResolvedWindowFrame-toc" href="#ResolvedWindowFrame">ResolvedWindowFrame</a>
+    <a id="ResolvedWindowFrameExpr-toc" href="#ResolvedWindowFrameExpr">ResolvedWindowFrameExpr</a>
+    <a id="ResolvedWindowOrdering-toc" href="#ResolvedWindowOrdering">ResolvedWindowOrdering</a>
+    <a id="ResolvedWindowPartitioning-toc" href="#ResolvedWindowPartitioning">ResolvedWindowPartitioning</a>
+    <a id="ResolvedWithEntry-toc" href="#ResolvedWithEntry">ResolvedWithEntry</a>
+    <a id="ResolvedWithPartitionColumns-toc" href="#ResolvedWithPartitionColumns">ResolvedWithPartitionColumns</a>
+    <a id="ResolvedWithinBoundExpr-toc" href="#ResolvedWithinBoundExpr">ResolvedWithinBoundExpr</a>
+    <a id="ResolvedWithinBounds-toc" href="#ResolvedWithinBounds">ResolvedWithinBounds</a>
+  <a id="ResolvedExpr-toc" href="#ResolvedExpr">ResolvedExpr</a>
+    <a id="ResolvedArgumentRef-toc" href="#ResolvedArgumentRef">ResolvedArgumentRef</a>
+    <a id="ResolvedArrayAggregate-toc" href="#ResolvedArrayAggregate">ResolvedArrayAggregate</a>
+    <a id="ResolvedCast-toc" href="#ResolvedCast">ResolvedCast</a>
+    <a id="ResolvedCatalogColumnRef-toc" href="#ResolvedCatalogColumnRef">ResolvedCatalogColumnRef</a>
+    <a id="ResolvedColumnRef-toc" href="#ResolvedColumnRef">ResolvedColumnRef</a>
+    <a id="ResolvedConstant-toc" href="#ResolvedConstant">ResolvedConstant</a>
+    <a id="ResolvedDMLDefault-toc" href="#ResolvedDMLDefault">ResolvedDMLDefault</a>
+    <a id="ResolvedExpressionColumn-toc" href="#ResolvedExpressionColumn">ResolvedExpressionColumn</a>
+    <a id="ResolvedFilterField-toc" href="#ResolvedFilterField">ResolvedFilterField</a>
+    <a id="ResolvedFlatten-toc" href="#ResolvedFlatten">ResolvedFlatten</a>
+    <a id="ResolvedFlattenedArg-toc" href="#ResolvedFlattenedArg">ResolvedFlattenedArg</a>
+    <a id="ResolvedFunctionCallBase-toc" href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>
+      <a id="ResolvedFunctionCall-toc" href="#ResolvedFunctionCall">ResolvedFunctionCall</a>
+      <a id="ResolvedNonScalarFunctionCallBase-toc" href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>
+        <a id="ResolvedAggregateFunctionCall-toc" href="#ResolvedAggregateFunctionCall">ResolvedAggregateFunctionCall</a>
+        <a id="ResolvedAnalyticFunctionCall-toc" href="#ResolvedAnalyticFunctionCall">ResolvedAnalyticFunctionCall</a>
+    <a id="ResolvedGetJsonField-toc" href="#ResolvedGetJsonField">ResolvedGetJsonField</a>
+    <a id="ResolvedGetProtoField-toc" href="#ResolvedGetProtoField">ResolvedGetProtoField</a>
+    <a id="ResolvedGetProtoOneof-toc" href="#ResolvedGetProtoOneof">ResolvedGetProtoOneof</a>
+    <a id="ResolvedGetRowField-toc" href="#ResolvedGetRowField">ResolvedGetRowField</a>
+    <a id="ResolvedGetStructField-toc" href="#ResolvedGetStructField">ResolvedGetStructField</a>
+    <a id="ResolvedGraphGetElementProperty-toc" href="#ResolvedGraphGetElementProperty">ResolvedGraphGetElementProperty</a>
+    <a id="ResolvedGraphInsertElement-toc" href="#ResolvedGraphInsertElement">ResolvedGraphInsertElement</a>
+    <a id="ResolvedGraphIsLabeledPredicate-toc" href="#ResolvedGraphIsLabeledPredicate">ResolvedGraphIsLabeledPredicate</a>
+    <a id="ResolvedGraphMakeElement-toc" href="#ResolvedGraphMakeElement">ResolvedGraphMakeElement</a>
+    <a id="ResolvedLiteral-toc" href="#ResolvedLiteral">ResolvedLiteral</a>
+    <a id="ResolvedMakeProto-toc" href="#ResolvedMakeProto">ResolvedMakeProto</a>
+    <a id="ResolvedMakeStruct-toc" href="#ResolvedMakeStruct">ResolvedMakeStruct</a>
+    <a id="ResolvedParameter-toc" href="#ResolvedParameter">ResolvedParameter</a>
+    <a id="ResolvedReplaceField-toc" href="#ResolvedReplaceField">ResolvedReplaceField</a>
+    <a id="ResolvedSubqueryExpr-toc" href="#ResolvedSubqueryExpr">ResolvedSubqueryExpr</a>
+    <a id="ResolvedSystemVariable-toc" href="#ResolvedSystemVariable">ResolvedSystemVariable</a>
+    <a id="ResolvedUpdateConstructor-toc" href="#ResolvedUpdateConstructor">ResolvedUpdateConstructor</a>
+    <a id="ResolvedWithExpr-toc" href="#ResolvedWithExpr">ResolvedWithExpr</a>
+  <a id="ResolvedScan-toc" href="#ResolvedScan">ResolvedScan</a>
+    <a id="ResolvedAggregateScanBase-toc" href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>
+      <a id="ResolvedAggregateScan-toc" href="#ResolvedAggregateScan">ResolvedAggregateScan</a>
+      <a id="ResolvedAggregationThresholdAggregateScan-toc" href="#ResolvedAggregationThresholdAggregateScan">ResolvedAggregationThresholdAggregateScan</a>
+      <a id="ResolvedAnonymizedAggregateScan-toc" href="#ResolvedAnonymizedAggregateScan">ResolvedAnonymizedAggregateScan</a>
+      <a id="ResolvedDifferentialPrivacyAggregateScan-toc" href="#ResolvedDifferentialPrivacyAggregateScan">ResolvedDifferentialPrivacyAggregateScan</a>
+    <a id="ResolvedAlignScan-toc" href="#ResolvedAlignScan">ResolvedAlignScan</a>
+    <a id="ResolvedAnalyticScan-toc" href="#ResolvedAnalyticScan">ResolvedAnalyticScan</a>
+    <a id="ResolvedArrayScan-toc" href="#ResolvedArrayScan">ResolvedArrayScan</a>
+    <a id="ResolvedAssertScan-toc" href="#ResolvedAssertScan">ResolvedAssertScan</a>
+    <a id="ResolvedBarrierScan-toc" href="#ResolvedBarrierScan">ResolvedBarrierScan</a>
+    <a id="ResolvedDescribeScan-toc" href="#ResolvedDescribeScan">ResolvedDescribeScan</a>
+    <a id="ResolvedExecuteAsRoleScan-toc" href="#ResolvedExecuteAsRoleScan">ResolvedExecuteAsRoleScan</a>
+    <a id="ResolvedFilterScan-toc" href="#ResolvedFilterScan">ResolvedFilterScan</a>
+    <a id="ResolvedFinishScan-toc" href="#ResolvedFinishScan">ResolvedFinishScan</a>
+    <a id="ResolvedGraphCallScan-toc" href="#ResolvedGraphCallScan">ResolvedGraphCallScan</a>
+    <a id="ResolvedGraphInsertScan-toc" href="#ResolvedGraphInsertScan">ResolvedGraphInsertScan</a>
+    <a id="ResolvedGraphPathScanBase-toc" href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>
+      <a id="ResolvedGraphElementScan-toc" href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a>
+        <a id="ResolvedGraphEdgeScan-toc" href="#ResolvedGraphEdgeScan">ResolvedGraphEdgeScan</a>
+        <a id="ResolvedGraphNodeScan-toc" href="#ResolvedGraphNodeScan">ResolvedGraphNodeScan</a>
+      <a id="ResolvedGraphPathScan-toc" href="#ResolvedGraphPathScan">ResolvedGraphPathScan</a>
+    <a id="ResolvedGraphRefScan-toc" href="#ResolvedGraphRefScan">ResolvedGraphRefScan</a>
+    <a id="ResolvedGraphScanBase-toc" href="#ResolvedGraphScanBase">ResolvedGraphScanBase</a>
+      <a id="ResolvedGraphLinearScan-toc" href="#ResolvedGraphLinearScan">ResolvedGraphLinearScan</a>
+      <a id="ResolvedGraphScan-toc" href="#ResolvedGraphScan">ResolvedGraphScan</a>
+    <a id="ResolvedGraphTableScan-toc" href="#ResolvedGraphTableScan">ResolvedGraphTableScan</a>
+    <a id="ResolvedGroupRowsScan-toc" href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a>
+    <a id="ResolvedJoinScan-toc" href="#ResolvedJoinScan">ResolvedJoinScan</a>
+    <a id="ResolvedLimitOffsetScan-toc" href="#ResolvedLimitOffsetScan">ResolvedLimitOffsetScan</a>
+    <a id="ResolvedLogScan-toc" href="#ResolvedLogScan">ResolvedLogScan</a>
+    <a id="ResolvedMatchRecognizeScan-toc" href="#ResolvedMatchRecognizeScan">ResolvedMatchRecognizeScan</a>
+    <a id="ResolvedOrderByScan-toc" href="#ResolvedOrderByScan">ResolvedOrderByScan</a>
+    <a id="ResolvedPipeCreateTableScan-toc" href="#ResolvedPipeCreateTableScan">ResolvedPipeCreateTableScan</a>
+    <a id="ResolvedPipeExportDataScan-toc" href="#ResolvedPipeExportDataScan">ResolvedPipeExportDataScan</a>
+    <a id="ResolvedPipeForkScan-toc" href="#ResolvedPipeForkScan">ResolvedPipeForkScan</a>
+    <a id="ResolvedPipeIfScan-toc" href="#ResolvedPipeIfScan">ResolvedPipeIfScan</a>
+    <a id="ResolvedPipeInsertScan-toc" href="#ResolvedPipeInsertScan">ResolvedPipeInsertScan</a>
+    <a id="ResolvedPipeTeeScan-toc" href="#ResolvedPipeTeeScan">ResolvedPipeTeeScan</a>
+    <a id="ResolvedPivotScan-toc" href="#ResolvedPivotScan">ResolvedPivotScan</a>
+    <a id="ResolvedProjectScan-toc" href="#ResolvedProjectScan">ResolvedProjectScan</a>
+    <a id="ResolvedRecursiveRefScan-toc" href="#ResolvedRecursiveRefScan">ResolvedRecursiveRefScan</a>
+    <a id="ResolvedRecursiveScan-toc" href="#ResolvedRecursiveScan">ResolvedRecursiveScan</a>
+    <a id="ResolvedRelationArgumentScan-toc" href="#ResolvedRelationArgumentScan">ResolvedRelationArgumentScan</a>
+    <a id="ResolvedSampleScan-toc" href="#ResolvedSampleScan">ResolvedSampleScan</a>
+    <a id="ResolvedSetOperationScan-toc" href="#ResolvedSetOperationScan">ResolvedSetOperationScan</a>
+    <a id="ResolvedSingleRowScan-toc" href="#ResolvedSingleRowScan">ResolvedSingleRowScan</a>
+    <a id="ResolvedStaticDescribeScan-toc" href="#ResolvedStaticDescribeScan">ResolvedStaticDescribeScan</a>
+    <a id="ResolvedSubpipelineInputScan-toc" href="#ResolvedSubpipelineInputScan">ResolvedSubpipelineInputScan</a>
+    <a id="ResolvedTVFScan-toc" href="#ResolvedTVFScan">ResolvedTVFScan</a>
+    <a id="ResolvedTableScan-toc" href="#ResolvedTableScan">ResolvedTableScan</a>
+    <a id="ResolvedUnpivotScan-toc" href="#ResolvedUnpivotScan">ResolvedUnpivotScan</a>
+    <a id="ResolvedUnsetArgumentScan-toc" href="#ResolvedUnsetArgumentScan">ResolvedUnsetArgumentScan</a>
+    <a id="ResolvedWithRefScan-toc" href="#ResolvedWithRefScan">ResolvedWithRefScan</a>
+    <a id="ResolvedWithScan-toc" href="#ResolvedWithScan">ResolvedWithScan</a>
+  <a id="ResolvedStatement-toc" href="#ResolvedStatement">ResolvedStatement</a>
+    <a id="ResolvedAbortBatchStmt-toc" href="#ResolvedAbortBatchStmt">ResolvedAbortBatchStmt</a>
+    <a id="ResolvedAlterObjectStmt-toc" href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>
+      <a id="ResolvedAlterAllRowAccessPoliciesStmt-toc" href="#ResolvedAlterAllRowAccessPoliciesStmt">ResolvedAlterAllRowAccessPoliciesStmt</a>
+      <a id="ResolvedAlterApproxViewStmt-toc" href="#ResolvedAlterApproxViewStmt">ResolvedAlterApproxViewStmt</a>
+      <a id="ResolvedAlterConnectionStmt-toc" href="#ResolvedAlterConnectionStmt">ResolvedAlterConnectionStmt</a>
+      <a id="ResolvedAlterDatabaseStmt-toc" href="#ResolvedAlterDatabaseStmt">ResolvedAlterDatabaseStmt</a>
+      <a id="ResolvedAlterEntityStmt-toc" href="#ResolvedAlterEntityStmt">ResolvedAlterEntityStmt</a>
+      <a id="ResolvedAlterExternalSchemaStmt-toc" href="#ResolvedAlterExternalSchemaStmt">ResolvedAlterExternalSchemaStmt</a>
+      <a id="ResolvedAlterIndexStmt-toc" href="#ResolvedAlterIndexStmt">ResolvedAlterIndexStmt</a>
+      <a id="ResolvedAlterMaterializedViewStmt-toc" href="#ResolvedAlterMaterializedViewStmt">ResolvedAlterMaterializedViewStmt</a>
+      <a id="ResolvedAlterModelStmt-toc" href="#ResolvedAlterModelStmt">ResolvedAlterModelStmt</a>
+      <a id="ResolvedAlterPrivilegeRestrictionStmt-toc" href="#ResolvedAlterPrivilegeRestrictionStmt">ResolvedAlterPrivilegeRestrictionStmt</a>
+      <a id="ResolvedAlterRowAccessPolicyStmt-toc" href="#ResolvedAlterRowAccessPolicyStmt">ResolvedAlterRowAccessPolicyStmt</a>
+      <a id="ResolvedAlterSchemaStmt-toc" href="#ResolvedAlterSchemaStmt">ResolvedAlterSchemaStmt</a>
+      <a id="ResolvedAlterSequenceStmt-toc" href="#ResolvedAlterSequenceStmt">ResolvedAlterSequenceStmt</a>
+      <a id="ResolvedAlterTableStmt-toc" href="#ResolvedAlterTableStmt">ResolvedAlterTableStmt</a>
+      <a id="ResolvedAlterViewStmt-toc" href="#ResolvedAlterViewStmt">ResolvedAlterViewStmt</a>
+    <a id="ResolvedAlterTableSetOptionsStmt-toc" href="#ResolvedAlterTableSetOptionsStmt">ResolvedAlterTableSetOptionsStmt</a>
+    <a id="ResolvedAnalyzeStmt-toc" href="#ResolvedAnalyzeStmt">ResolvedAnalyzeStmt</a>
+    <a id="ResolvedAssertStmt-toc" href="#ResolvedAssertStmt">ResolvedAssertStmt</a>
+    <a id="ResolvedAssignmentStmt-toc" href="#ResolvedAssignmentStmt">ResolvedAssignmentStmt</a>
+    <a id="ResolvedAuxLoadDataStmt-toc" href="#ResolvedAuxLoadDataStmt">ResolvedAuxLoadDataStmt</a>
+    <a id="ResolvedBeginStmt-toc" href="#ResolvedBeginStmt">ResolvedBeginStmt</a>
+    <a id="ResolvedCallStmt-toc" href="#ResolvedCallStmt">ResolvedCallStmt</a>
+    <a id="ResolvedCloneDataStmt-toc" href="#ResolvedCloneDataStmt">ResolvedCloneDataStmt</a>
+    <a id="ResolvedCommitStmt-toc" href="#ResolvedCommitStmt">ResolvedCommitStmt</a>
+    <a id="ResolvedCreateDatabaseStmt-toc" href="#ResolvedCreateDatabaseStmt">ResolvedCreateDatabaseStmt</a>
+    <a id="ResolvedCreateRowAccessPolicyStmt-toc" href="#ResolvedCreateRowAccessPolicyStmt">ResolvedCreateRowAccessPolicyStmt</a>
+    <a id="ResolvedCreateStatement-toc" href="#ResolvedCreateStatement">ResolvedCreateStatement</a>
+      <a id="ResolvedCreateConnectionStmt-toc" href="#ResolvedCreateConnectionStmt">ResolvedCreateConnectionStmt</a>
+      <a id="ResolvedCreateConstantStmt-toc" href="#ResolvedCreateConstantStmt">ResolvedCreateConstantStmt</a>
+      <a id="ResolvedCreateEntityStmt-toc" href="#ResolvedCreateEntityStmt">ResolvedCreateEntityStmt</a>
+      <a id="ResolvedCreateFunctionStmt-toc" href="#ResolvedCreateFunctionStmt">ResolvedCreateFunctionStmt</a>
+      <a id="ResolvedCreateIndexStmt-toc" href="#ResolvedCreateIndexStmt">ResolvedCreateIndexStmt</a>
+      <a id="ResolvedCreateModelStmt-toc" href="#ResolvedCreateModelStmt">ResolvedCreateModelStmt</a>
+      <a id="ResolvedCreatePrivilegeRestrictionStmt-toc" href="#ResolvedCreatePrivilegeRestrictionStmt">ResolvedCreatePrivilegeRestrictionStmt</a>
+      <a id="ResolvedCreateProcedureStmt-toc" href="#ResolvedCreateProcedureStmt">ResolvedCreateProcedureStmt</a>
+      <a id="ResolvedCreatePropertyGraphStmt-toc" href="#ResolvedCreatePropertyGraphStmt">ResolvedCreatePropertyGraphStmt</a>
+      <a id="ResolvedCreateSchemaStmtBase-toc" href="#ResolvedCreateSchemaStmtBase">ResolvedCreateSchemaStmtBase</a>
+        <a id="ResolvedCreateExternalSchemaStmt-toc" href="#ResolvedCreateExternalSchemaStmt">ResolvedCreateExternalSchemaStmt</a>
+        <a id="ResolvedCreateSchemaStmt-toc" href="#ResolvedCreateSchemaStmt">ResolvedCreateSchemaStmt</a>
+      <a id="ResolvedCreateSequenceStmt-toc" href="#ResolvedCreateSequenceStmt">ResolvedCreateSequenceStmt</a>
+      <a id="ResolvedCreateSnapshotTableStmt-toc" href="#ResolvedCreateSnapshotTableStmt">ResolvedCreateSnapshotTableStmt</a>
+      <a id="ResolvedCreateTableFunctionStmt-toc" href="#ResolvedCreateTableFunctionStmt">ResolvedCreateTableFunctionStmt</a>
+      <a id="ResolvedCreateTableStmtBase-toc" href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>
+        <a id="ResolvedCreateExternalTableStmt-toc" href="#ResolvedCreateExternalTableStmt">ResolvedCreateExternalTableStmt</a>
+        <a id="ResolvedCreateLiveTableStmt-toc" href="#ResolvedCreateLiveTableStmt">ResolvedCreateLiveTableStmt</a>
+        <a id="ResolvedCreateTableAsSelectStmt-toc" href="#ResolvedCreateTableAsSelectStmt">ResolvedCreateTableAsSelectStmt</a>
+        <a id="ResolvedCreateTableStmt-toc" href="#ResolvedCreateTableStmt">ResolvedCreateTableStmt</a>
+      <a id="ResolvedCreateViewBase-toc" href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a>
+        <a id="ResolvedCreateApproxViewStmt-toc" href="#ResolvedCreateApproxViewStmt">ResolvedCreateApproxViewStmt</a>
+        <a id="ResolvedCreateMaterializedViewStmt-toc" href="#ResolvedCreateMaterializedViewStmt">ResolvedCreateMaterializedViewStmt</a>
+        <a id="ResolvedCreateViewStmt-toc" href="#ResolvedCreateViewStmt">ResolvedCreateViewStmt</a>
+    <a id="ResolvedCreateWithEntryStmt-toc" href="#ResolvedCreateWithEntryStmt">ResolvedCreateWithEntryStmt</a>
+    <a id="ResolvedDefineTableStmt-toc" href="#ResolvedDefineTableStmt">ResolvedDefineTableStmt</a>
+    <a id="ResolvedDeleteStmt-toc" href="#ResolvedDeleteStmt">ResolvedDeleteStmt</a>
+    <a id="ResolvedDescribeStmt-toc" href="#ResolvedDescribeStmt">ResolvedDescribeStmt</a>
+    <a id="ResolvedDropFunctionStmt-toc" href="#ResolvedDropFunctionStmt">ResolvedDropFunctionStmt</a>
+    <a id="ResolvedDropIndexStmt-toc" href="#ResolvedDropIndexStmt">ResolvedDropIndexStmt</a>
+    <a id="ResolvedDropMaterializedViewStmt-toc" href="#ResolvedDropMaterializedViewStmt">ResolvedDropMaterializedViewStmt</a>
+    <a id="ResolvedDropPrivilegeRestrictionStmt-toc" href="#ResolvedDropPrivilegeRestrictionStmt">ResolvedDropPrivilegeRestrictionStmt</a>
+    <a id="ResolvedDropRowAccessPolicyStmt-toc" href="#ResolvedDropRowAccessPolicyStmt">ResolvedDropRowAccessPolicyStmt</a>
+    <a id="ResolvedDropSnapshotTableStmt-toc" href="#ResolvedDropSnapshotTableStmt">ResolvedDropSnapshotTableStmt</a>
+    <a id="ResolvedDropStmt-toc" href="#ResolvedDropStmt">ResolvedDropStmt</a>
+    <a id="ResolvedDropTableFunctionStmt-toc" href="#ResolvedDropTableFunctionStmt">ResolvedDropTableFunctionStmt</a>
+    <a id="ResolvedExecuteImmediateStmt-toc" href="#ResolvedExecuteImmediateStmt">ResolvedExecuteImmediateStmt</a>
+    <a id="ResolvedExplainStmt-toc" href="#ResolvedExplainStmt">ResolvedExplainStmt</a>
+    <a id="ResolvedExportDataStmt-toc" href="#ResolvedExportDataStmt">ResolvedExportDataStmt</a>
+    <a id="ResolvedExportMetadataStmt-toc" href="#ResolvedExportMetadataStmt">ResolvedExportMetadataStmt</a>
+    <a id="ResolvedExportModelStmt-toc" href="#ResolvedExportModelStmt">ResolvedExportModelStmt</a>
+    <a id="ResolvedGeneralizedQueryStmt-toc" href="#ResolvedGeneralizedQueryStmt">ResolvedGeneralizedQueryStmt</a>
+    <a id="ResolvedGrantOrRevokeStmt-toc" href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a>
+      <a id="ResolvedGrantStmt-toc" href="#ResolvedGrantStmt">ResolvedGrantStmt</a>
+      <a id="ResolvedRevokeStmt-toc" href="#ResolvedRevokeStmt">ResolvedRevokeStmt</a>
+    <a id="ResolvedImportStmt-toc" href="#ResolvedImportStmt">ResolvedImportStmt</a>
+    <a id="ResolvedInsertStmt-toc" href="#ResolvedInsertStmt">ResolvedInsertStmt</a>
+    <a id="ResolvedMergeStmt-toc" href="#ResolvedMergeStmt">ResolvedMergeStmt</a>
+    <a id="ResolvedModuleStmt-toc" href="#ResolvedModuleStmt">ResolvedModuleStmt</a>
+    <a id="ResolvedMultiStmt-toc" href="#ResolvedMultiStmt">ResolvedMultiStmt</a>
+    <a id="ResolvedQueryStmt-toc" href="#ResolvedQueryStmt">ResolvedQueryStmt</a>
+    <a id="ResolvedRenameStmt-toc" href="#ResolvedRenameStmt">ResolvedRenameStmt</a>
+    <a id="ResolvedRollbackStmt-toc" href="#ResolvedRollbackStmt">ResolvedRollbackStmt</a>
+    <a id="ResolvedRunBatchStmt-toc" href="#ResolvedRunBatchStmt">ResolvedRunBatchStmt</a>
+    <a id="ResolvedSetTransactionStmt-toc" href="#ResolvedSetTransactionStmt">ResolvedSetTransactionStmt</a>
+    <a id="ResolvedShowStmt-toc" href="#ResolvedShowStmt">ResolvedShowStmt</a>
+    <a id="ResolvedStartBatchStmt-toc" href="#ResolvedStartBatchStmt">ResolvedStartBatchStmt</a>
+    <a id="ResolvedStatementWithPipeOperatorsStmt-toc" href="#ResolvedStatementWithPipeOperatorsStmt">ResolvedStatementWithPipeOperatorsStmt</a>
+    <a id="ResolvedSubpipelineStmt-toc" href="#ResolvedSubpipelineStmt">ResolvedSubpipelineStmt</a>
+    <a id="ResolvedTerminalQueryStmt-toc" href="#ResolvedTerminalQueryStmt">ResolvedTerminalQueryStmt</a>
+    <a id="ResolvedTruncateStmt-toc" href="#ResolvedTruncateStmt">ResolvedTruncateStmt</a>
+    <a id="ResolvedUndropStmt-toc" href="#ResolvedUndropStmt">ResolvedUndropStmt</a>
+    <a id="ResolvedUpdateStmt-toc" href="#ResolvedUpdateStmt">ResolvedUpdateStmt</a>
 </code></pre></p>
 
 ## Node Details
@@ -366,6 +376,9 @@ the base class.
 ### ResolvedArgument
 <a id="ResolvedArgument"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; ResolvedArgument
+ &nbsp;(<a href="#ResolvedArgument-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Argument nodes are not self-contained nodes in the tree.  They exist
 // only to describe parameters to another node (e.g. columns in an OrderBy).
 // This node is here for organizational purposes only, to cluster these
@@ -376,6 +389,9 @@ class ResolvedArgument : public <a href="#ResolvedNode">ResolvedNode</a> {
 
 ### ResolvedExpr
 <a id="ResolvedExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; ResolvedExpr
+ &nbsp;(<a href="#ResolvedExpr-toc">tree</a>)
 
 <p><pre><code class="lang-c++">class ResolvedExpr : public <a href="#ResolvedNode">ResolvedNode</a> {
   bool IsExpression() const final { return true; }
@@ -392,6 +408,9 @@ class ResolvedArgument : public <a href="#ResolvedNode">ResolvedNode</a> {
 
 ### ResolvedLiteral
 <a id="ResolvedLiteral"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedLiteral
+ &nbsp;(<a href="#ResolvedLiteral-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Any literal value, including NULL literals.
 // There is a special-cased constructor here that gets the type from the
@@ -425,6 +444,9 @@ class ResolvedLiteral : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedParameter
 <a id="ResolvedParameter"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedParameter
+ &nbsp;(<a href="#ResolvedParameter-toc">tree</a>)
+
 <p><pre><code class="lang-c++">class ResolvedParameter : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_PARAMETER;
 
@@ -451,6 +473,9 @@ class ResolvedLiteral : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedExpressionColumn
 <a id="ResolvedExpressionColumn"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedExpressionColumn
+ &nbsp;(<a href="#ResolvedExpressionColumn-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a column when analyzing a standalone expression.
 // This is only used when the analyzer was called using AnalyzeExpression.
 // Expression column names and types come from
@@ -465,6 +490,9 @@ class ResolvedExpressionColumn : public <a href="#ResolvedExpr">ResolvedExpr</a>
 
 ### ResolvedCatalogColumnRef
 <a id="ResolvedCatalogColumnRef"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedCatalogColumnRef
+ &nbsp;(<a href="#ResolvedCatalogColumnRef-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An expression that either is referencing a Column from the Catalog, or
 // represents a graph property.
@@ -489,6 +517,9 @@ class ResolvedCatalogColumnRef : public <a href="#ResolvedExpr">ResolvedExpr</a>
 ### ResolvedColumnRef
 <a id="ResolvedColumnRef"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedColumnRef
+ &nbsp;(<a href="#ResolvedColumnRef-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An expression referencing the value of some column visible in the
 // current Scan node.
 //
@@ -512,6 +543,9 @@ class ResolvedColumnRef : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedGroupingSetMultiColumn
 <a id="ResolvedGroupingSetMultiColumn"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGroupingSetMultiColumn
+ &nbsp;(<a href="#ResolvedGroupingSetMultiColumn-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A list of <a href="#ResolvedColumnRef">ResolvedColumnRef</a> expression references that will be batched
 // together in rollup/cube when being expanded to grouping sets. For
 // example, ROLLUP((a, b), c) will be expanded to 3 grouping sets [(a, b, c),
@@ -532,6 +566,9 @@ class ResolvedGroupingSetMultiColumn : public <a href="#ResolvedArgument">Resolv
 ### ResolvedConstant
 <a id="ResolvedConstant"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedConstant
+ &nbsp;(<a href="#ResolvedConstant-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A reference to a named constant.</font>
 class ResolvedConstant : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_CONSTANT;
@@ -543,6 +580,9 @@ class ResolvedConstant : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedSystemVariable
 <a id="ResolvedSystemVariable"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedSystemVariable
+ &nbsp;(<a href="#ResolvedSystemVariable-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A reference to a system variable.</font>
 class ResolvedSystemVariable : public <a href="#ResolvedExpr">ResolvedExpr</a> {
@@ -557,6 +597,9 @@ class ResolvedSystemVariable : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedInlineLambda
 <a id="ResolvedInlineLambda"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedInlineLambda
+ &nbsp;(<a href="#ResolvedInlineLambda-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A lambda expression, used inline as a function argument.
 // This represents both the definition of the lambda and the resolution of
@@ -599,6 +642,9 @@ class ResolvedInlineLambda : public <a href="#ResolvedArgument">ResolvedArgument
 ### ResolvedSequence
 <a id="ResolvedSequence"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedSequence
+ &nbsp;(<a href="#ResolvedSequence-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a sequence as a function argument</font>
 class ResolvedSequence : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_SEQUENCE;
@@ -609,6 +655,9 @@ class ResolvedSequence : public <a href="#ResolvedArgument">ResolvedArgument</a>
 
 ### ResolvedFilterFieldArg
 <a id="ResolvedFilterFieldArg"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedFilterFieldArg
+ &nbsp;(<a href="#ResolvedFilterFieldArg-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An argument to the FILTER_FIELDS() function which specifies a sign to show
 // inclusion/exclusion status and a field path to include or exclude.</font>
@@ -631,6 +680,9 @@ class ResolvedFilterFieldArg : public <a href="#ResolvedArgument">ResolvedArgume
 
 ### ResolvedFilterField
 <a id="ResolvedFilterField"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedFilterField
+ &nbsp;(<a href="#ResolvedFilterField-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a call to the FILTER_FIELDS() function. This function can be
 // used to modify a proto, prune fields and output the resulting proto. The
@@ -682,6 +734,9 @@ class ResolvedFilterField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedFunctionCallBase
 <a id="ResolvedFunctionCallBase"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedFunctionCallBase
+ &nbsp;(<a href="#ResolvedFunctionCallBase-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common base class for scalar and aggregate function calls.
 //
@@ -745,6 +800,9 @@ class ResolvedFunctionCallBase : public <a href="#ResolvedExpr">ResolvedExpr</a>
 ### ResolvedFunctionCall
 <a id="ResolvedFunctionCall"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>  &rsaquo; ResolvedFunctionCall
+ &nbsp;(<a href="#ResolvedFunctionCall-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A regular function call.  The signature will always have mode SCALAR.
 // Most scalar expressions show up as FunctionCalls using builtin signatures.</font>
 class ResolvedFunctionCall : public <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a> {
@@ -768,6 +826,9 @@ class ResolvedFunctionCall : public <a href="#ResolvedFunctionCallBase">Resolved
 
 ### ResolvedNonScalarFunctionCallBase
 <a id="ResolvedNonScalarFunctionCallBase"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>  &rsaquo; ResolvedNonScalarFunctionCallBase
+ &nbsp;(<a href="#ResolvedNonScalarFunctionCallBase-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common base class for analytic and aggregate function calls.
 //
@@ -797,6 +858,9 @@ class ResolvedNonScalarFunctionCallBase : public <a href="#ResolvedFunctionCallB
 
 ### ResolvedAggregateFunctionCall
 <a id="ResolvedAggregateFunctionCall"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>  &rsaquo; <a href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>  &rsaquo; ResolvedAggregateFunctionCall
+ &nbsp;(<a href="#ResolvedAggregateFunctionCall-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An aggregate function call.  The signature always has mode AGGREGATE.
 //
@@ -888,6 +952,9 @@ class ResolvedAggregateFunctionCall : public <a href="#ResolvedNonScalarFunction
 ### ResolvedAnalyticFunctionCall
 <a id="ResolvedAnalyticFunctionCall"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; <a href="#ResolvedFunctionCallBase">ResolvedFunctionCallBase</a>  &rsaquo; <a href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>  &rsaquo; ResolvedAnalyticFunctionCall
+ &nbsp;(<a href="#ResolvedAnalyticFunctionCall-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An analytic function call. The mode of the function is either AGGREGATE
 // or ANALYTIC. This node only ever shows up as a function call in a
 // <a href="#ResolvedAnalyticFunctionGroup">ResolvedAnalyticFunctionGroup</a>::analytic_function_list. Its associated
@@ -904,6 +971,9 @@ class ResolvedAnalyticFunctionCall : public <a href="#ResolvedNonScalarFunctionC
 ### ResolvedExtendedCastElement
 <a id="ResolvedExtendedCastElement"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedExtendedCastElement
+ &nbsp;(<a href="#ResolvedExtendedCastElement-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Describes a leaf extended cast of <a href="#ResolvedExtendedCast">ResolvedExtendedCast</a>. See the comment
 // for element_list field of <a href="#ResolvedExtendedCast">ResolvedExtendedCast</a> for more details.</font>
 class ResolvedExtendedCastElement : public <a href="#ResolvedArgument">ResolvedArgument</a> {
@@ -919,6 +989,9 @@ class ResolvedExtendedCastElement : public <a href="#ResolvedArgument">ResolvedA
 
 ### ResolvedExtendedCast
 <a id="ResolvedExtendedCast"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedExtendedCast
+ &nbsp;(<a href="#ResolvedExtendedCast-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Describes overall cast operation between two values where at least one
 // value&#39;s type is or contains an extended type (e.g. on a struct field).</font>
@@ -939,6 +1012,9 @@ class ResolvedExtendedCast : public <a href="#ResolvedArgument">ResolvedArgument
 
 ### ResolvedCast
 <a id="ResolvedCast"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedCast
+ &nbsp;(<a href="#ResolvedCast-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A cast expression, casting the result of an input expression to the
 // target Type.
@@ -1015,6 +1091,9 @@ class ResolvedCast : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedMakeStruct
 <a id="ResolvedMakeStruct"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedMakeStruct
+ &nbsp;(<a href="#ResolvedMakeStruct-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Construct a struct value.  &lt;type&gt; is always a StructType.
 // &lt;field_list&gt; matches 1:1 with the fields in &lt;type&gt; position-wise.
 // Each field&#39;s type will match the corresponding field in &lt;type&gt;.</font>
@@ -1030,6 +1109,9 @@ class ResolvedMakeStruct : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedMakeProto
 <a id="ResolvedMakeProto"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedMakeProto
+ &nbsp;(<a href="#ResolvedMakeProto-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Construct a proto value.  &lt;type&gt; is always a ProtoType.
 // &lt;field_list&gt; is a vector of (FieldDescriptor, expr) pairs to write.
 // &lt;field_list&gt; will contain all required fields, and no duplicate fields.</font>
@@ -1044,6 +1126,9 @@ class ResolvedMakeProto : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedMakeProtoField
 <a id="ResolvedMakeProtoField"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMakeProtoField
+ &nbsp;(<a href="#ResolvedMakeProtoField-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// One field assignment in a <a href="#ResolvedMakeProto">ResolvedMakeProto</a> expression.
 // The type of expr will match with the googlesql type of the proto field.
@@ -1070,6 +1155,9 @@ class ResolvedMakeProtoField : public <a href="#ResolvedArgument">ResolvedArgume
 ### ResolvedGetStructField
 <a id="ResolvedGetStructField"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGetStructField
+ &nbsp;(<a href="#ResolvedGetStructField-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Get the field in position &lt;field_idx&gt; (0-based) from &lt;expr&gt;, which has a
 // STRUCT type.</font>
 class ResolvedGetStructField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
@@ -1088,6 +1176,9 @@ class ResolvedGetStructField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedGetProtoField
 <a id="ResolvedGetProtoField"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGetProtoField
+ &nbsp;(<a href="#ResolvedGetProtoField-toc">tree</a>)
 
 <p><pre><code class="lang-c++">class ResolvedGetProtoField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GET_PROTO_FIELD;
@@ -1158,6 +1249,9 @@ class ResolvedGetStructField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedGetJsonField
 <a id="ResolvedGetJsonField"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGetJsonField
+ &nbsp;(<a href="#ResolvedGetJsonField-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Get the field &lt;field_name&gt; from &lt;expr&gt;, which has a JSON type.</font>
 class ResolvedGetJsonField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GET_JSON_FIELD;
@@ -1170,6 +1264,9 @@ class ResolvedGetJsonField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedGetRowField
 <a id="ResolvedGetRowField"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGetRowField
+ &nbsp;(<a href="#ResolvedGetRowField-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Read a field from a ROW type.
 // `expr` must have ROW&lt;T&gt; type, and `column` must be a Column of that Table.
@@ -1185,6 +1282,9 @@ class ResolvedGetRowField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedFlatten
 <a id="ResolvedFlatten"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedFlatten
+ &nbsp;(<a href="#ResolvedFlatten-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Constructs an initial input ARRAY&lt;T&gt; from expr. For each get_field_list
 // expr, we evaluate the expression once with each array input element and
@@ -1207,15 +1307,48 @@ class ResolvedFlatten : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   // expression) generated.
   //
   // The &#39;get&#39; fields may either be a <a href="#ResolvedGet">ResolvedGet</a>*Field or an array
-  // offset function around a <a href="#ResolvedGet">ResolvedGet</a>*Field.</font>
+  // offset function around a <a href="#ResolvedGet">ResolvedGet</a>*Field.
+  //
+  // When there are nested ARRAYs, the input to every item in the list
+  // is always fully flattened, i.e., the input is flattened before
+  // each term along the path.</font>
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedExpr">ResolvedExpr</a>&gt;&gt;&amp; get_field_list() const;
   int get_field_list_size() const;
   const <a href="#ResolvedExpr">ResolvedExpr</a>* get_field_list(int i) const;
+
+<font color="brown">  // Specifies the flattening depth, which is defined as:
+  // - If there&#39;s a path specified (indicated by the `get_field_list`),
+  //   all layers before and along the path are fully flattened until
+  //   we reach the final field. The specified flattening depth starts
+  //   from that field.
+  // - If no path is specified, the flattening depth takes effect from
+  //   the top-level, i.e., as if the expr itself is the final field.
+  //
+  // RESTRICTIONS:
+  // * Its type is always INT64.
+  // * This is always an ANALYSIS_TIME_CONSTANT as it must be known at
+  //   compile-time.
+  // * It can never be negative.
+  // * The value must be less than or equal to the number of
+  //   *successive* ARRAY layers from the point where the flattening
+  //   depth starts (i.e., at the end of the path, if any).
+  //   For example:
+  //     - FLATTEN([1,2], depth=&gt;4) is an error (max is 1)
+  //     - FLATTEN([[1,2]], depth=&gt;2) is OK (max is 2)
+  //   Note: For repeated fields on protos, depth must be exactly 1.
+  // * NULL (whether as a literal, e.g. if specified explicitly), or
+  //   if omitted and not set at all, means &#34;unbounded&#34; flattening,
+  //   i.e., unwrap all successive ARRAY layers available at the end
+  //   of the path (or at the top-level if no path is specified).</font>
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* depth() const;
 };
 </code></pre></p>
 
 ### ResolvedFlattenedArg
 <a id="ResolvedFlattenedArg"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedFlattenedArg
+ &nbsp;(<a href="#ResolvedFlattenedArg-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Argument for a child of <a href="#ResolvedFlatten">ResolvedFlatten</a>. This is a placeholder to indicate
 // that it will be invoked once for each array element from <a href="#ResolvedFlatten">ResolvedFlatten</a>&#39;s
@@ -1228,6 +1361,9 @@ class ResolvedFlattenedArg : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedReplaceFieldItem
 <a id="ResolvedReplaceFieldItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedReplaceFieldItem
+ &nbsp;(<a href="#ResolvedReplaceFieldItem-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An argument to the REPLACE_FIELDS() function which specifies a field path
 // and a value that this field will be set to. The field path to be modified
@@ -1281,6 +1417,9 @@ class ResolvedReplaceFieldItem : public <a href="#ResolvedArgument">ResolvedArgu
 ### ResolvedReplaceField
 <a id="ResolvedReplaceField"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedReplaceField
+ &nbsp;(<a href="#ResolvedReplaceField-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a call to the REPLACE_FIELDS() function. This function
 // can be used to copy a proto or struct, modify a few fields and
 // output the resulting proto or struct. The SQL syntax for this
@@ -1311,6 +1450,9 @@ class ResolvedReplaceField : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedGetProtoOneof
 <a id="ResolvedGetProtoOneof"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGetProtoOneof
+ &nbsp;(<a href="#ResolvedGetProtoOneof-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Returns a string value indicating which field of &lt;oneof_descriptor&gt; is
 // set in the containing proto &lt;expr&gt;. If none of the fields are set, an
 // empty string is returned.
@@ -1330,6 +1472,9 @@ class ResolvedGetProtoOneof : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedSubqueryExpr
 <a id="ResolvedSubqueryExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedSubqueryExpr
+ &nbsp;(<a href="#ResolvedSubqueryExpr-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A subquery in an expression (not a FROM clause).  The subquery runs
 // in the context of a single input row and produces a single output value.
@@ -1412,6 +1557,18 @@ class ResolvedSubqueryExpr : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   static const SubqueryType LIKE_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::LIKE_ALL;
   static const SubqueryType NOT_LIKE_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::NOT_LIKE_ANY;
   static const SubqueryType NOT_LIKE_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::NOT_LIKE_ALL;
+  static const SubqueryType EQ_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::EQ_ANY;
+  static const SubqueryType EQ_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::EQ_ALL;
+  static const SubqueryType NE_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::NE_ANY;
+  static const SubqueryType NE_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::NE_ALL;
+  static const SubqueryType LT_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::LT_ANY;
+  static const SubqueryType LT_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::LT_ALL;
+  static const SubqueryType LE_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::LE_ANY;
+  static const SubqueryType LE_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::LE_ALL;
+  static const SubqueryType GT_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::GT_ANY;
+  static const SubqueryType GT_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::GT_ALL;
+  static const SubqueryType GE_ANY = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::GE_ANY;
+  static const SubqueryType GE_ALL = <a href="#ResolvedSubqueryExprEnum">ResolvedSubqueryExprEnums</a>::GE_ALL;
 
   <a href="#ResolvedSubqueryExpr">ResolvedSubqueryExpr</a>::SubqueryType subquery_type() const;
 
@@ -1419,13 +1576,16 @@ class ResolvedSubqueryExpr : public <a href="#ResolvedExpr">ResolvedExpr</a> {
   int parameter_list_size() const;
   const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* parameter_list(int i) const;
 
-<font color="brown">  // Field is only populated for subqueries of type IN or LIKE
-  // ANY|SOME|ALL.</font>
+<font color="brown">  // Field is populated for subqueries where the LHS expression is
+  // compared to elements produced by the RHS subquery (e.g. IN, LIKE,
+  // and ANY/ALL comparison operators).</font>
   const <a href="#ResolvedExpr">ResolvedExpr</a>* in_expr() const;
 
-<font color="brown">  // Field is only populated for subqueries of type IN to specify the
-  // operation collation to use to compare &lt;in_expr&gt; with the rows from
-  // &lt;subquery&gt;.</font>
+<font color="brown">  // Field is populated for subqueries where the LHS expression is
+  // compared to elements produced by the RHS subquery. This specifies
+  // the operation collation to use for the comparison. It is used
+  // for subquery types: IN, LIKE ANY|ALL, and ANY|ALL comparison
+  // operators (e.g. EQ_ANY, GE_ALL).</font>
   const <a href="#ResolvedCollation">ResolvedCollation</a>&amp; in_collation() const;
 
   const <a href="#ResolvedScan">ResolvedScan</a>* subquery() const;
@@ -1440,6 +1600,9 @@ class ResolvedSubqueryExpr : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedWithExpr
 <a id="ResolvedWithExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedWithExpr
+ &nbsp;(<a href="#ResolvedWithExpr-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedWithExpr">ResolvedWithExpr</a> introduces one or more columns in &lt;assignment_list&gt; that
 // can then be referenced inside &lt;expr&gt;. Each assigned expression is
@@ -1465,6 +1628,9 @@ class ResolvedWithExpr : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedScan
 <a id="ResolvedScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; ResolvedScan
+ &nbsp;(<a href="#ResolvedScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common superclass for all Scans, which are nodes that produce rows
 // (e.g. scans, joins, table subqueries).  A query&#39;s FROM clause is
@@ -1512,6 +1678,9 @@ class ResolvedScan : public <a href="#ResolvedNode">ResolvedNode</a> {
 ### ResolvedExecuteAsRoleScan
 <a id="ResolvedExecuteAsRoleScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedExecuteAsRoleScan
+ &nbsp;(<a href="#ResolvedExecuteAsRoleScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This node provides the role context for its subtree. Currently, it only
 // handles subtrees from inlined TVFs and VIEWs created with DEFINER rights.
 // Due to the lack of a ROLE catalog object, we are using the original
@@ -1549,6 +1718,9 @@ class ResolvedExecuteAsRoleScan : public <a href="#ResolvedScan">ResolvedScan</a
 ### ResolvedModel
 <a id="ResolvedModel"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedModel
+ &nbsp;(<a href="#ResolvedModel-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a machine learning model as a TVF argument.
 // &lt;model&gt; is the machine learning model object known to the resolver
 // (usually through the catalog).</font>
@@ -1562,6 +1734,9 @@ class ResolvedModel : public <a href="#ResolvedArgument">ResolvedArgument</a> {
 ### ResolvedConnection
 <a id="ResolvedConnection"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedConnection
+ &nbsp;(<a href="#ResolvedConnection-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a connection object, which encapsulates engine-specific
 // metadata used to connect to an external data source.</font>
 class ResolvedConnection : public <a href="#ResolvedArgument">ResolvedArgument</a> {
@@ -1573,6 +1748,9 @@ class ResolvedConnection : public <a href="#ResolvedArgument">ResolvedArgument</
 
 ### ResolvedDescriptor
 <a id="ResolvedDescriptor"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedDescriptor
+ &nbsp;(<a href="#ResolvedDescriptor-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a descriptor object as a TVF argument.
 // A descriptor is basically a list of unresolved column names, written
@@ -1600,6 +1778,9 @@ class ResolvedDescriptor : public <a href="#ResolvedArgument">ResolvedArgument</
 ### ResolvedSingleRowScan
 <a id="ResolvedSingleRowScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedSingleRowScan
+ &nbsp;(<a href="#ResolvedSingleRowScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Scan that produces a single row with no columns.  Used for queries without
 // a FROM clause, where all output comes from the select list.</font>
 class ResolvedSingleRowScan : public <a href="#ResolvedScan">ResolvedScan</a> {
@@ -1610,6 +1791,9 @@ class ResolvedSingleRowScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedUnsetArgumentScan
 <a id="ResolvedUnsetArgumentScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedUnsetArgumentScan
+ &nbsp;(<a href="#ResolvedUnsetArgumentScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents an optional TVF relation argument, where the relation is
 // omitted. This node can only occur as an argument to a TVFScan. The
@@ -1622,6 +1806,9 @@ class ResolvedUnsetArgumentScan : public <a href="#ResolvedScan">ResolvedScan</a
 
 ### ResolvedTableScan
 <a id="ResolvedTableScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedTableScan
+ &nbsp;(<a href="#ResolvedTableScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Scan a Table.
 // The &lt;column_list&gt;[i] should be matched to a Table column by
@@ -1695,6 +1882,9 @@ class ResolvedTableScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedJoinScan
 <a id="ResolvedJoinScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedJoinScan
+ &nbsp;(<a href="#ResolvedJoinScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A Scan that joins two input scans.
 // The &lt;column_list&gt; will contain columns selected from the union
 // of the input scan&#39;s &lt;column_lists&gt;.
@@ -1746,13 +1936,16 @@ class ResolvedJoinScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedArrayScan
 <a id="ResolvedArrayScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedArrayScan
+ &nbsp;(<a href="#ResolvedArrayScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Scan one or more (N) array values produced by evaluating N expressions,
 // merging them positionally. Without FEATURE_MULTIWAY_UNNEST, it must
 // be exactly one array (N=1).
 //
 // `array_expr_list` can have one or more expressions with ARRAY type
-// or one expression with a join RowType (with `IsJoin()` true).
-// When it&#39;s a RowType, `array_expr_list` can only have one item
+// or one expression with a TABLE type (a RowOrTableType with IsTable true).
+// When it&#39;s a RowOrTableType, `array_expr_list` can only have one item
 // and `array_offset_column` is not allowed.
 //
 // If `input_scan` is NULL, this produces one row for each array offset.
@@ -1787,6 +1980,36 @@ class ResolvedJoinScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 // arrays in `array_expr_list` and they have different sizes. It must be NULL
 // when there is only one given array.
 //
+// When the argument is not a field path expression: if depth is omitted, it
+// is 0.
+//
+// When the argument is a field path expression:
+// ---------------------------------------------
+// If nested arrays are enabled, the `depth` argument is supported. It
+// specifies how many levels to unwrap from the consecutive ARRAY layers at
+// the end of the specified path, if any, or the input array itself if no
+// path is specified.
+// `depth` is not applicable for multiway UNNEST (would be meaningless as
+// each argument may need a different depth).
+// `depth` must be an analysis constant of type INT64, non-negative, and
+// not larger than the available number of array layers.
+// If omitted, the default depth is 1 if the type at the end of the path is
+// an array, or 0 otherwise.
+//
+// If the user omits the depth, and the unnest argument is a path (which
+// means it implicitly flattens its input), UNNEST(path) will only unwrap 1
+// layer at the end of the specified path. This is for backward
+// compatibility. For example, before supporting ARRAY&lt;ARRAY&lt;&gt;&gt;:
+//   * UNNEST([
+//               STRUCT([1,2] AS a),
+//               STRUCT([3,4] AS a)
+//             ].a)
+//     provides 4 rows: {1}, {2}, {3}, {4}
+//     Note that both the outer layer as well as one of the inner layers are
+//     unwrapped.
+// An explicit depth of `0` can be specified if the arrays at the end of the
+// path are supposed to stay intact and are the target elements.
+//
 // The getters and setters for legacy fields `array_expr` and
 // `element_column` are added for backward compatibility purposes. If the
 // corresponding vector field has more than 1 element and only legacy
@@ -1819,6 +2042,9 @@ class ResolvedArrayScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedColumnHolder
 <a id="ResolvedColumnHolder"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedColumnHolder
+ &nbsp;(<a href="#ResolvedColumnHolder-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This wrapper is used for an optional <a href="#ResolvedColumn">ResolvedColumn</a> inside another node.
 //
 // Note: <a href="#ResolvedColumn">ResolvedColumn</a> does not track `column_is_created` itself.
@@ -1832,6 +2058,9 @@ class ResolvedColumnHolder : public <a href="#ResolvedArgument">ResolvedArgument
 
 ### ResolvedFilterScan
 <a id="ResolvedFilterScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedFilterScan
+ &nbsp;(<a href="#ResolvedFilterScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Scan rows from input_scan, and emit all rows where filter_expr
 // evaluates to true.  filter_expr is always of type bool.
@@ -1847,6 +2076,9 @@ class ResolvedFilterScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedGroupingCall
 <a id="ResolvedGroupingCall"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGroupingCall
+ &nbsp;(<a href="#ResolvedGroupingCall-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A GROUPING function call. `group_by_column` must be a column from
 // the `group_by_list` in `<a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>`.
@@ -1865,6 +2097,9 @@ class ResolvedGroupingCall : public <a href="#ResolvedArgument">ResolvedArgument
 ### ResolvedGroupingSetBase
 <a id="ResolvedGroupingSetBase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGroupingSetBase
+ &nbsp;(<a href="#ResolvedGroupingSetBase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// The parent node for grouping set, rollup and cube nodes.
 //
 // This node exists for organizational purposes only, to cluster
@@ -1875,6 +2110,9 @@ class ResolvedGroupingSetBase : public <a href="#ResolvedArgument">ResolvedArgum
 
 ### ResolvedGroupingSetList
 <a id="ResolvedGroupingSetList"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>  &rsaquo; ResolvedGroupingSetList
+ &nbsp;(<a href="#ResolvedGroupingSetList-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents the list of grouping sets corresponding to a GROUPING SETS.
 // For example, `GROUPING SETS(a, CUBE(b, c), ROLLUP(d, e, f))` can be
@@ -1913,6 +2151,9 @@ class ResolvedGroupingSetList : public <a href="#ResolvedGroupingSetBase">Resolv
 
 ### ResolvedGroupingSetProduct
 <a id="ResolvedGroupingSetProduct"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>  &rsaquo; ResolvedGroupingSetProduct
+ &nbsp;(<a href="#ResolvedGroupingSetProduct-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents the cartesian product of the grouping sets stored in
 // `input_list`. Each element in `input_list` should either be a
@@ -1963,6 +2204,9 @@ class ResolvedGroupingSetProduct : public <a href="#ResolvedGroupingSetBase">Res
 ### ResolvedGroupingSet
 <a id="ResolvedGroupingSet"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>  &rsaquo; ResolvedGroupingSet
+ &nbsp;(<a href="#ResolvedGroupingSet-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// List of group by columns that form a grouping set.
 //
 // Columns must come from group_by_list in <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a>.
@@ -1980,6 +2224,9 @@ class ResolvedGroupingSet : public <a href="#ResolvedGroupingSetBase">ResolvedGr
 
 ### ResolvedRollup
 <a id="ResolvedRollup"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>  &rsaquo; ResolvedRollup
+ &nbsp;(<a href="#ResolvedRollup-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// List of <a href="#ResolvedGroupingSetMultiColumn">ResolvedGroupingSetMultiColumn</a> that forms a rollup.
 //
@@ -2004,6 +2251,9 @@ class ResolvedRollup : public <a href="#ResolvedGroupingSetBase">ResolvedGroupin
 ### ResolvedCube
 <a id="ResolvedCube"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGroupingSetBase">ResolvedGroupingSetBase</a>  &rsaquo; ResolvedCube
+ &nbsp;(<a href="#ResolvedCube-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// List of <a href="#ResolvedGroupingSetMultiColumn">ResolvedGroupingSetMultiColumn</a> that forms a cube in grouping sets.
 //
 // See comments in ResolvdRollup for explanation about
@@ -2019,6 +2269,9 @@ class ResolvedCube : public <a href="#ResolvedGroupingSetBase">ResolvedGroupingS
 
 ### ResolvedAggregateScanBase
 <a id="ResolvedAggregateScanBase"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedAggregateScanBase
+ &nbsp;(<a href="#ResolvedAggregateScanBase-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Base class for aggregation scans. Apply aggregation to rows produced from
 // input_scan, and output aggregated rows.
@@ -2102,6 +2355,9 @@ class ResolvedAggregateScanBase : public <a href="#ResolvedScan">ResolvedScan</a
 ### ResolvedAggregateScan
 <a id="ResolvedAggregateScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>  &rsaquo; ResolvedAggregateScan
+ &nbsp;(<a href="#ResolvedAggregateScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Apply aggregation to rows produced from input_scan, and output aggregated
 // rows.</font>
 class ResolvedAggregateScan : public <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a> {
@@ -2112,6 +2368,9 @@ class ResolvedAggregateScan : public <a href="#ResolvedAggregateScanBase">Resolv
 
 ### ResolvedAnonymizedAggregateScan
 <a id="ResolvedAnonymizedAggregateScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>  &rsaquo; ResolvedAnonymizedAggregateScan
+ &nbsp;(<a href="#ResolvedAnonymizedAggregateScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Apply differentially private aggregation (anonymization) to rows produced
 // from input_scan, and output anonymized rows.
@@ -2141,6 +2400,9 @@ class ResolvedAnonymizedAggregateScan : public <a href="#ResolvedAggregateScanBa
 
 ### ResolvedDifferentialPrivacyAggregateScan
 <a id="ResolvedDifferentialPrivacyAggregateScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>  &rsaquo; ResolvedDifferentialPrivacyAggregateScan
+ &nbsp;(<a href="#ResolvedDifferentialPrivacyAggregateScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Apply differentially private aggregation (anonymization) to rows produced
 // from input_scan, and output anonymized rows.
@@ -2173,6 +2435,9 @@ class ResolvedDifferentialPrivacyAggregateScan : public <a href="#ResolvedAggreg
 ### ResolvedAggregationThresholdAggregateScan
 <a id="ResolvedAggregationThresholdAggregateScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedAggregateScanBase">ResolvedAggregateScanBase</a>  &rsaquo; ResolvedAggregationThresholdAggregateScan
+ &nbsp;(<a href="#ResolvedAggregationThresholdAggregateScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Apply aggregation to rows produced from input_scan and output rows to
 // that pass aggregation thresholds. It adds:
 // HAVING COUNT(DISTINCT `privacy_unit_column`) &gt;= `threshold`.
@@ -2192,6 +2457,9 @@ class ResolvedAggregationThresholdAggregateScan : public <a href="#ResolvedAggre
 ### ResolvedSetOperationItem
 <a id="ResolvedSetOperationItem"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedSetOperationItem
+ &nbsp;(<a href="#ResolvedSetOperationItem-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is one input item in a <a href="#ResolvedSetOperation">ResolvedSetOperation</a>.
 // The &lt;output_column_list&gt; matches 1:1 with the <a href="#ResolvedSetOperation">ResolvedSetOperation</a>&#39;s
 // &lt;column_list&gt; and specifies how columns from &lt;scan&gt; map to output columns.
@@ -2209,6 +2477,9 @@ class ResolvedSetOperationItem : public <a href="#ResolvedArgument">ResolvedArgu
 
 ### ResolvedSetOperationScan
 <a id="ResolvedSetOperationScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedSetOperationScan
+ &nbsp;(<a href="#ResolvedSetOperationScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Apply a set operation (specified by &lt;op_type&gt;) on two or more input scans.
 //
@@ -2278,6 +2549,9 @@ class ResolvedSetOperationScan : public <a href="#ResolvedScan">ResolvedScan</a>
 ### ResolvedOrderByScan
 <a id="ResolvedOrderByScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedOrderByScan
+ &nbsp;(<a href="#ResolvedOrderByScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Apply ordering to rows produced from input_scan, and output ordered
 // rows.
 //
@@ -2311,6 +2585,9 @@ class ResolvedOrderByScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedLimitOffsetScan
 <a id="ResolvedLimitOffsetScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedLimitOffsetScan
+ &nbsp;(<a href="#ResolvedLimitOffsetScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Apply an optional LIMIT and optional OFFSET to the rows from
 // input_scan. Emit all rows after OFFSET rows have been scanned and up to
 // LIMIT total rows emitted. The offset is the number of rows to skip. E.g.,
@@ -2338,6 +2615,9 @@ class ResolvedLimitOffsetScan : public <a href="#ResolvedScan">ResolvedScan</a> 
 ### ResolvedWithRefScan
 <a id="ResolvedWithRefScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedWithRefScan
+ &nbsp;(<a href="#ResolvedWithRefScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Scan the subquery defined in a WITH statement.
 // See <a href="#ResolvedWithScan">ResolvedWithScan</a> for more detail.
 // The column_list produced here will match 1:1 with the column_list produced
@@ -2352,6 +2632,9 @@ class ResolvedWithRefScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedAnalyticScan
 <a id="ResolvedAnalyticScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedAnalyticScan
+ &nbsp;(<a href="#ResolvedAnalyticScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Apply analytic functions to rows produced from input_scan.
 //
@@ -2378,6 +2661,9 @@ class ResolvedAnalyticScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedSampleScan
 <a id="ResolvedSampleScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedSampleScan
+ &nbsp;(<a href="#ResolvedSampleScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Samples rows from &lt;input_scan&gt;.
 // Specs: (broken link)
@@ -2431,6 +2717,9 @@ class ResolvedSampleScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedComputedColumnBase
 <a id="ResolvedComputedColumnBase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedComputedColumnBase
+ &nbsp;(<a href="#ResolvedComputedColumnBase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is used when an expression is computed and given a name (a new
 // <a href="#ResolvedColumn">ResolvedColumn</a>) that can be referenced elsewhere.  The new <a href="#ResolvedColumn">ResolvedColumn</a>
 // can appear in a column_list or in <a href="#ResolvedColumnRef">ResolvedColumnRefs</a> in other expressions,
@@ -2471,6 +2760,9 @@ class ResolvedComputedColumnBase : public <a href="#ResolvedArgument">ResolvedAr
 ### ResolvedComputedColumnImpl
 <a id="ResolvedComputedColumnImpl"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>  &rsaquo; ResolvedComputedColumnImpl
+ &nbsp;(<a href="#ResolvedComputedColumnImpl-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An intermediate abstract superclass that holds common getters for
 // <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a> and <a href="#ResolvedDeferredComputedColumn">ResolvedDeferredComputedColumn</a>. This class
 // exists to ensure that callers static_cast to the appropriate subclass,
@@ -2481,6 +2773,9 @@ class ResolvedComputedColumnImpl : public <a href="#ResolvedComputedColumnBase">
 
 ### ResolvedComputedColumn
 <a id="ResolvedComputedColumn"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>  &rsaquo; <a href="#ResolvedComputedColumnImpl">ResolvedComputedColumnImpl</a>  &rsaquo; ResolvedComputedColumn
+ &nbsp;(<a href="#ResolvedComputedColumn-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This is the usual <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a> without deferred side effects.
 // See comments on <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>.</font>
@@ -2496,7 +2791,10 @@ class ResolvedComputedColumn : public <a href="#ResolvedComputedColumnImpl">Reso
 ### ResolvedDeferredComputedColumn
 <a id="ResolvedDeferredComputedColumn"></a>
 
-<p><pre><code class="lang-c++"><font color="brown">// This is a <a href="#ResolvedColumnColumn">ResolvedColumnColumn</a> variant that adds deferred side effect
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>  &rsaquo; <a href="#ResolvedComputedColumnImpl">ResolvedComputedColumnImpl</a>  &rsaquo; ResolvedDeferredComputedColumn
+ &nbsp;(<a href="#ResolvedDeferredComputedColumn-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// This is a <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a> variant that adds deferred side effect
 // capture.
 //
 // This is used for computations that get separated into multiple scans,
@@ -2534,6 +2832,9 @@ class ResolvedDeferredComputedColumn : public <a href="#ResolvedComputedColumnIm
 
 ### ResolvedOrderByItem
 <a id="ResolvedOrderByItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedOrderByItem
+ &nbsp;(<a href="#ResolvedOrderByItem-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents one column of an ORDER BY clause, with the requested
 // ordering direction.
@@ -2578,6 +2879,9 @@ class ResolvedOrderByItem : public <a href="#ResolvedArgument">ResolvedArgument<
 
 ### ResolvedColumnAnnotations
 <a id="ResolvedColumnAnnotation"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedColumnAnnotations
+ &nbsp;(<a href="#ResolvedColumnAnnotations-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This is used in CREATE TABLE statements to provide column annotations
 // such as collation, NOT NULL, type parameters, and OPTIONS().
@@ -2630,6 +2934,9 @@ class ResolvedColumnAnnotations : public <a href="#ResolvedArgument">ResolvedArg
 
 ### ResolvedGeneratedColumnInfo
 <a id="ResolvedGeneratedColumnInfo"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGeneratedColumnInfo
+ &nbsp;(<a href="#ResolvedGeneratedColumnInfo-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// &lt;expression&gt; indicates the expression that defines the column. The type of
 // the expression will always match the type of the column.
@@ -2690,6 +2997,9 @@ class ResolvedGeneratedColumnInfo : public <a href="#ResolvedArgument">ResolvedA
 ### ResolvedColumnDefaultValue
 <a id="ResolvedColumnDefaultValue"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedColumnDefaultValue
+ &nbsp;(<a href="#ResolvedColumnDefaultValue-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// &lt;expression&gt; is the default value expression of the column. The type of
 // the expression must be coercible to the column type.
 //   - &lt;default_value&gt; cannot contain any references to another column.
@@ -2712,6 +3022,9 @@ class ResolvedColumnDefaultValue : public <a href="#ResolvedArgument">ResolvedAr
 
 ### ResolvedColumnDefinition
 <a id="ResolvedColumnDefinition"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedColumnDefinition
+ &nbsp;(<a href="#ResolvedColumnDefinition-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This is used in CREATE TABLE statements to provide an explicit column
 // definition.
@@ -2756,6 +3069,9 @@ class ResolvedColumnDefinition : public <a href="#ResolvedArgument">ResolvedArgu
 ### ResolvedConstraint
 <a id="ResolvedConstraint"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedConstraint
+ &nbsp;(<a href="#ResolvedConstraint-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Intermediate class for resolved constraints.</font>
 class ResolvedConstraint : public <a href="#ResolvedArgument">ResolvedArgument</a> {
 };
@@ -2763,6 +3079,9 @@ class ResolvedConstraint : public <a href="#ResolvedArgument">ResolvedArgument</
 
 ### ResolvedPrimaryKey
 <a id="ResolvedPrimaryKey"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedConstraint">ResolvedConstraint</a>  &rsaquo; ResolvedPrimaryKey
+ &nbsp;(<a href="#ResolvedPrimaryKey-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the PRIMARY KEY constraint on a table.
 // &lt;column_offset_list&gt; provides the offsets of the column definitions that
@@ -2796,6 +3115,9 @@ class ResolvedPrimaryKey : public <a href="#ResolvedConstraint">ResolvedConstrai
 
 ### ResolvedForeignKey
 <a id="ResolvedForeignKey"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedConstraint">ResolvedConstraint</a>  &rsaquo; ResolvedForeignKey
+ &nbsp;(<a href="#ResolvedForeignKey-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the FOREIGN KEY constraint on a table. It is of the form:
 //
@@ -2879,6 +3201,9 @@ class ResolvedForeignKey : public <a href="#ResolvedConstraint">ResolvedConstrai
 ### ResolvedCheckConstraint
 <a id="ResolvedCheckConstraint"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedConstraint">ResolvedConstraint</a>  &rsaquo; ResolvedCheckConstraint
+ &nbsp;(<a href="#ResolvedCheckConstraint-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the ABSL_CHECK constraint on a table. It is of the form:
 //
 //   CONSTRAINT &lt;constraint_name&gt;
@@ -2914,6 +3239,9 @@ class ResolvedCheckConstraint : public <a href="#ResolvedConstraint">ResolvedCon
 ### ResolvedOutputColumn
 <a id="ResolvedOutputColumn"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedOutputColumn
+ &nbsp;(<a href="#ResolvedOutputColumn-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is used in <a href="#ResolvedQueryStmt">ResolvedQueryStmt</a> (and other places) to provide a
 // user-visible name for each output column, and to map from
 // physical <a href="#ResolvedColumn">ResolvedColumns</a> to user-visible output columns.</font>
@@ -2928,6 +3256,9 @@ class ResolvedOutputColumn : public <a href="#ResolvedArgument">ResolvedArgument
 
 ### ResolvedOutputSchema
 <a id="ResolvedOutputSchema"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedOutputSchema
+ &nbsp;(<a href="#ResolvedOutputSchema-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This describes the output schema for table, like what is produced for
 // a query statement.
@@ -2960,6 +3291,9 @@ class ResolvedOutputSchema : public <a href="#ResolvedArgument">ResolvedArgument
 ### ResolvedProjectScan
 <a id="ResolvedProjectScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedProjectScan
+ &nbsp;(<a href="#ResolvedProjectScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A Project node computes new expression values, and possibly drops
 // columns from the input Scan&#39;s column_list.
 //
@@ -2983,6 +3317,9 @@ class ResolvedProjectScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedTVFScan
 <a id="ResolvedTVFScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedTVFScan
+ &nbsp;(<a href="#ResolvedTVFScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This scan represents a call to a table-valued function (TVF). Each TVF
 // returns an entire output relation instead of a single scalar value. The
@@ -3068,31 +3405,60 @@ class ResolvedTVFScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedGroupRowsScan
 <a id="ResolvedGroupRowsScan"></a>
 
-<p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a> represents a call to a special TVF GROUP_ROWS().
-// It can only show up inside WITH GROUP ROWS clause, which is resolved as
-// the field with_group_rows_subquery in <a href="#ResolvedNonScalarFunctionCallBase">ResolvedNonScalarFunctionCallBase</a>
-// <a href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a>. This scan produces rows corresponding to the input
-// of <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a> that belong to the current group.
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGroupRowsScan
+ &nbsp;(<a href="#ResolvedGroupRowsScan-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGroupRowsScan">ResolvedGroupRowsScan</a> represents a call to a group rows TVF.
 //
-// &lt;input_column_list&gt; is a list of new columns created to store values
-// coming from the input of the aggregate scan. <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a> can
-// only hold <a href="#ResolvedColumnRef">ResolvedColumnRef</a>&#39;s and can reference anything from the
-// pre-aggregation scan.
+// It can be created in two ways:
+// - WITH g() AS GROUP ROWS ... FROM g()
+// - FROM GROUP ROWS
 //
-// &lt;alias&gt; is the alias of the scan or empty if none.</font>
+// This scan produces rows corresponding to the input of
+// <a href="#ResolvedAggregateScan">ResolvedAggregateScan</a> that belong to the current group.
+//
+// &lt;input_column_list&gt; creates new columns that map 1:1 to columns from
+// the input of the aggregate scan. Each column contains a <a href="#ResolvedColumnRef">ResolvedColumnRef</a>
+// referencing a non-correlated column from the pre-aggregation scan.</font>
 class ResolvedGroupRowsScan : public <a href="#ResolvedScan">ResolvedScan</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GROUP_ROWS_SCAN;
 
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a>&gt;&gt;&amp; input_column_list() const;
   int input_column_list_size() const;
   const <a href="#ResolvedComputedColumn">ResolvedComputedColumn</a>* input_column_list(int i) const;
+};
+</code></pre></p>
 
-  const std::string&amp; alias() const;
+### ResolvedFunctionRef
+<a id="ResolvedFunctionRef"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedFunctionRef
+ &nbsp;(<a href="#ResolvedFunctionRef-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Represents a reference to a function (e.g., a UDF lambda parameter).
+// This node is used when a function is passed as an argument to
+// another function, rather than being invoked directly.
+//
+// We currently use this only for references to lambda-typed parameters
+// (e.g. in a SQL UDF body). It is designed to be generalized to other
+// function types (like catalog functions) in the future.</font>
+class ResolvedFunctionRef : public <a href="#ResolvedArgument">ResolvedArgument</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_FUNCTION_REF;
+
+<font color="brown">  // The Function (proxy or cataloged) being referenced.</font>
+  const Function* function() const;
+
+<font color="brown">  // The concrete FunctionSignature reflecting the Function overload
+  // being referenced.</font>
+  const FunctionSignature&amp; signature() const;
 };
 </code></pre></p>
 
 ### ResolvedFunctionArgument
 <a id="ResolvedFunctionArgument"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedFunctionArgument
+ &nbsp;(<a href="#ResolvedFunctionArgument-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a generic argument to a function. The argument can be
 // semantically an expression, relation, model, connection descriptor, or
@@ -3110,7 +3476,8 @@ class ResolvedGroupRowsScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 //
 // This node could be used in multiple places:
 // * <a href="#ResolvedTVFScan">ResolvedTVFScan</a> supports all of these.
-// * <a href="#ResolvedFunctionCall">ResolvedFunctionCall</a> supports `expr`, `inline_lambda`, and `sequence`.
+// * <a href="#ResolvedFunctionCall">ResolvedFunctionCall</a> supports `expr`, `inline_lambda`, `sequence`,
+//   `model`.
 // * <a href="#ResolvedCallStmt">ResolvedCallStmt</a> supports only `expr`.
 //
 // If the argument has type `scan`, `argument_column_list` maps columns from
@@ -3144,6 +3511,11 @@ class ResolvedFunctionArgument : public <a href="#ResolvedArgument">ResolvedArgu
 
   const PropertyGraph* graph() const;
 
+<font color="brown">  // A reference to a function. This is used in UDF bodies when
+  // a lambda parameter (or other function) is passed as an argument
+  // to another function.</font>
+  const <a href="#ResolvedFunctionRef">ResolvedFunctionRef</a>* function_ref() const;
+
 <font color="brown">  // Stores the alias of the argument, either provided by the user or
   // generated by the resolver. This can only be populated if allowed
   // by `FunctionArgumentTypeOptions::argument_alias_kind`.
@@ -3172,6 +3544,9 @@ class ResolvedFunctionArgument : public <a href="#ResolvedArgument">ResolvedArgu
 ### ResolvedStatement
 <a id="ResolvedStatement"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; ResolvedStatement
+ &nbsp;(<a href="#ResolvedStatement-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// The superclass of all GoogleSQL statements.</font>
 class ResolvedStatement : public <a href="#ResolvedNode">ResolvedNode</a> {
   typedef <a href="#ResolvedStatementEnum">ResolvedStatementEnums</a>::ObjectAccess ObjectAccess;
@@ -3191,6 +3566,9 @@ class ResolvedStatement : public <a href="#ResolvedNode">ResolvedNode</a> {
 ### ResolvedExplainStmt
 <a id="ResolvedExplainStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedExplainStmt
+ &nbsp;(<a href="#ResolvedExplainStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An Explain statement. This is always the root of a statement hierarchy.
 // Its child may be any statement type except another <a href="#ResolvedExplainStmt">ResolvedExplainStmt</a>.
 //
@@ -3205,6 +3583,9 @@ class ResolvedExplainStmt : public <a href="#ResolvedStatement">ResolvedStatemen
 
 ### ResolvedStringWithLocation
 <a id="ResolvedStringWithLocation"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedStringWithLocation
+ &nbsp;(<a href="#ResolvedStringWithLocation-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A node that holds a substring of the input SQL and also records its
 // `parse_location_range`.
@@ -3221,6 +3602,9 @@ class ResolvedStringWithLocation : public <a href="#ResolvedArgument">ResolvedAr
 
 ### ResolvedStatementWithPipeOperatorsStmt
 <a id="ResolvedStatementWithPipeOperatorsStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedStatementWithPipeOperatorsStmt
+ &nbsp;(<a href="#ResolvedStatementWithPipeOperatorsStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A statement with an unanalyzed pipe operator suffix.
 // See (broken link).
@@ -3245,6 +3629,9 @@ class ResolvedStatementWithPipeOperatorsStmt : public <a href="#ResolvedStatemen
 
 ### ResolvedQueryStmt
 <a id="ResolvedQueryStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedQueryStmt
+ &nbsp;(<a href="#ResolvedQueryStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A SQL query statement.  This is the outermost query statement that runs
 // and produces rows of output, like a SELECT.  (The contained query may be
@@ -3271,8 +3658,39 @@ class ResolvedQueryStmt : public <a href="#ResolvedStatement">ResolvedStatement<
 };
 </code></pre></p>
 
+### ResolvedTerminalQueryStmt
+<a id="ResolvedTerminalQueryStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedTerminalQueryStmt
+ &nbsp;(<a href="#ResolvedTerminalQueryStmt-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// This represents a &#34;terminal query statement&#34;, i.e. a query-like
+// statement that produces no output.
+//
+// `query` allows the same Scan operators as <a href="#ResolvedQueryStmt">ResolvedQueryStmt</a>, plus
+// <a href="#ResolvedFinishScan">ResolvedFinishScan</a>.  Other terminal operators (e.g. those with
+// DML or DDL output side-effects, or multiple outputs like FORK)
+// are not allowed.
+//
+// The final Scan must be the no-output terminal operator <a href="#ResolvedFinishScan">ResolvedFinishScan</a>.
+//
+// <a href="#ResolvedTerminalQueryStmt">ResolvedTerminalQueryStmt</a> can also occurs inside <a href="#ResolvedMultiStmt">ResolvedMultiStmt</a>
+// after a rewrite of <a href="#ResolvedGeneralizedQueryStmt">ResolvedGeneralizedQueryStmts</a> containing
+// pipe FINISH.
+//
+// See (broken link) and (broken link).</font>
+class ResolvedTerminalQueryStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_TERMINAL_QUERY_STMT;
+
+  const <a href="#ResolvedScan">ResolvedScan</a>* query() const;
+};
+</code></pre></p>
+
 ### ResolvedGeneralizedQueryStmt
 <a id="ResolvedGeneralizedQueryStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedGeneralizedQueryStmt
+ &nbsp;(<a href="#ResolvedGeneralizedQueryStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This is a query statement variation that supports generalized queries
 // using operators that might not produce exactly one query result.
@@ -3314,6 +3732,9 @@ class ResolvedGeneralizedQueryStmt : public <a href="#ResolvedStatement">Resolve
 ### ResolvedMultiStmt
 <a id="ResolvedMultiStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedMultiStmt
+ &nbsp;(<a href="#ResolvedMultiStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement contains a list of statements that execute like a script.
 // This is never produced by the resolver directly.  This is only
 // produced by the REWRITE_GENERALIZED_STMT rewrite which replaces
@@ -3346,6 +3767,9 @@ class ResolvedMultiStmt : public <a href="#ResolvedStatement">ResolvedStatement<
 ### ResolvedCreateWithEntryStmt
 <a id="ResolvedCreateWithEntryStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCreateWithEntryStmt
+ &nbsp;(<a href="#ResolvedCreateWithEntryStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates a CTE (a WITH query definition) inside a
 // <a href="#ResolvedMultiStmt">ResolvedMultiStmt</a>.  This can only occur inside <a href="#ResolvedMultiStmt">ResolvedMultiStmt</a>.
 //
@@ -3366,6 +3790,9 @@ class ResolvedCreateWithEntryStmt : public <a href="#ResolvedStatement">Resolved
 ### ResolvedCreateDatabaseStmt
 <a id="ResolvedCreateDatabaseStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCreateDatabaseStmt
+ &nbsp;(<a href="#ResolvedCreateDatabaseStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE DATABASE &lt;name&gt; [OPTIONS (...)]
 // &lt;name_path&gt; is a vector giving the identifier path in the database name.
@@ -3385,6 +3812,9 @@ class ResolvedCreateDatabaseStmt : public <a href="#ResolvedStatement">ResolvedS
 
 ### ResolvedCreateStatement
 <a id="ResolvedCreateStatement"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCreateStatement
+ &nbsp;(<a href="#ResolvedCreateStatement-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common superclass for CREATE statements with standard modifiers like
 //         CREATE [OR REPLACE] [TEMP|TEMPORARY|PUBLIC|PRIVATE] &lt;object type&gt;
@@ -3432,6 +3862,9 @@ class ResolvedCreateStatement : public <a href="#ResolvedStatement">ResolvedStat
 ### ResolvedIndexItem
 <a id="ResolvedIndexItem"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedIndexItem
+ &nbsp;(<a href="#ResolvedIndexItem-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents one of indexed items in CREATE INDEX statement, with the
 // ordering direction specified.
 //
@@ -3454,6 +3887,9 @@ class ResolvedIndexItem : public <a href="#ResolvedArgument">ResolvedArgument</a
 
 ### ResolvedUnnestItem
 <a id="ResolvedUnnestItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedUnnestItem
+ &nbsp;(<a href="#ResolvedUnnestItem-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This is used in CREATE INDEX STMT to represent the unnest operation
 // performed on the base table. The produced element columns or array offset
@@ -3480,25 +3916,34 @@ class ResolvedUnnestItem : public <a href="#ResolvedArgument">ResolvedArgument</
 ### ResolvedCreateIndexStmt
 <a id="ResolvedCreateIndexStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateIndexStmt
+ &nbsp;(<a href="#ResolvedCreateIndexStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
-// CREATE [OR REPLACE] [UNIQUE] [SEARCH | VECTOR] INDEX [IF NOT EXISTS]
+// CREATE [OR REPLACE] [UNIQUE] [SEARCH | VECTOR | AI] INDEX [IF NOT EXISTS]
 //  &lt;index_name_path&gt; ON &lt;table_name_path&gt;
 // [UNNEST(path_expression) [[AS] alias] [WITH OFFSET [[AS] alias]], ...]
-// (path_expression [ASC|DESC], ...)
+// { AUTO COLUMNS | (path_expression [ASC|DESC], ...) }
 // [STORING (Expression, ...)]
 // [PARTITION BY partition_expression, ...]
+// [WITH CONNECTION connection_name]
 // [OPTIONS (name=value, ...)];
 //
 // &lt;table_name_path&gt; is the name of table being indexed.
 // &lt;table_scan&gt; is a TableScan on the table being indexed.
 // &lt;is_unique&gt; specifies if the index has unique entries.
 // &lt;is_search&gt; specifies if the index is for search. It is mutually exclusive
-//             with is_vector.
+//             with is_vector and is_ai.
 // &lt;is_vector&gt; specifies if the index is for vector search. It is mutually
-//             exclusive with is_search.
+//             exclusive with is_search and is_ai.
+// &lt;is_ai&gt; specifies if the index is for AI. It is mutually exclusive with
+//         is_search and is_vector.
 // &lt;index_all_columns&gt; specifies if indexing all the columns of the table.
 //                     When this field is true, index_item_list must be
 //                     empty and is_search must be true.
+// &lt;index_auto_columns&gt; specifies if the index uses AUTO COLUMNS. When this
+//                      field is true, index_item_list must be empty and
+//                      is_ai must be true.
 // &lt;index_item_list&gt; has the columns being indexed, specified as references
 //                   to &#39;computed_columns_list&#39; entries or the columns of
 //                   &#39;table_scan&#39;.
@@ -3511,7 +3956,8 @@ class ResolvedUnnestItem : public <a href="#ResolvedArgument">ResolvedArgument</
 //                         example, the extracted field (e.g., x.y.z).
 // &lt;unnest_expressions_list&gt; has unnest expressions derived from
 //                           &#39;table_scan&#39; or previous unnest expressions in
-//                           the list. So the list order is significant.</font>
+//                           the list. So the list order is significant.
+// &lt;connection&gt; specifies the connection to use for AI index.</font>
 class ResolvedCreateIndexStmt : public <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_CREATE_INDEX_STMT;
 
@@ -3527,7 +3973,11 @@ class ResolvedCreateIndexStmt : public <a href="#ResolvedCreateStatement">Resolv
 
   bool is_vector() const;
 
+  bool is_ai() const;
+
   bool index_all_columns() const;
+
+  bool index_auto_columns() const;
 
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedIndexItem">ResolvedIndexItem</a>&gt;&gt;&amp; index_item_list() const;
   int index_item_list_size() const;
@@ -3540,6 +3990,8 @@ class ResolvedCreateIndexStmt : public <a href="#ResolvedCreateStatement">Resolv
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedExpr">ResolvedExpr</a>&gt;&gt;&amp; partition_by_list() const;
   int partition_by_list_size() const;
   const <a href="#ResolvedExpr">ResolvedExpr</a>* partition_by_list(int i) const;
+
+  const <a href="#ResolvedConnection">ResolvedConnection</a>* connection() const;
 
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedOption">ResolvedOption</a>&gt;&gt;&amp; option_list() const;
   int option_list_size() const;
@@ -3557,6 +4009,9 @@ class ResolvedCreateIndexStmt : public <a href="#ResolvedCreateStatement">Resolv
 
 ### ResolvedCreateSchemaStmtBase
 <a id="ResolvedCreateSchemaStmtBase"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateSchemaStmtBase
+ &nbsp;(<a href="#ResolvedCreateSchemaStmtBase-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A base for statements that create schemas, such as:
 //   CREATE [OR REPLACE] SCHEMA [IF NOT EXISTS] &lt;name&gt;
@@ -3577,6 +4032,9 @@ class ResolvedCreateSchemaStmtBase : public <a href="#ResolvedCreateStatement">R
 
 ### ResolvedCreateSchemaStmt
 <a id="ResolvedCreateSchemaStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateSchemaStmtBase">ResolvedCreateSchemaStmtBase</a>  &rsaquo; ResolvedCreateSchemaStmt
+ &nbsp;(<a href="#ResolvedCreateSchemaStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [OR REPLACE] SCHEMA [IF NOT EXISTS] &lt;name&gt;
@@ -3602,6 +4060,9 @@ class ResolvedCreateSchemaStmt : public <a href="#ResolvedCreateSchemaStmtBase">
 ### ResolvedCreateExternalSchemaStmt
 <a id="ResolvedCreateExternalSchemaStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateSchemaStmtBase">ResolvedCreateSchemaStmtBase</a>  &rsaquo; ResolvedCreateExternalSchemaStmt
+ &nbsp;(<a href="#ResolvedCreateExternalSchemaStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // CREATE [OR REPLACE] [TEMP|TEMPORARY|PUBLIC|PRIVATE] EXTERNAL SCHEMA
 // [IF NOT EXISTS] &lt;name&gt; [WITH CONNECTION] &lt;connection&gt;
@@ -3621,6 +4082,9 @@ class ResolvedCreateExternalSchemaStmt : public <a href="#ResolvedCreateSchemaSt
 
 ### ResolvedCreateTableStmtBase
 <a id="ResolvedCreateTableStmtBase"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateTableStmtBase
+ &nbsp;(<a href="#ResolvedCreateTableStmtBase-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [TEMP] TABLE &lt;name&gt; [(column type, ...) | LIKE &lt;name_path&gt;]
@@ -3698,6 +4162,9 @@ class ResolvedCreateTableStmtBase : public <a href="#ResolvedCreateStatement">Re
 ### ResolvedCreateTableStmt
 <a id="ResolvedCreateTableStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>  &rsaquo; ResolvedCreateTableStmt
+ &nbsp;(<a href="#ResolvedCreateTableStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [TEMP] TABLE &lt;name&gt;
 //   [(column schema, ...) | LIKE &lt;name_path&gt; |
@@ -3746,6 +4213,9 @@ class ResolvedCreateTableStmt : public <a href="#ResolvedCreateTableStmtBase">Re
 
 ### ResolvedCreateTableAsSelectStmt
 <a id="ResolvedCreateTableAsSelectStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>  &rsaquo; ResolvedCreateTableAsSelectStmt
+ &nbsp;(<a href="#ResolvedCreateTableAsSelectStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [TEMP] TABLE &lt;name&gt; [(column schema, ...) | LIKE &lt;name_path&gt;]
@@ -3797,6 +4267,9 @@ class ResolvedCreateTableAsSelectStmt : public <a href="#ResolvedCreateTableStmt
 ### ResolvedCreateModelAliasedQuery
 <a id="ResolvedCreateModelAliasedQuery"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedCreateModelAliasedQuery
+ &nbsp;(<a href="#ResolvedCreateModelAliasedQuery-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Resolves a create model aliased query:
 // identifier AS &lt;query&gt;
 //
@@ -3819,6 +4292,9 @@ class ResolvedCreateModelAliasedQuery : public <a href="#ResolvedArgument">Resol
 
 ### ResolvedCreateModelStmt
 <a id="ResolvedCreateModelStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateModelStmt
+ &nbsp;(<a href="#ResolvedCreateModelStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [TEMP] MODEL &lt;name&gt; [INPUT(...) OUTPUT(...)] [TRANSFORM(...)]
@@ -3945,6 +4421,9 @@ class ResolvedCreateModelStmt : public <a href="#ResolvedCreateStatement">Resolv
 ### ResolvedCreateViewBase
 <a id="ResolvedCreateViewBase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateViewBase
+ &nbsp;(<a href="#ResolvedCreateViewBase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Common superclass for CREATE view/materialized view:
 //   CREATE [TEMP|MATERIALIZED] [RECURSIVE] VIEW &lt;name&gt; [(...)]
 //     [OPTIONS (...)]
@@ -4020,6 +4499,9 @@ class ResolvedCreateViewBase : public <a href="#ResolvedCreateStatement">Resolve
 ### ResolvedCreateViewStmt
 <a id="ResolvedCreateViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a>  &rsaquo; ResolvedCreateViewStmt
+ &nbsp;(<a href="#ResolvedCreateViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // CREATE [TEMP] VIEW &lt;name&gt; [(...)] [OPTIONS (...)] AS SELECT ...</font>
 class ResolvedCreateViewStmt : public <a href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a> {
@@ -4030,6 +4512,9 @@ class ResolvedCreateViewStmt : public <a href="#ResolvedCreateViewBase">Resolved
 
 ### ResolvedWithPartitionColumns
 <a id="ResolvedWithPartitionColumn"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWithPartitionColumns
+ &nbsp;(<a href="#ResolvedWithPartitionColumns-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // WITH PARTITION COLUMNS [(column schema, ...)]</font>
@@ -4044,6 +4529,9 @@ class ResolvedWithPartitionColumns : public <a href="#ResolvedArgument">Resolved
 
 ### ResolvedCreateSnapshotTableStmt
 <a id="ResolvedCreateSnapshotTableStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateSnapshotTableStmt
+ &nbsp;(<a href="#ResolvedCreateSnapshotTableStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE SNAPSHOT TABLE [IF NOT EXISTS] &lt;name&gt; [OPTIONS (...)]
@@ -4076,6 +4564,9 @@ class ResolvedCreateSnapshotTableStmt : public <a href="#ResolvedCreateStatement
 ### ResolvedCreateExternalTableStmt
 <a id="ResolvedCreateExternalTableStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>  &rsaquo; ResolvedCreateExternalTableStmt
+ &nbsp;(<a href="#ResolvedCreateExternalTableStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // CREATE [TEMP] EXTERNAL TABLE &lt;name&gt; [(column type, ...)]
 // [DEFAULT COLLATE &lt;collation_name&gt;]
@@ -4091,6 +4582,9 @@ class ResolvedCreateExternalTableStmt : public <a href="#ResolvedCreateTableStmt
 
 ### ResolvedExportModelStmt
 <a id="ResolvedExportModelStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedExportModelStmt
+ &nbsp;(<a href="#ResolvedExportModelStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   EXPORT MODEL &lt;model_name_path&gt; [WITH CONNECTION &lt;connection&gt;]
@@ -4116,6 +4610,9 @@ class ResolvedExportModelStmt : public <a href="#ResolvedStatement">ResolvedStat
 
 ### ResolvedExportDataStmt
 <a id="ResolvedExportDataStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedExportDataStmt
+ &nbsp;(<a href="#ResolvedExportDataStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   EXPORT DATA [WITH CONNECTION] &lt;connection&gt; (&lt;option_list&gt;) AS SELECT ...
@@ -4168,6 +4665,9 @@ class ResolvedExportDataStmt : public <a href="#ResolvedStatement">ResolvedState
 ### ResolvedExportMetadataStmt
 <a id="ResolvedExportMetadataStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedExportMetadataStmt
+ &nbsp;(<a href="#ResolvedExportMetadataStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   EXPORT &lt;schema_object_kind&gt; METADATA FROM &lt;name_path&gt;
 //   [WITH CONNECTION &lt;connection&gt;] [OPTIONS(&lt;option_list&gt;)]
@@ -4199,6 +4699,9 @@ class ResolvedExportMetadataStmt : public <a href="#ResolvedStatement">ResolvedS
 ### ResolvedDefineTableStmt
 <a id="ResolvedDefineTableStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDefineTableStmt
+ &nbsp;(<a href="#ResolvedDefineTableStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DEFINE TABLE name (...);
 //
 // &lt;name_path&gt; is a vector giving the identifier path in the table name.
@@ -4220,6 +4723,9 @@ class ResolvedDefineTableStmt : public <a href="#ResolvedStatement">ResolvedStat
 
 ### ResolvedDescribeStmt
 <a id="ResolvedDescribeStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDescribeStmt
+ &nbsp;(<a href="#ResolvedDescribeStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DESCRIBE [&lt;object_type&gt;] &lt;name&gt; [FROM &lt;from_name_path&gt;];
 //
@@ -4247,6 +4753,9 @@ class ResolvedDescribeStmt : public <a href="#ResolvedStatement">ResolvedStateme
 ### ResolvedShowStmt
 <a id="ResolvedShowStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedShowStmt
+ &nbsp;(<a href="#ResolvedShowStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: SHOW &lt;identifier&gt; [FROM &lt;name_path&gt;] [LIKE &lt;like_expr&gt;];
 //
 // &lt;identifier&gt; is a string that determines the type of objects to be shown,
@@ -4272,6 +4781,9 @@ class ResolvedShowStmt : public <a href="#ResolvedStatement">ResolvedStatement</
 
 ### ResolvedBeginStmt
 <a id="ResolvedBeginStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedBeginStmt
+ &nbsp;(<a href="#ResolvedBeginStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: BEGIN [TRANSACTION] [ &lt;transaction_mode&gt; [, ...] ]
 //
@@ -4310,6 +4822,9 @@ class ResolvedBeginStmt : public <a href="#ResolvedStatement">ResolvedStatement<
 ### ResolvedSetTransactionStmt
 <a id="ResolvedSetTransactionStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedSetTransactionStmt
+ &nbsp;(<a href="#ResolvedSetTransactionStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: SET TRANSACTION &lt;transaction_mode&gt; [, ...]
 //
 // Where transaction_mode is one of:
@@ -4344,6 +4859,9 @@ class ResolvedSetTransactionStmt : public <a href="#ResolvedStatement">ResolvedS
 ### ResolvedCommitStmt
 <a id="ResolvedCommitStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCommitStmt
+ &nbsp;(<a href="#ResolvedCommitStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: COMMIT [TRANSACTION];</font>
 class ResolvedCommitStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_COMMIT_STMT;
@@ -4354,6 +4872,9 @@ class ResolvedCommitStmt : public <a href="#ResolvedStatement">ResolvedStatement
 ### ResolvedRollbackStmt
 <a id="ResolvedRollbackStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedRollbackStmt
+ &nbsp;(<a href="#ResolvedRollbackStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: ROLLBACK [TRANSACTION];</font>
 class ResolvedRollbackStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_ROLLBACK_STMT;
@@ -4363,6 +4884,9 @@ class ResolvedRollbackStmt : public <a href="#ResolvedStatement">ResolvedStateme
 
 ### ResolvedStartBatchStmt
 <a id="ResolvedStartBatchStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedStartBatchStmt
+ &nbsp;(<a href="#ResolvedStartBatchStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: START BATCH [&lt;batch_type&gt;];
 //
@@ -4378,6 +4902,9 @@ class ResolvedStartBatchStmt : public <a href="#ResolvedStatement">ResolvedState
 ### ResolvedRunBatchStmt
 <a id="ResolvedRunBatchStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedRunBatchStmt
+ &nbsp;(<a href="#ResolvedRunBatchStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: RUN BATCH;</font>
 class ResolvedRunBatchStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_RUN_BATCH_STMT;
@@ -4388,6 +4915,9 @@ class ResolvedRunBatchStmt : public <a href="#ResolvedStatement">ResolvedStateme
 ### ResolvedAbortBatchStmt
 <a id="ResolvedAbortBatchStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAbortBatchStmt
+ &nbsp;(<a href="#ResolvedAbortBatchStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: ABORT BATCH;</font>
 class ResolvedAbortBatchStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_ABORT_BATCH_STMT;
@@ -4397,6 +4927,9 @@ class ResolvedAbortBatchStmt : public <a href="#ResolvedStatement">ResolvedState
 
 ### ResolvedDropStmt
 <a id="ResolvedDropStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropStmt
+ &nbsp;(<a href="#ResolvedDropStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DROP &lt;object_type&gt; [IF EXISTS] &lt;name_path&gt; [&lt;drop_mode&gt;];
 //
@@ -4429,6 +4962,9 @@ class ResolvedDropStmt : public <a href="#ResolvedStatement">ResolvedStatement</
 ### ResolvedDropMaterializedViewStmt
 <a id="ResolvedDropMaterializedViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropMaterializedViewStmt
+ &nbsp;(<a href="#ResolvedDropMaterializedViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DROP MATERIALIZED VIEW [IF EXISTS] &lt;name_path&gt;;
 //
 // &lt;name_path&gt; is a vector giving the identifier path for the object to be
@@ -4447,6 +4983,9 @@ class ResolvedDropMaterializedViewStmt : public <a href="#ResolvedStatement">Res
 
 ### ResolvedDropSnapshotTableStmt
 <a id="ResolvedDropSnapshotTableStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropSnapshotTableStmt
+ &nbsp;(<a href="#ResolvedDropSnapshotTableStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DROP SNAPSHOT TABLE [IF EXISTS] &lt;name_path&gt;;
 //
@@ -4467,6 +5006,9 @@ class ResolvedDropSnapshotTableStmt : public <a href="#ResolvedStatement">Resolv
 ### ResolvedRecursiveRefScan
 <a id="ResolvedRecursiveRefScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedRecursiveRefScan
+ &nbsp;(<a href="#ResolvedRecursiveRefScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Scan the previous iteration of the recursive alias currently being
 // defined, from inside the recursive subquery which defines it. For a
 // <a href="#ResolvedRecursiveScan">ResolvedRecursiveScan</a> node, its corresponding <a href="#ResolvedRecursiveRefScan">ResolvedRecursiveRefScan</a>
@@ -4481,6 +5023,9 @@ class ResolvedRecursiveRefScan : public <a href="#ResolvedScan">ResolvedScan</a>
 
 ### ResolvedRecursionDepthModifier
 <a id="ResolvedRecursionDepthModifier"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedRecursionDepthModifier
+ &nbsp;(<a href="#ResolvedRecursionDepthModifier-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a recursion depth modifier to recursive CTE or a pipe
 // RECURSIVE UNION:
@@ -4517,6 +5062,9 @@ class ResolvedRecursionDepthModifier : public <a href="#ResolvedArgument">Resolv
 
 ### ResolvedRecursiveScan
 <a id="ResolvedRecursiveScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedRecursiveScan
+ &nbsp;(<a href="#ResolvedRecursiveScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A recursive query inside a WITH RECURSIVE, RECURSIVE VIEW, or a pipe
 // RECURSIVE UNION.
@@ -4586,6 +5134,9 @@ class ResolvedRecursiveScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedWithScan
 <a id="ResolvedWithScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedWithScan
+ &nbsp;(<a href="#ResolvedWithScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a SQL WITH query (or subquery) like
 //   WITH [RECURSIVE] &lt;with_query_name1&gt; AS (&lt;with_subquery1&gt;),
 //        &lt;with_query_name2&gt; AS (&lt;with_subquery2&gt;)
@@ -4654,6 +5205,9 @@ class ResolvedWithScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedWithEntry
 <a id="ResolvedWithEntry"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWithEntry
+ &nbsp;(<a href="#ResolvedWithEntry-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents one aliased subquery introduced in a WITH clause.
 //
 // The &lt;with_query_name&gt;s must be globally unique in the full resolved AST.
@@ -4673,6 +5227,9 @@ class ResolvedWithEntry : public <a href="#ResolvedArgument">ResolvedArgument</a
 ### ResolvedOption
 <a id="ResolvedOption"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedOption
+ &nbsp;(<a href="#ResolvedOption-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents one SQL hint or option key/value pair.
 // The SQL syntax @{ key1=value1, key2=value2, some_db.key3=value3 }
 // will expand to three <a href="#ResolvedOption">ResolvedOptions</a>.  Keyword hints (e.g. LOOKUP JOIN)
@@ -4686,7 +5243,8 @@ class ResolvedWithEntry : public <a href="#ResolvedArgument">ResolvedArgument</a
 //
 // Each hint or option is resolved as a [&lt;qualifier&gt;.]&lt;name&gt;:=&lt;value&gt; pair.
 //   &lt;qualifier&gt; will be empty if no qualifier was present.
-//   &lt;name&gt; is always non-empty.
+//   &lt;name&gt; can be empty only when assignment_op is FROM. Otherwise
+//          non-empty.
 //   &lt;value&gt; can be a <a href="#ResolvedLiteral">ResolvedLiteral</a> or a <a href="#ResolvedParameter">ResolvedParameter</a>,
 //           a cast of a <a href="#ResolvedParameter">ResolvedParameter</a> (for typed hints only),
 //           or a general expression (on constant inputs).
@@ -4721,6 +5279,7 @@ class ResolvedOption : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const AssignmentOp DEFAULT_ASSIGN = <a href="#ResolvedOptionEnum">ResolvedOptionEnums</a>::DEFAULT_ASSIGN;
   static const AssignmentOp ADD_ASSIGN = <a href="#ResolvedOptionEnum">ResolvedOptionEnums</a>::ADD_ASSIGN;
   static const AssignmentOp SUB_ASSIGN = <a href="#ResolvedOptionEnum">ResolvedOptionEnums</a>::SUB_ASSIGN;
+  static const AssignmentOp FROM = <a href="#ResolvedOptionEnum">ResolvedOptionEnums</a>::FROM;
 
   const std::string&amp; qualifier() const;
 
@@ -4734,6 +5293,9 @@ class ResolvedOption : public <a href="#ResolvedArgument">ResolvedArgument</a> {
 
 ### ResolvedWindowPartitioning
 <a id="ResolvedWindowPartitioning"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWindowPartitioning
+ &nbsp;(<a href="#ResolvedWindowPartitioning-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Window partitioning specification for an analytic function call.
 //
@@ -4767,6 +5329,9 @@ class ResolvedWindowPartitioning : public <a href="#ResolvedArgument">ResolvedAr
 ### ResolvedWindowOrdering
 <a id="ResolvedWindowOrdering"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWindowOrdering
+ &nbsp;(<a href="#ResolvedWindowOrdering-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Window ordering specification for an analytic function call.
 //
 // ORDER BY items in &lt;order_by_list&gt;. There should be exactly one ORDER
@@ -4786,6 +5351,9 @@ class ResolvedWindowOrdering : public <a href="#ResolvedArgument">ResolvedArgume
 
 ### ResolvedWindowFrame
 <a id="ResolvedWindowFrame"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWindowFrame
+ &nbsp;(<a href="#ResolvedWindowFrame-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Window framing specification for an analytic function call.
 //
@@ -4819,6 +5387,9 @@ class ResolvedWindowFrame : public <a href="#ResolvedArgument">ResolvedArgument<
 ### ResolvedAnalyticFunctionGroup
 <a id="ResolvedAnalyticFunctionGroup"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedAnalyticFunctionGroup
+ &nbsp;(<a href="#ResolvedAnalyticFunctionGroup-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a group of analytic function calls that shares PARTITION
 // BY and ORDER BY.
 //
@@ -4844,6 +5415,9 @@ class ResolvedAnalyticFunctionGroup : public <a href="#ResolvedArgument">Resolve
 
 ### ResolvedWindowFrameExpr
 <a id="ResolvedWindowFrameExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWindowFrameExpr
+ &nbsp;(<a href="#ResolvedWindowFrameExpr-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Window frame boundary expression that determines the first/last row of
 // the moving window for each tuple.
@@ -4876,6 +5450,9 @@ class ResolvedWindowFrameExpr : public <a href="#ResolvedArgument">ResolvedArgum
 ### ResolvedDMLValue
 <a id="ResolvedDMLValue"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedDMLValue
+ &nbsp;(<a href="#ResolvedDMLValue-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a value inside an INSERT or UPDATE statement.
 //
 // The &lt;value&gt; is either an expression or a DMLDefault.
@@ -4891,6 +5468,9 @@ class ResolvedDMLValue : public <a href="#ResolvedArgument">ResolvedArgument</a>
 ### ResolvedDMLDefault
 <a id="ResolvedDMLDefault"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedDMLDefault
+ &nbsp;(<a href="#ResolvedDMLDefault-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is used to represent the value DEFAULT that shows up (in place of a
 // value expression) in INSERT and UPDATE statements.
 // For columns, engines should substitute the engine-defined default value
@@ -4905,6 +5485,9 @@ class ResolvedDMLDefault : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedAssertStmt
 <a id="ResolvedAssertStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAssertStmt
+ &nbsp;(<a href="#ResolvedAssertStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the ASSERT statement:
 //   ASSERT &lt;expression&gt; [AS &lt;description&gt;];
@@ -4924,6 +5507,9 @@ class ResolvedAssertStmt : public <a href="#ResolvedStatement">ResolvedStatement
 ### ResolvedAssertRowsModified
 <a id="ResolvedAssertRowsModified"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedAssertRowsModified
+ &nbsp;(<a href="#ResolvedAssertRowsModified-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the ASSERT ROWS MODIFIED clause on a DML statement.
 // The value must be a literal or (possibly casted) parameter int64.
 //
@@ -4938,6 +5524,9 @@ class ResolvedAssertRowsModified : public <a href="#ResolvedArgument">ResolvedAr
 
 ### ResolvedOnConflictClause
 <a id="ResolvedOnConflictClause"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedOnConflictClause
+ &nbsp;(<a href="#ResolvedOnConflictClause-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the ON CONFLICT clause on an INSERT statement. It
 // specifies the alternate action to be taken if the insert row causes
@@ -5019,6 +5608,9 @@ class ResolvedOnConflictClause : public <a href="#ResolvedArgument">ResolvedArgu
 ### ResolvedInsertRow
 <a id="ResolvedInsertRow"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedInsertRow
+ &nbsp;(<a href="#ResolvedInsertRow-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents one row in the VALUES clause of an INSERT.</font>
 class ResolvedInsertRow : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_INSERT_ROW;
@@ -5031,6 +5623,9 @@ class ResolvedInsertRow : public <a href="#ResolvedArgument">ResolvedArgument</a
 
 ### ResolvedInsertStmt
 <a id="ResolvedInsertStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedInsertStmt
+ &nbsp;(<a href="#ResolvedInsertStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents an INSERT statement, or a nested INSERT inside an
 // UPDATE statement.
@@ -5176,6 +5771,9 @@ class ResolvedInsertStmt : public <a href="#ResolvedStatement">ResolvedStatement
 ### ResolvedDeleteStmt
 <a id="ResolvedDeleteStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDeleteStmt
+ &nbsp;(<a href="#ResolvedDeleteStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a DELETE statement or a nested DELETE inside an
 // UPDATE statement.
 //
@@ -5224,6 +5822,9 @@ class ResolvedDeleteStmt : public <a href="#ResolvedStatement">ResolvedStatement
 
 ### ResolvedUpdateItem
 <a id="ResolvedUpdateItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedUpdateItem
+ &nbsp;(<a href="#ResolvedUpdateItem-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents one item inside the SET clause of an UPDATE.
 //
@@ -5396,6 +5997,9 @@ class ResolvedUpdateItem : public <a href="#ResolvedArgument">ResolvedArgument</
 ### ResolvedUpdateItemElement
 <a id="ResolvedUpdateItemElement"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedUpdateItemElement
+ &nbsp;(<a href="#ResolvedUpdateItemElement-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This node represents the element modification of a container, but does not
 // include the container itself. E.g., for `SET container_col[&lt;expr&gt;] = 5`,
 // this node represents a modification of &#34;= 5&#34; on the element at subscript
@@ -5429,6 +6033,9 @@ class ResolvedUpdateItemElement : public <a href="#ResolvedArgument">ResolvedArg
 
 ### ResolvedUpdateStmt
 <a id="ResolvedUpdateStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedUpdateStmt
+ &nbsp;(<a href="#ResolvedUpdateStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents an UPDATE statement, or a nested UPDATE inside an
 // UPDATE statement.
@@ -5520,6 +6127,9 @@ class ResolvedUpdateStmt : public <a href="#ResolvedStatement">ResolvedStatement
 ### ResolvedMergeWhen
 <a id="ResolvedMergeWhen"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMergeWhen
+ &nbsp;(<a href="#ResolvedMergeWhen-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is used by <a href="#ResolvedMergeStmt">ResolvedMergeStmt</a> to represent one WHEN ... THEN clause
 // within MERGE statement.
 //
@@ -5596,6 +6206,9 @@ class ResolvedMergeWhen : public <a href="#ResolvedArgument">ResolvedArgument</a
 ### ResolvedMergeStmt
 <a id="ResolvedMergeStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedMergeStmt
+ &nbsp;(<a href="#ResolvedMergeStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a MERGE statement.
 //
 // &lt;table_scan&gt; gives the target table to scan and creates <a href="#ResolvedColumn">ResolvedColumns</a>
@@ -5640,6 +6253,9 @@ class ResolvedMergeStmt : public <a href="#ResolvedStatement">ResolvedStatement<
 ### ResolvedTruncateStmt
 <a id="ResolvedTruncateStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedTruncateStmt
+ &nbsp;(<a href="#ResolvedTruncateStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a TRUNCATE TABLE statement.
 //
 // Statement:
@@ -5664,6 +6280,9 @@ class ResolvedTruncateStmt : public <a href="#ResolvedStatement">ResolvedStateme
 ### ResolvedObjectUnit
 <a id="ResolvedObjectUnit"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedObjectUnit
+ &nbsp;(<a href="#ResolvedObjectUnit-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A reference to a unit of an object (e.g. a column or field of a table).
 //
 // &lt;name_path&gt; is a vector giving the identifier path of the object unit.</font>
@@ -5678,6 +6297,9 @@ class ResolvedObjectUnit : public <a href="#ResolvedArgument">ResolvedArgument</
 
 ### ResolvedPrivilege
 <a id="ResolvedPrivilege"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedPrivilege
+ &nbsp;(<a href="#ResolvedPrivilege-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A grantable privilege.
 //
@@ -5699,6 +6321,9 @@ class ResolvedPrivilege : public <a href="#ResolvedArgument">ResolvedArgument</a
 
 ### ResolvedGrantOrRevokeStmt
 <a id="ResolvedGrantOrRevokeStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedGrantOrRevokeStmt
+ &nbsp;(<a href="#ResolvedGrantOrRevokeStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common superclass of GRANT/REVOKE statements.
 //
@@ -5747,6 +6372,9 @@ class ResolvedGrantOrRevokeStmt : public <a href="#ResolvedStatement">ResolvedSt
 ### ResolvedGrantStmt
 <a id="ResolvedGrantStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a>  &rsaquo; ResolvedGrantStmt
+ &nbsp;(<a href="#ResolvedGrantStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A GRANT statement. It represents the action to grant a list of privileges
 // on a specific object to/from list of grantees.</font>
 class ResolvedGrantStmt : public <a href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a> {
@@ -5758,6 +6386,9 @@ class ResolvedGrantStmt : public <a href="#ResolvedGrantOrRevokeStmt">ResolvedGr
 ### ResolvedRevokeStmt
 <a id="ResolvedRevokeStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a>  &rsaquo; ResolvedRevokeStmt
+ &nbsp;(<a href="#ResolvedRevokeStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A REVOKE statement. It represents the action to revoke a list of
 // privileges on a specific object to/from list of grantees.</font>
 class ResolvedRevokeStmt : public <a href="#ResolvedGrantOrRevokeStmt">ResolvedGrantOrRevokeStmt</a> {
@@ -5768,6 +6399,9 @@ class ResolvedRevokeStmt : public <a href="#ResolvedGrantOrRevokeStmt">ResolvedG
 
 ### ResolvedAlterObjectStmt
 <a id="ResolvedAlterObjectStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAlterObjectStmt
+ &nbsp;(<a href="#ResolvedAlterObjectStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Common super class for statements:
 //   ALTER &lt;object&gt; [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;
@@ -5793,6 +6427,9 @@ class ResolvedAlterObjectStmt : public <a href="#ResolvedStatement">ResolvedStat
 ### ResolvedAlterDatabaseStmt
 <a id="ResolvedAlterDatabaseStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterDatabaseStmt
+ &nbsp;(<a href="#ResolvedAlterDatabaseStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   ALTER DATABASE [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;
 //
@@ -5805,6 +6442,9 @@ class ResolvedAlterDatabaseStmt : public <a href="#ResolvedAlterObjectStmt">Reso
 
 ### ResolvedAlterIndexStmt
 <a id="ResolvedAlterIndexStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterIndexStmt
+ &nbsp;(<a href="#ResolvedAlterIndexStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   ALTER [SEARCH|VECTOR] INDEX [IF EXISTS] &lt;name_path&gt; [ON &lt;table_name_path&gt;] &lt;alter_action_list&gt;
@@ -5839,6 +6479,9 @@ class ResolvedAlterIndexStmt : public <a href="#ResolvedAlterObjectStmt">Resolve
 ### ResolvedAlterMaterializedViewStmt
 <a id="ResolvedAlterMaterializedViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterMaterializedViewStmt
+ &nbsp;(<a href="#ResolvedAlterMaterializedViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER MATERIALIZED VIEW [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;</font>
 class ResolvedAlterMaterializedViewStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
@@ -5849,6 +6492,9 @@ class ResolvedAlterMaterializedViewStmt : public <a href="#ResolvedAlterObjectSt
 
 ### ResolvedAlterApproxViewStmt
 <a id="ResolvedAlterApproxViewStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterApproxViewStmt
+ &nbsp;(<a href="#ResolvedAlterApproxViewStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER APPROX VIEW [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;</font>
@@ -5861,6 +6507,9 @@ class ResolvedAlterApproxViewStmt : public <a href="#ResolvedAlterObjectStmt">Re
 ### ResolvedAlterSchemaStmt
 <a id="ResolvedAlterSchemaStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterSchemaStmt
+ &nbsp;(<a href="#ResolvedAlterSchemaStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER SCHEMA [IF NOT EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;;</font>
 class ResolvedAlterSchemaStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
@@ -5871,6 +6520,9 @@ class ResolvedAlterSchemaStmt : public <a href="#ResolvedAlterObjectStmt">Resolv
 
 ### ResolvedAlterExternalSchemaStmt
 <a id="ResolvedAlterExternalSchemaStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterExternalSchemaStmt
+ &nbsp;(<a href="#ResolvedAlterExternalSchemaStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER EXTERNAL SCHEMA [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;;</font>
@@ -5883,6 +6535,9 @@ class ResolvedAlterExternalSchemaStmt : public <a href="#ResolvedAlterObjectStmt
 ### ResolvedAlterModelStmt
 <a id="ResolvedAlterModelStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterModelStmt
+ &nbsp;(<a href="#ResolvedAlterModelStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER MODEL [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;</font>
 class ResolvedAlterModelStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
@@ -5893,6 +6548,9 @@ class ResolvedAlterModelStmt : public <a href="#ResolvedAlterObjectStmt">Resolve
 
 ### ResolvedAlterTableStmt
 <a id="ResolvedAlterTableStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterTableStmt
+ &nbsp;(<a href="#ResolvedAlterTableStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER TABLE [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;</font>
@@ -5912,6 +6570,9 @@ class ResolvedAlterTableStmt : public <a href="#ResolvedAlterObjectStmt">Resolve
 ### ResolvedAlterViewStmt
 <a id="ResolvedAlterViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterViewStmt
+ &nbsp;(<a href="#ResolvedAlterViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER VIEW [IF EXISTS] &lt;name_path&gt; &lt;alter_action_list&gt;</font>
 class ResolvedAlterViewStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
@@ -5923,6 +6584,9 @@ class ResolvedAlterViewStmt : public <a href="#ResolvedAlterObjectStmt">Resolved
 ### ResolvedAlterAction
 <a id="ResolvedAlterAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedAlterAction
+ &nbsp;(<a href="#ResolvedAlterAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A common super class for all actions in statement ALTER &lt;object&gt;</font>
 class ResolvedAlterAction : public <a href="#ResolvedArgument">ResolvedArgument</a> {
 };
@@ -5930,6 +6594,9 @@ class ResolvedAlterAction : public <a href="#ResolvedArgument">ResolvedArgument<
 
 ### ResolvedAlterColumnAction
 <a id="ResolvedAlterColumnAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAlterColumnAction
+ &nbsp;(<a href="#ResolvedAlterColumnAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A super class for all ALTER COLUMN actions in the ALTER TABLE statement:
 //   ALTER TABLE &lt;table_name&gt; ALTER COLUMN [IF EXISTS] &lt;column&gt;
@@ -5946,6 +6613,9 @@ class ResolvedAlterColumnAction : public <a href="#ResolvedAlterAction">Resolved
 ### ResolvedSetOptionsAction
 <a id="ResolvedSetOptionsAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedSetOptionsAction
+ &nbsp;(<a href="#ResolvedSetOptionsAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// SET OPTIONS action for ALTER &lt;object&gt; statement
 //
 // &lt;option_list&gt; has engine-specific directives that specify how to
@@ -5961,6 +6631,9 @@ class ResolvedSetOptionsAction : public <a href="#ResolvedAlterAction">ResolvedA
 
 ### ResolvedAlterSubEntityAction
 <a id="ResolvedAlterSubEntityAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAlterSubEntityAction
+ &nbsp;(<a href="#ResolvedAlterSubEntityAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Alter sub-entity action for ALTER &lt;object&gt; statement.
 // (broken link)
@@ -5988,6 +6661,9 @@ class ResolvedAlterSubEntityAction : public <a href="#ResolvedAlterAction">Resol
 
 ### ResolvedAddSubEntityAction
 <a id="ResolvedAddSubEntityAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAddSubEntityAction
+ &nbsp;(<a href="#ResolvedAddSubEntityAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Add sub-entity action for ALTER &lt;object&gt; statement.
 // (broken link)
@@ -6017,6 +6693,9 @@ class ResolvedAddSubEntityAction : public <a href="#ResolvedAlterAction">Resolve
 ### ResolvedDropSubEntityAction
 <a id="ResolvedDropSubEntityAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedDropSubEntityAction
+ &nbsp;(<a href="#ResolvedDropSubEntityAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Drop sub-entity action for ALTER &lt;object&gt; statement.
 // (broken link)
 //
@@ -6040,6 +6719,9 @@ class ResolvedDropSubEntityAction : public <a href="#ResolvedAlterAction">Resolv
 ### ResolvedAddColumnAction
 <a id="ResolvedAddColumnAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAddColumnAction
+ &nbsp;(<a href="#ResolvedAddColumnAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// ADD COLUMN action for ALTER TABLE statement</font>
 class ResolvedAddColumnAction : public <a href="#ResolvedAlterAction">ResolvedAlterAction</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_ADD_COLUMN_ACTION;
@@ -6052,6 +6734,9 @@ class ResolvedAddColumnAction : public <a href="#ResolvedAlterAction">ResolvedAl
 
 ### ResolvedAddColumnIdentifierAction
 <a id="ResolvedAddColumnIdentifierAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAddColumnIdentifierAction
+ &nbsp;(<a href="#ResolvedAddColumnIdentifierAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// ADD COLUMN action for ALTER VECTOR|SEARCH INDEX statement
 // (broken link)
@@ -6075,6 +6760,9 @@ class ResolvedAddColumnIdentifierAction : public <a href="#ResolvedAlterAction">
 ### ResolvedRebuildAction
 <a id="ResolvedRebuildAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRebuildAction
+ &nbsp;(<a href="#ResolvedRebuildAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// REBUILD action for ALTER VECTOR|SEARCH INDEX statement.
 // (broken link)
 //
@@ -6087,6 +6775,9 @@ class ResolvedRebuildAction : public <a href="#ResolvedAlterAction">ResolvedAlte
 
 ### ResolvedAddConstraintAction
 <a id="ResolvedAddConstraintAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAddConstraintAction
+ &nbsp;(<a href="#ResolvedAddConstraintAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// ADD CONSTRAINT for ALTER TABLE statement</font>
 class ResolvedAddConstraintAction : public <a href="#ResolvedAlterAction">ResolvedAlterAction</a> {
@@ -6103,6 +6794,9 @@ class ResolvedAddConstraintAction : public <a href="#ResolvedAlterAction">Resolv
 ### ResolvedDropConstraintAction
 <a id="ResolvedDropConstraintAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedDropConstraintAction
+ &nbsp;(<a href="#ResolvedDropConstraintAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// DROP CONSTRAINT for ALTER TABLE statement</font>
 class ResolvedDropConstraintAction : public <a href="#ResolvedAlterAction">ResolvedAlterAction</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_DROP_CONSTRAINT_ACTION;
@@ -6116,6 +6810,9 @@ class ResolvedDropConstraintAction : public <a href="#ResolvedAlterAction">Resol
 ### ResolvedDropPrimaryKeyAction
 <a id="ResolvedDropPrimaryKeyAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedDropPrimaryKeyAction
+ &nbsp;(<a href="#ResolvedDropPrimaryKeyAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// DROP PRIMARY KEY [IF EXISTS] for ALTER TABLE statement</font>
 class ResolvedDropPrimaryKeyAction : public <a href="#ResolvedAlterAction">ResolvedAlterAction</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_DROP_PRIMARY_KEY_ACTION;
@@ -6126,6 +6823,9 @@ class ResolvedDropPrimaryKeyAction : public <a href="#ResolvedAlterAction">Resol
 
 ### ResolvedAlterColumnOptionsAction
 <a id="ResolvedAlterColumnOptionsAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnOptionsAction
+ &nbsp;(<a href="#ResolvedAlterColumnOptionsAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This ALTER action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; SET OPTIONS &lt;options_list&gt;
@@ -6144,6 +6844,9 @@ class ResolvedAlterColumnOptionsAction : public <a href="#ResolvedAlterColumnAct
 ### ResolvedAlterColumnDropNotNullAction
 <a id="ResolvedAlterColumnDropNotNullAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnDropNotNullAction
+ &nbsp;(<a href="#ResolvedAlterColumnDropNotNullAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This ALTER action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; DROP NOT NULL
 //
@@ -6156,6 +6859,9 @@ class ResolvedAlterColumnDropNotNullAction : public <a href="#ResolvedAlterColum
 
 ### ResolvedAlterColumnDropGeneratedAction
 <a id="ResolvedAlterColumnDropGeneratedAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnDropGeneratedAction
+ &nbsp;(<a href="#ResolvedAlterColumnDropGeneratedAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This ALTER action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; DROP GENERATED
@@ -6170,6 +6876,9 @@ class ResolvedAlterColumnDropGeneratedAction : public <a href="#ResolvedAlterCol
 
 ### ResolvedAlterColumnSetGeneratedAction
 <a id="ResolvedAlterColumnSetGeneratedAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnSetGeneratedAction
+ &nbsp;(<a href="#ResolvedAlterColumnSetGeneratedAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Alter column set generated action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; SET GENERATED AS &lt;generation_clause&gt;
@@ -6195,6 +6904,9 @@ class ResolvedAlterColumnSetGeneratedAction : public <a href="#ResolvedAlterColu
 
 ### ResolvedAlterColumnSetDataTypeAction
 <a id="ResolvedAlterColumnSetDataTypeAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnSetDataTypeAction
+ &nbsp;(<a href="#ResolvedAlterColumnSetDataTypeAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// ALTER COLUMN &lt;column&gt; SET DATA TYPE action for ALTER TABLE
 // statement. It supports updating the data type of the column as
@@ -6222,6 +6934,9 @@ class ResolvedAlterColumnSetDataTypeAction : public <a href="#ResolvedAlterColum
 ### ResolvedAlterColumnSetDefaultAction
 <a id="ResolvedAlterColumnSetDefaultAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnSetDefaultAction
+ &nbsp;(<a href="#ResolvedAlterColumnSetDefaultAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Alter column set default action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; SET DEFAULT &lt;default_value&gt;
 //
@@ -6242,6 +6957,9 @@ class ResolvedAlterColumnSetDefaultAction : public <a href="#ResolvedAlterColumn
 ### ResolvedAlterColumnDropDefaultAction
 <a id="ResolvedAlterColumnDropDefaultAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; <a href="#ResolvedAlterColumnAction">ResolvedAlterColumnAction</a>  &rsaquo; ResolvedAlterColumnDropDefaultAction
+ &nbsp;(<a href="#ResolvedAlterColumnDropDefaultAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This ALTER action:
 //   ALTER COLUMN [IF EXISTS] &lt;column&gt; DROP DEFAULT
 //
@@ -6254,6 +6972,9 @@ class ResolvedAlterColumnDropDefaultAction : public <a href="#ResolvedAlterColum
 
 ### ResolvedDropColumnAction
 <a id="ResolvedDropColumnAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedDropColumnAction
+ &nbsp;(<a href="#ResolvedDropColumnAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// DROP COLUMN action for ALTER TABLE statement
 //
@@ -6269,6 +6990,9 @@ class ResolvedDropColumnAction : public <a href="#ResolvedAlterAction">ResolvedA
 
 ### ResolvedRenameColumnAction
 <a id="ResolvedRenameColumnAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRenameColumnAction
+ &nbsp;(<a href="#ResolvedRenameColumnAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// RENAME COLUMN action for ALTER TABLE statement.
 //
@@ -6294,6 +7018,9 @@ class ResolvedRenameColumnAction : public <a href="#ResolvedAlterAction">Resolve
 ### ResolvedSetAsAction
 <a id="ResolvedSetAsAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedSetAsAction
+ &nbsp;(<a href="#ResolvedSetAsAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// SET AS action for generic ALTER &lt;entity_type&gt; statement.
 // Exactly one of &lt;entity_body_json&gt;, &lt;entity_body_text&gt; should be non-empty.
 //
@@ -6311,6 +7038,9 @@ class ResolvedSetAsAction : public <a href="#ResolvedAlterAction">ResolvedAlterA
 ### ResolvedSetCollateClause
 <a id="ResolvedSetCollateClause"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedSetCollateClause
+ &nbsp;(<a href="#ResolvedSetCollateClause-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// SET DEFAULT COLLATE clause for generic ALTER &lt;entity_type&gt; statement.
 //
 // &lt;collation_name&gt; specifies the new default collation specification for a
@@ -6327,6 +7057,9 @@ class ResolvedSetCollateClause : public <a href="#ResolvedAlterAction">ResolvedA
 
 ### ResolvedAlterTableSetOptionsStmt
 <a id="ResolvedAlterTableSetOptionsStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAlterTableSetOptionsStmt
+ &nbsp;(<a href="#ResolvedAlterTableSetOptionsStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   ALTER TABLE [IF EXISTS] &lt;name&gt; SET OPTIONS (...)
@@ -6355,6 +7088,9 @@ class ResolvedAlterTableSetOptionsStmt : public <a href="#ResolvedStatement">Res
 ### ResolvedRenameStmt
 <a id="ResolvedRenameStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedRenameStmt
+ &nbsp;(<a href="#ResolvedRenameStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: RENAME &lt;object_type&gt; &lt;old_name_path&gt; TO &lt;new_name_path&gt;;
 //
 // &lt;object_type&gt; is an string identifier,
@@ -6380,6 +7116,9 @@ class ResolvedRenameStmt : public <a href="#ResolvedStatement">ResolvedStatement
 
 ### ResolvedCreatePrivilegeRestrictionStmt
 <a id="ResolvedCreatePrivilegeRestrictionStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreatePrivilegeRestrictionStmt
+ &nbsp;(<a href="#ResolvedCreatePrivilegeRestrictionStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     CREATE [OR REPLACE] PRIVILEGE RESTRICTION [IF NOT EXISTS]
@@ -6410,6 +7149,9 @@ class ResolvedCreatePrivilegeRestrictionStmt : public <a href="#ResolvedCreateSt
 
 ### ResolvedCreateRowAccessPolicyStmt
 <a id="ResolvedCreateRowAccessPolicyStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCreateRowAccessPolicyStmt
+ &nbsp;(<a href="#ResolvedCreateRowAccessPolicyStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: CREATE [OR REPLACE] ROW ACCESS POLICY [IF NOT EXISTS]
 //                 [&lt;name&gt;] ON &lt;target_name_path&gt;
@@ -6471,6 +7213,9 @@ class ResolvedCreateRowAccessPolicyStmt : public <a href="#ResolvedStatement">Re
 ### ResolvedDropPrivilegeRestrictionStmt
 <a id="ResolvedDropPrivilegeRestrictionStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropPrivilegeRestrictionStmt
+ &nbsp;(<a href="#ResolvedDropPrivilegeRestrictionStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     DROP PRIVILEGE RESTRICTION [IF EXISTS]
 //     ON &lt;column_privilege_list&gt; ON &lt;object_type&gt; &lt;name_path&gt;
@@ -6500,6 +7245,9 @@ class ResolvedDropPrivilegeRestrictionStmt : public <a href="#ResolvedStatement"
 ### ResolvedDropRowAccessPolicyStmt
 <a id="ResolvedDropRowAccessPolicyStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropRowAccessPolicyStmt
+ &nbsp;(<a href="#ResolvedDropRowAccessPolicyStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     DROP ROW ACCESS POLICY &lt;name&gt; ON &lt;target_name_path&gt;; or
 //     DROP ALL ROW [ACCESS] POLICIES ON &lt;target_name_path&gt;;
@@ -6528,6 +7276,9 @@ class ResolvedDropRowAccessPolicyStmt : public <a href="#ResolvedStatement">Reso
 ### ResolvedDropIndexStmt
 <a id="ResolvedDropIndexStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropIndexStmt
+ &nbsp;(<a href="#ResolvedDropIndexStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// DROP SEARCH|VECTOR INDEX [IF EXISTS] &lt;name&gt; [ON &lt;table_name_path&gt;];
 // Note: DROP INDEX without SEARCH or VECTOR is currently resolved to a
 // generic <a href="#ResolvedDropStmt">ResolvedDropStmt</a>. The index_type currently would never be
@@ -6543,6 +7294,7 @@ class ResolvedDropIndexStmt : public <a href="#ResolvedStatement">ResolvedStatem
   static const IndexType INDEX_DEFAULT = <a href="#ResolvedDropIndexStmtEnum">ResolvedDropIndexStmtEnums</a>::INDEX_DEFAULT;
   static const IndexType INDEX_SEARCH = <a href="#ResolvedDropIndexStmtEnum">ResolvedDropIndexStmtEnums</a>::INDEX_SEARCH;
   static const IndexType INDEX_VECTOR = <a href="#ResolvedDropIndexStmtEnum">ResolvedDropIndexStmtEnums</a>::INDEX_VECTOR;
+  static const IndexType INDEX_AI = <a href="#ResolvedDropIndexStmtEnum">ResolvedDropIndexStmtEnums</a>::INDEX_AI;
 
   std::string GetIndexTypeString() const;
   static std::string IndexTypeToString(IndexType index_type);
@@ -6562,6 +7314,9 @@ class ResolvedDropIndexStmt : public <a href="#ResolvedStatement">ResolvedStatem
 ### ResolvedGrantToAction
 <a id="ResolvedGrantToAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedGrantToAction
+ &nbsp;(<a href="#ResolvedGrantToAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// GRANT TO action for ALTER ROW ACCESS POLICY statement
 //
 // &lt;grantee_expr_list&gt; is the list of grantees, and may include parameters.</font>
@@ -6576,6 +7331,9 @@ class ResolvedGrantToAction : public <a href="#ResolvedAlterAction">ResolvedAlte
 
 ### ResolvedRestrictToAction
 <a id="ResolvedRestrictToAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRestrictToAction
+ &nbsp;(<a href="#ResolvedRestrictToAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This action for ALTER PRIVILEGE RESTRICTION statement:
 //     RESTRICT TO &lt;restrictee_list&gt;
@@ -6594,6 +7352,9 @@ class ResolvedRestrictToAction : public <a href="#ResolvedAlterAction">ResolvedA
 
 ### ResolvedAddToRestricteeListAction
 <a id="ResolvedAddToRestricteeListAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedAddToRestricteeListAction
+ &nbsp;(<a href="#ResolvedAddToRestricteeListAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This action for ALTER PRIVILEGE RESTRICTION statement:
 //     ADD [IF NOT EXISTS] &lt;restrictee_list&gt;
@@ -6615,6 +7376,9 @@ class ResolvedAddToRestricteeListAction : public <a href="#ResolvedAlterAction">
 ### ResolvedRemoveFromRestricteeListAction
 <a id="ResolvedRemoveFromRestricteeListAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRemoveFromRestricteeListAction
+ &nbsp;(<a href="#ResolvedRemoveFromRestricteeListAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This action for ALTER PRIVILEGE RESTRICTION statement:
 //     REMOVE [IF EXISTS] &lt;restrictee_list&gt;
 //
@@ -6635,6 +7399,9 @@ class ResolvedRemoveFromRestricteeListAction : public <a href="#ResolvedAlterAct
 ### ResolvedFilterUsingAction
 <a id="ResolvedFilterUsingAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedFilterUsingAction
+ &nbsp;(<a href="#ResolvedFilterUsingAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// FILTER USING action for ALTER ROW ACCESS POLICY statement
 //
 // &lt;predicate&gt; is a boolean expression that selects the rows that are being
@@ -6651,6 +7418,9 @@ class ResolvedFilterUsingAction : public <a href="#ResolvedAlterAction">Resolved
 
 ### ResolvedRevokeFromAction
 <a id="ResolvedRevokeFromAction"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRevokeFromAction
+ &nbsp;(<a href="#ResolvedRevokeFromAction-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// REVOKE FROM action for ALTER ROW ACCESS POLICY statement
 //
@@ -6671,6 +7441,9 @@ class ResolvedRevokeFromAction : public <a href="#ResolvedAlterAction">ResolvedA
 ### ResolvedRenameToAction
 <a id="ResolvedRenameToAction"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedAlterAction">ResolvedAlterAction</a>  &rsaquo; ResolvedRenameToAction
+ &nbsp;(<a href="#ResolvedRenameToAction-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// RENAME TO action for ALTER ROW ACCESS POLICY statement
 //         and ALTER TABLE statement
 //
@@ -6687,6 +7460,9 @@ class ResolvedRenameToAction : public <a href="#ResolvedAlterAction">ResolvedAlt
 
 ### ResolvedAlterPrivilegeRestrictionStmt
 <a id="ResolvedAlterPrivilegeRestrictionStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterPrivilegeRestrictionStmt
+ &nbsp;(<a href="#ResolvedAlterPrivilegeRestrictionStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     ALTER PRIVILEGE RESTRICTION [IF EXISTS]
@@ -6711,6 +7487,9 @@ class ResolvedAlterPrivilegeRestrictionStmt : public <a href="#ResolvedAlterObje
 ### ResolvedAlterRowAccessPolicyStmt
 <a id="ResolvedAlterRowAccessPolicyStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterRowAccessPolicyStmt
+ &nbsp;(<a href="#ResolvedAlterRowAccessPolicyStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     ALTER ROW ACCESS POLICY [IF EXISTS]
 //     &lt;name&gt; ON &lt;name_path&gt;
@@ -6733,6 +7512,9 @@ class ResolvedAlterRowAccessPolicyStmt : public <a href="#ResolvedAlterObjectStm
 ### ResolvedAlterAllRowAccessPoliciesStmt
 <a id="ResolvedAlterAllRowAccessPoliciesStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterAllRowAccessPoliciesStmt
+ &nbsp;(<a href="#ResolvedAlterAllRowAccessPoliciesStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //     ALTER ALL ROW ACCESS POLICIES ON &lt;name_path&gt; &lt;alter_action_list&gt;
 //
@@ -6753,6 +7535,9 @@ class ResolvedAlterAllRowAccessPoliciesStmt : public <a href="#ResolvedAlterObje
 ### ResolvedCreateConstantStmt
 <a id="ResolvedCreateConstantStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateConstantStmt
+ &nbsp;(<a href="#ResolvedCreateConstantStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates a user-defined named constant:
 // CREATE [OR REPLACE] [TEMP | TEMPORARY | PUBLIC | PRIVATE] CONSTANT
 //   [IF NOT EXISTS] &lt;name_path&gt; = &lt;expression&gt;
@@ -6772,6 +7557,9 @@ class ResolvedCreateConstantStmt : public <a href="#ResolvedCreateStatement">Res
 
 ### ResolvedCreateFunctionStmt
 <a id="ResolvedCreateFunctionStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateFunctionStmt
+ &nbsp;(<a href="#ResolvedCreateFunctionStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates a user-defined function:
 //   CREATE [TEMP] FUNCTION [IF NOT EXISTS] &lt;name_path&gt; (&lt;arg_list&gt;)
@@ -6921,6 +7709,9 @@ class ResolvedCreateFunctionStmt : public <a href="#ResolvedCreateStatement">Res
 ### ResolvedArgumentDef
 <a id="ResolvedArgumentDef"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedArgumentDef
+ &nbsp;(<a href="#ResolvedArgumentDef-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents an argument definition, e.g. in a function&#39;s argument
 // list.
 //
@@ -6955,6 +7746,9 @@ class ResolvedArgumentDef : public <a href="#ResolvedArgument">ResolvedArgument<
 ### ResolvedArgumentRef
 <a id="ResolvedArgumentRef"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedArgumentRef
+ &nbsp;(<a href="#ResolvedArgumentRef-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents an argument reference, e.g. in a function&#39;s body.
 // &lt;name&gt; is the name of the argument.
 // &lt;argument_kind&gt; is the ArgumentKind from the <a href="#ResolvedArgumentDef">ResolvedArgumentDef</a>.
@@ -6980,6 +7774,9 @@ class ResolvedArgumentRef : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 
 ### ResolvedCreateTableFunctionStmt
 <a id="ResolvedCreateTableFunctionStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateTableFunctionStmt
+ &nbsp;(<a href="#ResolvedCreateTableFunctionStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates a user-defined table-valued function:
 //   CREATE [TEMP] TABLE FUNCTION [IF NOT EXISTS]
@@ -7106,6 +7903,9 @@ class ResolvedCreateTableFunctionStmt : public <a href="#ResolvedCreateStatement
 ### ResolvedRelationArgumentScan
 <a id="ResolvedRelationArgumentScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedRelationArgumentScan
+ &nbsp;(<a href="#ResolvedRelationArgumentScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a relation argument reference in a table-valued function&#39;s
 // body. The &#39;column_list&#39; of this <a href="#ResolvedScan">ResolvedScan</a> includes column names from
 // the relation argument in the table-valued function signature.</font>
@@ -7127,6 +7927,9 @@ class ResolvedRelationArgumentScan : public <a href="#ResolvedScan">ResolvedScan
 
 ### ResolvedArgumentList
 <a id="ResolvedArgumentList"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedArgumentList
+ &nbsp;(<a href="#ResolvedArgumentList-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: [ (&lt;arg_list&gt;) ];
 //
@@ -7150,6 +7953,9 @@ class ResolvedArgumentList : public <a href="#ResolvedArgument">ResolvedArgument
 ### ResolvedFunctionSignatureHolder
 <a id="ResolvedFunctionSignatureHolder"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedFunctionSignatureHolder
+ &nbsp;(<a href="#ResolvedFunctionSignatureHolder-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This wrapper is used for an optional FunctionSignature.</font>
 class ResolvedFunctionSignatureHolder : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_FUNCTION_SIGNATURE_HOLDER;
@@ -7160,6 +7966,9 @@ class ResolvedFunctionSignatureHolder : public <a href="#ResolvedArgument">Resol
 
 ### ResolvedDropFunctionStmt
 <a id="ResolvedDropFunctionStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropFunctionStmt
+ &nbsp;(<a href="#ResolvedDropFunctionStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DROP FUNCTION [IF EXISTS] &lt;name_path&gt;
 //   [ (&lt;arguments&gt;) ];
@@ -7202,6 +8011,9 @@ class ResolvedDropFunctionStmt : public <a href="#ResolvedStatement">ResolvedSta
 ### ResolvedDropTableFunctionStmt
 <a id="ResolvedDropTableFunctionStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedDropTableFunctionStmt
+ &nbsp;(<a href="#ResolvedDropTableFunctionStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: DROP TABLE FUNCTION [IF EXISTS] &lt;name_path&gt;;
 //
 // &lt;is_if_exists&gt; silently ignore the &#34;name_path does not exist&#34; error.
@@ -7219,6 +8031,9 @@ class ResolvedDropTableFunctionStmt : public <a href="#ResolvedStatement">Resolv
 
 ### ResolvedCallStmt
 <a id="ResolvedCallStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCallStmt
+ &nbsp;(<a href="#ResolvedCallStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: CALL &lt;procedure&gt;;
 //
@@ -7240,6 +8055,9 @@ class ResolvedCallStmt : public <a href="#ResolvedStatement">ResolvedStatement</
 
 ### ResolvedImportStmt
 <a id="ResolvedImportStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedImportStmt
+ &nbsp;(<a href="#ResolvedImportStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement: IMPORT &lt;import_kind&gt;
 //                              [&lt;name_path&gt; [AS|INTO &lt;alias_path&gt;]
@@ -7303,6 +8121,9 @@ class ResolvedImportStmt : public <a href="#ResolvedStatement">ResolvedStatement
 ### ResolvedModuleStmt
 <a id="ResolvedModuleStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedModuleStmt
+ &nbsp;(<a href="#ResolvedModuleStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement: MODULE &lt;name_path&gt; [&lt;option_list&gt;];
 //
 // &lt;name_path&gt; is the identifier path of the module.
@@ -7324,6 +8145,9 @@ class ResolvedModuleStmt : public <a href="#ResolvedStatement">ResolvedStatement
 
 ### ResolvedAggregateHavingModifier
 <a id="ResolvedAggregateHavingModifier"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedAggregateHavingModifier
+ &nbsp;(<a href="#ResolvedAggregateHavingModifier-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a HAVING MAX or HAVING MIN modifier in an aggregate
 // expression. If an aggregate has arguments (x HAVING {MAX/MIN} y),
@@ -7352,6 +8176,9 @@ class ResolvedAggregateHavingModifier : public <a href="#ResolvedArgument">Resol
 ### ResolvedCreateMaterializedViewStmt
 <a id="ResolvedCreateMaterializedViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a>  &rsaquo; ResolvedCreateMaterializedViewStmt
+ &nbsp;(<a href="#ResolvedCreateMaterializedViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE MATERIALIZED VIEW &lt;name&gt; [(...)] [PARTITION BY expr, ...]
 //   [CLUSTER BY expr, ...] [OPTIONS (...)]
@@ -7379,6 +8206,9 @@ class ResolvedCreateMaterializedViewStmt : public <a href="#ResolvedCreateViewBa
 ### ResolvedCreateApproxViewStmt
 <a id="ResolvedCreateApproxViewStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateViewBase">ResolvedCreateViewBase</a>  &rsaquo; ResolvedCreateApproxViewStmt
+ &nbsp;(<a href="#ResolvedCreateApproxViewStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates an APPROX VIEW:
 //   CREATE APPROX VIEW &lt;name&gt; [(...)] [OPTIONS (...)] AS SELECT ...
 //
@@ -7396,6 +8226,9 @@ class ResolvedCreateApproxViewStmt : public <a href="#ResolvedCreateViewBase">Re
 
 ### ResolvedCreateProcedureStmt
 <a id="ResolvedCreateProcedureStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateProcedureStmt
+ &nbsp;(<a href="#ResolvedCreateProcedureStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement creates a user-defined procedure:
 // CREATE [OR REPLACE] [TEMP] PROCEDURE [IF NOT EXISTS] &lt;name_path&gt;
@@ -7459,6 +8292,9 @@ class ResolvedCreateProcedureStmt : public <a href="#ResolvedCreateStatement">Re
 ### ResolvedExecuteImmediateArgument
 <a id="ResolvedExecuteImmediateArgument"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedExecuteImmediateArgument
+ &nbsp;(<a href="#ResolvedExecuteImmediateArgument-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An argument for an EXECUTE IMMEDIATE&#39;s USING clause.
 //
 // &lt;name&gt; an optional name for this expression
@@ -7474,6 +8310,9 @@ class ResolvedExecuteImmediateArgument : public <a href="#ResolvedArgument">Reso
 
 ### ResolvedExecuteImmediateStmt
 <a id="ResolvedExecuteImmediateStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedExecuteImmediateStmt
+ &nbsp;(<a href="#ResolvedExecuteImmediateStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An EXECUTE IMMEDIATE statement
 // EXECUTE IMMEDIATE &lt;sql&gt; [&lt;into_clause&gt;] [&lt;using_clause&gt;]
@@ -7503,6 +8342,9 @@ class ResolvedExecuteImmediateStmt : public <a href="#ResolvedStatement">Resolve
 ### ResolvedAssignmentStmt
 <a id="ResolvedAssignmentStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAssignmentStmt
+ &nbsp;(<a href="#ResolvedAssignmentStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// An assignment of a value to another value.</font>
 class ResolvedAssignmentStmt : public <a href="#ResolvedStatement">ResolvedStatement</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_ASSIGNMENT_STMT;
@@ -7520,6 +8362,9 @@ class ResolvedAssignmentStmt : public <a href="#ResolvedStatement">ResolvedState
 
 ### ResolvedCreateEntityStmt
 <a id="ResolvedCreateEntityStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateEntityStmt
+ &nbsp;(<a href="#ResolvedCreateEntityStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// (broken link)
 // This statement:
@@ -7552,6 +8397,9 @@ class ResolvedCreateEntityStmt : public <a href="#ResolvedCreateStatement">Resol
 ### ResolvedAlterEntityStmt
 <a id="ResolvedAlterEntityStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterEntityStmt
+ &nbsp;(<a href="#ResolvedAlterEntityStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// (broken link)
 // This statement:
 // ALTER &lt;entity_type&gt; [IF EXISTS]  &lt;path_expression&gt;
@@ -7567,6 +8415,9 @@ class ResolvedAlterEntityStmt : public <a href="#ResolvedAlterObjectStmt">Resolv
 
 ### ResolvedPivotColumn
 <a id="ResolvedPivotColumn"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedPivotColumn
+ &nbsp;(<a href="#ResolvedPivotColumn-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a column produced by aggregating a particular pivot
 // expression over a subset of the input for which the FOR expression
@@ -7602,6 +8453,9 @@ class ResolvedPivotColumn : public <a href="#ResolvedArgument">ResolvedArgument<
 
 ### ResolvedPivotScan
 <a id="ResolvedPivotScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPivotScan
+ &nbsp;(<a href="#ResolvedPivotScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A scan produced by the following SQL fragment:
 //   &lt;input_scan&gt; PIVOT(... FOR ... IN (...))
@@ -7659,11 +8513,22 @@ class ResolvedPivotScan : public <a href="#ResolvedScan">ResolvedScan</a> {
   const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedPivotColumn">ResolvedPivotColumn</a>&gt;&gt;&amp; pivot_column_list() const;
   int pivot_column_list_size() const;
   const <a href="#ResolvedPivotColumn">ResolvedPivotColumn</a>* pivot_column_list(int i) const;
+
+<font color="brown">  // Collation to use for the comparisons between the corresponding
+  // the `for_expr` and elements in `pivot_value_list`.
+  //
+  // Note that any of the implicit grouping columns with collation on
+  // them will be grouped using that collation, which is unrelated to
+  // this collation.</font>
+  const <a href="#ResolvedCollation">ResolvedCollation</a>&amp; pivot_value_collation() const;
 };
 </code></pre></p>
 
 ### ResolvedReturningClause
 <a id="ResolvedReturningClause"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedReturningClause
+ &nbsp;(<a href="#ResolvedReturningClause-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents the returning clause on a DML statement.</font>
 class ResolvedReturningClause : public <a href="#ResolvedArgument">ResolvedArgument</a> {
@@ -7695,6 +8560,9 @@ class ResolvedReturningClause : public <a href="#ResolvedArgument">ResolvedArgum
 ### ResolvedUnpivotArg
 <a id="ResolvedUnpivotArg"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedUnpivotArg
+ &nbsp;(<a href="#ResolvedUnpivotArg-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A column group in the UNPIVOT IN clause.
 //
 // Example:
@@ -7712,8 +8580,52 @@ class ResolvedUnpivotArg : public <a href="#ResolvedArgument">ResolvedArgument</
 };
 </code></pre></p>
 
+### ResolvedCreateLiveTableStmt
+<a id="ResolvedCreateLiveTableStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a>  &rsaquo; ResolvedCreateLiveTableStmt
+ &nbsp;(<a href="#ResolvedCreateLiveTableStmt-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// This statement:
+//   CREATE [OR REPLACE] [TEMP|TEMPORARY|PUBLIC|PRIVATE] LIVE TABLE [IF NOT EXISTS] &lt;name_path&gt;
+//   [ (column schema, ...) ]
+//   [DEFAULT COLLATE &lt;collation_name&gt;]
+//   [PARTITION BY expr, ...]
+//   [CLUSTER BY expr, ...]
+//   [WITH CONNECTION connection_name]
+//   [OPTIONS (...)]
+//   AS SELECT ...
+//
+// &lt;output_column_list&gt; has the names and types of the columns in the
+//                      created live table, and maps from &lt;query&gt;&#39;s column_list
+//                      to these output columns.
+// &lt;query&gt; is the query to run.
+// &lt;partition_by_list&gt; specifies the partitioning expressions for the table.
+// &lt;cluster_by_list&gt; specifies the clustering expressions for the table.</font>
+class ResolvedCreateLiveTableStmt : public <a href="#ResolvedCreateTableStmtBase">ResolvedCreateTableStmtBase</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_CREATE_LIVE_TABLE_STMT;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedOutputColumn">ResolvedOutputColumn</a>&gt;&gt;&amp; output_column_list() const;
+  int output_column_list_size() const;
+  const <a href="#ResolvedOutputColumn">ResolvedOutputColumn</a>* output_column_list(int i) const;
+
+  const <a href="#ResolvedScan">ResolvedScan</a>* query() const;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedExpr">ResolvedExpr</a>&gt;&gt;&amp; partition_by_list() const;
+  int partition_by_list_size() const;
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* partition_by_list(int i) const;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedExpr">ResolvedExpr</a>&gt;&gt;&amp; cluster_by_list() const;
+  int cluster_by_list_size() const;
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* cluster_by_list(int i) const;
+};
+</code></pre></p>
+
 ### ResolvedUnpivotScan
 <a id="ResolvedUnpivotScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedUnpivotScan
+ &nbsp;(<a href="#ResolvedUnpivotScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A scan produced by the following SQL fragment:
 // &lt;input_scan&gt; UNPIVOT(&lt;value_column_list&gt;
@@ -7809,6 +8721,9 @@ class ResolvedUnpivotScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedMatchRecognizeScan
 <a id="ResolvedMatchRecognizeScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedMatchRecognizeScan
+ &nbsp;(<a href="#ResolvedMatchRecognizeScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A scan for row pattern recognition (the MATCH_RECOGNIZE clause).
 // See (broken link) for details.</font>
@@ -7914,6 +8829,9 @@ class ResolvedMatchRecognizeScan : public <a href="#ResolvedScan">ResolvedScan</
 ### ResolvedMeasureGroup
 <a id="ResolvedMeasureGroup"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMeasureGroup
+ &nbsp;(<a href="#ResolvedMeasureGroup-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Must be contained directly in a <a href="#ResolvedMatchRecognizeScan">ResolvedMatchRecognizeScan</a>. Groups all
 // aggregations ranging over the same pattern variable in the MEASURES clause
 // a MATCH_RECOGNIZE. This is a similar concept to
@@ -7952,6 +8870,9 @@ class ResolvedMeasureGroup : public <a href="#ResolvedArgument">ResolvedArgument
 ### ResolvedMatchRecognizeVariableDefinition
 <a id="ResolvedMatchRecognizeVariableDefinition"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMatchRecognizeVariableDefinition
+ &nbsp;(<a href="#ResolvedMatchRecognizeVariableDefinition-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a row pattern variable definition.
 // This node can only be used under <a href="#ResolvedMatchRecognizeScan">ResolvedMatchRecognizeScan</a>.</font>
 class ResolvedMatchRecognizeVariableDefinition : public <a href="#ResolvedArgument">ResolvedArgument</a> {
@@ -7974,6 +8895,9 @@ class ResolvedMatchRecognizeVariableDefinition : public <a href="#ResolvedArgume
 ### ResolvedMatchRecognizePatternExpr
 <a id="ResolvedMatchRecognizePatternExpr"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMatchRecognizePatternExpr
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternExpr-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Abstract class for row pattern expression.</font>
 class ResolvedMatchRecognizePatternExpr : public <a href="#ResolvedArgument">ResolvedArgument</a> {
 };
@@ -7981,6 +8905,9 @@ class ResolvedMatchRecognizePatternExpr : public <a href="#ResolvedArgument">Res
 
 ### ResolvedMatchRecognizePatternEmpty
 <a id="ResolvedMatchRecognizePatternEmpty"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>  &rsaquo; ResolvedMatchRecognizePatternEmpty
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternEmpty-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents an empty pattern.
 // * An empty pattern consumes zero rows and always matches successfully.
@@ -7994,6 +8921,9 @@ class ResolvedMatchRecognizePatternEmpty : public <a href="#ResolvedMatchRecogni
 
 ### ResolvedMatchRecognizePatternAnchor
 <a id="ResolvedMatchRecognizePatternAnchor"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>  &rsaquo; ResolvedMatchRecognizePatternAnchor
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternAnchor-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a start or end anchor (^ or $, respectively.)
 // * A START anchor requires the match to be at the start of the partition.
@@ -8015,6 +8945,9 @@ class ResolvedMatchRecognizePatternAnchor : public <a href="#ResolvedMatchRecogn
 ### ResolvedMatchRecognizePatternVariableRef
 <a id="ResolvedMatchRecognizePatternVariableRef"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>  &rsaquo; ResolvedMatchRecognizePatternVariableRef
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternVariableRef-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A reference to a row pattern variable.</font>
 class ResolvedMatchRecognizePatternVariableRef : public <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_MATCH_RECOGNIZE_PATTERN_VARIABLE_REF;
@@ -8029,6 +8962,9 @@ class ResolvedMatchRecognizePatternVariableRef : public <a href="#ResolvedMatchR
 
 ### ResolvedMatchRecognizePatternOperation
 <a id="ResolvedMatchRecognizePatternOperation"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>  &rsaquo; ResolvedMatchRecognizePatternOperation
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternOperation-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// An N-ary operation over row pattern sub-expressions.</font>
 class ResolvedMatchRecognizePatternOperation : public <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a> {
@@ -8049,6 +8985,9 @@ class ResolvedMatchRecognizePatternOperation : public <a href="#ResolvedMatchRec
 
 ### ResolvedMatchRecognizePatternQuantification
 <a id="ResolvedMatchRecognizePatternQuantification"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>  &rsaquo; ResolvedMatchRecognizePatternQuantification
+ &nbsp;(<a href="#ResolvedMatchRecognizePatternQuantification-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Quantification on a row pattern expression, e.g. A+, A?, A{n, m}, ..etc.
 // Regardless of the original syntax used, e.g. a symbol or fixed- or custom-
@@ -8084,8 +9023,120 @@ class ResolvedMatchRecognizePatternQuantification : public <a href="#ResolvedMat
 };
 </code></pre></p>
 
+### ResolvedWithinBoundExpr
+<a id="ResolvedWithinBoundExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWithinBoundExpr
+ &nbsp;(<a href="#ResolvedWithinBoundExpr-toc">tree</a>)
+
+<p><pre><code class="lang-c++">class ResolvedWithinBoundExpr : public <a href="#ResolvedArgument">ResolvedArgument</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_WITHIN_BOUND_EXPR;
+
+  typedef <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::BoundKind BoundKind;
+  static const BoundKind NOT_SET = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::NOT_SET;
+  static const BoundKind UNBOUNDED_PRECEDING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::UNBOUNDED_PRECEDING;
+  static const BoundKind UNBOUNDED_FOLLOWING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::UNBOUNDED_FOLLOWING;
+  static const BoundKind PERIOD_PRECEDING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::PERIOD_PRECEDING;
+  static const BoundKind PERIOD_FOLLOWING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::PERIOD_FOLLOWING;
+  static const BoundKind INTERVAL_PRECEDING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::INTERVAL_PRECEDING;
+  static const BoundKind INTERVAL_FOLLOWING = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::INTERVAL_FOLLOWING;
+  static const BoundKind ANCHOR_TIMESTAMP = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::ANCHOR_TIMESTAMP;
+  static const BoundKind TIMESTAMP = <a href="#ResolvedWithinBoundExprEnum">ResolvedWithinBoundExprEnums</a>::TIMESTAMP;
+
+  std::string GetBoundKindString() const;
+  static std::string BoundKindToString(BoundKind bound_kind);
+
+  <a href="#ResolvedWithinBoundExpr">ResolvedWithinBoundExpr</a>::BoundKind bound_kind() const;
+
+<font color="brown">  // The expression defining the bound. Must be query-const.
+  // For absolute bounds, it is of type TIMESTAMP.
+  // For relative interval bounds, it is of type INTERVAL.
+  // For relative period bounds, it is either of type INTEGER  or DOUBLE.
+  // Null if the bound type is UNBOUNDED PRECEDING / FOLLOWING or ANCHORED_TIMESTAMP.</font>
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* expr() const;
+};
+</code></pre></p>
+
+### ResolvedWithinBounds
+<a id="ResolvedWithinBound"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedWithinBounds
+ &nbsp;(<a href="#ResolvedWithinBounds-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Bounds within which an estimator function is calculated. Implicit
+// nullptr bound in ParseAST is represented as explicit bound of type
+// ANCHOR_TIMESTAMP in <a href="#ResolvedAST">ResolvedAST</a>.</font>
+class ResolvedWithinBounds : public <a href="#ResolvedArgument">ResolvedArgument</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_WITHIN_BOUNDS;
+
+<font color="brown">  // Lower bound expression. Can&#39;t be NULL</font>
+  const <a href="#ResolvedWithinBoundExpr">ResolvedWithinBoundExpr</a>* lower_bound() const;
+
+<font color="brown">  // Upper bound expression. Can&#39;t be NULL</font>
+  const <a href="#ResolvedWithinBoundExpr">ResolvedWithinBoundExpr</a>* upper_bound() const;
+};
+</code></pre></p>
+
+### ResolvedAlignScan
+<a id="ResolvedAlignScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedAlignScan
+ &nbsp;(<a href="#ResolvedAlignScan-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// A scan produced by the ALIGN Operator for a timeseries. See
+// (broken link).
+//
+// The output column_list includes (a subset of) one column per
+// partitioning_expression, one column for the aligned_timestamp and one
+// column per estimator_function.</font>
+class ResolvedAlignScan : public <a href="#ResolvedScan">ResolvedScan</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_ALIGN_SCAN;
+
+  const <a href="#ResolvedScan">ResolvedScan</a>* input_scan() const;
+
+<font color="brown">  // The timestamp column of the input scan. This column logically orders
+  // the input timeseries and determines whether an input row falls within
+  // an estimator&#39;s computation window. It must be a `<a href="#ResolvedColumnRef">ResolvedColumnRef</a>`
+  // that points to a column in the `input_scan`&#39;s column list.</font>
+  const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* timestamp_column() const;
+
+<font color="brown">  // The interval between the output aligned timestamps. This must be a
+  // query-const expression of type INTERVAL. Columns from the input
+  // scan are not visible here, but references to correlated columns
+  // are allowed.</font>
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* period() const;
+
+<font color="brown">  // This must be a query-const expression of type TIMESTAMP. All output
+  // timestamps are an integer multiple of the period away from this
+  // timestamp. Columns from the input scan are not visible here, but
+  // references to correlated columns are allowed.</font>
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* origin() const;
+
+<font color="brown">  // Filter that restricts output timestamps of the
+  // aligned_timestamp column to the time range (lower and upper bound)
+  // specified by this node.</font>
+  const <a href="#ResolvedWithinBound">ResolvedWithinBounds</a>* output_within() const;
+
+<font color="brown">  // Used for partitioning the input table into logical timeseries. This
+  // is a list of `<a href="#ResolvedColumnRef">ResolvedColumnRef</a>`s pointing to columns in the
+  // `input_scan`&#39;s column list where the partitioning expressions from
+  // the original query have already been computed.</font>
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>&gt;&gt;&amp; partition_by_list() const;
+  int partition_by_list_size() const;
+  const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* partition_by_list(int i) const;
+
+<font color="brown">  // The new column created to store the computed aligned timestamp for
+  // each row. This column must appear in the `column_list` of this
+  // scan.</font>
+  const <a href="#ResolvedColumn">ResolvedColumn</a>&amp; aligned_timestamp_column() const;
+};
+</code></pre></p>
+
 ### ResolvedCloneDataStmt
 <a id="ResolvedCloneDataStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedCloneDataStmt
+ &nbsp;(<a href="#ResolvedCloneDataStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// CLONE DATA INTO &lt;table_name&gt; FROM ...
 //
@@ -8117,6 +9168,9 @@ class ResolvedCloneDataStmt : public <a href="#ResolvedStatement">ResolvedStatem
 ### ResolvedTableAndColumnInfo
 <a id="ResolvedTableAndColumnInfo"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedTableAndColumnInfo
+ &nbsp;(<a href="#ResolvedTableAndColumnInfo-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Identifies the &lt;table&gt; and &lt;column_index_list&gt; (which can be empty) that
 // are targets of the ANALYZE statement.
 //
@@ -8135,6 +9189,9 @@ class ResolvedTableAndColumnInfo : public <a href="#ResolvedArgument">ResolvedAr
 
 ### ResolvedAnalyzeStmt
 <a id="ResolvedAnalyzeStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAnalyzeStmt
+ &nbsp;(<a href="#ResolvedAnalyzeStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the ANALYZE statement:
 // ANALYZE [OPTIONS (&lt;option_list&gt;)] [&lt;table_and_column_index_list&gt; [, ...]];
@@ -8159,6 +9216,9 @@ class ResolvedAnalyzeStmt : public <a href="#ResolvedStatement">ResolvedStatemen
 ### ResolvedAuxLoadDataPartitionFilter
 <a id="ResolvedAuxLoadDataPartitionFilter"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedAuxLoadDataPartitionFilter
+ &nbsp;(<a href="#ResolvedAuxLoadDataPartitionFilter-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Indicates that the LOAD DATA statement will load to or overwrite the
 // selected partitions:
 //   [OVERWRITE] PARTITIONS (&lt;filter&gt;)</font>
@@ -8180,6 +9240,9 @@ class ResolvedAuxLoadDataPartitionFilter : public <a href="#ResolvedArgument">Re
 
 ### ResolvedAuxLoadDataStmt
 <a id="ResolvedAuxLoadDataStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedAuxLoadDataStmt
+ &nbsp;(<a href="#ResolvedAuxLoadDataStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// LOAD DATA {OVERWRITE|INTO} [{TEMP|TEMPORARY} TABLE] &lt;table_name&gt;
 // [[OVERWRITE] PARTITIONS(...)] ...
@@ -8314,6 +9377,9 @@ class ResolvedAuxLoadDataStmt : public <a href="#ResolvedStatement">ResolvedStat
 ### ResolvedCreatePropertyGraphStmt
 <a id="ResolvedCreatePropertyGraphStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreatePropertyGraphStmt
+ &nbsp;(<a href="#ResolvedCreatePropertyGraphStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   CREATE [OR REPLACE] PROPERTY GRAPH [IF NOT EXISTS] &lt;name_path&gt;
 //   [OPTIONS (&lt;option_list&gt;)]
@@ -8353,6 +9419,9 @@ class ResolvedCreatePropertyGraphStmt : public <a href="#ResolvedCreateStatement
 
 ### ResolvedGraphElementTable
 <a id="ResolvedGraphElementTable"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphElementTable
+ &nbsp;(<a href="#ResolvedGraphElementTable-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// GraphElementTable definition:
 //   &lt;name&gt; [AS &lt;alias&gt;]
@@ -8412,6 +9481,9 @@ class ResolvedGraphElementTable : public <a href="#ResolvedArgument">ResolvedArg
 ### ResolvedGraphNodeTableReference
 <a id="ResolvedGraphNodeTableReference"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphNodeTableReference
+ &nbsp;(<a href="#ResolvedGraphNodeTableReference-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// GraphNodeTableReference definition:
 //   SOURCE|DESTINATION KEY(&lt;edge_table_column_list&gt;) REFERENCES
 //   &lt;node_table_identifier&gt;(&lt;node_table_column_list&gt;)
@@ -8438,6 +9510,9 @@ class ResolvedGraphNodeTableReference : public <a href="#ResolvedArgument">Resol
 ### ResolvedGraphElementLabel
 <a id="ResolvedGraphElementLabel"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphElementLabel
+ &nbsp;(<a href="#ResolvedGraphElementLabel-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// &lt;name&gt; is the name of the label.
 // &lt;property_declaration_name_list&gt; is a list of property declarations
 // exposed by the label.
@@ -8461,6 +9536,9 @@ class ResolvedGraphElementLabel : public <a href="#ResolvedArgument">ResolvedArg
 ### ResolvedGraphPropertyDeclaration
 <a id="ResolvedGraphPropertyDeclaration"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPropertyDeclaration
+ &nbsp;(<a href="#ResolvedGraphPropertyDeclaration-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a property name and type exposed by a GraphElementLabel.</font>
 class ResolvedGraphPropertyDeclaration : public <a href="#ResolvedArgument">ResolvedArgument</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_PROPERTY_DECLARATION;
@@ -8475,6 +9553,9 @@ class ResolvedGraphPropertyDeclaration : public <a href="#ResolvedArgument">Reso
 
 ### ResolvedGraphPropertyDefinition
 <a id="ResolvedGraphPropertyDefinition"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPropertyDefinition
+ &nbsp;(<a href="#ResolvedGraphPropertyDefinition-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a property exposed by a GraphElementLabel on a specific
 // GraphElementTable.
@@ -8507,6 +9588,9 @@ class ResolvedGraphPropertyDefinition : public <a href="#ResolvedArgument">Resol
 ### ResolvedGraphDynamicLabelSpecification
 <a id="ResolvedGraphDynamicLabelSpecification"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphDynamicLabelSpecification
+ &nbsp;(<a href="#ResolvedGraphDynamicLabelSpecification-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGraphDynamicLabelSpecification">ResolvedGraphDynamicLabelSpecification</a> is a schema entity that defines
 // the dynamic label specification.
 // The dynamic label specification is a column reference, and the column
@@ -8522,6 +9606,9 @@ class ResolvedGraphDynamicLabelSpecification : public <a href="#ResolvedArgument
 ### ResolvedGraphDynamicPropertiesSpecification
 <a id="ResolvedGraphDynamicPropertiesSpecification"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphDynamicPropertiesSpecification
+ &nbsp;(<a href="#ResolvedGraphDynamicPropertiesSpecification-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGraphDynamicPropertiesSpecification">ResolvedGraphDynamicPropertiesSpecification</a> is a schema entity that defines
 // the dynamic property specification.
 // The dynamic property specification is a column reference, and the column
@@ -8536,6 +9623,9 @@ class ResolvedGraphDynamicPropertiesSpecification : public <a href="#ResolvedArg
 ### ResolvedGraphScanBase
 <a id="ResolvedGraphScanBase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphScanBase
+ &nbsp;(<a href="#ResolvedGraphScanBase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Base scan class for graph scans</font>
 class ResolvedGraphScanBase : public <a href="#ResolvedScan">ResolvedScan</a> {
 };
@@ -8543,6 +9633,9 @@ class ResolvedGraphScanBase : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedGraphRefScan
 <a id="ResolvedGraphRefScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphRefScan
+ &nbsp;(<a href="#ResolvedGraphRefScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A reference scan that can be used as input by a scan op
 // to its previous scan op within the same parent GraphLinearScan.</font>
@@ -8554,6 +9647,9 @@ class ResolvedGraphRefScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedGraphLinearScan
 <a id="ResolvedGraphLinearScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphScanBase">ResolvedGraphScanBase</a>  &rsaquo; ResolvedGraphLinearScan
+ &nbsp;(<a href="#ResolvedGraphLinearScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// GraphLinearScan consists of multiple child scans executed in
 // order and outputs the last scan</font>
@@ -8568,6 +9664,9 @@ class ResolvedGraphLinearScan : public <a href="#ResolvedGraphScanBase">Resolved
 
 ### ResolvedGraphTableScan
 <a id="ResolvedGraphTableScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphTableScan
+ &nbsp;(<a href="#ResolvedGraphTableScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A scan produced by &lt;graph table&gt; as described in
 // (broken link):graph-table-syntax, or gql enabled &lt;graph table&gt;,
@@ -8596,6 +9695,9 @@ class ResolvedGraphTableScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedGraphCallScan
 <a id="ResolvedGraphCallScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphCallScan
+ &nbsp;(<a href="#ResolvedGraphCallScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents a GQL CALL operation, which with a subquery is equivalent to a
 // LATERAL JOIN.
@@ -8636,6 +9738,9 @@ class ResolvedGraphCallScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedGraphScan
 <a id="ResolvedGraphScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphScanBase">ResolvedGraphScanBase</a>  &rsaquo; ResolvedGraphScan
+ &nbsp;(<a href="#ResolvedGraphScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A scan produced by a &lt;graph pattern&gt; in &lt;graph table&gt;. It represents the
 // cross product of input <a href="#ResolvedGraphPathScan">ResolvedGraphPathScans</a>, each represents a matching
@@ -8683,6 +9788,9 @@ class ResolvedGraphScan : public <a href="#ResolvedGraphScanBase">ResolvedGraphS
 ### ResolvedGraphPathPatternQuantifier
 <a id="ResolvedGraphPathPatternQuantifier"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPathPatternQuantifier
+ &nbsp;(<a href="#ResolvedGraphPathPatternQuantifier-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A graph path pattern quantifier is used to represent the repetition of
 // a path pattern.</font>
 class ResolvedGraphPathPatternQuantifier : public <a href="#ResolvedArgument">ResolvedArgument</a> {
@@ -8700,6 +9808,9 @@ class ResolvedGraphPathPatternQuantifier : public <a href="#ResolvedArgument">Re
 
 ### ResolvedGraphPathSearchPrefix
 <a id="ResolvedGraphPathSearchPrefix"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPathSearchPrefix
+ &nbsp;(<a href="#ResolvedGraphPathSearchPrefix-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A graph path pattern search prefix, which restricts the result from a
 // graph pattern match by grouping the resulting paths by their
@@ -8726,6 +9837,9 @@ class ResolvedGraphPathSearchPrefix : public <a href="#ResolvedArgument">Resolve
 ### ResolvedGraphPathScanBase
 <a id="ResolvedGraphPathScanBase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphPathScanBase
+ &nbsp;(<a href="#ResolvedGraphPathScanBase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Common base class for path scan and element scan.
 // This is needed to support parenthesized path pattern.</font>
 class ResolvedGraphPathScanBase : public <a href="#ResolvedScan">ResolvedScan</a> {
@@ -8734,6 +9848,9 @@ class ResolvedGraphPathScanBase : public <a href="#ResolvedScan">ResolvedScan</a
 
 ### ResolvedGraphElementScan
 <a id="ResolvedGraphElementScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>  &rsaquo; ResolvedGraphElementScan
+ &nbsp;(<a href="#ResolvedGraphElementScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A base scan produced by a &lt;element pattern&gt;.
 // Outputs a stream of single-columned rows where &lt;filter_expr&gt; evaluates
@@ -8762,6 +9879,9 @@ class ResolvedGraphElementScan : public <a href="#ResolvedGraphPathScanBase">Res
 ### ResolvedGraphNodeScan
 <a id="ResolvedGraphNodeScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>  &rsaquo; <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a>  &rsaquo; ResolvedGraphNodeScan
+ &nbsp;(<a href="#ResolvedGraphNodeScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a> produced by &lt;node pattern&gt;, whose the single
 // output column is of GraphElementType(kind=Node).</font>
 class ResolvedGraphNodeScan : public <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a> {
@@ -8772,6 +9892,9 @@ class ResolvedGraphNodeScan : public <a href="#ResolvedGraphElementScan">Resolve
 
 ### ResolvedGraphEdgeScan
 <a id="ResolvedGraphEdgeScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>  &rsaquo; <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a>  &rsaquo; ResolvedGraphEdgeScan
+ &nbsp;(<a href="#ResolvedGraphEdgeScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// A <a href="#ResolvedGraphElementScan">ResolvedGraphElementScan</a> produced by &lt;edge pattern&gt;, whose the single
 // output column is of GraphElementType(kind=Edge).
@@ -8803,6 +9926,9 @@ class ResolvedGraphEdgeScan : public <a href="#ResolvedGraphElementScan">Resolve
 ### ResolvedGraphGetElementProperty
 <a id="ResolvedGraphGetElementProperty"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGraphGetElementProperty
+ &nbsp;(<a href="#ResolvedGraphGetElementProperty-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Get a property from the graph element in `expr`. `expr` must be of
 // GraphElementType.
 // `property_name` must be evaluated to a STRING typed expression.
@@ -8821,6 +9947,9 @@ class ResolvedGraphGetElementProperty : public <a href="#ResolvedExpr">ResolvedE
 ### ResolvedGraphLabelExpr
 <a id="ResolvedGraphLabelExpr"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphLabelExpr
+ &nbsp;(<a href="#ResolvedGraphLabelExpr-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// A label is an element of a graph that declares what properties
 // are exposed by some node/edge table.
 // A label expression is an arbitrarily complex expression of labels with the
@@ -8831,6 +9960,9 @@ class ResolvedGraphLabelExpr : public <a href="#ResolvedArgument">ResolvedArgume
 
 ### ResolvedGraphLabelNaryExpr
 <a id="ResolvedGraphLabelNaryExpr"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a>  &rsaquo; ResolvedGraphLabelNaryExpr
+ &nbsp;(<a href="#ResolvedGraphLabelNaryExpr-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a logical operation performed on a set of individual
 // labels, where &lt;op&gt; specifies the type of operation (&amp;, |, !) and
@@ -8862,6 +9994,9 @@ class ResolvedGraphLabelNaryExpr : public <a href="#ResolvedGraphLabelExpr">Reso
 ### ResolvedGraphLabel
 <a id="ResolvedGraphLabel"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a>  &rsaquo; ResolvedGraphLabel
+ &nbsp;(<a href="#ResolvedGraphLabel-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a single resolved graph label.
 //
 // A label is an element belonging to a property graph that has a unique
@@ -8884,6 +10019,9 @@ class ResolvedGraphLabel : public <a href="#ResolvedGraphLabelExpr">ResolvedGrap
 ### ResolvedGraphWildCardLabel
 <a id="ResolvedGraphWildCardLabel"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; <a href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a>  &rsaquo; ResolvedGraphWildCardLabel
+ &nbsp;(<a href="#ResolvedGraphWildCardLabel-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the wildcard label % that matches any label in the graph.</font>
 class ResolvedGraphWildCardLabel : public <a href="#ResolvedGraphLabelExpr">ResolvedGraphLabelExpr</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_WILD_CARD_LABEL;
@@ -8893,6 +10031,9 @@ class ResolvedGraphWildCardLabel : public <a href="#ResolvedGraphLabelExpr">Reso
 
 ### ResolvedGraphElementIdentifier
 <a id="ResolvedGraphElementIdentifier"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphElementIdentifier
+ &nbsp;(<a href="#ResolvedGraphElementIdentifier-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents the identifier of a graph element within a graph.
 // See (broken link):graph-element-identifiers for more details.
@@ -8920,6 +10061,9 @@ class ResolvedGraphElementIdentifier : public <a href="#ResolvedArgument">Resolv
 ### ResolvedGraphElementProperty
 <a id="ResolvedGraphElementProperty"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphElementProperty
+ &nbsp;(<a href="#ResolvedGraphElementProperty-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents a graph element property of a graph element.
 //
 // &lt;declaration&gt; refers to the property declaration catalog object;
@@ -8935,6 +10079,9 @@ class ResolvedGraphElementProperty : public <a href="#ResolvedArgument">Resolved
 
 ### ResolvedGraphMakeElement
 <a id="ResolvedGraphMakeElement"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGraphMakeElement
+ &nbsp;(<a href="#ResolvedGraphMakeElement-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Constructs a graph element.
 //
@@ -8968,6 +10115,9 @@ class ResolvedGraphMakeElement : public <a href="#ResolvedExpr">ResolvedExpr</a>
 
 ### ResolvedArrayAggregate
 <a id="ResolvedArrayAggregate"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedArrayAggregate
+ &nbsp;(<a href="#ResolvedArrayAggregate-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Computes an aggregate over the elements of an array.
 //
@@ -9006,6 +10156,9 @@ class ResolvedArrayAggregate : public <a href="#ResolvedExpr">ResolvedExpr</a> {
 ### ResolvedGraphMakeArrayVariable
 <a id="ResolvedGraphMakeArrayVariable"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphMakeArrayVariable
+ &nbsp;(<a href="#ResolvedGraphMakeArrayVariable-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGraphMakeArrayVariable">ResolvedGraphMakeArrayVariable</a> populates the newly created &lt;array&gt;
 // column with the values that &lt;element&gt; takes across iterations of the
 // quantified path. For example, the resolved path `((a) - (b)){3}` will
@@ -9025,6 +10178,9 @@ class ResolvedGraphMakeArrayVariable : public <a href="#ResolvedArgument">Resolv
 
 ### ResolvedGraphPathMode
 <a id="ResolvedGraphPathMode"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPathMode
+ &nbsp;(<a href="#ResolvedGraphPathMode-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Path mode specifies ways to restrict the nodes and edges on a particular
 // path. It currently provides the ability to prevent duplicate edges with
@@ -9047,6 +10203,9 @@ class ResolvedGraphPathMode : public <a href="#ResolvedArgument">ResolvedArgumen
 ### ResolvedGraphPathCost
 <a id="ResolvedGraphPathCost"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphPathCost
+ &nbsp;(<a href="#ResolvedGraphPathCost-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This node defines the cost for a graph path. Currently it only defines the
 // value type of the cost. Value expressions are not yet supported at this
 // level. The actual cost for a path is the sum of the costs defined on graph
@@ -9060,6 +10219,9 @@ class ResolvedGraphPathCost : public <a href="#ResolvedArgument">ResolvedArgumen
 
 ### ResolvedGraphPathScan
 <a id="ResolvedGraphPathScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; <a href="#ResolvedGraphPathScanBase">ResolvedGraphPathScanBase</a>  &rsaquo; ResolvedGraphPathScan
+ &nbsp;(<a href="#ResolvedGraphPathScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedGraphPathScan">ResolvedGraphPathScan</a> represents a scan of matching sequences of
 // sub-paths or graph elements (i.e. paths) from the graph.
@@ -9146,6 +10308,9 @@ class ResolvedGraphPathScan : public <a href="#ResolvedGraphPathScanBase">Resolv
 ### ResolvedGraphIsLabeledPredicate
 <a id="ResolvedGraphIsLabeledPredicate"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGraphIsLabeledPredicate
+ &nbsp;(<a href="#ResolvedGraphIsLabeledPredicate-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents IS LABELED predicate for graph elements, a boolean expression
 // that evaluates to true if the graph element satisfies the given
 // label expression.
@@ -9167,6 +10332,9 @@ class ResolvedGraphIsLabeledPredicate : public <a href="#ResolvedExpr">ResolvedE
 
 ### ResolvedUndropStmt
 <a id="ResolvedUndropStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedUndropStmt
+ &nbsp;(<a href="#ResolvedUndropStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 //   UNDROP &lt;schema_object_kind&gt; [IF NOT EXISTS] &lt;name_path&gt;
@@ -9207,6 +10375,9 @@ class ResolvedUndropStmt : public <a href="#ResolvedStatement">ResolvedStatement
 
 ### ResolvedIdentityColumnInfo
 <a id="ResolvedIdentityColumnInfo"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedIdentityColumnInfo
+ &nbsp;(<a href="#ResolvedIdentityColumnInfo-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This argument represents the identity column clause for a generated
 // column:
@@ -9253,6 +10424,9 @@ class ResolvedIdentityColumnInfo : public <a href="#ResolvedArgument">ResolvedAr
 ### ResolvedDescribeScan
 <a id="ResolvedDescribeScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedDescribeScan
+ &nbsp;(<a href="#ResolvedDescribeScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe DESCRIBE operator, which is controlled by
 // FEATURE_PIPE_DESCRIBE.
 //
@@ -9279,6 +10453,9 @@ class ResolvedDescribeScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedStaticDescribeScan
 <a id="ResolvedStaticDescribeScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedStaticDescribeScan
+ &nbsp;(<a href="#ResolvedStaticDescribeScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe STATIC_DESCRIBE operator, which is controlled by
 // FEATURE_PIPE_STATIC_DESCRIBE.
 //
@@ -9299,6 +10476,9 @@ class ResolvedStaticDescribeScan : public <a href="#ResolvedScan">ResolvedScan</
 
 ### ResolvedAssertScan
 <a id="ResolvedAssertScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedAssertScan
+ &nbsp;(<a href="#ResolvedAssertScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe ASSERT operator, which is controlled by
 // FEATURE_PIPE_ASSERT.
@@ -9322,6 +10502,9 @@ class ResolvedAssertScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedLogScan
 <a id="ResolvedLogScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedLogScan
+ &nbsp;(<a href="#ResolvedLogScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe ABSL_LOG operator, which is controlled by
 // FEATURE_PIPE_LOG.
@@ -9347,6 +10530,9 @@ class ResolvedLogScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedPipeIfScan
 <a id="ResolvedPipeIfScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeIfScan
+ &nbsp;(<a href="#ResolvedPipeIfScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe IF operator, which is controlled by
 // FEATURE_PIPE_IF.  See (broken link).
@@ -9397,6 +10583,9 @@ class ResolvedPipeIfScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedPipeIfCase
 <a id="ResolvedPipeIfCase"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedPipeIfCase
+ &nbsp;(<a href="#ResolvedPipeIfCase-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents one case in a <a href="#ResolvedPipeIf">ResolvedPipeIf</a>.
 //
 // `condition` and `subpipeline_sql` must be present for all cases except
@@ -9435,8 +10624,48 @@ class ResolvedPipeIfCase : public <a href="#ResolvedArgument">ResolvedArgument</
 };
 </code></pre></p>
 
+### ResolvedFinishScan
+<a id="ResolvedFinishScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedFinishScan
+ &nbsp;(<a href="#ResolvedFinishScan-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// FINISH is a terminal pipe operator. It has no output columns and can
+// only occur at the end of a pipeline.
+//
+// <a href="#ResolvedFinishScan">ResolvedFinishScan</a> cannot occur in a <a href="#ResolvedQueryStmt">ResolvedQueryStmt</a>.
+// It can occur in <a href="#ResolvedTerminalQueryStmt">ResolvedTerminalQueryStmt</a>, <a href="#ResolvedGeneralizedQueryStmt">ResolvedGeneralizedQueryStmt</a>,
+// or <a href="#ResolvedMultiStmt">ResolvedMultiStmt</a> (after rewrites).
+// One of those must be enabled in SupportedStatementKinds.
+//
+// FINISH logically consumes its input but produces no output.
+// `input_scan` must be consumed to the end, to produce any observable
+// side-effects (e.g. from ASSERT failures or graph DML operations,
+// for all rows in the table).
+//
+// This differs from `LIMIT` or `WHERE`, which do not require computing
+// rows that are filtered out from the output.
+//
+// <a href="#ResolvedFinishScan">ResolvedFinishScan</a> is used for two syntaxes:
+// * The pipe FINISH operator
+//   - Controlled by FEATURE_PIPE_FINISH
+// * The GQL FINISH operator, used in terminal DML operations.
+//   - The syntax isn&#39;t supported yet, so this is currently only used
+//     implicitly, after DML operations with no RETURN.
+//
+// See (broken link).</font>
+class ResolvedFinishScan : public <a href="#ResolvedScan">ResolvedScan</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_FINISH_SCAN;
+
+  const <a href="#ResolvedScan">ResolvedScan</a>* input_scan() const;
+};
+</code></pre></p>
+
 ### ResolvedPipeForkScan
 <a id="ResolvedPipeForkScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeForkScan
+ &nbsp;(<a href="#ResolvedPipeForkScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe FORK operator, which is controlled by
 // FEATURE_PIPE_FORK.  See (broken link).
@@ -9462,6 +10691,9 @@ class ResolvedPipeForkScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedPipeTeeScan
 <a id="ResolvedPipeTeeScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeTeeScan
+ &nbsp;(<a href="#ResolvedPipeTeeScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe TEE operator, which is controlled by
 // FEATURE_PIPE_TEE.  See (broken link).
 //
@@ -9486,6 +10718,9 @@ class ResolvedPipeTeeScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedPipeExportDataScan
 <a id="ResolvedPipeExportDataScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeExportDataScan
+ &nbsp;(<a href="#ResolvedPipeExportDataScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe EXPORT DATA operator, which is controlled by
 // FEATURE_PIPE_EXPORT_DATA.  See (broken link).
 //
@@ -9502,6 +10737,9 @@ class ResolvedPipeExportDataScan : public <a href="#ResolvedScan">ResolvedScan</
 
 ### ResolvedPipeCreateTableScan
 <a id="ResolvedPipeCreateTableScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeCreateTableScan
+ &nbsp;(<a href="#ResolvedPipeCreateTableScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe CREATE TABLE operator, which is controlled by
 // FEATURE_PIPE_CREATE_TABLE.
@@ -9532,6 +10770,9 @@ class ResolvedPipeCreateTableScan : public <a href="#ResolvedScan">ResolvedScan<
 ### ResolvedPipeInsertScan
 <a id="ResolvedPipeInsertScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedPipeInsertScan
+ &nbsp;(<a href="#ResolvedPipeInsertScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents the pipe INSERT operator, which is controlled by
 // FEATURE_PIPE_INSERT.  See (broken link).
 //
@@ -9548,6 +10789,9 @@ class ResolvedPipeInsertScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 
 ### ResolvedSubpipeline
 <a id="ResolvedSubpipeline"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedSubpipeline
+ &nbsp;(<a href="#ResolvedSubpipeline-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a subpipeline.
 // These occur inside various pipe operators, expressing a subpipeline of
@@ -9579,6 +10823,9 @@ class ResolvedSubpipeline : public <a href="#ResolvedArgument">ResolvedArgument<
 ### ResolvedSubpipelineInputScan
 <a id="ResolvedSubpipelineInputScan"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedSubpipelineInputScan
+ &nbsp;(<a href="#ResolvedSubpipelineInputScan-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This is the scan inside a <a href="#ResolvedSubpipeline">ResolvedSubpipeline</a> representing the initial
 // input table passed into the subpipeline.  This works like a CTE in WITH.
 //
@@ -9600,6 +10847,9 @@ class ResolvedSubpipelineInputScan : public <a href="#ResolvedScan">ResolvedScan
 
 ### ResolvedSubpipelineStmt
 <a id="ResolvedSubpipelineStmt"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; ResolvedSubpipelineStmt
+ &nbsp;(<a href="#ResolvedSubpipelineStmt-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// This represents a standalone subpipeline resolved as a statement.
 // See (broken link) and (broken link).
@@ -9638,6 +10888,9 @@ class ResolvedSubpipelineStmt : public <a href="#ResolvedStatement">ResolvedStat
 ### ResolvedGeneralizedQuerySubpipeline
 <a id="ResolvedGeneralizedQuerySubpipeline"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGeneralizedQuerySubpipeline
+ &nbsp;(<a href="#ResolvedGeneralizedQuerySubpipeline-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a subpipeline that is part of a
 // <a href="#ResolvedGeneralizedQueryStmt">ResolvedGeneralizedQueryStmt</a> and could produce an output table or a
 // statement side-effect.
@@ -9660,6 +10913,9 @@ class ResolvedGeneralizedQuerySubpipeline : public <a href="#ResolvedArgument">R
 
 ### ResolvedBarrierScan
 <a id="ResolvedBarrierScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedBarrierScan
+ &nbsp;(<a href="#ResolvedBarrierScan-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedBarrierScan">ResolvedBarrierScan</a> marks an optimization barrier during query planning.
 // It wraps an `input_scan` and ensures `input_scan` is evaluated as if
@@ -9684,6 +10940,9 @@ class ResolvedBarrierScan : public <a href="#ResolvedScan">ResolvedScan</a> {
 ### ResolvedCreateConnectionStmt
 <a id="ResolvedCreateConnectionStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateConnectionStmt
+ &nbsp;(<a href="#ResolvedCreateConnectionStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // CREATE [OR REPLACE] [TEMP] CONNECTION
 // [IF NOT EXISTS] &lt;name&gt; [OPTIONS (name=value, ...)]
@@ -9705,6 +10964,9 @@ class ResolvedCreateConnectionStmt : public <a href="#ResolvedCreateStatement">R
 ### ResolvedAlterConnectionStmt
 <a id="ResolvedAlterConnectionStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterConnectionStmt
+ &nbsp;(<a href="#ResolvedAlterConnectionStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This statement:
 // ALTER CONNECTION [IF EXISTS] &lt;name_path&gt; SET OPTIONS(...)</font>
 class ResolvedAlterConnectionStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
@@ -9715,6 +10977,9 @@ class ResolvedAlterConnectionStmt : public <a href="#ResolvedAlterObjectStmt">Re
 
 ### ResolvedLockMode
 <a id="ResolvedLockMode"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedLockMode
+ &nbsp;(<a href="#ResolvedLockMode-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// <a href="#ResolvedLockMode">ResolvedLockMode</a> optionally indicates whether locks should be
 // acquired on the data accessed during a <a href="#ResolvedTableScan">ResolvedTableScan</a>.
@@ -9732,6 +10997,9 @@ class ResolvedLockMode : public <a href="#ResolvedArgument">ResolvedArgument</a>
 
 ### ResolvedUpdateFieldItem
 <a id="ResolvedUpdateFieldItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedUpdateFieldItem
+ &nbsp;(<a href="#ResolvedUpdateFieldItem-toc">tree</a>)
 
 <p><pre><code class="lang-c++"><font color="brown">// Represents the state for a single update operation for an UPDATE
 // constructor.</font>
@@ -9767,6 +11035,9 @@ class ResolvedUpdateFieldItem : public <a href="#ResolvedArgument">ResolvedArgum
 ### ResolvedUpdateConstructor
 <a id="ResolvedUpdateConstructor"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedUpdateConstructor
+ &nbsp;(<a href="#ResolvedUpdateConstructor-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// Represents an UPDATE constructor node. Details:
 // (broken link).</font>
 class ResolvedUpdateConstructor : public <a href="#ResolvedExpr">ResolvedExpr</a> {
@@ -9788,6 +11059,9 @@ class ResolvedUpdateConstructor : public <a href="#ResolvedExpr">ResolvedExpr</a
 ### ResolvedCreateSequenceStmt
 <a id="ResolvedCreateSequenceStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedCreateStatement">ResolvedCreateStatement</a>  &rsaquo; ResolvedCreateSequenceStmt
+ &nbsp;(<a href="#ResolvedCreateSequenceStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a CREATE SEQUENCE statement, i.e.,
 // CREATE [OR REPLACE] SEQUENCE
 //   [IF NOT EXISTS] &lt;name_path&gt; [OPTIONS &lt;option_list&gt;];
@@ -9806,6 +11080,9 @@ class ResolvedCreateSequenceStmt : public <a href="#ResolvedCreateStatement">Res
 ### ResolvedAlterSequenceStmt
 <a id="ResolvedAlterSequenceStmt"></a>
 
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedStatement">ResolvedStatement</a>  &rsaquo; <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a>  &rsaquo; ResolvedAlterSequenceStmt
+ &nbsp;(<a href="#ResolvedAlterSequenceStmt-toc">tree</a>)
+
 <p><pre><code class="lang-c++"><font color="brown">// This represents a ALTER SEQUENCE statement, i.e.,
 // ALTER SEQUENCE [IF EXISTS] &lt;name_path&gt; SET OPTIONS(option_list)
 //
@@ -9814,6 +11091,153 @@ class ResolvedCreateSequenceStmt : public <a href="#ResolvedCreateStatement">Res
 class ResolvedAlterSequenceStmt : public <a href="#ResolvedAlterObjectStmt">ResolvedAlterObjectStmt</a> {
   static const ResolvedNodeKind TYPE = RESOLVED_ALTER_SEQUENCE_STMT;
 
+};
+</code></pre></p>
+
+### ResolvedGraphDMLPropertyItem
+<a id="ResolvedGraphDMLPropertyItem"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedGraphDMLPropertyItem
+ &nbsp;(<a href="#ResolvedGraphDMLPropertyItem-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Represents one graph property item in a graph DML expression.
+//
+// `property_name` is the name of the property. Must always be set.
+// If `property` is populated, this is a static property, and its name must
+// match `property_name`.
+// `property_value` must be set if this is an INSERT or SET operation, and
+// must be unset for a REMOVE operation.</font>
+class ResolvedGraphDMLPropertyItem : public <a href="#ResolvedArgument">ResolvedArgument</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_DMLPROPERTY_ITEM;
+
+  const std::string&amp; property_name() const;
+
+  const GraphPropertyDeclaration* property() const;
+
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* property_value() const;
+};
+</code></pre></p>
+
+### ResolvedGraphInsertElement
+<a id="ResolvedGraphInsertElement"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedGraphInsertElement
+ &nbsp;(<a href="#ResolvedGraphInsertElement-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Creates a new graph element with the provided labels and properties to be
+// inserted into the `element_table`.
+//
+// `source_node` and `dest_node` are only set for edge elements.
+//   - If neither `source_node` nor `dest_node` is set, this creates a node.
+//   - If both are set, this creates an edge.
+//   - Otherwise, it&#39;s an error.
+//
+// `element_table` has the following expectations:
+//   - It must have the right element type (node or edge).
+//   - It must contain all the static labels in `label_list`.
+//   - It must contain all the static properties in `property_list`.
+//   - It must support dynamic label if `label_list` contains dynamic labels.
+//   - It must support dynamic properties if `property_list` contains dynamic
+//     properties.
+//   - If the element being created is an edge, its source node table must
+//     be the same as the `source_node`&#39;s element table, and its destination
+//     node table must be the same as the `dest_node`&#39;s element table.</font>
+class ResolvedGraphInsertElement : public <a href="#ResolvedExpr">ResolvedExpr</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_INSERT_ELEMENT;
+
+<font color="brown">  // A list of properties to be set on the new element. Can be empty.</font>
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedGraphDMLPropertyItem">ResolvedGraphDMLPropertyItem</a>&gt;&gt;&amp; property_list() const;
+  int property_list_size() const;
+  const <a href="#ResolvedGraphDMLPropertyItem">ResolvedGraphDMLPropertyItem</a>* property_list(int i) const;
+
+<font color="brown">  // A list of labels to be set on the new element. Must have at least
+  // one element. The maximum numbers of static labels and dynamic
+  // labels are both implementation-defined.</font>
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedGraphLabel">ResolvedGraphLabel</a>&gt;&gt;&amp; label_list() const;
+  int label_list_size() const;
+  const <a href="#ResolvedGraphLabel">ResolvedGraphLabel</a>* label_list(int i) const;
+
+<font color="brown">  // Must have graph node type.
+  // When set, its runtime value must be evaluated to non-NULL.</font>
+  const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* source_node() const;
+
+<font color="brown">  // Must have graph node type.
+  // When set, its runtime value must be evaluated to non-NULL.</font>
+  const <a href="#ResolvedColumnRef">ResolvedColumnRef</a>* dest_node() const;
+
+<font color="brown">  // The target element table where the element is inserted.</font>
+  const GraphElementTable* element_table() const;
+};
+</code></pre></p>
+
+### ResolvedGraphInsertScan
+<a id="ResolvedGraphInsertScan"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedScan">ResolvedScan</a>  &rsaquo; ResolvedGraphInsertScan
+ &nbsp;(<a href="#ResolvedGraphInsertScan-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Represents a GQL INSERT operator, i.e.,
+//   INSERT (a:Person {id: 1, name: &#39;Alice&#39;})
+//          -[e:Knows]-&gt; (b:Person {id: 2, name: &#39;Bob&#39;})
+//
+// Insert new nodes and/or edge elements into the property graph.
+//
+// - For each row of the `input_scan`, compute columns in `insert_node_list`
+//   first, then those in `insert_edge_list`, and add those columns to the
+//   output `column_list`.
+// - One of `insert_node_list` and `insert_edge_list` can be empty, but not
+//   both.
+//
+// When executed, `<a href="#ResolvedGraphInsertScan">ResolvedGraphInsertScan</a>` applies the side effects of
+// inserting these new nodes or edges into the current property graph.</font>
+class ResolvedGraphInsertScan : public <a href="#ResolvedScan">ResolvedScan</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_GRAPH_INSERT_SCAN;
+
+  const <a href="#ResolvedScan">ResolvedScan</a>* input_scan() const;
+
+<font color="brown">  // A list of computed columns of graph node type, each of which
+  // represents a new graph node to be inserted.
+  // Each expression must be a `<a href="#ResolvedGraphInsertElement">ResolvedGraphInsertElement</a>` that
+  // creates a graph node.
+  // The fields of the `<a href="#ResolvedGraphInsertElement">ResolvedGraphInsertElement</a>` can only reference
+  // columns from `input_scan`.</font>
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>&gt;&gt;&amp; insert_node_list() const;
+  int insert_node_list_size() const;
+  const <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>* insert_node_list(int i) const;
+
+<font color="brown">  // A list of computed columns of graph edge type, each of which
+  // represents a new graph edge to be inserted.
+  // Each expression must be a `<a href="#ResolvedGraphInsertElement">ResolvedGraphInsertElement</a>` that
+  // creates a graph edge.
+  // The fields of the `<a href="#ResolvedGraphInsertElement">ResolvedGraphInsertElement</a>` can reference both
+  // the `input_scan` columns and the computed columns from
+  // `insert_node_list`.</font>
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>&gt;&gt;&amp; insert_edge_list() const;
+  int insert_edge_list_size() const;
+  const <a href="#ResolvedComputedColumnBase">ResolvedComputedColumnBase</a>* insert_edge_list(int i) const;
+
+<font color="brown">  // A list of all columns (from input and newly created) that form all
+  // INSERT path patterns.
+  // The INSERT path patterns have the following expectations:
+  // - Each INSERT path pattern must start and end with node elements.
+  // - If an edge is present, it must be unquantified.
+  // - If an edge is present, it must connect to two valid nodes.
+  //   Dangling edges are not allowed.
+  //
+  // For example, in the following INSERT statement:
+  //   MATCH (c:Car {license_plate: &#39;ABC&#39;})
+  //   INSERT (a:Person {name: &#39;Alice&#39;})
+  //          -[e:Knows]-&gt; (b:Person {name: &#39;Bob&#39;}),
+  //          (a) -[o:Owns]-&gt; (c)
+  // The `path_element_list` will be [a, e, b, a, o, c].
+  //
+  // Columns in this list must come from `input_scan`,
+  // `insert_node_list`, or `insert_edge_list`.
+  // This is only used by SQLBuilder for the purpose of reconstructing
+  // the original sql syntax and does not have semantic meaning.</font>
+  const std::vector&lt;<a href="#ResolvedColumn">ResolvedColumn</a>&gt;&amp; path_element_list() const;
+  int path_element_list_size() const;
+  <a href="#ResolvedColumn">ResolvedColumn</a> path_element_list(int i) const;
 };
 </code></pre></p>
 

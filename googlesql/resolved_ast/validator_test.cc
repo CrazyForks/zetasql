@@ -619,7 +619,7 @@ TEST(ValidateTest, CreateFunctionStmtWithRemoteAndTemplatedArg) {
           /*argument_name_list=*/{"x"},
           /*signature=*/
           FunctionSignature({types::BytesType()},
-                            {FunctionArgumentType(ARG_TYPE_ARBITRARY)},
+                            {FunctionArgumentType(ARG_KIND_EXPR_ARBITRARY)},
                             nullptr),
           /*is_aggregate=*/false,
           /*language=*/"remote",
@@ -822,7 +822,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureNotEnabled) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/nullptr,
@@ -846,7 +846,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLConnectionFeatureNotEnabled) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/MakeResolvedConnection(&connection),
@@ -869,7 +869,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureEnabledMissingLanguage) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"sql",
           /*connection=*/nullptr,
@@ -893,7 +893,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureEnabledHasBodyAndLanguage) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"body",
           /*connection=*/nullptr,
@@ -917,7 +917,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureEnabledHasLanguage) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/nullptr,
@@ -940,7 +940,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureEnabledHasLanguageAndCode) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/nullptr,
@@ -964,7 +964,7 @@ TEST(ValidateTest, CreateProcedureStmtNonSQLFeatureEnabled) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/MakeResolvedConnection(&connection),
@@ -988,7 +988,7 @@ TEST(ValidateTest, CreateProcedureStmtExternalSecurityFeatureNotEnabled) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/MakeResolvedConnection(&connection),
@@ -1012,7 +1012,7 @@ TEST(ValidateTest, CreateProcedureStmtExternalSecurityFeatureEnabled) {
           /*create_mode=*/ResolvedCreateStatement::CREATE_DEFAULT,
           /*argument_name_list=*/{},
           /*signature=*/
-          FunctionSignature(FunctionArgumentType(ARG_TYPE_VOID), {}, nullptr),
+          FunctionSignature(FunctionArgumentType(ARG_KIND_VOID), {}, nullptr),
           /*option_list=*/{},
           /*procedure_body=*/"",
           /*connection=*/MakeResolvedConnection(&connection),
@@ -3163,7 +3163,12 @@ static ResolvedAlignScanBuilder CreateAlignScanBuilder(
           types::TimestampType()))
       .set_column_list({ResolvedColumn(100, pool.Make("$align"),
                                        pool.Make("$aligned_timestamp"),
-                                       types::TimestampType())});
+                                       types::TimestampType())})
+      .set_output_within(MakeResolvedWithinBounds(
+          MakeResolvedWithinBoundExpr(
+              ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING, nullptr),
+          MakeResolvedWithinBoundExpr(ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                                      nullptr)));
 }
 
 static absl::StatusOr<std::unique_ptr<const ResolvedQueryStmt>>
@@ -3517,6 +3522,436 @@ TEST(ValidateTest, AlignScanInvalidDuplicateAlignedTimestampColumnId) {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Duplicate column id 1 in column")));
 }
+
+TEST(ValidateTest, AlignScanNullOutputWithinLowerBound) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  const_cast<ResolvedWithinBounds*>(query->query()
+                                        ->GetAs<ResolvedProjectScan>()
+                                        ->input_scan()
+                                        ->GetAs<ResolvedAlignScan>()
+                                        ->output_within())
+      ->release_lower_bound();
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("within_bound_expr != nullptr")));
+}
+
+TEST(ValidateTest, AlignScanNullOutputWithinUpperBound) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  const_cast<ResolvedWithinBounds*>(query->query()
+                                        ->GetAs<ResolvedProjectScan>()
+                                        ->input_scan()
+                                        ->GetAs<ResolvedAlignScan>()
+                                        ->output_within())
+      ->release_upper_bound();
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("within_bound_expr != nullptr")));
+}
+
+struct WithinBoundsParam {
+  ResolvedWithinBoundExpr::BoundKind lower_kind;
+  ResolvedWithinBoundExpr::BoundKind upper_kind;
+};
+
+enum class InvalidExprKind { kUnexpected, kMissing, kInvalidType };
+
+struct WithinBoundInvalidExprParam {
+  WithinBoundsParam bounds;
+  InvalidExprKind invalid_kind;
+  std::string expected_error;
+};
+
+class AlignScanWithinBoundInvalidExprTest
+    : public ::testing::TestWithParam<WithinBoundInvalidExprParam> {};
+
+TEST_P(AlignScanWithinBoundInvalidExprTest, InvalidBoundExpr) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  const WithinBoundInvalidExprParam& param = GetParam();
+
+  auto create_invalid_expr =
+      [](ResolvedWithinBoundExpr::BoundKind kind,
+         InvalidExprKind invalid_kind) -> std::unique_ptr<ResolvedExpr> {
+    switch (invalid_kind) {
+      case InvalidExprKind::kMissing:
+        return nullptr;
+      case InvalidExprKind::kUnexpected:
+      case InvalidExprKind::kInvalidType:
+        return MakeResolvedLiteral(Value::String("1"));
+    }
+  };
+
+  auto create_expr_for_kind = [](ResolvedWithinBoundExpr::BoundKind kind)
+      -> std::unique_ptr<ResolvedExpr> {
+    switch (kind) {
+      case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+      case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+        return MakeResolvedLiteral(Value::Int64(1));
+      case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+      case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+        return MakeResolvedLiteral(Value::Interval(IntervalValue()));
+      case ResolvedWithinBoundExpr::TIMESTAMP:
+        return MakeResolvedLiteral(Value::Timestamp(absl::UnixEpoch()));
+      default:
+        return nullptr;
+    }
+  };
+
+  auto lower_expr = create_expr_for_kind(param.bounds.lower_kind);
+  auto upper_expr =
+      create_invalid_expr(param.bounds.upper_kind, param.invalid_kind);
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_output_within(MakeResolvedWithinBounds(
+      MakeResolvedWithinBoundExpr(param.bounds.lower_kind,
+                                  std::move(lower_expr)),
+      MakeResolvedWithinBoundExpr(param.bounds.upper_kind,
+                                  std::move(upper_expr))));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(
+      validator.ValidateResolvedStatement(query.get()),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr(param.expected_error)));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    InvalidExpr, AlignScanWithinBoundInvalidExprTest,
+    ::testing::Values(
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING},
+            InvalidExprKind::kUnexpected,
+            "must not specify a bound expression"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                              ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+            InvalidExprKind::kUnexpected,
+            "must not specify a bound expression"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                              ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+            InvalidExprKind::kUnexpected,
+            "must not specify a bound expression"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                              ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+            InvalidExprKind::kMissing,
+            "must specify a bound expression of type INT64 or DOUBLE"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                              ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+            InvalidExprKind::kInvalidType,
+            "must specify a bound expression of type INT64 or DOUBLE"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+            InvalidExprKind::kMissing,
+            "must specify a bound expression of type INT64 or DOUBLE"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+            InvalidExprKind::kInvalidType,
+            "must specify a bound expression of type INT64 or DOUBLE"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                              ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+            InvalidExprKind::kMissing,
+            "must specify a bound expression of type INTERVAL"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                              ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+            InvalidExprKind::kInvalidType,
+            "must specify a bound expression of type INTERVAL"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+            InvalidExprKind::kMissing,
+            "must specify a bound expression of type INTERVAL"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+            InvalidExprKind::kInvalidType,
+            "must specify a bound expression of type INTERVAL"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::TIMESTAMP},
+            InvalidExprKind::kMissing,
+            "must specify a bound expression of type TIMESTAMP"},
+        WithinBoundInvalidExprParam{
+            WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                              ResolvedWithinBoundExpr::TIMESTAMP},
+            InvalidExprKind::kInvalidType,
+            "must specify a bound expression of type TIMESTAMP"}));
+
+TEST(ValidateTest, AlignScanWithinBoundsMixAbsoluteRelative) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_output_within(MakeResolvedWithinBounds(
+      MakeResolvedWithinBoundExpr(
+          ResolvedWithinBoundExpr::TIMESTAMP,
+          MakeResolvedLiteral(Value::Timestamp(absl::UnixEpoch()))),
+      MakeResolvedWithinBoundExpr(
+          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+          MakeResolvedLiteral(Value::Interval(IntervalValue())))));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(validator.ValidateResolvedStatement(query.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("A WITHIN clause cannot mix absolute "
+                                 "(TIMESTAMP) and relative")));
+}
+
+class AlignScanWithinBoundsEmptyBoundTest
+    : public ::testing::TestWithParam<WithinBoundsParam> {};
+
+TEST_P(AlignScanWithinBoundsEmptyBoundTest, InvalidWithinClause) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  const WithinBoundsParam& param = GetParam();
+
+  auto create_expr_for_kind = [](ResolvedWithinBoundExpr::BoundKind kind)
+      -> std::unique_ptr<ResolvedExpr> {
+    switch (kind) {
+      case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+      case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+        return MakeResolvedLiteral(Value::Int64(1));
+      case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+      case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+        return MakeResolvedLiteral(Value::Interval(IntervalValue()));
+      case ResolvedWithinBoundExpr::TIMESTAMP:
+        return MakeResolvedLiteral(Value::Timestamp(absl::UnixEpoch()));
+      default:
+        return nullptr;
+    }
+  };
+
+  auto lower_expr = create_expr_for_kind(param.lower_kind);
+  auto upper_expr = create_expr_for_kind(param.upper_kind);
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_output_within(MakeResolvedWithinBounds(
+      MakeResolvedWithinBoundExpr(param.lower_kind, std::move(lower_expr)),
+      MakeResolvedWithinBoundExpr(param.upper_kind, std::move(upper_expr))));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  ASSERT_THAT(
+      validator.ValidateResolvedStatement(query.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Invalid WITHIN clause, represents empty WITHIN bound")));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    EmptyBounds, AlignScanWithinBoundsEmptyBoundTest,
+    ::testing::Values(
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP}));
+
+class AlignScanWithinBoundsValidBoundTest
+    : public ::testing::TestWithParam<WithinBoundsParam> {};
+
+TEST_P(AlignScanWithinBoundsValidBoundTest, ValidWithinClause) {
+  LanguageOptions language_options;
+  language_options.EnableLanguageFeature(FEATURE_ALIGN_OPERATOR);
+  Validator validator(language_options);
+
+  IdStringPool pool;
+  ResolvedColumn col0(1, pool.Make("t1"), pool.Make("col1"),
+                      types::Int64Type());
+  ResolvedColumn col1(2, pool.Make("t1"), pool.Make("ts1"),
+                      types::TimestampType());
+
+  const WithinBoundsParam& param = GetParam();
+
+  auto create_expr_for_kind = [](ResolvedWithinBoundExpr::BoundKind kind)
+      -> std::unique_ptr<ResolvedExpr> {
+    switch (kind) {
+      case ResolvedWithinBoundExpr::PERIOD_PRECEDING:
+      case ResolvedWithinBoundExpr::PERIOD_FOLLOWING:
+        return MakeResolvedLiteral(Value::Int64(1));
+      case ResolvedWithinBoundExpr::INTERVAL_PRECEDING:
+      case ResolvedWithinBoundExpr::INTERVAL_FOLLOWING:
+        return MakeResolvedLiteral(Value::Interval(IntervalValue()));
+      case ResolvedWithinBoundExpr::TIMESTAMP:
+        return MakeResolvedLiteral(Value::Timestamp(absl::UnixEpoch()));
+      default:
+        return nullptr;
+    }
+  };
+
+  auto lower_expr = create_expr_for_kind(param.lower_kind);
+  auto upper_expr = create_expr_for_kind(param.upper_kind);
+
+  auto align_scan_builder = CreateAlignScanBuilder(
+      pool, col0, Value::Int64(1), col1, Value::Timestamp(absl::UnixEpoch()));
+  align_scan_builder.set_output_within(MakeResolvedWithinBounds(
+      MakeResolvedWithinBoundExpr(param.lower_kind, std::move(lower_expr)),
+      MakeResolvedWithinBoundExpr(param.upper_kind, std::move(upper_expr))));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto align_scan, std::move(align_scan_builder).Build());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query,
+                       MakeAlignScanQuery(pool, std::move(align_scan)));
+
+  GOOGLESQL_ASSERT_OK(validator.ValidateResolvedStatement(query.get()));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ValidBounds, AlignScanWithinBoundsValidBoundTest,
+    ::testing::Values(
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::UNBOUNDED_PRECEDING,
+                          ResolvedWithinBoundExpr::TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP,
+                          ResolvedWithinBoundExpr::TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_PRECEDING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_PRECEDING,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::PERIOD_FOLLOWING,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::PERIOD_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::INTERVAL_FOLLOWING,
+                          ResolvedWithinBoundExpr::INTERVAL_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                          ResolvedWithinBoundExpr::UNBOUNDED_FOLLOWING},
+        WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                          ResolvedWithinBoundExpr::ANCHOR_TIMESTAMP},
+        WithinBoundsParam{ResolvedWithinBoundExpr::TIMESTAMP,
+                          ResolvedWithinBoundExpr::TIMESTAMP}));
 
 TEST(ValidateTest, MatchRecognizeRequiresTheFlag) {
   LanguageOptions language_options;
@@ -4364,7 +4799,7 @@ TEST(ValidatorTest, UnsetArgumentScanContainsColumnsReturnsError) {
   TVFRelation tvf_relation({{"o1", types::Int64Type()}});
 
   FunctionArgumentType relation_arg_type(
-      ARG_TYPE_RELATION,
+      ARG_KIND_RELATION,
       FunctionArgumentTypeOptions(FunctionArgumentType::OPTIONAL));
   FunctionSignature fn_signature(
       FunctionArgumentType::RelationWithSchema(
@@ -4567,7 +5002,7 @@ TEST(ValidatorTest, TemplatedTVFFailure) {
 
   std::vector<std::string> path = {"templated_tvf"};
   auto sig = std::make_shared<FunctionSignature>(
-      FunctionArgumentType(ARG_TYPE_RELATION,
+      FunctionArgumentType(ARG_KIND_RELATION,
                            FunctionArgumentTypeOptions(result_relation, false),
                            1),
       /*arguments=*/
@@ -4645,7 +5080,7 @@ TEST(ValidatorTest, PassthroughTVFValidOutputColumns) {
                                {"c", types::Int64Type()}});
 
   FunctionArgumentType concrete_relation_arg_type(
-      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+      ARG_KIND_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
   auto concrete_signature = std::make_shared<FunctionSignature>(
       FunctionArgumentType::RelationWithSchema(
           output_relation, /*extra_relation_input_columns_allowed=*/false),
@@ -4716,7 +5151,7 @@ TEST(ValidatorTest, PassthroughTVFColumnNameMismatchReturnsError) {
                                {"c", types::Int64Type()}});
 
   FunctionArgumentType concrete_relation_arg_type(
-      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+      ARG_KIND_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
   auto concrete_signature = std::make_shared<FunctionSignature>(
       FunctionArgumentType::RelationWithSchema(
           output_relation, /*extra_relation_input_columns_allowed=*/false),
@@ -4788,7 +5223,7 @@ TEST(ValidatorTest, PassthroughTVFColumnTypeMismatchReturnsError) {
       {{"a", types::Int64Type()}, {"b", types::StringType()}});
 
   FunctionArgumentType concrete_relation_arg_type(
-      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+      ARG_KIND_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
   auto concrete_signature = std::make_shared<FunctionSignature>(
       FunctionArgumentType::RelationWithSchema(
           output_relation, /*extra_relation_input_columns_allowed=*/false),
@@ -4853,7 +5288,7 @@ TEST(ValidatorTest, PassthroughTVFProducedFewerColumnsReturnsError) {
   TVFRelation output_relation({{"a", types::Int64Type()}});
 
   FunctionArgumentType concrete_relation_arg_type(
-      ARG_TYPE_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
+      ARG_KIND_RELATION, FunctionArgumentType::REQUIRED, /*num_occurrences=*/1);
   auto concrete_signature = std::make_shared<FunctionSignature>(
       FunctionArgumentType::RelationWithSchema(
           output_relation, /*extra_relation_input_columns_allowed=*/false),

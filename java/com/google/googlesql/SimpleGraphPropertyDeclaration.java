@@ -27,12 +27,22 @@ public final class SimpleGraphPropertyDeclaration implements GraphPropertyDeclar
   private final String name;
   private final ImmutableList<String> propertyGraphNamePath;
   private final Type type;
+  private final SimpleGraphPropertyDeclarationProto.Kind kind;
 
   public SimpleGraphPropertyDeclaration(
       String name, List<String> propertyGraphNamePath, Type type) {
+    this(name, propertyGraphNamePath, type, SimpleGraphPropertyDeclarationProto.Kind.SCALAR);
+  }
+
+  public SimpleGraphPropertyDeclaration(
+      String name,
+      List<String> propertyGraphNamePath,
+      Type type,
+      SimpleGraphPropertyDeclarationProto.Kind kind) {
     this.name = name;
     this.propertyGraphNamePath = ImmutableList.copyOf(propertyGraphNamePath);
     this.type = type;
+    this.kind = kind;
   }
 
   public SimpleGraphPropertyDeclarationProto serialize(
@@ -41,6 +51,7 @@ public final class SimpleGraphPropertyDeclaration implements GraphPropertyDeclar
         .setName(name)
         .addAllPropertyGraphNamePath(propertyGraphNamePath)
         .setType(type.serialize(fileDescriptorSetsBuilder))
+        .setKind(kind)
         .build();
   }
 
@@ -48,10 +59,16 @@ public final class SimpleGraphPropertyDeclaration implements GraphPropertyDeclar
       SimpleGraphPropertyDeclarationProto proto,
       ImmutableList<? extends DescriptorPool> pools,
       TypeFactory factory) {
+    SimpleGraphPropertyDeclarationProto.Kind kind = SimpleGraphPropertyDeclarationProto.Kind.SCALAR;
+    if (proto.hasKind()
+        && proto.getKind() != SimpleGraphPropertyDeclarationProto.Kind.KIND_UNSPECIFIED) {
+      kind = proto.getKind();
+    }
     return new SimpleGraphPropertyDeclaration(
         proto.getName(),
         proto.getPropertyGraphNamePathList(),
-        factory.deserialize(proto.getType(), pools));
+        factory.deserialize(proto.getType(), pools),
+        kind);
   }
 
   @Override
@@ -71,5 +88,9 @@ public final class SimpleGraphPropertyDeclaration implements GraphPropertyDeclar
   @Override
   public Type getType() {
     return type;
+  }
+
+  public SimpleGraphPropertyDeclarationProto.Kind getKind() {
+    return kind;
   }
 }

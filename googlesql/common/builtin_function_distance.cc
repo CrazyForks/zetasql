@@ -38,6 +38,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "googlesql/base/ret_check.h"
+#include "googlesql/base/map_util.h"
 
 namespace googlesql {
 namespace {
@@ -110,7 +112,19 @@ static absl::Status MaybeAddApproximateDistanceFunctionProtoSignature(
 absl::Status GetDistanceFunctions(TypeFactory* type_factory,
                                   const BuiltinFunctionOptions& options,
                                   NameToFunctionMap* functions,
+                                  NameToTypeMap* types,
                                   BuiltinsOutputProperties& output_properties) {
+  bool is_vector_type_enabled =
+      options.language_options.LanguageFeatureEnabled(FEATURE_VECTOR_TYPE) &&
+      options.language_options.LanguageFeatureEnabled(
+          FEATURE_DECLARATIVE_TYPE_FRAMEWORK);
+  // vector_type must be non-null if FEATURE_VECTOR_TYPE and declarative type
+  // framework are enabled.
+  const Type* vector_type = googlesql_base::FindPtrOrNull(*types, kVectorTypeName);
+  GOOGLESQL_RET_CHECK(!is_vector_type_enabled || vector_type != nullptr)
+      << "FEATURE_VECTOR_TYPE is enabled but vector type is not found from the "
+         "provided type map.";
+
   std::vector<StructType::StructField> input_struct_fields_int64 = {
       {"key", types::Int64Type()}, {"value", types::DoubleType()}};
   const StructType* struct_int64 = nullptr;
@@ -147,6 +161,14 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
         {types::DoubleType(),
          {types::FloatArrayType(), types::FloatArrayType()},
          FN_COSINE_DISTANCE_DENSE_FLOAT});
+  }
+
+  if (is_vector_type_enabled) {
+    cosine_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_COSINE_DISTANCE_VECTOR,
+         AddVectorTypeRequiredOptions(FunctionSignatureOptions())});
   }
 
   InsertFunction(functions, options, "cosine_distance", Function::SCALAR,
@@ -186,6 +208,14 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
       FN_APPROX_COSINE_DISTANCE_FLOAT_WITH_PROTO_OPTIONS, kOptionsArgIdx,
       types::FloatArrayType(), approx_cosine_signatures, output_properties));
 
+  if (vector_type != nullptr) {
+    approx_cosine_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_APPROX_COSINE_DISTANCE_VECTOR,
+         AddVectorTypeRequiredOptions(FunctionSignatureOptions())});
+  }
+
   InsertFunction(functions, options, "approx_cosine_distance", Function::SCALAR,
                  approx_cosine_signatures, /*function_options=*/{});
 
@@ -206,6 +236,14 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
         {types::DoubleType(),
          {types::FloatArrayType(), types::FloatArrayType()},
          FN_EUCLIDEAN_DISTANCE_DENSE_FLOAT});
+  }
+
+  if (is_vector_type_enabled) {
+    euclidean_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_EUCLIDEAN_DISTANCE_VECTOR,
+         AddVectorTypeRequiredOptions(FunctionSignatureOptions())});
   }
 
   InsertFunction(functions, options, "euclidean_distance", Function::SCALAR,
@@ -240,6 +278,14 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
       options, "APPROX_EUCLIDEAN_DISTANCE",
       FN_APPROX_EUCLIDEAN_DISTANCE_FLOAT_WITH_PROTO_OPTIONS, kOptionsArgIdx,
       types::FloatArrayType(), approx_euclidean_signatures, output_properties));
+
+  if (is_vector_type_enabled) {
+    approx_euclidean_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_APPROX_EUCLIDEAN_DISTANCE_VECTOR,
+         AddVectorTypeRequiredOptions(FunctionSignatureOptions())});
+  }
 
   InsertFunction(functions, options, "approx_euclidean_distance",
                  Function::SCALAR, approx_euclidean_signatures,
@@ -299,26 +345,42 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
           FROM UNNEST(input_array_1) AS e1 WITH OFFSET index
     )sql");
 
-  FunctionSignatureOptions dot_product_signature_options =
-      SetDefinitionForInlining(dot_product_sql, true)
-          .AddRequiredLanguageFeature(FEATURE_DOT_PRODUCT);
+  FunctionSignatureOptions dot_product_signature_options;
+  dot_product_signature_options.AddRequiredLanguageFeature(FEATURE_DOT_PRODUCT);
+
+  FunctionSignatureOptions dot_product_signature_options_with_inlining =
+      dot_product_signature_options;
+  dot_product_signature_options_with_inlining.set_rewrite_options(
+      FunctionSignatureRewriteOptions()
+          .set_enabled(true)
+          .set_rewriter(REWRITE_BUILTIN_FUNCTION_INLINER)
+          .set_sql(dot_product_sql));
 
   std::vector<FunctionSignatureOnHeap> dot_product_signatures = {
       {types::DoubleType(),
        {distance_fn_named_arg(types::Int64ArrayType(), "input_array_1"),
         distance_fn_named_arg(types::Int64ArrayType(), "input_array_2")},
        FN_DOT_PRODUCT_INT64,
-       dot_product_signature_options},
+       dot_product_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::FloatArrayType(), "input_array_1"),
         distance_fn_named_arg(types::FloatArrayType(), "input_array_2")},
        FN_DOT_PRODUCT_FLOAT,
-       dot_product_signature_options},
+       dot_product_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::DoubleArrayType(), "input_array_1"),
         distance_fn_named_arg(types::DoubleArrayType(), "input_array_2")},
        FN_DOT_PRODUCT_DOUBLE,
-       dot_product_signature_options}};
+       dot_product_signature_options_with_inlining}};
+
+  if (is_vector_type_enabled) {
+    dot_product_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_DOT_PRODUCT_VECTOR,
+         AddVectorTypeRequiredOptions(
+             FunctionSignatureOptions(dot_product_signature_options))});
+  }
 
   InsertFunction(functions, options, "dot_product", Function::SCALAR,
                  dot_product_signatures, function_options);
@@ -365,6 +427,14 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
       types::DoubleArrayType(), approx_dot_product_signatures,
       output_properties));
 
+  if (is_vector_type_enabled) {
+    approx_dot_product_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_APPROX_DOT_PRODUCT_VECTOR,
+         AddVectorTypeRequiredOptions(FunctionSignatureOptions())});
+  }
+
   InsertFunction(functions, options, "approx_dot_product", Function::SCALAR,
                  approx_dot_product_signatures, /*function_options=*/{});
 
@@ -378,26 +448,46 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
           FROM UNNEST(input_array_1) AS e1 WITH OFFSET index
     )sql");
 
-  FunctionSignatureOptions manhattan_distance_signature_options =
-      SetDefinitionForInlining(manhattan_distance_sql, true)
-          .AddRequiredLanguageFeature(FEATURE_MANHATTAN_DISTANCE);
+  FunctionSignatureOptions manhattan_distance_signature_options;
+  manhattan_distance_signature_options.AddRequiredLanguageFeature(
+      FEATURE_MANHATTAN_DISTANCE);
+
+  FunctionSignatureOptions manhattan_distance_signature_options_with_inlining =
+      manhattan_distance_signature_options;
+  manhattan_distance_signature_options_with_inlining.set_rewrite_options(
+      FunctionSignatureRewriteOptions()
+          .set_enabled(true)
+          .set_rewriter(REWRITE_BUILTIN_FUNCTION_INLINER)
+          .set_sql(manhattan_distance_sql));
 
   std::vector<FunctionSignatureOnHeap> manhattan_distance_signatures = {
       {types::DoubleType(),
        {distance_fn_named_arg(types::Int64ArrayType(), "input_array_1"),
         distance_fn_named_arg(types::Int64ArrayType(), "input_array_2")},
        FN_MANHATTAN_DISTANCE_INT64,
-       manhattan_distance_signature_options},
+       manhattan_distance_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::FloatArrayType(), "input_array_1"),
         distance_fn_named_arg(types::FloatArrayType(), "input_array_2")},
        FN_MANHATTAN_DISTANCE_FLOAT,
-       manhattan_distance_signature_options},
+       manhattan_distance_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::DoubleArrayType(), "input_array_1"),
         distance_fn_named_arg(types::DoubleArrayType(), "input_array_2")},
        FN_MANHATTAN_DISTANCE_DOUBLE,
-       manhattan_distance_signature_options}};
+       manhattan_distance_signature_options_with_inlining}};
+
+  if (is_vector_type_enabled) {
+    // VECTOR has a backing type of BYTES and due to the atomic nature of BYTES,
+    // the SQL rewriter cannot deciphor the contents from the VECTOR type. Thus,
+    // it does not have the SQL inlining as above.
+    manhattan_distance_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type, vector_type},
+         FN_MANHATTAN_DISTANCE_VECTOR,
+         AddVectorTypeRequiredOptions(
+             FunctionSignatureOptions(manhattan_distance_signature_options))});
+  }
 
   InsertFunction(functions, options, "manhattan_distance", Function::SCALAR,
                  manhattan_distance_signatures, function_options);
@@ -429,23 +519,42 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
        FROM UNNEST(input_array) AS e WITH OFFSET index
     )sql");
 
-  FunctionSignatureOptions l1_norm_signature_options =
-      SetDefinitionForInlining(l1_norm_sql, true)
-          .AddRequiredLanguageFeature(FEATURE_L1_NORM);
+  FunctionSignatureOptions l1_norm_signature_options;
+  l1_norm_signature_options.AddRequiredLanguageFeature(FEATURE_L1_NORM);
+
+  FunctionSignatureOptions l1_norm_signature_options_with_inlining =
+      l1_norm_signature_options;
+  l1_norm_signature_options_with_inlining.set_rewrite_options(
+      FunctionSignatureRewriteOptions()
+          .set_enabled(true)
+          .set_rewriter(REWRITE_BUILTIN_FUNCTION_INLINER)
+          .set_sql(l1_norm_sql));
 
   std::vector<FunctionSignatureOnHeap> l1_norm_signatures = {
       {types::DoubleType(),
        {distance_fn_named_arg(types::Int64ArrayType(), "input_array")},
        FN_L1_NORM_INT64,
-       l1_norm_signature_options},
+       l1_norm_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::FloatArrayType(), "input_array")},
        FN_L1_NORM_FLOAT,
-       l1_norm_signature_options},
+       l1_norm_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::DoubleArrayType(), "input_array")},
        FN_L1_NORM_DOUBLE,
-       l1_norm_signature_options}};
+       l1_norm_signature_options_with_inlining}};
+
+  if (is_vector_type_enabled) {
+    // VECTOR has a backing type of BYTES and due to the atomic nature of BYTES,
+    // the SQL rewriter cannot deciphor the contents from the VECTOR type. Thus,
+    // it does not have the SQL inlining as above.
+    l1_norm_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type},
+         FN_L1_NORM_VECTOR,
+         AddVectorTypeRequiredOptions(
+             FunctionSignatureOptions(l1_norm_signature_options))});
+  }
 
   InsertFunction(functions, options, "l1_norm", Function::SCALAR,
                  l1_norm_signatures, function_options);
@@ -456,23 +565,42 @@ absl::Status GetDistanceFunctions(TypeFactory* type_factory,
        FROM UNNEST(input_array) AS e WITH OFFSET index
     )sql");
 
-  FunctionSignatureOptions l2_norm_signature_options =
-      SetDefinitionForInlining(l2_norm_sql, true)
-          .AddRequiredLanguageFeature(FEATURE_L2_NORM);
+  FunctionSignatureOptions l2_norm_signature_options;
+  l2_norm_signature_options.AddRequiredLanguageFeature(FEATURE_L2_NORM);
+
+  FunctionSignatureOptions l2_norm_signature_options_with_inlining =
+      l2_norm_signature_options;
+  l2_norm_signature_options_with_inlining.set_rewrite_options(
+      FunctionSignatureRewriteOptions()
+          .set_enabled(true)
+          .set_rewriter(REWRITE_BUILTIN_FUNCTION_INLINER)
+          .set_sql(l2_norm_sql));
 
   std::vector<FunctionSignatureOnHeap> l2_norm_signatures = {
       {types::DoubleType(),
        {distance_fn_named_arg(types::Int64ArrayType(), "input_array")},
        FN_L2_NORM_INT64,
-       l2_norm_signature_options},
+       l2_norm_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::FloatArrayType(), "input_array")},
        FN_L2_NORM_FLOAT,
-       l2_norm_signature_options},
+       l2_norm_signature_options_with_inlining},
       {types::DoubleType(),
        {distance_fn_named_arg(types::DoubleArrayType(), "input_array")},
        FN_L2_NORM_DOUBLE,
-       l2_norm_signature_options}};
+       l2_norm_signature_options_with_inlining}};
+
+  if (is_vector_type_enabled) {
+    // VECTOR has a backing type of BYTES and due to the atomic nature of BYTES,
+    // the SQL rewriter cannot deciphor the contents from the VECTOR type. Thus,
+    // it does not have the SQL inlining as above.
+    l2_norm_signatures.push_back(
+        {types::DoubleType(),
+         {vector_type},
+         FN_L2_NORM_VECTOR,
+         AddVectorTypeRequiredOptions(
+             FunctionSignatureOptions(l2_norm_signature_options))});
+  }
 
   InsertFunction(functions, options, "l2_norm", Function::SCALAR,
                  l2_norm_signatures, function_options);

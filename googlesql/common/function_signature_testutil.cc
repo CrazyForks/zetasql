@@ -24,11 +24,11 @@ namespace googlesql {
 
 std::vector<SignatureArgumentKindGroup> GetRelatedSignatureArgumentGroup() {
   return {
-      {.kind = ARG_TYPE_ANY_1, .array_kind = ARG_ARRAY_TYPE_ANY_1},
-      {.kind = ARG_TYPE_ANY_2, .array_kind = ARG_ARRAY_TYPE_ANY_2},
-      {.kind = ARG_TYPE_ANY_3, .array_kind = ARG_ARRAY_TYPE_ANY_3},
-      {.kind = ARG_TYPE_ANY_4, .array_kind = ARG_ARRAY_TYPE_ANY_4},
-      {.kind = ARG_TYPE_ANY_5, .array_kind = ARG_ARRAY_TYPE_ANY_5},
+      {.kind = ARG_KIND_EXPR_ANY_1, .array_kind = ARG_KIND_EXPR_ARRAY_ANY_1},
+      {.kind = ARG_KIND_EXPR_ANY_2, .array_kind = ARG_KIND_EXPR_ARRAY_ANY_2},
+      {.kind = ARG_KIND_EXPR_ANY_3, .array_kind = ARG_KIND_EXPR_ARRAY_ANY_3},
+      {.kind = ARG_KIND_EXPR_ANY_4, .array_kind = ARG_KIND_EXPR_ARRAY_ANY_4},
+      {.kind = ARG_KIND_EXPR_ANY_5, .array_kind = ARG_KIND_EXPR_ARRAY_ANY_5},
   };
 }
 

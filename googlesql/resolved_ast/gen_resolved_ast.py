@@ -318,6 +318,9 @@ SCALAR_READ_WRITE_TRANSACTION_MODE = EnumScalarType(
 )
 SCALAR_FRAME_UNIT = EnumScalarType('FrameUnit', 'ResolvedWindowFrame')
 SCALAR_BOUNDARY_TYPE = EnumScalarType('BoundaryType', 'ResolvedWindowFrameExpr')
+SCALAR_WITHIN_BOUND_KIND = EnumScalarType(
+    'BoundKind', 'ResolvedWithinBoundExpr'
+)
 SCALAR_INSERT_MODE = EnumScalarType('InsertMode', 'ResolvedInsertStmt')
 SCALAR_MERGE_ACTION_TYPE = EnumScalarType('ActionType', 'ResolvedMergeWhen')
 SCALAR_MERGE_MATCH_TYPE = EnumScalarType('MatchType', 'ResolvedMergeWhen')
@@ -702,7 +705,7 @@ def Field(
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 321
+NEXT_NODE_TAG_ID = 323
 
 
 def GetTempTagId():
@@ -4881,7 +4884,8 @@ value.
 
       This node could be used in multiple places:
       * ResolvedTVFScan supports all of these.
-      * ResolvedFunctionCall supports `expr`, `inline_lambda`, and `sequence`.
+      * ResolvedFunctionCall supports `expr`, `inline_lambda`, `sequence`,
+        `model`.
       * ResolvedCallStmt supports only `expr`.
 
       If the argument has type `scan`, `argument_column_list` maps columns from
@@ -11006,6 +11010,51 @@ ResolvedArgumentRef(y)
   )
 
   gen.AddNode(
+      name='ResolvedWithinBoundExpr',
+      tag_id=321,
+      parent='ResolvedArgument',
+      fields=[
+          Field('bound_kind', SCALAR_WITHIN_BOUND_KIND, tag_id=2),
+          Field('expr',
+                'ResolvedExpr',
+                tag_id=3,
+                comment="""
+                The expression defining the bound. Must be query-const.
+                For absolute bounds, it is of type TIMESTAMP.
+                For relative interval bounds, it is of type INTERVAL.
+                For relative period bounds, it is either of type INTEGER  or DOUBLE.
+                Null if the bound type is UNBOUNDED PRECEDING / FOLLOWING or ANCHORED_TIMESTAMP.
+                """
+          ),
+      ],
+      use_custom_debug_string=True,
+      extra_defs="""
+  std::string GetBoundKindString() const;
+  static std::string BoundKindToString(BoundKind bound_kind);""",
+  )
+
+  gen.AddNode(
+      name='ResolvedWithinBounds',
+      tag_id=322,
+      parent='ResolvedArgument',
+      comment="""
+      Bounds within which an estimator function is calculated. Implicit
+      nullptr bound in ParseAST is represented as explicit bound of type
+      ANCHOR_TIMESTAMP in ResolvedAST.
+      """,
+      fields=[
+          Field('lower_bound',
+                'ResolvedWithinBoundExpr',
+                tag_id=2,
+                comment="Lower bound expression. Can't be NULL"),
+          Field('upper_bound',
+                'ResolvedWithinBoundExpr',
+                tag_id=3,
+                comment="Upper bound expression. Can't be NULL"),
+      ],
+  )
+
+  gen.AddNode(
       name='ResolvedAlignScan',
       tag_id=318,
       parent='ResolvedScan',
@@ -11052,7 +11101,15 @@ ResolvedArgumentRef(y)
               references to correlated columns are allowed.
               """,
           ),
-          # TODO: b/477116035 - Add field for output_within_range.
+          Field(
+              'output_within',
+              'ResolvedWithinBounds',
+              tag_id=6,
+              comment="""Filter that restricts output timestamps of the
+              aligned_timestamp column to the time range (lower and upper bound)
+              specified by this node.
+              """,
+          ),
           Field(
               'partition_by_list',
               'ResolvedColumnRef',

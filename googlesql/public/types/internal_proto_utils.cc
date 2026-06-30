@@ -17,10 +17,10 @@
 #include "googlesql/public/types/internal_proto_utils.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 
-#include "googlesql/base/logging.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "googlesql/common/proto_helper.h"
 #include "googlesql/public/types/type.h"
@@ -54,9 +54,9 @@ absl::Status PopulateDistinctFileDescriptorSets(
   if (file_descriptor_entry == nullptr) {
     // This is a new entry in the map.
     file_descriptor_entry = std::make_unique<Type::FileDescriptorEntry>();
-    ABSL_CHECK(file_descriptor_set_map->size() <
-          std::numeric_limits<decltype(
-              file_descriptor_entry->descriptor_set_index)>::max());
+    GOOGLESQL_RET_CHECK(file_descriptor_set_map->size() <
+              std::numeric_limits<decltype(file_descriptor_entry
+                                               ->descriptor_set_index)>::max());
     file_descriptor_entry->descriptor_set_index =
         static_cast<decltype(file_descriptor_entry->descriptor_set_index)>(
             file_descriptor_set_map->size() - 1);

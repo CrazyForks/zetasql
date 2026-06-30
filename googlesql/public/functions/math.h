@@ -121,8 +121,7 @@ inline bool SetFloatingPointOverflow(absl::string_view description,
 template <typename T>
 inline bool CheckFloatingPointError(absl::string_view name, T in, T out,
                                     absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   if (ABSL_PREDICT_TRUE(std::isfinite(out))) {
     return true;
   } else if (!std::isfinite(in)) {
@@ -137,8 +136,7 @@ inline bool CheckFloatingPointError(absl::string_view name, T in, T out,
 template <typename T>
 inline bool CheckFloatingPointOverflow(absl::string_view name, T in, T out,
                                        absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   if (ABSL_PREDICT_TRUE(std::isfinite(out))) {
     return true;
   } else if (!std::isfinite(in)) {
@@ -152,8 +150,7 @@ inline bool CheckFloatingPointOverflow(absl::string_view name, T in, T out,
 template <typename T>
 bool CheckFloatingPointError(absl::string_view name, T in1, T in2, T out,
                              absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   if (ABSL_PREDICT_TRUE(std::isfinite(out))) {
     return true;
   } else if (!std::isfinite(in1) || !std::isfinite(in2)) {
@@ -241,48 +238,42 @@ inline bool Sign(BigNumericValue in, BigNumericValue* out,
 
 template <typename T>
 inline bool Round(T in, T *out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::round(in);
   return true;
 }
 
 template <typename T>
 inline bool Trunc(T in, T *out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::trunc(in);
   return true;
 }
 
 template <typename T>
 inline bool Ceil(T in, T *out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::ceil(in);
   return true;
 }
 
 template <typename T>
 inline bool Floor(T in, T *out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::floor(in);
   return true;
 }
 
 template <typename T>
 inline bool IsInf(T in, bool* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::isinf(in);
   return true;
 }
 
 template <typename T>
 inline bool IsNan(T in, bool* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::isnan(in);
   return true;
 }
@@ -290,8 +281,7 @@ inline bool IsNan(T in, bool* out, absl::Status* error) {
 template <typename T>
 __attribute__((no_sanitize("float-divide-by-zero"))) inline bool IeeeDivide(
     T in1, T in2, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   static_assert(std::numeric_limits<T>::is_iec559, "T must do IEEE754 divide");
   *out = in1 / in2;
   return true;
@@ -299,8 +289,7 @@ __attribute__((no_sanitize("float-divide-by-zero"))) inline bool IeeeDivide(
 
 template <typename T>
 bool Sqrt(T in, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   if (ABSL_PREDICT_FALSE(in < 0)) {
     return internal::UpdateError(
         error, absl::StrFormat("Argument to SQRT cannot be negative: %v", in));
@@ -311,8 +300,7 @@ bool Sqrt(T in, T* out, absl::Status* error) {
 
 template <typename T>
 bool Cbrt(T in, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::cbrt(in);
   return true;
 }
@@ -354,8 +342,7 @@ __attribute__((no_sanitize("float-divide-by-zero"))) bool Logarithm(
 
 template <typename T>
 bool Cos(T in, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::cos(in);
   // cos() does not introduce Inf or NaN - no error checking required.
   return true;
@@ -381,8 +368,7 @@ bool Acosh(T in, T* out, absl::Status* error) {
 
 template <typename T>
 bool Sin(T in, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::sin(in);
   // sin() does not introduce Inf or NaN - no error checking required.
   return true;
@@ -415,8 +401,7 @@ bool Tan(T in, T* out, absl::Status* error) {
 
 template <typename T>
 bool Tanh(T in, T* out, absl::Status* error) {
-  static_assert(std::is_floating_point<T>::value,
-                "T must be floating point type");
+  static_assert(std::is_floating_point_v<T>, "T must be floating point type");
   *out = std::tanh(in);
   // tanh() does not introduce Inf or NaN - no error checking required.
   return true;

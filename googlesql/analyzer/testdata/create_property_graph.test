@@ -5794,7 +5794,7 @@ CreatePropertyGraphStmt
 |     | +-parse_location=432-466
 |     | +-expr=
 |     | | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
-|     | |   +-CatalogColumnRef(type=INT64, name="personId")
+|     | |   +-CatalogColumnRef(type=INT64, column=PersonOwnAccount.personId)
 |     | +-sql="SUM(personId)"
 |     | +-property_declaration_name="m_total1"
 |     | +-is_measure=TRUE
@@ -5812,7 +5812,7 @@ CreatePropertyGraphStmt
 |       | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
 |       |   +-FunctionCall(GoogleSQL:$add(INT64, INT64) -> INT64)
 |       |     +-CatalogColumnRef(type=INT64, name="t1")
-|       |     +-CatalogColumnRef(type=INT64, name="personId")
+|       |     +-CatalogColumnRef(type=INT64, column=PersonOwnAccount.personId)
 |       +-sql="SUM(t1 + personId)"
 |       +-property_declaration_name="m_total3"
 |       +-is_measure=TRUE
@@ -5984,7 +5984,7 @@ CreatePropertyGraphStmt
 |     | | +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
 |     | |   +-Literal(type=INT64, value=1)
 |     | |   +-group_by_list=
-|     | |     +-$groupbymod#14 := CatalogColumnRef(type=INT64, name="accountId")
+|     | |     +-$groupbymod#14 := CatalogColumnRef(type=INT64, column=PersonOwnAccount.accountId)
 |     | +-sql="SUM(1 GROUP BY accountId)"
 |     | +-property_declaration_name="m6"
 |     | +-is_measure=TRUE
@@ -5995,7 +5995,7 @@ CreatePropertyGraphStmt
 |     | |   +-AggregateFunctionCall(GoogleSQL:sum(INT64) -> INT64)
 |     | |   | +-Literal(type=INT64, value=1)
 |     | |   +-group_by_list=
-|     | |     +-$groupbymod#15 := CatalogColumnRef(type=INT64, name="accountId")
+|     | |     +-$groupbymod#15 := CatalogColumnRef(type=INT64, column=PersonOwnAccount.accountId)
 |     | +-sql="SUM(SUM(1) group by accountId)"
 |     | +-property_declaration_name="m7"
 |     | +-is_measure=TRUE
@@ -6080,7 +6080,7 @@ EDGE TABLES (
 )
 --
 
-ERROR: Unrecognized name: m1 [at 16:19]
+ERROR: MEASURE-typed arguments are only permitted in the AGG function [at 16:19]
       MEASURE(SUM(m1)) AS m2
                   ^
 ==
@@ -6107,9 +6107,9 @@ EDGE TABLES (
 )
 --
 
-ERROR: Duplicate property name 'm1' in the same label 'test' [at 13:5]
-    LABEL test
-    ^
+ERROR: Duplicate graph property name m1 [at 16:7]
+      MEASURE(SUM(2)) AS m1
+      ^
 ==
 
 # Test MEASURE property expression validation: subquery is not allowed
@@ -6387,9 +6387,9 @@ CreatePropertyGraphStmt
 |       +-expr=
 |       | +-AggregateFunctionCall(GoogleSQL:sum(DOUBLE) -> DOUBLE)
 |       |   +-AggregateFunctionCall(GoogleSQL:avg(INT64) -> DOUBLE)
-|       |   | +-CatalogColumnRef(type=INT64, name="personId")
+|       |   | +-CatalogColumnRef(type=INT64, column=PersonOwnAccount.personId)
 |       |   +-group_by_list=
-|       |     +-$groupbymod#14 := CatalogColumnRef(type=INT64, name="accountId")
+|       |     +-$groupbymod#14 := CatalogColumnRef(type=INT64, column=PersonOwnAccount.accountId)
 |       +-sql="SUM(AVG(personId) GROUP BY accountId)"
 |       +-property_declaration_name="m1"
 |       +-is_measure=TRUE
@@ -7092,54 +7092,36 @@ CreatePropertyGraphStmt
 
 ==
 
-# TODO: b/519688990 - Duplicate column and property names in graph DDL currently
-# do not trigger ambiguity errors. We should fix this.
-[language_features=MAXIMUM]
+# Repro for b/519688990: Duplicate column and property names in graph DDL should
+# trigger ambiguity errors.
+[language_features=NONE,+SQL_GRAPH_DEFAULT_LABEL_AND_PROPERTY_DEFINITION_OPTIONS,+SQL_GRAPH_MEASURE_DDL,+MULTILEVEL_AGGREGATION,+AGGREGATE_FILTERING,+SQL_GRAPH_MEASURE_ALLOW_COLUMNS]
 CREATE PROPERTY GRAPH catalog.aml
 NODE TABLES (
   Person
     DEFAULT LABEL PROPERTIES (
       id,
       gender AS age,
-      MEASURE(SUM(age)) AS sum_age
+      MEASURE(SUM(age)) AS m_sum_age
     )
 )
 --
-CreatePropertyGraphStmt
-+-name_path=catalog.aml
-+-node_table_list=
-| +-GraphElementTable
-|   +-alias="Person"
-|   +-input_scan=
-|   | +-TableScan(column_list=Person.[id#1, name#2, gender#3, birthday#4, email#5, age#6, data#7], table=Person, column_index_list=[0, 1, 2, 3, 4, 5, 6])
-|   +-key_list=
-|   | +-ColumnRef(type=INT64, column=Person.id#1)
-|   +-label_name_list=[Person]
-|   +-property_definition_list=
-|     +-GraphPropertyDefinition
-|     | +-parse_location=94-96
-|     | +-expr=
-|     | | +-ColumnRef(type=INT64, column=Person.id#1)
-|     | +-sql="id"
-|     | +-property_declaration_name="id"
-|     +-GraphPropertyDefinition
-|     | +-parse_location=104-117
-|     | +-expr=
-|     | | +-ColumnRef(type=STRING, column=Person.gender#3)
-|     | +-sql="gender"
-|     | +-property_declaration_name="age"
-|     +-GraphPropertyDefinition
-|       +-parse_location=125-153
-|       +-expr=
-|       | +-AggregateFunctionCall(GoogleSQL:sum(UINT64) -> UINT64)
-|       |   +-Cast(UINT32 -> UINT64)
-|       |     +-CatalogColumnRef(type=UINT32, name="age")
-|       +-sql="SUM(age)"
-|       +-property_declaration_name="sum_age"
-|       +-is_measure=TRUE
-+-label_list=
-| +-GraphElementLabel(parse_location=61-159, name="Person", property_declaration_name_list=[id, age, sum_age])
-+-property_declaration_list=
-  +-GraphPropertyDeclaration(parse_location=94-96, name="id", type=INT64)
-  +-GraphPropertyDeclaration(parse_location=104-117, name="age", type=STRING)
-  +-GraphPropertyDeclaration(parse_location=125-153, name="sum_age", type=UINT64)
+ERROR: Name age is ambiguous because it exists as both a column and a graph property [at 7:19]
+      MEASURE(SUM(age)) AS m_sum_age
+                  ^
+==
+
+# no_java because MeasureTable_SingleKey has a measure column, which does not
+# support serialization yet.
+[language_features=MAXIMUM]
+[no_java]
+CREATE PROPERTY GRAPH catalog.aml
+NODE TABLES (
+  MeasureTable_SingleKey KEY(key)
+    PROPERTIES (
+      MEASURE(AGG(measure_sum_price) + 1) AS measure_sum_quantity
+    )
+)
+--
+ERROR: Measure expressions referencing other measures are not supported [at 5:7]
+      MEASURE(AGG(measure_sum_price) + 1) AS measure_sum_quantity
+      ^

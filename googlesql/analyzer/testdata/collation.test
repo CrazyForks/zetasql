@@ -13413,3 +13413,76 @@ UNPIVOT(val FOR name IN (c1 AS 'C1', c2 AS 'C2'));
 ERROR: Collation "und:ci" in UNPIVOT IN clause is not supported [at 2:26]
 UNPIVOT(val FOR name IN (c1 AS 'C1', c2 AS 'C2'));
                          ^
+==
+
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
+CREATE FUNCTION udf_with_explicit_return_type_and_collated_body(s STRING)
+RETURNS STRING AS (
+  COLLATE(s, 'und:ci')
+);
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+ERROR: Collation "und:ci" in return type of user-defined function body is not allowed [at 2:19]
+RETURNS STRING AS (
+                  ^
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+CreateFunctionStmt
++-name_path=udf_with_explicit_return_type_and_collated_body
++-has_explicit_return_type=TRUE
++-return_type=STRING
++-argument_name_list=[s]
++-signature=(STRING s) -> STRING
++-language="SQL"
++-code="COLLATE(s, 'und:ci')"
++-function_expression=
+  +-Cast(STRING -> STRING)
+    +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+      +-type_annotation_map={Collation:"und:ci"}
+      +-ArgumentRef(type=STRING, name="s")
+      +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+==
+
+[language_features=MAXIMUM,+COLLATION_SUPPORT,{{-TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS|+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS}}]
+CREATE TABLE FUNCTION tvf_with_explicit_return_schema_and_collated_body(t TABLE<a STRING>)
+RETURNS TABLE<a STRING> AS (
+  SELECT COLLATE(a, 'und:ci') AS a FROM t
+);
+--
+ALTERNATION GROUP: -TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+ERROR: Collation "und:ci" on output column a is not allowed when an explicit result schema is present [at 1:1]
+CREATE TABLE FUNCTION tvf_with_explicit_return_schema_and_collated_body(t TAB...
+^
+--
+ALTERNATION GROUP: +TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS
+--
+CreateTableFunctionStmt
++-name_path=tvf_with_explicit_return_schema_and_collated_body
++-argument_name_list=[t]
++-signature=(TABLE<a STRING> t) -> TABLE<a STRING>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="SELECT COLLATE(a, 'und:ci') AS a FROM t"
++-query=
+| +-ProjectScan
+|   +-column_list=[$subquery1.a#3]
+|   +-expr_list=
+|   | +-a#3 :=
+|   |   +-Cast(STRING -> STRING)
+|   |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=$query.a#2{Collation:"und:ci"})
+|   +-input_scan=
+|     +-ProjectScan
+|       +-column_list=[$query.a#2{Collation:"und:ci"}]
+|       +-expr_list=
+|       | +-a#2 :=
+|       |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+|       |     +-type_annotation_map={Collation:"und:ci"}
+|       |     +-ColumnRef(type=STRING, column=t.a#1)
+|       |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+|       +-input_scan=
+|         +-RelationArgumentScan(column_list=[t.a#1], name="t")
++-output_column_list=
+  +-$subquery1.a#3 AS a [STRING]

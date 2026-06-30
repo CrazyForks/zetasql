@@ -1,0 +1,308 @@
+# Error tests for TUMBLE and HOP TVFs.
+[default language_features={{NONE|MAXIMUM}}, +TABLE_VALUED_FUNCTIONS, +TUMBLE_HOP_TVFS, +INTERVAL_TYPE, +NAMED_ARGUMENTS]
+[default no_enable_literal_replacement]
+# Disable literal replacement for TUMBLE AND HOP TVFs because timestamp_column
+# must be a string literal.
+
+# Validates that TUMBLE fails at pre-resolution time if the signature
+# does not match.
+
+SELECT * FROM tumble("string1", "string2", "string3");
+--
+ERROR: No matching signature for table valued function : TUMBLE. Supported Signatures: TUMBLE(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, [origin => TIMESTAMP]) [at 7:15]
+SELECT * FROM tumble("string1", "string2", "string3");
+              ^
+==
+
+# Validates that HOP fails at pre-resolution time if the signature
+# does not match.
+
+SELECT * FROM hop("string1", "string2", "string3");
+--
+ERROR: No matching signature for table valued function : HOP. Supported Signatures: HOP(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, step_size => INTERVAL, [origin => TIMESTAMP]) [at 1:15]
+SELECT * FROM hop("string1", "string2", "string3");
+              ^
+==
+
+[language_features=MAXIMUM]
+# TODO: Change the language feature setting to
+# [language_features=MAXIMUM{{,-TUMBLE_HOP_TVFS|}}] once the feature is enabled
+# by default.
+# TUMBLE fails when the feature is not enabled.
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY);
+--
+ERROR: Table-valued function not found: tumble [at 5:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY);
+              ^
+==
+
+[language_features=MAXIMUM]
+# TODO: Change the language feature setting to
+# [language_features=MAXIMUM{{,-TUMBLE_HOP_TVFS|}}] once the feature is enabled
+# by default.
+# HOP fails when the feature is not enabled.
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Table-valued function not found: hop [at 5:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, I...
+              ^
+==
+
+[language_features={{NONE|MAXIMUM}},+TABLE_VALUED_FUNCTIONS, +TUMBLE_HOP_TVFS, +INTERVAL_TYPE, +NAMED_ARGUMENTS,]
+# TUMBLE_NO_TS_COL fails when TUMBLE_HOP_TVFS_NO_TIMESTAMP_COL is not enabled.
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, INTERVAL 1 DAY);
+--
+ERROR: No matching signature for table valued function : TUMBLE. Supported Signatures: TUMBLE(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, [origin => TIMESTAMP]) [at 2:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, INTERVAL 1 DAY);
+              ^
+==
+
+[language_features={{NONE|MAXIMUM}},+TABLE_VALUED_FUNCTIONS, +TUMBLE_HOP_TVFS, +INTERVAL_TYPE, +NAMED_ARGUMENTS,]
+# HOP_NO_TS_COL fails when TUMBLE_HOP_TVFS_NO_TIMESTAMP_COL is not enabled.
+SELECT * FROM hop(TABLE TableWithTimestampColumn, INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: No matching signature for table valued function : HOP. Supported Signatures: HOP(table_expr => TABLE, timestamp_column => STRING, window_size => INTERVAL, step_size => INTERVAL, [origin => TIMESTAMP]) [at 2:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, INTERVAL 1 DAY, INTERVAL 1 ...
+              ^
+==
+
+# timestamp_column argument must be a literal for TUMBLE.
+
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTERVAL 1 DAY);
+--
+ERROR: The timestamp argument must be a string literal [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), IN...
+              ^
+==
+
+# timestamp_column argument must be a literal for HOP.
+
+SELECT * FROM hop(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: The timestamp argument must be a string literal [at 1:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, CONCAT("ts", "_col"), INTER...
+              ^
+==
+
+# timestamp_column cannot be an empty string.
+
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "", INTERVAL 1 DAY);
+--
+ERROR: The timestamp argument cannot be empty [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "", INTERVAL 1 DAY);
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: The timestamp argument cannot be empty [at 1:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "", INTERVAL 1 DAY, INTERVA...
+              ^
+==
+
+# timestamp_column argument cannot be null.
+
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, CAST(NULL AS STRING), INTERVAL 1 DAY);
+--
+ERROR: The timestamp argument cannot be null [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, CAST(NULL AS STRING), IN...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTimestampColumn, CAST(NULL AS STRING), INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: The timestamp argument cannot be null [at 1:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, CAST(NULL AS STRING), INTER...
+              ^
+==
+
+# timestamp_column cannot be found in the input table.
+
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "non_existent_col", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'non_existent_col' (path component #1): Column not found [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTimestampColumn, "non_existent_col", INTE...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "non_existent_col", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'non_existent_col' (path component #1): Column not found [at 1:15]
+SELECT * FROM hop(TABLE TableWithTimestampColumn, "non_existent_col", INTERVA...
+              ^
+==
+
+# timestamp_column argument refers to a column that is not a googlesql TIMESTAMP type.
+
+SELECT * FROM tumble(TABLE KeyValue, "Key", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'Key' (path component #1): Leaf field type must be TIMESTAMP or google.protobuf.Timestamp [at 1:15]
+SELECT * FROM tumble(TABLE KeyValue, "Key", INTERVAL 1 DAY);
+              ^
+==
+
+SELECT * FROM hop(TABLE KeyValue, "Key", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'Key' (path component #1): Leaf field type must be TIMESTAMP or google.protobuf.Timestamp [at 1:15]
+SELECT * FROM hop(TABLE KeyValue, "Key", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+              ^
+==
+
+# timestamp_column is a proto field path, but has invalid field in the field path.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.non_existent_field", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'non_existent_field' (path component #2): Field not found in proto googlesql_test.TestHopAndTumblePB [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.non_e...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.non_existent_field", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'non_existent_field' (path component #2): Field not found in proto googlesql_test.TestHopAndTumblePB [at 1:15]
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.non_exis...
+              ^
+==
+
+# timestamp_column is a proto field path, but the field path does not lead to a google.protobuf.Timestamp.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_val", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'int32_val' (path component #2): Leaf field type must be TIMESTAMP or google.protobuf.Timestamp [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'int32_val' (path component #2): Leaf field type must be TIMESTAMP or google.protobuf.Timestamp [at 1:15]
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_va...
+              ^
+==
+
+# timestamp_column is a proto field path, but path contains an non-leaf non-message field.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_val.timestamp_val", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'timestamp_val' (path component #3): Cannot traverse non-struct/proto field [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_val.timestamp_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'timestamp_val' (path component #3): Cannot traverse non-struct/proto field [at 1:15]
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.int32_va...
+              ^
+==
+
+# timestamp_column is a proto field path, but path contains a repeated field.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.repeated_int32_val", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'repeated_int32_val' (path component #2): Proto repeated field is not supported [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.repea...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.repeated_int32_val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'repeated_int32_val' (path component #2): Proto repeated field is not supported [at 1:15]
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.repeated...
+              ^
+==
+
+# timestamp_column is a proto field path, but path contains a map field.
+
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.test_map", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'test_map' (path component #2): Proto map field is not supported [at 1:15]
+SELECT * FROM tumble(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.test_...
+              ^
+==
+
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.test_map", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'test_map' (path component #2): Proto map field is not supported [at 1:15]
+SELECT * FROM hop(TABLE TableWithTestHopAndTumbleProto, "ProtoColumn.test_map...
+              ^
+==
+
+# top-level timestamp_column reference is ambiguous.
+
+SELECT * FROM tumble((SELECT TIMESTAMP "2026-01-01 00:00:00" AS ts_col, TIMESTAMP "2026-01-02 00:00:00" AS ts_col), "ts_col", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'ts_col' (path component #1): Ambiguous column reference [at 1:15]
+SELECT * FROM tumble((SELECT TIMESTAMP "2026-01-01 00:00:00" AS ts_col, TIMES...
+              ^
+==
+
+SELECT * FROM hop((SELECT TIMESTAMP "2026-01-01 00:00:00" AS ts_col, TIMESTAMP "2026-01-02 00:00:00" AS ts_col), "ts_col", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'ts_col' (path component #1): Ambiguous column reference [at 1:15]
+SELECT * FROM hop((SELECT TIMESTAMP "2026-01-01 00:00:00" AS ts_col, TIMESTAM...
+              ^
+==
+
+# value table row type is not a struct or proto.
+
+SELECT * FROM tumble((SELECT AS VALUE 1), "val", INTERVAL 1 DAY);
+--
+ERROR: Value table type must be a struct or proto [at 1:15]
+SELECT * FROM tumble((SELECT AS VALUE 1), "val", INTERVAL 1 DAY);
+              ^
+==
+
+SELECT * FROM hop((SELECT AS VALUE 1), "val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Value table type must be a struct or proto [at 1:15]
+SELECT * FROM hop((SELECT AS VALUE 1), "val", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+              ^
+==
+
+# field not found in value table struct.
+
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "non_existent", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'non_existent' (path component #1): Field not found in struct [at 1:15]
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProt...
+              ^
+==
+
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "non_existent", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'non_existent' (path component #1): Field not found in struct [at 1:15]
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, ...
+              ^
+==
+
+# field is ambiguous in value table struct.
+
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "ambiguous_field", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'ambiguous_field' (path component #1): Struct field name is ambiguous [at 1:15]
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProt...
+              ^
+==
+
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "ambiguous_field", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'ambiguous_field' (path component #1): Struct field name is ambiguous [at 1:15]
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, ...
+              ^
+==
+
+# proto field in value table traversal not found.
+
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "proto_field.int32_val1", INTERVAL 1 DAY);
+--
+ERROR: Unable to resolve 'int32_val1' (path component #2): Field not found in proto googlesql_test.TestHopAndTumblePB [at 1:15]
+SELECT * FROM tumble(TABLE ValueTableWithStructContainingTestHopAndTumbleProt...
+              ^
+==
+
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, "proto_field.int32_val1", INTERVAL 1 DAY, INTERVAL 1 HOUR);
+--
+ERROR: Unable to resolve 'int32_val1' (path component #2): Field not found in proto googlesql_test.TestHopAndTumblePB [at 1:15]
+SELECT * FROM hop(TABLE ValueTableWithStructContainingTestHopAndTumbleProto, ...
+              ^

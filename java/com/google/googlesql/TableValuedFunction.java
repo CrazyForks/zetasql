@@ -58,7 +58,7 @@ public class TableValuedFunction implements Serializable {
    * <p>Each TVF may accept value or relation arguments. The signature specifies whether each
    * argument should be a value or a relation. For a value argument, the signature may specify a
    * concrete {@code Type} or a (possibly templated) {@code SignatureArgumentKind}. For relation
-   * arguments, the signature should use {@code ARG_TYPE_RELATION}, and any relation will be
+   * arguments, the signature should use {@code ARG_KIND_RELATION}, and any relation will be
    * accepted as an argument.
    */
   protected TableValuedFunction(

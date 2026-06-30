@@ -578,6 +578,8 @@ class SimpleCatalog : public EnumerableCatalog {
       absl::flat_hash_set<const TableValuedFunction*>* output) const override;
   absl::Status GetProcedures(
       absl::flat_hash_set<const Procedure*>* output) const override;
+  absl::Status GetPropertyGraphs(
+      absl::flat_hash_set<const PropertyGraph*>* output) const override;
 
   // Accessors for reading a copy of the object lists in this SimpleCatalog.
   // This is intended primarily for tests.
@@ -787,6 +789,12 @@ class SimpleTable : public Table {
   // Takes ownership of elements of <columns> if <take_ownership> is true.
   SimpleTable(absl::string_view name, const std::vector<const Column*>& columns,
               bool take_ownership = false, int64_t serialization_id = 0);
+
+  // Make a table with the given Columns.
+  // Crashes if there are duplicate column names.
+  SimpleTable(absl::string_view name,
+              std::vector<std::unique_ptr<const Column>> columns,
+              int64_t serialization_id = 0);
 
   // Make a value table with row type <row_type>.
   // This constructor inserts a single column of type <row_type> into

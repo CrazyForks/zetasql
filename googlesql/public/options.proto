@@ -121,7 +121,7 @@ message LanguageFeatureOptions {
 //
 // It's deprecated to use an enum ID which corresponds to a version. All new
 // enum names should use the next available ID starting from 0.
-// Next ID: 175
+// Next ID: 176
 enum LanguageFeature {
   reserved 3 to 4, 36 to 39, 44 to 46, 48, 54, 55, 74, 99, 107, 108, 110, 124,
       132, 134, 140, 13003, 13046, 14001, 14012, 14022, 14024, 14040, 14061,
@@ -969,6 +969,10 @@ enum LanguageFeature {
   // This is experimental and not ready to use yet.
   FEATURE_TABLE_TYPE = 172 [(language_feature_options).in_development = true];
 
+  // Enables support for TEMP and TEMPORARY scopes in generic DDL statements.
+  FEATURE_CREATE_TEMP_GENERIC_DDL = 175
+      [(language_feature_options).in_development = true];
+
   // Enables JSON_EXISTS, JSON_EXISTS_ANY, and JSON_EXISTS_ALL functions.
   // See (broken link) for details.
   FEATURE_JSON_EXISTS_FUNCTIONS = 173
@@ -1369,7 +1373,7 @@ enum LanguageFeature {
   FEATURE_REMOTE_FUNCTION = 13043
       [(language_feature_options).language_version = VERSION_1_3];
 
-  // Enables ARG_TYPE_STRING_ANY templated argument kind.
+  // Enables ARG_KIND_EXPR_STRING_ANY templated argument kind.
   FEATURE_ANY_STRING_TEMPLATED_ARGUMENT = 161
       [(language_feature_options).language_version = VERSION_1_5];
 
@@ -1624,6 +1628,10 @@ enum LanguageFeature {
     (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
+
+  // Enables model arguments.
+  FEATURE_MODEL_ARG = 14135
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enables grouping builtin function for grouping sets ((broken link))
   FEATURE_GROUPING_BUILTIN = 14020
@@ -2090,10 +2098,8 @@ enum LanguageFeature {
   FEATURE_MEASURES_TVF = 14122
       [(language_feature_options).language_version = VERSION_1_4];
 
-  FEATURE_ARRAY_DISTINCT = 14123 [
-    (language_feature_options).language_version = VERSION_1_5,
-    (language_feature_options).in_development = true
-  ];
+  FEATURE_ARRAY_DISTINCT = 14123
+      [(language_feature_options).language_version = VERSION_1_5];
 
   // Enables support for MEASURE in STRUCT.
   FEATURE_MEASURES_IN_STRUCT = 14133 [
@@ -2114,6 +2120,14 @@ enum LanguageFeature {
   // Enables CREATE LIVE TABLE statement.
   // See (broken link) for more details.
   FEATURE_CREATE_LIVE_TABLE = 14131 [
+    (language_feature_options).language_version = VERSION_1_5,
+    (language_feature_options).in_development = true
+  ];
+
+  // Enables derived measures.
+  //
+  // See (broken link) for more details.
+  FEATURE_DERIVED_MEASURE = 14134 [
     (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];
@@ -2459,6 +2473,12 @@ enum ResolvedASTRewrite {
   // See (broken link).
   REWRITE_QUANTIFIED_COMPARISONS = 42
       [(rewrite_options).default_enabled = true];
+
+  // Rewrites the TUMBLE time window TVF.
+  REWRITE_TUMBLE_FUNCTION = 43 [
+    (rewrite_options).default_enabled = true,
+    (rewrite_options).in_development = true
+  ];
 
   // These are not real rewriters. They are just for unit testing.
   REWRITE_TEST_DEFAULT_DISABLED = 999991

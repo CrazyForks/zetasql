@@ -88,7 +88,7 @@ inline int FindMSBSetNonZero(uint64_t x) {
 // For example, LeftPad<uint32, 4>(1, 2, 3) returns {1, 1, 2, 3}.
 // The number of arguments cannot exceed <size> + 1.
 template <typename Word, int size, typename... T>
-inline constexpr std::array<Word, size> LeftPad(Word filler, T... v) {
+constexpr std::array<Word, size> LeftPad(Word filler, T... v) {
   if constexpr (sizeof...(T) < size) {
     return LeftPad<Word, size>(filler, filler, v...);
   } else {
@@ -100,7 +100,7 @@ inline constexpr std::array<Word, size> LeftPad(Word filler, T... v) {
 // For example, RightPad<uint32, 4>(1, 2, 3) returns {2, 3, 1, 1}.
 // The number of arguments cannot exceed <size> + 1.
 template <typename Word, int size, typename... T>
-inline constexpr std::array<Word, size> RightPad(Word filler, T... v) {
+constexpr std::array<Word, size> RightPad(Word filler, T... v) {
   if constexpr (sizeof...(T) < size) {
     return RightPad<Word, size>(filler, v..., filler);
   } else {
@@ -113,8 +113,8 @@ inline constexpr std::array<Word, size> RightPad(Word filler, T... v) {
 // array sizes.
 // Requirements: n must be >= m and (n/m) must be a power of 2.
 template <int n, int m, int size>
-inline constexpr std::array<Uint<m>, size> UintToArray(Uint<n> src,
-                                                       Uint<m> extension) {
+constexpr std::array<Uint<m>, size> UintToArray(Uint<n> src,
+                                                Uint<m> extension) {
   if constexpr (n == m) {
     return RightPad<Uint<m>, size>(extension, src);
   } else if constexpr (n == m * 2) {
@@ -139,7 +139,7 @@ inline void UintToArray(Uint<n> src, Uint<m> dest[]) {
 }
 
 template <int n, int m>
-inline constexpr Uint<n> ArrayToUint(const Uint<m> src[]) {
+constexpr Uint<n> ArrayToUint(const Uint<m> src[]) {
   if constexpr (n == m) {
     return src[0];
   } else {
@@ -772,7 +772,7 @@ inline void DivMod(const std::array<uint64_t, n>& dividend,
 }
 
 template <typename V>
-inline constexpr std::make_unsigned_t<V> SafeAbs(V x) {
+constexpr std::make_unsigned_t<V> SafeAbs(V x) {
   // Must cast to unsigned type before negation, or otherwise the result is
   // undefined when V is signed and x has the minimum value.
   return ABSL_PREDICT_TRUE(x >= 0) ? static_cast<std::make_unsigned_t<V>>(x)

@@ -201,10 +201,11 @@ class MeasureExpressionTest : public ::testing::Test {
     // Templated UDF
     catalog_.AddOwnedFunction(new TemplatedSQLFunction(
         {"udf_templated"},
-        FunctionSignature(FunctionArgumentType(ARG_TYPE_ANY_1),
-                          {FunctionArgumentType(
-                              ARG_TYPE_ANY_1, FunctionArgumentType::REQUIRED)},
-                          /*context_id=*/-1),
+        FunctionSignature(
+            FunctionArgumentType(ARG_KIND_EXPR_ANY_1),
+            {FunctionArgumentType(ARG_KIND_EXPR_ANY_1,
+                                  FunctionArgumentType::REQUIRED)},
+            /*context_id=*/-1),
         /*argument_names=*/{"x"}, ParseResumeLocation::FromString("x + 42")));
 
     // Non templated UDA
@@ -215,10 +216,11 @@ class MeasureExpressionTest : public ::testing::Test {
     // Templated UDA
     catalog_.AddOwnedFunction(new TemplatedSQLFunction(
         {"uda_templated"},
-        FunctionSignature(FunctionArgumentType(ARG_TYPE_ANY_1),
-                          {FunctionArgumentType(
-                              ARG_TYPE_ANY_1, FunctionArgumentType::REQUIRED)},
-                          /*context_id=*/-1),
+        FunctionSignature(
+            FunctionArgumentType(ARG_KIND_EXPR_ANY_1),
+            {FunctionArgumentType(ARG_KIND_EXPR_ANY_1,
+                                  FunctionArgumentType::REQUIRED)},
+            /*context_id=*/-1),
         /*argument_names=*/{"x"}, ParseResumeLocation::FromString("sum(x)"),
         Function::AGGREGATE));
 
@@ -322,28 +324,30 @@ TEST_F(MeasureExpressionTest, InvalidMeasureReferencingMeasure) {
                                        "measure_1", "ANY_VALUE(measure_col)"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Measure expression: ANY_VALUE(measure_col) cannot reference "
-              "column: measure_col which contains a measure type")));
+          HasSubstr("MEASURE-typed arguments are only permitted in the AGG "
+                    "function")));
 }
 
-TEST_F(MeasureExpressionTest, InvalidMeasureReferencingArrayOfMeasure) {
+// We currently do not support catalog columns whose type is a composite type
+// containing measures (e.g. ARRAY<MEASURE<T>>). Referencing such a column in a
+// measure expression triggers a GOOGLESQL_RET_CHECK.
+TEST_F(MeasureExpressionTest,
+       RetCheckWhenCatalogContainsCompositeTypeWithMeasures) {
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(
       const Type* measure_type,
       type_factory_.MakeMeasureType(type_factory_.get_int64()));
   const Type* array_of_measure_type = nullptr;
   GOOGLESQL_ASSERT_OK(type_factory_.MakeArrayType(measure_type, &array_of_measure_type));
-  EXPECT_THAT(
-      AnalyzeMeasureExpressionForTable(
-          "table",
-          {{"key", type_factory_.get_int64()},
-           {"value", type_factory_.get_int64()},
-           {"array_of_measure", array_of_measure_type}},
-          "measure_1", "ANY_VALUE(array_of_measure)"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Measure expression: ANY_VALUE(array_of_measure) "
-                         "cannot reference column: array_of_measure which "
-                         "contains a measure type")));
+  EXPECT_THAT(AnalyzeMeasureExpressionForTable(
+                  "table",
+                  {{"key", type_factory_.get_int64()},
+                   {"value", type_factory_.get_int64()},
+                   {"array_of_measure", array_of_measure_type}},
+                  "measure_1", "ANY_VALUE(array_of_measure)"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Catalog measure columns with composite types "
+                                 "containing a measure type (e.g. STRUCT or "
+                                 "ARRAY of measures) are not supported.")));
 }
 
 TEST_F(MeasureExpressionTest, MeasureReferencingUdfs) {

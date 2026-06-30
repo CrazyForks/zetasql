@@ -325,6 +325,14 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
   }
 
   absl::Status VisitResolvedTVFScan(const ResolvedTVFScan* node) override {
+    if (node != nullptr && node->tvf() != nullptr &&
+        node->tvf()->IsGoogleSQLBuiltin()) {
+      if (node->function_call_signature() != nullptr &&
+          node->function_call_signature()->context_id() ==
+              googlesql::FN_TUMBLE) {
+        applicable_rewrites_->insert(REWRITE_TUMBLE_FUNCTION);
+      }
+    }
     if (node->tvf()->Is<SQLTableValuedFunction>() ||
         node->tvf()->Is<TemplatedSQLTVF>()) {
       applicable_rewrites_->insert(ResolvedASTRewrite::REWRITE_INLINE_SQL_TVFS);

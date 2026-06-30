@@ -19,8 +19,11 @@ package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.google.common.truth.extensions.proto.ProtoTruth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import com.google.common.collect.ImmutableList;
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
 import com.google.googlesql.FunctionProtos.FunctionSignatureOptionsProto;
 import com.google.googlesql.FunctionProtos.FunctionSignatureProto;
 import com.google.googlesql.GoogleSQLFunctions.FunctionEnums.ArgumentCardinality;
@@ -77,7 +80,8 @@ public class FunctionSignatureTest {
 
     // Model signature for 'IF <bool> THEN <any> ELSE <any> END'
     arguments.clear();
-    FunctionArgumentType typeAny1 = new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_1);
+    FunctionArgumentType typeAny1 =
+        new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_1);
     arguments.add(new FunctionArgumentType(TypeFactory.createSimpleType(TypeKind.TYPE_BOOL)));
     arguments.add(typeAny1);
     arguments.add(typeAny1);
@@ -96,10 +100,10 @@ public class FunctionSignatureTest {
             TypeFactory.createSimpleType(TypeKind.TYPE_BOOL), ArgumentCardinality.REPEATED));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.OPTIONAL, -1));
 
     FunctionSignature caseWhenSignature = new FunctionSignature(typeAny1, arguments, 0, options);
     signatures.add(caseWhenSignature);
@@ -114,17 +118,20 @@ public class FunctionSignatureTest {
     arguments.add(typeAny1);
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.OPTIONAL, -1));
 
     FunctionSignature caseValueSignature =
         new FunctionSignature(
-            new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2), arguments, -1, options);
+            new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
+            arguments,
+            -1,
+            options);
     signatures.add(caseValueSignature);
     assertThat(caseValueSignature.isConcrete()).isFalse();
     assertThat(caseValueSignature.debugString("CASE"))
@@ -283,16 +290,19 @@ public class FunctionSignatureTest {
     arguments.clear();
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.REQUIRED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.REQUIRED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.OPTIONAL, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.OPTIONAL, -1));
     FunctionSignature signature =
         new FunctionSignature(
-            new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2), arguments, -1, options);
+            new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
+            arguments,
+            -1,
+            options);
     checkSerializeAndDeserialize(signature);
 
     arguments.add(
@@ -306,23 +316,27 @@ public class FunctionSignatureTest {
             TypeFactory.createSimpleType(TypeKind.TYPE_DOUBLE), ArgumentCardinality.OPTIONAL, 0));
     signature =
         new FunctionSignature(
-            new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2), arguments, -1, options);
+            new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
+            arguments,
+            -1,
+            options);
     checkSerializeAndDeserialize(signature);
 
     // Test with a function signature with default arguments.
     arguments.clear();
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.REQUIRED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.REQUIRED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2,
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder()
                 .setCardinality(ArgumentCardinality.OPTIONAL)
-                .setDefault(Value.createInt32Value(314)).build(),
+                .setDefault(Value.createInt32Value(314))
+                .build(),
             1));
     arguments.add(
         new FunctionArgumentType(
@@ -333,23 +347,27 @@ public class FunctionSignatureTest {
             1));
     signature =
         new FunctionSignature(
-            new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2), arguments, -1, options);
+            new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
+            arguments,
+            -1,
+            options);
     checkSerializeAndDeserialize(signature);
 
     // Test with an invalid function signature with a default argument.
     arguments.clear();
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_1, ArgumentCardinality.REPEATED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_1, ArgumentCardinality.REPEATED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2, ArgumentCardinality.REQUIRED, -1));
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2, ArgumentCardinality.REQUIRED, -1));
     arguments.add(
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_ANY_2,
+            SignatureArgumentKind.ARG_KIND_EXPR_ANY_2,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder()
                 .setCardinality(ArgumentCardinality.OPTIONAL)
-                .setDefault(Value.createInt32Value(314)).build(),
+                .setDefault(Value.createInt32Value(314))
+                .build(),
             1));
     arguments.add(
         new FunctionArgumentType(
@@ -359,7 +377,7 @@ public class FunctionSignatureTest {
                 IllegalArgumentException.class,
                 () ->
                     new FunctionSignature(
-                        new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ANY_2),
+                        new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ANY_2),
                         arguments,
                         -1,
                         options)))
@@ -405,6 +423,64 @@ public class FunctionSignatureTest {
     }
   }
 
+  @Test
+  public void testDeclarativeTypeSignatureSerialization() throws Exception {
+    TypeFactory factory1 = TypeFactory.uniqueNames();
+    Type declarativeType =
+        factory1.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("N1", "mytype", 0))
+                .setDisplayName("MyType")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .setCoercionFromBackingType(
+                    GoogleSQLType.DeclarativeTypeProto.AllowCoercionMode
+                        .ALLOW_COERCION_MODE_UNSPECIFIED)
+                .setCoercionToBackingType(
+                    GoogleSQLType.DeclarativeTypeProto.AllowCoercionMode
+                        .ALLOW_COERCION_MODE_UNSPECIFIED)
+                .setReturningStrategy(
+                    GoogleSQLType.DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED)
+                .setEqualityStrategy(
+                    GoogleSQLType.DeclarativeTypeProto.EqualityStrategy.EQUALITY_UNSPECIFIED)
+                .build());
+
+    ImmutableList<FunctionArgumentType> arguments =
+        ImmutableList.of(
+            new FunctionArgumentType(declarativeType, ArgumentCardinality.REQUIRED, 1),
+            new FunctionArgumentType(declarativeType, ArgumentCardinality.REQUIRED, 1));
+
+    FunctionSignature signature =
+        new FunctionSignature(
+            new FunctionArgumentType(TypeFactory.createSimpleType(TypeKind.TYPE_BOOL)),
+            arguments,
+            -1,
+            FunctionSignatureOptionsProto.getDefaultInstance());
+
+    FileDescriptorSetsBuilder builder = new FileDescriptorSetsBuilder();
+    FunctionSignatureProto proto = signature.serialize(builder);
+
+    List<DescriptorPool> pools = new ArrayList<>();
+    for (FileDescriptorSet fds : builder.build()) {
+      GoogleSQLDescriptorPool pool = new GoogleSQLDescriptorPool();
+      pool.importFileDescriptorSet(fds);
+      pools.add(pool);
+    }
+
+    FunctionSignature deserializedSignature =
+        FunctionSignature.deserialize(proto, ImmutableList.copyOf(pools));
+
+    assertThat(deserializedSignature.getFunctionArgumentList()).hasSize(2);
+    Type type1 = deserializedSignature.getFunctionArgumentList().get(0).getType();
+    Type type2 = deserializedSignature.getFunctionArgumentList().get(1).getType();
+
+    assertThat(type1).isNotNull();
+    assertThat(type2).isNotNull();
+    // In Java, FunctionArgumentType deserialization currently instantiates a separate
+    // TypeFactory per argument, so deduplication (isSameInstanceAs) is not supported.
+    assertThat(type1.equals(type2)).isTrue();
+    assertThat(type1.isDeclarativeType()).isTrue();
+    assertThat(type1.asDeclarativeType().typeName()).isEqualTo("MyType");
+  }
 
   @Test
   public void testClassAndProtoSize() {

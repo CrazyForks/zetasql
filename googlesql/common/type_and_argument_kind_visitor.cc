@@ -60,42 +60,43 @@ ComponentSignatureArgumentKindsMap() {
           // These arg kinds relate only to themselves and do not relate to
           // other
           // arg kinds.
-          {ARG_TYPE_ANY_1, {}},
-          {ARG_TYPE_ANY_2, {}},
-          {ARG_TYPE_ANY_3, {}},
-          {ARG_TYPE_ANY_4, {}},
-          {ARG_TYPE_ANY_5, {}},
+          {ARG_KIND_EXPR_ANY_1, {}},
+          {ARG_KIND_EXPR_ANY_2, {}},
+          {ARG_KIND_EXPR_ANY_3, {}},
+          {ARG_KIND_EXPR_ANY_4, {}},
+          {ARG_KIND_EXPR_ANY_5, {}},
 
           // These are just like ANY_i, but add a further restriction on the
           // particular type of the arg (e.g. proto, struct, enum).
-          {ARG_STRUCT_ANY, {}},
-          {ARG_ENUM_ANY, {}},
-          {ARG_PROTO_ANY, {}},
-          {ARG_TYPE_STRING_ANY, {}},
+          {ARG_KIND_EXPR_STRUCT_ANY, {}},
+          {ARG_KIND_EXPR_ENUM_ANY, {}},
+          {ARG_KIND_EXPR_PROTO_ANY, {}},
+          {ARG_KIND_EXPR_STRING_ANY, {}},
 
           // Even though PROTO_MAP_ANY is related to PROTO_MAP_KEY_ANY and
           // PROTO_MAP_VALUE_ANY, the type itself is not modeled as a
           // composite type in the GoogleSQL type system proper (e.g., its
           // AnnotationMap will not have components.)
-          {ARG_PROTO_MAP_ANY, {}},
+          {ARG_KIND_EXPR_PROTO_MAP_ANY, {}},
           // Those, however, act just like ANY_i, and have no further component
           // themselves.
-          {ARG_PROTO_MAP_KEY_ANY, {}},
-          {ARG_PROTO_MAP_VALUE_ANY, {}},
+          {ARG_KIND_EXPR_PROTO_MAP_KEY_ANY, {}},
+          {ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY, {}},
 
           // ARRAY_TYPE_ANY_i => { ARRAY_TYPE_ANY_i }
-          {ARG_ARRAY_TYPE_ANY_1, {ARG_TYPE_ANY_1}},
-          {ARG_ARRAY_TYPE_ANY_2, {ARG_TYPE_ANY_2}},
-          {ARG_ARRAY_TYPE_ANY_3, {ARG_TYPE_ANY_3}},
-          {ARG_ARRAY_TYPE_ANY_4, {ARG_TYPE_ANY_4}},
-          {ARG_ARRAY_TYPE_ANY_5, {ARG_TYPE_ANY_5}},
+          {ARG_KIND_EXPR_ARRAY_ANY_1, {ARG_KIND_EXPR_ANY_1}},
+          {ARG_KIND_EXPR_ARRAY_ANY_2, {ARG_KIND_EXPR_ANY_2}},
+          {ARG_KIND_EXPR_ARRAY_ANY_3, {ARG_KIND_EXPR_ANY_3}},
+          {ARG_KIND_EXPR_ARRAY_ANY_4, {ARG_KIND_EXPR_ANY_4}},
+          {ARG_KIND_EXPR_ARRAY_ANY_5, {ARG_KIND_EXPR_ANY_5}},
 
           // Similar to arrays..
-          {ARG_MEASURE_TYPE_ANY_1, {ARG_TYPE_ANY_1}},
-          {ARG_RANGE_TYPE_ANY_1, {ARG_TYPE_ANY_1}},
+          {ARG_KIND_EXPR_MEASURE_ANY_1, {ARG_KIND_EXPR_ANY_1}},
+          {ARG_KIND_EXPR_RANGE_ANY_1, {ARG_KIND_EXPR_ANY_1}},
 
           // MAP_TYPE_ANY_1_2 relates to its indicated components.
-          {ARG_MAP_TYPE_ANY_1_2, {ARG_TYPE_ANY_1, ARG_TYPE_ANY_2}},
+          {ARG_KIND_EXPR_MAP_ANY_1_2,
+           {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_2}},
       });
   return *component_signature_argument_kinds_map;
 }
@@ -111,43 +112,43 @@ GetComponentSignatureArgumentKinds(SignatureArgumentKind kind) {
 
 absl::StatusOr<bool> IsRelatedToOtherArguments(SignatureArgumentKind kind) {
   switch (kind) {
-    case ARG_STRUCT_ANY:
-    case ARG_PROTO_MAP_ANY:
-    case ARG_PROTO_MAP_KEY_ANY:
-    case ARG_PROTO_MAP_VALUE_ANY:
-    case ARG_PROTO_ANY:
-    case ARG_ENUM_ANY:
-    case ARG_TYPE_ANY_1:
-    case ARG_TYPE_ANY_2:
-    case ARG_TYPE_ANY_3:
-    case ARG_TYPE_ANY_4:
-    case ARG_TYPE_ANY_5:
-    case ARG_ARRAY_TYPE_ANY_1:
-    case ARG_ARRAY_TYPE_ANY_2:
-    case ARG_ARRAY_TYPE_ANY_3:
-    case ARG_ARRAY_TYPE_ANY_4:
-    case ARG_ARRAY_TYPE_ANY_5:
-    case ARG_RANGE_TYPE_ANY_1:
-    case ARG_MEASURE_TYPE_ANY_1:
-    case ARG_MAP_TYPE_ANY_1_2:
+    case ARG_KIND_EXPR_STRUCT_ANY:
+    case ARG_KIND_EXPR_PROTO_MAP_ANY:
+    case ARG_KIND_EXPR_PROTO_MAP_KEY_ANY:
+    case ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY:
+    case ARG_KIND_EXPR_PROTO_ANY:
+    case ARG_KIND_EXPR_ENUM_ANY:
+    case ARG_KIND_EXPR_ANY_1:
+    case ARG_KIND_EXPR_ANY_2:
+    case ARG_KIND_EXPR_ANY_3:
+    case ARG_KIND_EXPR_ANY_4:
+    case ARG_KIND_EXPR_ANY_5:
+    case ARG_KIND_EXPR_ARRAY_ANY_1:
+    case ARG_KIND_EXPR_ARRAY_ANY_2:
+    case ARG_KIND_EXPR_ARRAY_ANY_3:
+    case ARG_KIND_EXPR_ARRAY_ANY_4:
+    case ARG_KIND_EXPR_ARRAY_ANY_5:
+    case ARG_KIND_EXPR_RANGE_ANY_1:
+    case ARG_KIND_EXPR_MEASURE_ANY_1:
+    case ARG_KIND_EXPR_MAP_ANY_1_2:
       return true;
-    case ARG_TYPE_FIXED:
-    case ARG_TYPE_ARBITRARY:
-    case ARG_TYPE_GRAPH_NODE:
-    case ARG_TYPE_GRAPH_EDGE:
-    case ARG_TYPE_GRAPH_ELEMENT:
-    case ARG_TYPE_GRAPH_PATH:
-    case ARG_TYPE_STRING_ANY:
+    case ARG_KIND_EXPR_FIXED:
+    case ARG_KIND_EXPR_ARBITRARY:
+    case ARG_KIND_EXPR_GRAPH_NODE:
+    case ARG_KIND_EXPR_GRAPH_EDGE:
+    case ARG_KIND_EXPR_GRAPH_ELEMENT:
+    case ARG_KIND_EXPR_GRAPH_PATH:
+    case ARG_KIND_EXPR_STRING_ANY:
       return false;
     // Non-scalars should never be passed to this function.
-    case ARG_TYPE_LAMBDA:
-    case ARG_TYPE_GRAPH:
-    case ARG_TYPE_VOID:
-    case ARG_TYPE_MODEL:
-    case ARG_TYPE_CONNECTION:
-    case ARG_TYPE_DESCRIPTOR:
-    case ARG_TYPE_SEQUENCE:
-    case ARG_TYPE_RELATION:
+    case ARG_KIND_LAMBDA:
+    case ARG_KIND_GRAPH:
+    case ARG_KIND_VOID:
+    case ARG_KIND_MODEL:
+    case ARG_KIND_CONNECTION:
+    case ARG_KIND_DESCRIPTOR:
+    case ARG_KIND_SEQUENCE:
+    case ARG_KIND_RELATION:
     default:
       // We should never hit this path. Any argument kind must be handled
       // explicitly above.

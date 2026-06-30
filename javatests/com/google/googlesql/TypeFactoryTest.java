@@ -21,6 +21,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.googlesql.TypeTestBase.getDescriptorPoolWithTypeProtoAndTypeKind;
 import static org.junit.Assert.assertThrows;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.testing.SerializableTester;
 import com.google.protobuf.Descriptors.EnumDescriptor;
@@ -29,6 +30,7 @@ import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.ProtocolMessageEnum;
 import com.google.googlesql.GoogleSQLOptions.ProductMode;
+import com.google.googlesql.GoogleSQLType.DeclarativeTypeProto;
 import com.google.googlesql.GoogleSQLType.EnumTypeProto;
 import com.google.googlesql.GoogleSQLType.ProtoTypeProto.Builder;
 import com.google.googlesql.GoogleSQLType.TypeKind;
@@ -403,6 +405,196 @@ public class TypeFactoryTest {
     assertThat(enumType.equivalent(enumType2)).isTrue();
     assertThat(arrayType.equivalent(arrayType2)).isTrue();
     assertThat(structType.equivalent(structType2)).isTrue();
+  }
+
+  @Test
+  public void testDeclarativeTypeSerialization() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    Type backingType = TypeFactory.createSimpleType(TypeKind.TYPE_STRING);
+
+    DeclarativeType type =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("namespace", "my_id", 0))
+                .setDisplayName("My Dec Type")
+                .setBackingType(backingType)
+                .setCoercionFromBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_ALLOW_ALL_COERCION)
+                .setCoercionToBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_EXPLICIT_ONLY)
+                .setReturningStrategy(DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED)
+                .setEqualityStrategy(DeclarativeTypeProto.EqualityStrategy.EQUALITY_DELEGATED)
+                .setAdditionalRequiredLanguageFeatures(ImmutableSet.of(1, 2))
+                .build());
+
+    TypeProto serialized = type.serialize();
+    Type deserialized = factory.deserialize(serialized);
+
+    assertThat(deserialized.isDeclarativeType()).isTrue();
+    DeclarativeType decType = deserialized.asDeclarativeType();
+    assertThat(decType.isIdenticalTo(type)).isTrue();
+  }
+
+  @Test
+  public void testNestedDeclarativeTypeSerialization() throws Exception {
+    TypeFactory factory = TypeFactory.uniqueNames();
+
+    EnumType enumType = factory.createEnumType(TypeKind.class);
+    ArrayType enumArrayType = TypeFactory.createArrayType(enumType);
+
+    DeclarativeType baseType =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("namespace", "base_id", 0))
+                .setDisplayName("Base")
+                .setBackingType(enumArrayType)
+                .setCoercionFromBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_EXPLICIT_ONLY)
+                .setCoercionToBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_EXPLICIT_ONLY)
+                .setReturningStrategy(DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED)
+                .setEqualityStrategy(DeclarativeTypeProto.EqualityStrategy.EQUALITY_DISALLOWED)
+                .build());
+
+    DeclarativeType transitiveType =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("namespace", "transitive_id", 0))
+                .setDisplayName("Transitive")
+                .setBackingType(baseType)
+                .setCoercionFromBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_ALLOW_ALL_COERCION)
+                .setCoercionToBackingType(
+                    DeclarativeTypeProto.AllowCoercionMode.ALLOW_COERCION_MODE_EXPLICIT_ONLY)
+                .setReturningStrategy(DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED)
+                .setEqualityStrategy(DeclarativeTypeProto.EqualityStrategy.EQUALITY_DELEGATED)
+                .setAdditionalRequiredLanguageFeatures(ImmutableSet.of(3))
+                .build());
+
+    TypeProto serialized = transitiveType.serialize();
+    Type deserialized = factory.deserialize(serialized);
+
+    assertThat(deserialized.isDeclarativeType()).isTrue();
+    assertThat(deserialized.asDeclarativeType().isIdenticalTo(transitiveType)).isTrue();
+  }
+
+  @Test
+  public void testBuiltinTypeIsDeterminedBasedOnNamespaceInTypeId() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    DeclarativeTypeDescriptor.Builder descriptorBuilder =
+        DeclarativeTypeDescriptor.builder()
+            .setTypeId(
+                new DeclarativeTypeDescriptor.TypeId(
+                    DeclarativeTypeDescriptor.TypeId.GOOGLE_SQL_NAMESPACE, "MY_BUILTIN_TYPE", 0))
+            .setDisplayName("my_builtin")
+            .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT32));
+
+    DeclarativeType builtinType = factory.createDeclarativeType(descriptorBuilder.build());
+    assertThat(builtinType.isGoogleSqlBuiltin()).isTrue();
+
+    descriptorBuilder.setTypeId(
+        new DeclarativeTypeDescriptor.TypeId("CustomNamespace", "MY_CUSTOM", 0));
+    DeclarativeType nonBuiltinType = factory.createDeclarativeType(descriptorBuilder.build());
+    assertThat(nonBuiltinType.isGoogleSqlBuiltin()).isFalse();
+  }
+
+  @Test
+  public void testUsesStaticFactoryForGoogleSQLBuiltinTypesBackedByTypesInStaticFactory() {
+    DeclarativeTypeDescriptor.Builder descriptorBuilder =
+        DeclarativeTypeDescriptor.builder()
+            .setTypeId(
+                new DeclarativeTypeDescriptor.TypeId(
+                    DeclarativeTypeDescriptor.TypeId.GOOGLE_SQL_NAMESPACE,
+                    "T1_StaticFactoryTest",
+                    0))
+            .setDisplayName("t1")
+            .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64));
+
+    // Create t1 from factory1.
+    TypeFactory factory1 = TypeFactory.uniqueNames();
+    DeclarativeType t1 = factory1.createDeclarativeType(descriptorBuilder.build());
+
+    // Create t2 from factory2.
+    TypeFactory factory2 = TypeFactory.uniqueNames();
+    DeclarativeType t2 = factory2.createDeclarativeType(descriptorBuilder.build());
+    assertThat(t1).isSameInstanceAs(t2);
+
+    // Same for a transitive builtin DeclarativeType
+    descriptorBuilder
+        .setTypeId(
+            new DeclarativeTypeDescriptor.TypeId(
+                DeclarativeTypeDescriptor.TypeId.GOOGLE_SQL_NAMESPACE, "T2_StaticFactoryTest", 0))
+        .setDisplayName("t2")
+        .setBackingType(t1);
+    DeclarativeType t3 = factory1.createDeclarativeType(descriptorBuilder.build());
+    DeclarativeType t4 = factory2.createDeclarativeType(descriptorBuilder.build());
+    assertThat(t3).isSameInstanceAs(t4);
+  }
+
+  @Test
+  public void testBuiltinTypesBackedByTypesNotInStaticFactory() {
+    DeclarativeTypeDescriptor.Builder descriptorBuilder =
+        DeclarativeTypeDescriptor.builder()
+            .setTypeId(
+                new DeclarativeTypeDescriptor.TypeId(
+                    DeclarativeTypeDescriptor.TypeId.GOOGLE_SQL_NAMESPACE,
+                    "T1_NotInStaticFactory",
+                    0))
+            .setDisplayName("t1");
+
+    // Enums are built into distinct pools and not cached globally.
+    TypeFactory factory1 = TypeFactory.uniqueNames();
+    EnumType enumType1 = factory1.createEnumType(TypeKind.class);
+    descriptorBuilder.setBackingType(enumType1);
+    DeclarativeType t1 = factory1.createDeclarativeType(descriptorBuilder.build());
+
+    TypeFactory factory2 = TypeFactory.uniqueNames();
+    EnumType enumType2 = factory2.createEnumType(TypeKind.class);
+    descriptorBuilder.setBackingType(enumType2);
+    DeclarativeType t2 = factory2.createDeclarativeType(descriptorBuilder.build());
+
+    // Pointers are not equal, but the type still compares equal.
+    assertThat(t1).isNotSameInstanceAs(t2);
+    assertThat(t1.equals(t2)).isTrue();
+  }
+
+  @Test
+  public void testDoesNotUseStaticFactoryForNonBuiltinTypes() {
+    DeclarativeTypeDescriptor descriptor =
+        DeclarativeTypeDescriptor.builder()
+            .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "T1", 0))
+            .setDisplayName("t1")
+            .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+            .build();
+
+    TypeFactory factory1 = TypeFactory.uniqueNames();
+    DeclarativeType t1 = factory1.createDeclarativeType(descriptor);
+
+    TypeFactory factory2 = TypeFactory.uniqueNames();
+    DeclarativeType t2 = factory2.createDeclarativeType(descriptor);
+
+    // Pointers are not equal, but the type still compares equal.
+    assertThat(t1).isNotSameInstanceAs(t2);
+    assertThat(t1.equals(t2)).isTrue();
+  }
+
+  @Test
+  public void testTypeFactoryDoesNotAllowConflictingDeclarativeTypes() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+
+    DeclarativeTypeDescriptor.Builder descriptorBuilder =
+        DeclarativeTypeDescriptor.builder()
+            .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "T1", 0))
+            .setDisplayName("t1")
+            .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_STRING));
+
+    DeclarativeType t1 = factory.createDeclarativeType(descriptorBuilder.build());
+    assertThat(t1).isNotNull();
+
+    // Change the type descriptor backing, maintaining the same ID.
+    descriptorBuilder.setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64));
+    DeclarativeTypeDescriptor descriptor = descriptorBuilder.build();
+    assertThrows(IllegalStateException.class, () -> factory.createDeclarativeType(descriptor));
   }
 
   private static final class BadGeneratedProto extends GeneratedMessage {

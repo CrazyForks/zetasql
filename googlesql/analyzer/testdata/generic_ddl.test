@@ -901,3 +901,89 @@ AlterTableStmt
   +-SetOptionsAction
     +-option_list=
       +-b := Literal(type=INT64, value=2)
+
+==
+
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE TEMP SEMANTIC_MODEL myProject.myTempSemanticModel
+--
+ERROR: CREATE TEMP SEMANTIC_MODEL is not supported [at 1:1]
+CREATE TEMP SEMANTIC_MODEL myProject.myTempSemanticModel
+^
+==
+
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE PUBLIC SEMANTIC_MODEL myProject.myPublicSemanticModel
+--
+ERROR: CREATE SEMANTIC_MODEL with PUBLIC or PRIVATE modifiers is only supported inside modules [at 1:1]
+CREATE PUBLIC SEMANTIC_MODEL myProject.myPublicSemanticModel
+^
+==
+
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE PRIVATE SEMANTIC_MODEL myProject.myPrivateSemanticModel
+--
+ERROR: CREATE SEMANTIC_MODEL with PUBLIC or PRIVATE modifiers is only supported inside modules [at 1:1]
+CREATE PRIVATE SEMANTIC_MODEL myProject.myPrivateSemanticModel
+^
+==
+
+[language_features=MAXIMUM,+CREATE_TEMP_GENERIC_DDL]
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE TEMP SEMANTIC_MODEL myProject.myTempSemanticModel
+--
+CreateEntityStmt(name_path=myProject.myTempSemanticModel, create_scope=CREATE_TEMP, entity_type="SEMANTIC_MODEL")
+==
+
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE OR REPLACE SEMANTIC_MODEL myProject.mySemanticModel
+OPTIONS(model_proto = 'custom_proto_value')
+--
+CreateEntityStmt
++-name_path=myProject.mySemanticModel
++-create_mode=CREATE_OR_REPLACE
++-entity_type="SEMANTIC_MODEL"
++-option_list=
+  +-model_proto := Literal(type=STRING, value="custom_proto_value")
+==
+
+[supported_generic_entity_types=SEMANTIC_MODEL]
+
+CREATE SEMANTIC_MODEL IF NOT EXISTS myProject.mySemanticModel
+OPTIONS(model_proto = 'custom_proto_value')
+--
+CreateEntityStmt
++-name_path=myProject.mySemanticModel
++-create_mode=CREATE_IF_NOT_EXISTS
++-entity_type="SEMANTIC_MODEL"
++-option_list=
+  +-model_proto := Literal(type=STRING, value="custom_proto_value")
+==
+
+CREATE TEMP RESERVATION myProject.myReservation
+OPTIONS(a=b, c=d)
+AS JSON '{"key": "value"}'
+--
+ERROR: CREATE TEMP RESERVATION is not supported [at 1:1]
+CREATE TEMP RESERVATION myProject.myReservation
+^
+==
+
+[language_features=MAXIMUM,+CREATE_TEMP_GENERIC_DDL]
+CREATE TEMP RESERVATION myProject.myReservation
+OPTIONS(a=b, c=d)
+AS JSON '{"key": "value"}'
+--
+CreateEntityStmt
++-name_path=myProject.myReservation
++-create_scope=CREATE_TEMP
++-entity_type="RESERVATION"
++-entity_body_json='{"key":"value"}'
++-option_list=
+  +-a := Literal(type=STRING, value="b")
+  +-c := Literal(type=STRING, value="d")

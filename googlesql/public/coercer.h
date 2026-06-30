@@ -205,7 +205,6 @@ class Coercer {
   absl::StatusOr<const GraphPathType*> GetCommonGraphPathSuperType(
       const InputArgumentTypeSet& argument_set) const;
 
-
   // Strips off all the field aliases present inside <struct_type> (including
   // nested structs).
   void StripFieldAliasesFromStructType(const Type** struct_type) const;

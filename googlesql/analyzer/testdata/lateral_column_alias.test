@@ -3338,7 +3338,7 @@ SELECT STRUCT(a + 1 as col1).*, SUM(col1 + 1) as col2
                                     ^
 ==
 
-[language_features=DEV,+LATERAL_COLUMN_REFERENCES]
+[language_features=MAXIMUM,+LATERAL_COLUMN_REFERENCES,+COLLATION_SUPPORT]
 WITH test AS (
   SELECT COLLATE('a', 'und:ci') AS a2, 1 AS a
 )

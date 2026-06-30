@@ -7657,7 +7657,7 @@ select 'a' LIKE ALL UNNEST(['a'] as array);
                                     ^
 ==
 
-[language_features=DEV]
+[language_features=MAXIMUM,+LIKE_ANY_SOME_ALL]
 select [struct('ab' as x)].x like all unnest([struct('a%' as y), struct('%b')].y);
 --
 ERROR: Cannot access field x on a value with type ARRAY<STRUCT<x STRING>>. You may need an explicit call to FLATTEN, and the flattened argument may only contain 'dot' after the first array [at 1:28]
@@ -7666,7 +7666,7 @@ select [struct('ab' as x)].x like all unnest([struct('a%' as y), struct('%b')...
 
 ==
 
-[language_features=DEV]
+[language_features=MAXIMUM,+LIKE_ANY_SOME_ALL]
 select struct('ab' as x).x like all unnest([struct('a%' as y), struct('%b')].y);
 --
 QueryStmt
@@ -7710,9 +7710,9 @@ QueryStmt
     |     +-subquery_type=SCALAR
     |     +-subquery=
     |       +-ProjectScan
-    |         +-column_list=[$expr_subquery.$col1#14]
+    |         +-column_list=[$expr_subquery.$col1#12]
     |         +-expr_list=
-    |         | +-$col1#14 :=
+    |         | +-$col1#12 :=
     |         |   +-SubqueryExpr
     |         |     +-type=BOOL
     |         |     +-subquery_type=SCALAR
@@ -7721,9 +7721,9 @@ QueryStmt
     |         |     | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7)
     |         |     +-subquery=
     |         |       +-ProjectScan
-    |         |         +-column_list=[$expr_subquery.$col1#13]
+    |         |         +-column_list=[$expr_subquery.$col1#11]
     |         |         +-expr_list=
-    |         |         | +-$col1#13 :=
+    |         |         | +-$col1#11 :=
     |         |         |   +-FunctionCall(GoogleSQL:$case_no_value(repeated(4) BOOL, repeated(4) BOOL, BOOL) -> BOOL)
     |         |         |     +-FunctionCall(GoogleSQL:$or(BOOL, repeated(1) BOOL) -> BOOL)
     |         |         |     | +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRING>) -> BOOL)
@@ -7737,18 +7737,14 @@ QueryStmt
     |         |         |     | +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
     |         |         |     +-Literal(type=BOOL, value=NULL)
     |         |         |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
-    |         |         |     | +-FunctionCall(GoogleSQL:$with_side_effects(BOOL, BYTES) -> BOOL)
-    |         |         |     |   +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
-    |         |         |     |   +-ColumnRef(type=BYTES, column=$aggregate.$side_effects#10)
+    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg1#9)
     |         |         |     +-Literal(type=BOOL, value=false)
-    |         |         |     +-FunctionCall(GoogleSQL:$with_side_effects(BOOL, BYTES) -> BOOL)
-    |         |         |     | +-ColumnRef(type=BOOL, column=$aggregate.$agg2#11)
-    |         |         |     | +-ColumnRef(type=BYTES, column=$aggregate.$side_effects#12)
+    |         |         |     +-ColumnRef(type=BOOL, column=$aggregate.$agg2#10)
     |         |         |     +-Literal(type=BOOL, value=NULL)
     |         |         |     +-Literal(type=BOOL, value=true)
     |         |         +-input_scan=
     |         |           +-AggregateScan
-    |         |             +-column_list=$aggregate.[$agg1#9, $side_effects#10, $agg2#11, $side_effects#12]
+    |         |             +-column_list=$aggregate.[$agg1#9, $agg2#10]
     |         |             +-input_scan=
     |         |             | +-ArrayScan
     |         |             |   +-column_list=[$array.pattern#8]
@@ -7756,12 +7752,12 @@ QueryStmt
     |         |             |   | +-ColumnRef(type=ARRAY<STRING>, column=$subquery1.patterns#7, is_correlated=TRUE)
     |         |             |   +-element_column_list=[$array.pattern#8]
     |         |             +-aggregate_list=
-    |         |               +-$agg1#9 [side_effect_column=$side_effects#10] :=
+    |         |               +-$agg1#9 :=
     |         |               | +-AggregateFunctionCall(GoogleSQL:logical_and(BOOL) -> BOOL)
     |         |               |   +-FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
     |         |               |     +-ColumnRef(type=STRING, column=$subquery1.input#6, is_correlated=TRUE)
     |         |               |     +-ColumnRef(type=STRING, column=$array.pattern#8)
-    |         |               +-$agg2#11 [side_effect_column=$side_effects#12] :=
+    |         |               +-$agg2#10 :=
     |         |                 +-AggregateFunctionCall(GoogleSQL:logical_or(BOOL) -> BOOL)
     |         |                   +-FunctionCall(GoogleSQL:$is_null(STRING) -> BOOL)
     |         |                     +-ColumnRef(type=STRING, column=$array.pattern#8)
@@ -7781,9 +7777,9 @@ QueryStmt
     |             |     +-subquery_type=SCALAR
     |             |     +-subquery=
     |             |       +-ProjectScan
-    |             |         +-column_list=[$with_expr.injected#15]
+    |             |         +-column_list=[$with_expr.injected#13]
     |             |         +-expr_list=
-    |             |         | +-injected#15 :=
+    |             |         | +-injected#13 :=
     |             |         |   +-FunctionCall(GoogleSQL:if(BOOL, ARRAY<STRING>, ARRAY<STRING>) -> ARRAY<STRING>)
     |             |         |     +-FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<y STRING>>) -> BOOL)
     |             |         |     | +-ColumnRef(type=ARRAY<STRUCT<y STRING>>, column=$flatten_input.injected#2)

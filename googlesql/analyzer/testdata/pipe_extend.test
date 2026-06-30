@@ -190,6 +190,15 @@ ERROR: Aggregate function SUM not allowed in pipe EXTEND [at 2:15]
               ^
 ==
 
+# Direct aggregate function inside pipe EXTEND fails.
+FROM TestTable
+|> EXTEND SUM(key) AS sum_key
+--
+ERROR: Aggregate function SUM not allowed in pipe EXTEND [at 2:11]
+|> EXTEND SUM(key) AS sum_key
+          ^
+==
+
 [language_features=NONE,+PIPES]
 select 1 x
 |> extend sum(x) OVER ()

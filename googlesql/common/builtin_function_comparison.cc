@@ -241,7 +241,7 @@ void GetEqualityFunctions(TypeFactory* type_factory,
       functions, options, "$equal", Function::SCALAR,
       {
           {bool_type,
-           {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+           {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
            FN_EQUAL,
            FunctionSignatureOptions().set_uses_operation_collation()},
           {bool_type, {int64_type, uint64_type}, FN_EQUAL_INT64_UINT64},
@@ -270,14 +270,14 @@ void GetEqualityFunctions(TypeFactory* type_factory,
                    LanguageFeature::FEATURE_CAST_TO_JSON_TYPE)},
           // TODO: Remove these signatures.
           {bool_type,
-           {ARG_TYPE_GRAPH_NODE, ARG_TYPE_GRAPH_NODE},
+           {ARG_KIND_EXPR_GRAPH_NODE, ARG_KIND_EXPR_GRAPH_NODE},
            FN_EQUAL_GRAPH_NODE,
            FunctionSignatureOptions()
                .set_is_hidden(true)
                .set_uses_operation_collation()
                .AddRequiredLanguageFeature(LanguageFeature::FEATURE_SQL_GRAPH)},
           {bool_type,
-           {ARG_TYPE_GRAPH_EDGE, ARG_TYPE_GRAPH_EDGE},
+           {ARG_KIND_EXPR_GRAPH_EDGE, ARG_KIND_EXPR_GRAPH_EDGE},
            FN_EQUAL_GRAPH_EDGE,
            FunctionSignatureOptions()
                .set_is_hidden(true)
@@ -297,7 +297,7 @@ void GetEqualityFunctions(TypeFactory* type_factory,
       functions, options, "$not_equal", Function::SCALAR,
       {
           {bool_type,
-           {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+           {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
            FN_NOT_EQUAL,
            FunctionSignatureOptions().set_uses_operation_collation()},
           {bool_type, {int64_type, uint64_type}, FN_NOT_EQUAL_INT64_UINT64},
@@ -326,14 +326,14 @@ void GetEqualityFunctions(TypeFactory* type_factory,
                    LanguageFeature::FEATURE_CAST_TO_JSON_TYPE)},
           // TODO: Remove these signatures.
           {bool_type,
-           {ARG_TYPE_GRAPH_NODE, ARG_TYPE_GRAPH_NODE},
+           {ARG_KIND_EXPR_GRAPH_NODE, ARG_KIND_EXPR_GRAPH_NODE},
            FN_NOT_EQUAL_GRAPH_NODE,
            FunctionSignatureOptions()
                .set_is_hidden(true)
                .set_uses_operation_collation()
                .AddRequiredLanguageFeature(LanguageFeature::FEATURE_SQL_GRAPH)},
           {bool_type,
-           {ARG_TYPE_GRAPH_EDGE, ARG_TYPE_GRAPH_EDGE},
+           {ARG_KIND_EXPR_GRAPH_EDGE, ARG_KIND_EXPR_GRAPH_EDGE},
            FN_NOT_EQUAL_GRAPH_EDGE,
            FunctionSignatureOptions()
                .set_is_hidden(true)
@@ -369,7 +369,7 @@ void GetDistinctFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$is_distinct_from", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_DISTINCT,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_DISTINCT_INT64_UINT64},
@@ -407,7 +407,7 @@ void GetDistinctFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$is_not_distinct_from", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_NOT_DISTINCT,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_NOT_DISTINCT_INT64_UINT64},
@@ -458,7 +458,7 @@ void GetInequalityFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$less", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_LESS,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_LESS_INT64_UINT64},
@@ -495,7 +495,7 @@ void GetInequalityFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$less_or_equal", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_LESS_OR_EQUAL,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_LESS_OR_EQUAL_INT64_UINT64},
@@ -532,7 +532,7 @@ void GetInequalityFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$greater_or_equal", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_GREATER_OR_EQUAL,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_GREATER_OR_EQUAL_INT64_UINT64},
@@ -569,7 +569,7 @@ void GetInequalityFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$greater", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_GREATER,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type, {int64_type, uint64_type}, FN_GREATER_INT64_UINT64},
@@ -652,7 +652,7 @@ void GetBetweenFunctions(TypeFactory* type_factory,
     InsertFunction(
         functions, options, "$between", Function::SCALAR,
         {{bool_type,
-          {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+          {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
           FN_BETWEEN,
           FunctionSignatureOptions().set_uses_operation_collation()},
          json_between_coercion_signature},
@@ -684,7 +684,7 @@ void GetBetweenFunctions(TypeFactory* type_factory,
           FN_BETWEEN_INT64_INT64_UINT64},
          json_between_coercion_signature,
          {bool_type,
-          {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+          {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
           FN_BETWEEN,
           FunctionSignatureOptions().set_uses_operation_collation()}},
         FunctionOptions()
@@ -1176,7 +1176,8 @@ void GetInFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$in", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1, FunctionArgumentType::REPEATED}},
+        {ARG_KIND_EXPR_ANY_1,
+         {ARG_KIND_EXPR_ANY_1, FunctionArgumentType::REPEATED}},
         FN_IN,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bool_type,
@@ -1204,9 +1205,10 @@ void GetInFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "$in_array", Function::SCALAR,
       {{bool_type,
-        {ARG_TYPE_ANY_1,
-         {ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                                    .set_uses_array_element_for_collation()}},
+        {ARG_KIND_EXPR_ANY_1,
+         {ARG_KIND_EXPR_ARRAY_ANY_1,
+          FunctionArgumentTypeOptions()
+              .set_uses_array_element_for_collation()}},
         FN_IN_ARRAY,
         FunctionSignatureOptions().set_uses_operation_collation(true)}},
       FunctionOptions()
@@ -1277,7 +1279,8 @@ void GetQuantifiedComparisonFunctions(
     InsertFunction(
         functions, options, fi.name, Function::SCALAR,
         {{bool_type,
-          {ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1, FunctionArgumentType::REPEATED}},
+          {ARG_KIND_EXPR_ANY_1,
+           {ARG_KIND_EXPR_ANY_1, FunctionArgumentType::REPEATED}},
           fi.id,
           quantified_comparison_options}},
         FunctionOptions()
@@ -1297,9 +1300,10 @@ void GetQuantifiedComparisonFunctions(
     InsertFunction(
         functions, options, fi.name, Function::SCALAR,
         {{bool_type,
-          {ARG_TYPE_ANY_1,
-           {ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                                      .set_uses_array_element_for_collation()}},
+          {ARG_KIND_EXPR_ANY_1,
+           {ARG_KIND_EXPR_ARRAY_ANY_1,
+            FunctionArgumentTypeOptions()
+                .set_uses_array_element_for_collation()}},
           fi.id,
           quantified_comparison_options}},
         FunctionOptions()

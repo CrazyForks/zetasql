@@ -175,9 +175,10 @@ absl::Status DefaultAnnotationSpec::CheckAndPropagateForFunctionCallBase(
       break;
   }
 
-  // This map contains only the root templated kinds, (ARG_TYPE_ANY_1,
-  // ARG_TYPE_ANY_2, ..etc) but not the related kinds like ARG_ARRAY_TYPE_ANY_1.
-  // Nor ARBITRARY either, since arbitrary types are unrelated to each other.
+  // This map contains only the root templated kinds, (ARG_KIND_EXPR_ANY_1,
+  // ARG_KIND_EXPR_ANY_2, ..etc) but not the related kinds like
+  // ARG_KIND_EXPR_ARRAY_ANY_1. Nor ARBITRARY either, since arbitrary types
+  // are unrelated to each other.
   absl::flat_hash_map<SignatureArgumentKind, std::unique_ptr<AnnotationMap>>
       merging_map;
 

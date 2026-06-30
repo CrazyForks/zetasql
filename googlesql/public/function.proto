@@ -24,108 +24,151 @@ option java_package = "com.google.googlesql";
 option java_outer_classname = "GoogleSQLFunctions";
 
 enum SignatureArgumentKind {
-  // A specific concrete Type.  Each argument with ARG_TYPE_FIXED should include
-  // an instance of the Type object to indicate the exact type to use.
-  ARG_TYPE_FIXED = 0;
+
+
+  // TODO: Remove allow_alias and all deprecated aliases below
+  // once all downstreams are updated.
+  option allow_alias = true;
+  ARG_TYPE_FIXED = 0 [deprecated = true];
+  ARG_TYPE_ANY_1 = 1 [deprecated = true];
+  ARG_TYPE_ANY_2 = 2 [deprecated = true];
+  ARG_TYPE_ANY_3 = 23 [deprecated = true];
+  ARG_TYPE_ANY_4 = 25 [deprecated = true];
+  ARG_TYPE_ANY_5 = 27 [deprecated = true];
+  ARG_TYPE_STRING_ANY = 33 [deprecated = true];
+  ARG_ARRAY_TYPE_ANY_1 = 3 [deprecated = true];
+  ARG_ARRAY_TYPE_ANY_2 = 4 [deprecated = true];
+  ARG_ARRAY_TYPE_ANY_3 = 24 [deprecated = true];
+  ARG_ARRAY_TYPE_ANY_4 = 26 [deprecated = true];
+  ARG_ARRAY_TYPE_ANY_5 = 28 [deprecated = true];
+  ARG_PROTO_MAP_ANY = 14 [deprecated = true];
+  ARG_PROTO_MAP_KEY_ANY = 15 [deprecated = true];
+  ARG_PROTO_MAP_VALUE_ANY = 16 [deprecated = true];
+  ARG_PROTO_ANY = 5 [deprecated = true];
+  ARG_STRUCT_ANY = 6 [deprecated = true];
+  ARG_ENUM_ANY = 7 [deprecated = true];
+  ARG_TYPE_ARBITRARY = 8 [deprecated = true];
+  ARG_TYPE_RELATION = 9 [deprecated = true];
+  ARG_TYPE_VOID = 10 [deprecated = true];
+  ARG_TYPE_MODEL = 11 [deprecated = true];
+  ARG_TYPE_CONNECTION = 12 [deprecated = true];
+  ARG_TYPE_DESCRIPTOR = 13 [deprecated = true];
+  ARG_TYPE_LAMBDA = 17 [deprecated = true];
+  ARG_RANGE_TYPE_ANY_1 = 18 [deprecated = true];
+  ARG_TYPE_GRAPH_NODE = 19 [deprecated = true];
+  ARG_TYPE_GRAPH_EDGE = 20 [deprecated = true];
+  ARG_TYPE_GRAPH_ELEMENT = 21 [deprecated = true];
+  ARG_TYPE_GRAPH_PATH = 30 [deprecated = true];
+  ARG_TYPE_GRAPH = 32 [deprecated = true];
+  ARG_TYPE_SEQUENCE = 22 [deprecated = true];
+  ARG_MEASURE_TYPE_ANY_1 = 31 [deprecated = true];
+  ARG_MAP_TYPE_ANY_1_2 = 29 [deprecated = true];
+
+
+  // A specific concrete Type.  Each argument with ARG_KIND_EXPR_FIXED
+  // should include an instance of the Type object to indicate the exact type to
+  // use.
+  ARG_KIND_EXPR_FIXED = 0;
 
   // Templated type.  All arguments with this type must be the same type.
   // For example,
   //   IF <bool> THEN <T1> ELSE <T1> END -> <T1>
-  ARG_TYPE_ANY_1 = 1;
+  ARG_KIND_EXPR_ANY_1 = 1;
 
   // Templated type.  All arguments with this type must be the same type.
   // For example,
   //   CASE <T1> WHEN <T1> THEN <T2>
   //             WHEN <T1> THEN <T2> ELSE <T2> END -> <T2>
-  ARG_TYPE_ANY_2 = 2;
+  ARG_KIND_EXPR_ANY_2 = 2;
 
   // Templated type.  All arguments with this type must be the same type.
   // For example,
   //   LAMBDA(<T1>, <T2>, <T3>) -> <T3>
-  ARG_TYPE_ANY_3 = 23;
+  ARG_KIND_EXPR_ANY_3 = 23;
 
   // Templated type.  All arguments with this type must be the same type.
   // For example,
   //   LAMBDA(<T1>, <T2>, <T3>, <T4>) -> <T4>
-  ARG_TYPE_ANY_4 = 25;
+  ARG_KIND_EXPR_ANY_4 = 25;
 
   // Templated type. All arguments with this type must be the same type.
   // For example,
   //   LAMBDA(<T1>, <T2>, <T3>, <T4>, <T5>) -> <T5>
-  ARG_TYPE_ANY_5 = 27;
+  ARG_KIND_EXPR_ANY_5 = 27;
 
   // Templated type. Matches any STRING or BYTES type, and all arguments
   // with this type must be the same concrete type.
-  ARG_TYPE_STRING_ANY = 33;
+  ARG_KIND_EXPR_STRING_ANY = 33;
 
   // Templated array type.  All arguments with this type must be the same
   // type.  Additionally, all arguments with this type must be an array
-  // whose element type matches arguments with ARG_TYPE_ANY_1 type.
+  // whose element type matches arguments with ARG_KIND_EXPR_ANY_1 type.
   // For example,
   //   FIRST(<array<T1>>) -> <T1>
-  ARG_ARRAY_TYPE_ANY_1 = 3;
+  ARG_KIND_EXPR_ARRAY_ANY_1 = 3;
 
   // Templated array type.  All arguments with this type must be the same
   // type.  Additionally, all arguments with this type must be an array
-  // whose element type matches arguments with ARG_TYPE_ANY_2 type.
+  // whose element type matches arguments with ARG_KIND_EXPR_ANY_2 type.
   // For example,
   //   LAST(<array<T2>>) -> <T2>
-  ARG_ARRAY_TYPE_ANY_2 = 4;
+  ARG_KIND_EXPR_ARRAY_ANY_2 = 4;
 
   // Templated array type. All arguments with this type must be the same type.
   // Additionally, all arguments with this type must be an array whose element
-  // type matches arguments with ARG_TYPE_ANY_3 type.
+  // type matches arguments with ARG_KIND_EXPR_ANY_3 type.
   // For example,
   //   MAX(<array<T3>>) -> <T3>
-  ARG_ARRAY_TYPE_ANY_3 = 24;
+  ARG_KIND_EXPR_ARRAY_ANY_3 = 24;
 
   // Templated array type. All arguments with this type must be the same type.
   // Additionally, all arguments with this type must be an array whose element
-  // type matches arguments with ARG_TYPE_ANY_4 type.
+  // type matches arguments with ARG_KIND_EXPR_ANY_4 type.
   // For example,
   //   MAX(<array<T4>>) -> <T4>
-  ARG_ARRAY_TYPE_ANY_4 = 26;
+  ARG_KIND_EXPR_ARRAY_ANY_4 = 26;
 
   // Templated array type. All arguments with this type must be the same type.
   // Additionally, all arguments with this type must be an array whose element
-  // type matches arguments with ARG_TYPE_ANY_5 type.
+  // type matches arguments with ARG_KIND_EXPR_ANY_5 type.
   // For example,
   //   MAX(<array<T5>>) -> <T5>
-  ARG_ARRAY_TYPE_ANY_5 = 28;
+  ARG_KIND_EXPR_ARRAY_ANY_5 = 28;
 
   // Templated proto map type. This is an array of protos where the proto
   // is a map entry. It has a key field and a value field. This kind allows
   // inference of the key and value field types from the map field type, as
   // in this expression:
   //
-  // ARG_PROTO_MAP_ANY[KEY(ARG_PROTO_MAP_KEY_ANY)] ->
-  // ARG_PROTO_MAP_VALUE_ANY
-  ARG_PROTO_MAP_ANY = 14;
+  // ARG_KIND_EXPR_PROTO_MAP_ANY[KEY(ARG_KIND_EXPR_PROTO_MAP_KEY_ANY)]
+  // -> ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY
+  ARG_KIND_EXPR_PROTO_MAP_ANY = 14;
 
-  // The key type of a proto map that matches ARG_PROTO_MAP_ANY.
-  ARG_PROTO_MAP_KEY_ANY = 15;
+  // The key type of a proto map that matches ARG_KIND_EXPR_PROTO_MAP_ANY.
+  ARG_KIND_EXPR_PROTO_MAP_KEY_ANY = 15;
 
-  // The value type of a proto map that matches ARG_PROTO_MAP_ANY.
-  ARG_PROTO_MAP_VALUE_ANY = 16;
+  // The value type of a proto map that matches
+  // ARG_KIND_EXPR_PROTO_MAP_ANY.
+  ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY = 16;
 
   // Templated proto type. All arguments with this type must be the same type.
   // e.g.:
   //   DEBUGSTRING(<proto>) -> <string>
-  ARG_PROTO_ANY = 5;
+  ARG_KIND_EXPR_PROTO_ANY = 5;
 
   // Templated struct type. All arguments with this type must be the same type.
   // e.g.:
   //   DEBUGSTRING(<struct>) -> <string>
-  ARG_STRUCT_ANY = 6;
+  ARG_KIND_EXPR_STRUCT_ANY = 6;
 
   // Templated enum type. All arguments with this type must be the same type.
   // e.g.:
   //   ENUM_NAME(<enum>, 5) -> <string>
-  ARG_ENUM_ANY = 7;
+  ARG_KIND_EXPR_ENUM_ANY = 7;
 
   // Arbitrary Type. Multiple arguments with this type do not need to be the
   // same type. This does not include relation arguments.
-  ARG_TYPE_ARBITRARY = 8;
+  ARG_KIND_EXPR_ARBITRARY = 8;
 
   // Relation type. This is only valid for table-valued functions (TVFs). This
   // specifies a relation of any number and types of columns. Multiple arguments
@@ -137,37 +180,37 @@ enum SignatureArgumentKind {
   // SignatureArgumentKinds in this list.
   //
   // For more information, please see table_valued_function.h.
-  ARG_TYPE_RELATION = 9;
+  ARG_KIND_RELATION = 9;
 
   // This is used for a non-existent return type for signatures that do not
   // return a value.  This can only be used as a return type, and only in
   // contexts where there is no return (e.g. Procedures, or signatures in
   // ResolvedDropFunctionStmt).
-  ARG_TYPE_VOID = 10;
+  ARG_KIND_VOID = 10;
 
   // Model type. This is only valid for table-valued functions (TVFs). This
   // specifies a model for ML-related TVFs.
   // For more information, please see TVFModelArgument in
   // table_valued_function.h.
-  ARG_TYPE_MODEL = 11;
+  ARG_KIND_MODEL = 11;
 
   // Connection type. This is only valid for table-valued functions (TVFs). This
   // specifies a connection for EXTERNAL_QUERY TVF.
   // For more information, please see TVFConnectionArgument in
   // table_valued_function.h.
-  ARG_TYPE_CONNECTION = 12;
+  ARG_KIND_CONNECTION = 12;
 
   // Descriptor type. This is only valid for table-valued functions (TVFs). This
   // specifies a descriptor with a list of column names.
   // For more information, please see TVFDescriptorArgument in
   // table_valued_function.h.
-  ARG_TYPE_DESCRIPTOR = 13;
+  ARG_KIND_DESCRIPTOR = 13;
 
   // Lambda type. This is only valid for lambda function arguments. This
   // specifies a lambda with a list of argument types and a body type.
   // For more information, please see ArgumentTypeLambda in
   // function_signature.h.
-  ARG_TYPE_LAMBDA = 17;
+  ARG_KIND_LAMBDA = 17;
 
   // Templated range type. All arguments with this type in the signature
   // must be of the same concrete type.
@@ -175,35 +218,36 @@ enum SignatureArgumentKind {
   //   RANGE(<date>, <date>) -> <date>
   //
   // The reason we have a dedicated type for RANGE instead of using
-  // ARG_TYPE_ANY_1 is that only some types support creating a RANGE, and we
-  // would like to perform this restriction automatically instead of writing
-  // custom post-resolution signature checks for each function individually
-  // (which would be error-prone and clunky).
-  ARG_RANGE_TYPE_ANY_1 = 18;
+  // ARG_KIND_EXPR_ANY_1 is that only some types support creating a RANGE,
+  // and we would like to perform this restriction automatically instead of
+  // writing custom post-resolution signature checks for each function
+  // individually (which would be error-prone and clunky).
+  ARG_KIND_EXPR_RANGE_ANY_1 = 18;
 
   // Graph node type: GraphElementType(node).
-  ARG_TYPE_GRAPH_NODE = 19;
+  ARG_KIND_EXPR_GRAPH_NODE = 19;
   // Graph edge type: GraphElementType(edge).
-  ARG_TYPE_GRAPH_EDGE = 20;
+  ARG_KIND_EXPR_GRAPH_EDGE = 20;
   // Graph element type: node or edge.
-  ARG_TYPE_GRAPH_ELEMENT = 21;
+  ARG_KIND_EXPR_GRAPH_ELEMENT = 21;
   // Graph path type
-  ARG_TYPE_GRAPH_PATH = 30;
+  ARG_KIND_EXPR_GRAPH_PATH = 30;
   // Graph type
-  ARG_TYPE_GRAPH = 32;
+  ARG_KIND_GRAPH = 32;
 
   // Sequence type.
-  ARG_TYPE_SEQUENCE = 22;
+  ARG_KIND_SEQUENCE = 22;
 
-  // MEASURE<T1> type corresponding to ARG_TYPE_ANY_1.
-  ARG_MEASURE_TYPE_ANY_1 = 31;
+  // MEASURE<T1> type corresponding to ARG_KIND_EXPR_ANY_1.
+  ARG_KIND_EXPR_MEASURE_ANY_1 = 31;
 
   // Templated map type with a key field and a value field. This kind allows
   // inference of the key and value field types from the map field type, as in
   // this expression:
   //
-  // ARG_MAP_TYPE_ANY_1_2[KEY(ARG_TYPE_ANY_1)] -> ARG_TYPE_ANY_2
-  ARG_MAP_TYPE_ANY_1_2 = 29;
+  // ARG_KIND_EXPR_MAP_ANY_1_2[KEY(ARG_KIND_EXPR_ANY_1)] ->
+  // ARG_KIND_EXPR_ANY_2
+  ARG_KIND_EXPR_MAP_ANY_1_2 = 29;
 
   __SignatureArgumentKind__switch_must_have_a_default__ = -1;
 }

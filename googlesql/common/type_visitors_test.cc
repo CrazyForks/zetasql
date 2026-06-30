@@ -239,4 +239,24 @@ TEST(TypeRewriterTest, RewritesTypeRecursively) {
                          TypeIs(TYPE_PROTO))));
 }
 
+class NoOpRewriter : public TypeRewriter {
+ public:
+  explicit NoOpRewriter(TypeFactory& type_factory)
+      : TypeRewriter(type_factory) {}
+
+  absl::StatusOr<AnnotatedType> PostVisit(
+      AnnotatedType annotated_type) override {
+    return annotated_type;
+  }
+};
+
+TEST(TypeRewriterTest, UnchangedRewriteReturnsOriginalTypeInstance) {
+  auto type_factory = std::make_unique<TypeFactory>();
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(AnnotatedType rich_type, MakeRichType(*type_factory));
+
+  NoOpRewriter rewriter(*type_factory);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(AnnotatedType rewritten_type, rewriter.Visit(rich_type));
+  EXPECT_THAT(rewritten_type.type, Eq(rich_type.type));
+}
+
 }  // namespace googlesql

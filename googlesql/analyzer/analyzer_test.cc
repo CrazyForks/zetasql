@@ -1244,10 +1244,10 @@ TEST_F(AnalyzerOptionsTest, DeprecationWarnings) {
   catalog.AddBuiltinFunctions(BuiltinFunctionOptions::AllReleasedFunctions());
   catalog.AddOwnedFunction(new Function(
       "depr1", "test_group", Function::SCALAR,
-      {{ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1}, 1}}, function_options));
+      {{ARG_KIND_EXPR_ANY_1, {ARG_KIND_EXPR_ANY_1}, 1}}, function_options));
   catalog.AddOwnedFunction(new Function(
       "depr2", "test_group", Function::SCALAR,
-      {{ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1}, 2}}, function_options));
+      {{ARG_KIND_EXPR_ANY_1, {ARG_KIND_EXPR_ANY_1}, 2}}, function_options));
 
   // Use the same base expression in a query or in an expression, with a
   // leading newline so the error locations come out the same.

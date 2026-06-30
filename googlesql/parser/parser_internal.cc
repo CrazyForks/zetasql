@@ -82,7 +82,7 @@ ABSL_FLAG(
 namespace googlesql {
 namespace parser {
 
-static std::string GetParserModeName(ParserMode mode) {
+static absl::StatusOr<std::string> GetParserModeName(ParserMode mode) {
   switch (mode) {
     case ParserMode::kExpression:
       return "expression";
@@ -97,7 +97,7 @@ static std::string GetParserModeName(ParserMode mode) {
       return "script";
     case ParserMode::kTokenizer:
     case ParserMode::kTokenizerPreserveComments:
-      ABSL_LOG(FATAL) << "CleanUpBisonError called in tokenizer mode";
+      GOOGLESQL_RET_CHECK_FAIL() << "CleanUpBisonError called in tokenizer mode";
   }
 }
 
@@ -345,7 +345,8 @@ static absl::Status GenerateImprovedBisonSyntaxError(
     // The error location was at end-of-input, so this is an
     // unexpected-end-of error. Format with a better string, and move its
     // location to the end of the last token.
-    actual_token_description = absl::StrCat("end of ", GetParserModeName(mode));
+    GOOGLESQL_ASSIGN_OR_RETURN(std::string mode_name, GetParserModeName(mode));
+    actual_token_description = absl::StrCat("end of ", mode_name);
     ParseLocationRange last_non_eoi_location = lexer.LastLastTokenLocation();
     int error_offset =
         last_non_eoi_location.IsValid()

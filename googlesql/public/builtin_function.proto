@@ -61,9 +61,10 @@ enum FunctionSignatureId {
   // 3100-3199 Measure functions              (NextId: 3101)
   // 3200-3299 MATCH_RECOGNIZE functions      (NextId: 3207)
   // 3300-3399 Aggregate functions III        (NextId: 3303)
-  // 3400-3499 Misc functions II              (NextId: 3413)
-  // 4000-4099 Table valued functions         (NextId: 4005)
-  // 5000-5099 AI functions                   (NextId: 5024)
+  // 3400-3499 Misc functions II              (NextId: 3415)
+  // 3500-3599 Vector functions               (NextId: 3502)
+  // 4000-4099 Table valued functions         (NextId: 5031)
+  // 5000-5099 AI functions                   (NextId: 5050)
 
   // enum value                       // Related function name
   // ----------                       // ---------------------
@@ -1764,10 +1765,34 @@ enum FunctionSignatureId {
   // zstd_decompress_to_string(bytes[, int64]) -> string
   FN_ZSTD_DECOMPRESS_TO_STRING = 2693;
 
+  // Vector functions
+  FN_ENCODE_VECTOR = 3500;       // encode_vector(ARRAY<FLOAT>) -> vector
+  FN_DOT_PRODUCT_VECTOR = 3501;  // dot_product(vector, vector) -> double
+  FN_DECODE_VECTOR = 3502;       // decode_vector(vector) -> array<float>
+  FN_VECTOR_LENGTH = 3503;       // vector_length(vector) -> int64
+  FN_VECTOR_ENCODING = 3504;     // vector_encoding(vector) -> string
+  FN_COSINE_DISTANCE_VECTOR =
+      3505;  // cosine_distance(vector, vector) -> double
+  FN_EUCLIDEAN_DISTANCE_VECTOR =
+      3506;  // euclidean_distance(vector, vector) -> double
+  FN_MANHATTAN_DISTANCE_VECTOR =
+      3507;  // manhattan_distance(vector, vector) -> double
+  FN_APPROX_DOT_PRODUCT_VECTOR =
+      3508;  // approx_dot_product(vector, vector) -> double
+  FN_APPROX_COSINE_DISTANCE_VECTOR =
+      3509;  // approx_cosine_distance(vector, vector) -> double
+  FN_APPROX_EUCLIDEAN_DISTANCE_VECTOR =
+      3510;  // approx_euclidean_distance(vector, vector) -> double
+  FN_L1_NORM_VECTOR = 3511;  // l1_norm(vector) -> double
+  FN_L2_NORM_VECTOR = 3512;  // l2_norm(vector) -> double
+
   // Table valued functions
   FN_BATCH_VECTOR_SEARCH_TVF_WITH_PROTO_OPTIONS =
       4000;  // VECTOR_SEARCH(table, string, table, string,
              // int64, string, double, proto) -> ANY TABLE
+  FN_BATCH_VECTOR_SEARCH_TVF_WITH_JSON_OPTIONS =
+      5024;  // VECTOR_SEARCH(table, string, table, string,
+             // int64, string, double, json) -> ANY TABLE
   // tumble(table<any>, string, interval[, timestamp]) -> table<any>
   FN_TUMBLE = 4001;
   // hop(table<any>, string, interval, interval[, timestamp]) -> table<any>
@@ -1780,6 +1805,25 @@ enum FunctionSignatureId {
 
   // KMEANS(table, string, int64, string, double, json) -> ANY TABLE
   FN_KMEANS_TVF = 4005;
+
+  FN_SINGLE_VECTOR_SEARCH_TVF_FLOAT_ARRAY_WITH_PROTO_OPTIONS =
+      5025;  // VECTOR_SEARCH(table, string, array<float>,
+             // int64, string, double, proto) -> ANY TABLE
+  FN_SINGLE_VECTOR_SEARCH_TVF_FLOAT_ARRAY_WITH_JSON_OPTIONS =
+      5026;  // VECTOR_SEARCH(table, string, array<float>,
+             // int64, string, double, json) -> ANY TABLE
+  FN_SINGLE_VECTOR_SEARCH_TVF_DOUBLE_ARRAY_WITH_PROTO_OPTIONS =
+      5027;  // VECTOR_SEARCH(table, string, array<double>,
+             // int64, string, double, proto) -> ANY TABLE
+  FN_SINGLE_VECTOR_SEARCH_TVF_DOUBLE_ARRAY_WITH_JSON_OPTIONS =
+      5028;  // VECTOR_SEARCH(table, string, array<double>,
+             // int64, string, double, json) -> ANY TABLE
+  FN_SINGLE_VECTOR_SEARCH_TVF_STRING_WITH_PROTO_OPTIONS =
+      5029;  // VECTOR_SEARCH(table, string, string,
+             // int64, string, double, proto) -> ANY TABLE
+  FN_SINGLE_VECTOR_SEARCH_TVF_STRING_WITH_JSON_OPTIONS =
+      5030;  // VECTOR_SEARCH(table, string, string,
+             // int64, string, double, json) -> ANY TABLE
 
   // AI functions
   // TODO: Add function overloads for `model` to be a MODEL

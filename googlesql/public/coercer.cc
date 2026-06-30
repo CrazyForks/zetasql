@@ -56,11 +56,16 @@ namespace googlesql {
 namespace {
 using SuperTypesMap = absl::flat_hash_map<TypeKind, std::vector<const Type*>>;
 
-bool IsExtendedCoercion(const Type* from_type, const Type* to_type) {
+static bool IsExtendedCoercion(const Type* from_type, const Type* to_type) {
   return from_type->IsExtendedType() || to_type->IsExtendedType();
 }
 
-bool StatusToBool(const absl::StatusOr<bool>& status) {
+static bool IsDeclarativeTypeCoercion(const Type* from_type,
+                                      const Type* to_type) {
+  return from_type->IsDeclarativeType() || to_type->IsDeclarativeType();
+}
+
+static bool StatusToBool(const absl::StatusOr<bool>& status) {
   // This function is used by old CoercesTo functions that return bool to
   // convert StatusOr<bool> values returned by new CoercesTo API. Old API
   // functions should never be called for expressions that may involve extended
@@ -408,6 +413,10 @@ absl::StatusOr<TypeListView> GetCandidateSuperTypes(const Type* type,
     return catalog->GetExtendedTypeSuperTypes(type);
   }
 
+  if (type->IsDeclarativeType()) {
+    return type->AsDeclarativeType()->GetCandidateSuperTypes();
+  }
+
   return GetSuperTypesOfBuiltinType(type);
 }
 
@@ -483,6 +492,13 @@ class Coercer::Context : public Coercer::ContextBase {
       const Type* from_type, const Type* to_type,
       Catalog::ConversionSourceExpressionKind source_kind,
       SignatureMatchResult* result);
+
+  // Returns whether `from_type` can be coerced to `to_type`.
+  // REQUIRES: At least one of `from_type` or `to_type` must be a
+  // DeclarativeType.
+  absl::StatusOr<bool> DeclarativeTypeCoerces(const Type* from_type,
+                                              const Type* to_type,
+                                              SignatureMatchResult* result);
 
   absl::StatusOr<bool> StructCoercesTo(const InputArgumentType& struct_argument,
                                        const Type* to_type,
@@ -845,6 +861,35 @@ absl::Status Coercer::GetCommonSuperType(
   return absl::OkStatus();
 }
 
+// REQUIRES: arg.is_untyped()
+//
+// Untyped NULL can take on any type, even the most restrictive declarative
+// types, because there's no coercion here. There's no source type to coerce
+// from.
+//
+// Untyped empty array CANNOT, because it exposes some info, about the
+// declarative type, or its internals, which is supposed to stay strictly
+// encapsulated.
+// Note that any future literal syntax for an empty container (e.g. if MAP{} is
+// implemented as such syntax), similar restrictions will apply.
+//
+// Untyped query parameter is like untyped NULL: There's zero info about the
+// input type, and therefore can take on the declarative type.
+// Values are not involved either. There's no coercion with untyped query
+// parameter, and no source type at compile-time nor at runtime. The
+// ResolvedParam node itself takes on the target type, and there's **no**
+// runtime coercion or any allowance for the type to be different. If the tree
+// has multiple references to the undeclared param, and they do not agree on the
+// type, that's an analysis error (no supertyping! Even INT64 and DOUBLE would
+// lead an error.) There's no binding of a value either. Query param values are
+// not available at compile-time. The ResolvedAST is generated with the inferred
+// type, assuming that the value will be the same.
+static absl::StatusOr<bool> IsUntypedArgCoercibleToDeclarativeType(
+    const InputArgumentType& arg) {
+  GOOGLESQL_RET_CHECK(arg.is_untyped());
+  return arg.is_untyped_null() || arg.is_query_parameter();
+}
+
 // TODO: Add some unit tests for untyped empty array to coercer_test
 // and coercer_supertypes_test.
 absl::StatusOr<const Type*> Coercer::GetCommonSuperTypeImpl(
@@ -883,17 +928,24 @@ absl::StatusOr<const Type*> Coercer::GetCommonSuperTypeImpl(
   }
 
   std::vector<const InputArgumentType*> typed_arguments;
+  bool has_untyped_args_uncoercible_to_decl_types = false;
   bool has_untyped_empty_array = false;
   bool has_floating_point_input = false;
   bool has_numeric_input = false;
   bool has_bignumeric_input = false;
+  bool has_declarative_types = false;
   for (const InputArgumentType& argument : argument_set.arguments()) {
     // Ignore untyped arguments since they do not contribute towards
-    // supertyping if any other argument type is present. Also keeps
-    // track if there is untyped empty array in the argument.
+    // supertyping if any other argument type is present. Also track any untyped
+    // arguments that cannot coerce to a declarative type.
     if (argument.is_untyped()) {
       if (argument.is_untyped_empty_array()) {
         has_untyped_empty_array = true;
+      }
+      GOOGLESQL_ASSIGN_OR_RETURN(bool is_untyped_coercion_to_decl_allowed,
+                       IsUntypedArgCoercibleToDeclarativeType(argument));
+      if (!is_untyped_coercion_to_decl_allowed) {
+        has_untyped_args_uncoercible_to_decl_types = true;
       }
       continue;
     }
@@ -906,7 +958,15 @@ absl::StatusOr<const Type*> Coercer::GetCommonSuperTypeImpl(
     if (argument.type()->IsBigNumericType()) {
       has_bignumeric_input = true;
     }
+    if (argument.type()->IsDeclarativeType()) {
+      has_declarative_types = true;
+    }
     typed_arguments.push_back(&argument);
+  }
+
+  if (has_declarative_types && has_untyped_args_uncoercible_to_decl_types) {
+    // No common supertype.
+    return nullptr;
   }
 
   if (typed_arguments.empty()) {
@@ -1050,7 +1110,9 @@ absl::StatusOr<const Type*> Coercer::GetCommonSuperTypeImpl(
     }
 
     const Type* candidate_type = nullptr;
-    if (most_specific_type->IsSimpleType()) {
+    if (most_specific_type->ComponentTypes().empty()) {
+      // Applies to SimpleTypes, and also to DeclarativeTypes without component
+      // types (which currently is all DeclarativeTypes).
       candidate_type = most_specific_type;
     } else {
       // For non-simple types to have a supertype, all non-literals must have
@@ -1134,12 +1196,18 @@ absl::StatusOr<bool> Coercer::Context::CoercesTo(
     const InputArgumentType& from_argument, const Type* to_type,
     SignatureMatchResult* result) {
   if (from_argument.is_untyped()) {
-    // This is an untyped NULL, so the cost of coercion is considered as 0
-    // and <result> is left unchanged.
+    if (to_type->IsDeclarativeType()) {
+      return IsUntypedArgCoercibleToDeclarativeType(from_argument);
+    }
+
+    // This is an untyped (e.g. NULL, or empty array, or parameter), so the cost
+    // of coercion is considered as 0 and <result> is left unchanged.
     // TODO: Should this be consistent with untyped NULL coercion
     // cost defined in SignatureMatches?  We have to force it to be non-zero
     // there to avoid changing signature matching (and therefore the
     // result type for 'ROUND(NULL)', etc.
+    // If we change the logic here, make sure to update it in the branch for
+    // declarative types right above as well.
     return true;
   }
   if (to_type->IsJson() &&
@@ -1226,12 +1294,38 @@ absl::StatusOr<bool> Coercer::Context::ExtendedTypeCoercesTo(
   return true;
 }
 
+absl::StatusOr<bool> Coercer::Context::DeclarativeTypeCoerces(
+    const Type* from_type, const Type* to_type, SignatureMatchResult* result) {
+  if (from_type->Equals(to_type)) {
+    return true;
+  }
+
+  GOOGLESQL_RET_CHECK(from_type->IsDeclarativeType() || to_type->IsDeclarativeType());
+
+  if ((from_type->IsDeclarativeType() &&
+       from_type->AsDeclarativeType()->CanCoerceTo(to_type, is_explicit())) ||
+      (to_type->IsDeclarativeType() &&
+       to_type->AsDeclarativeType()->CanCoerceFrom(from_type, is_explicit()))) {
+    result->incr_non_literals_coerced();
+    result->incr_non_literals_distance(
+        Type::GetTypeCoercionCost(from_type->kind(), to_type->kind()));
+    return true;
+  }
+
+  result->incr_non_matched_arguments();
+  return false;
+}
+
 absl::StatusOr<bool> Coercer::Context::ParameterCoercesTo(
     const Type* from_type, const Type* to_type, SignatureMatchResult* result) {
   if (IsExtendedCoercion(from_type, to_type)) {
     return ExtendedTypeCoercesTo(
         from_type, to_type, Catalog::ConversionSourceExpressionKind::kParameter,
         result);
+  }
+
+  if (IsDeclarativeTypeCoercion(from_type, to_type)) {
+    return DeclarativeTypeCoerces(from_type, to_type, result);
   }
 
   if (from_type->IsStruct()) {
@@ -1285,6 +1379,10 @@ absl::StatusOr<bool> Coercer::Context::TypeCoercesTo(
     return ExtendedTypeCoercesTo(
         from_type, to_type, Catalog::ConversionSourceExpressionKind::kOther,
         result);
+  }
+
+  if (IsDeclarativeTypeCoercion(from_type, to_type)) {
+    return DeclarativeTypeCoerces(from_type, to_type, result);
   }
 
   // Note: We have to check struct coercion before CastFunctionProperty, because

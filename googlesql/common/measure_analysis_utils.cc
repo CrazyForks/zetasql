@@ -22,15 +22,13 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/arena.h"
-#include "googlesql/base/atomic_sequence_num.h"
 #include "googlesql/common/internal_analyzer_options.h"
 #include "googlesql/common/internal_value.h"
 #include "googlesql/common/measure_utils.h"
 #include "googlesql/public/analyzer.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/catalog.h"
-#include "googlesql/public/id_string.h"
+#include "googlesql/public/function_signature.h"
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/proto_util.h"
@@ -39,10 +37,7 @@
 #include "googlesql/public/types/struct_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
-#include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
-#include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
-#include "googlesql/resolved_ast/resolved_ast_visitor.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/resolved_node_kind.pb.h"
 #include "googlesql/base/case.h"
@@ -178,37 +173,11 @@ absl::StatusOr<bool> WrapExpressionColumnWithProtoFieldAccess(
   return true;
 }
 
-// Resolve `column_name` against the set of non-measure columns in `table`.
-// If `table` is a value table, then `column_name` is interpreted as a field
-// access within the value table column.
-// If `column_name` is not found, then `resolved_expr_out` is not modified.
-absl::Status ResolveColumnForMeasureExpression(
-    const Table& table, std::string measure_expr, std::string column_name,
-    LanguageOptions language_options, TypeFactory* type_factory,
+absl::Status ResolveValueTableColumnForMeasureExpression(
+    const Table& table, absl::string_view measure_expr,
+    absl::string_view column_name, const LanguageOptions& language_options,
+    TypeFactory* type_factory,
     std::unique_ptr<const ResolvedExpr>& resolved_expr_out) {
-  if (!table.IsValueTable()) {
-    // Not a value table; just lookup the column and resolve it as an
-    // `ExpressionColumn`.
-    const Column* column = table.FindColumnByName(column_name);
-    if (column == nullptr) {
-      return absl::OkStatus();
-    }
-    GOOGLESQL_RET_CHECK(column->GetType() != nullptr);
-    if (IsOrContainsMeasure(column->GetType())) {
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Measure expression: ", measure_expr, " cannot reference column: ",
-          column->Name(), " which contains a measure type"));
-    }
-    resolved_expr_out =
-        MakeResolvedExpressionColumn(column->GetType(), column_name);
-    return absl::OkStatus();
-  }
-
-  // Value table case. For value tables, the lookup can only reference:
-  //   1) The names of fields in the value table column - assuming the value
-  //      table column is a PROTO or STRUCT. The value table column name itself
-  //      is not visible.
-  //   2) Pseudo columns on the value table.
   GOOGLESQL_RET_CHECK(table.NumColumns() > 0);
   const Column* value_table_column = table.GetColumn(0);
   GOOGLESQL_RET_CHECK(value_table_column != nullptr);
@@ -253,7 +222,8 @@ absl::Status ResolveColumnForMeasureExpression(
   //   4) `column_name` is a pseudo column on the value table, and
   //      `found_field` is false. This means that `column_name` resolved as
   //      an expression column for the pseudo column.
-  const Column* column = table.FindColumnByName(column_name);
+  const Column* column = table.FindColumnByName(std::string(column_name));
+
   if (column == nullptr || !column->IsPseudoColumn()) {
     // Case 1 & 2. Return OK, since `resolved_expr_out` should be correctly
     // set for case 1, and not modified for case 2.
@@ -267,13 +237,59 @@ absl::Status ResolveColumnForMeasureExpression(
     }
     // Case 4
     GOOGLESQL_RET_CHECK(column->GetType() != nullptr);
-    if (column->GetType()->IsMeasureType()) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Measure expression: ", measure_expr,
-                       " cannot reference measure column: ", column->Name()));
-    }
     resolved_expr_out =
         MakeResolvedExpressionColumn(column->GetType(), column_name);
+    return absl::OkStatus();
+  }
+}
+
+// Resolve `column_name` against the set of non-measure columns in `table`.
+// If `table` is a value table, then `column_name` is interpreted as a field
+// access within the value table column.
+// If `column_name` is not found, then `resolved_expr_out` is not modified.
+//
+// `column_name` is resolved as an ExpressionColumn corresponding to the
+// measure column.
+absl::Status ResolveColumnForMeasureExpression(
+    const Table& table, absl::string_view measure_expr,
+    absl::string_view column_name, LanguageOptions language_options,
+    TypeFactory* type_factory,
+    std::unique_ptr<const ResolvedExpr>& resolved_expr_out) {
+  resolved_expr_out = nullptr;
+
+  if (!table.IsValueTable()) {
+    // Not a value table; just lookup the column and resolve it as an
+    // `ExpressionColumn`.
+    const Column* column = table.FindColumnByName(std::string(column_name));
+    if (column != nullptr) {
+      GOOGLESQL_RET_CHECK(column->GetType() != nullptr);
+      resolved_expr_out =
+          MakeResolvedExpressionColumn(column->GetType(), column_name);
+    }
+  } else {
+    // Value table case. For value tables, the lookup can only reference:
+    //   1) The names of fields in the value table column - assuming the value
+    //      table column is a PROTO or STRUCT. The value table column name
+    //      itself is not visible.
+    //   2) Pseudo columns on the value table.
+    GOOGLESQL_RETURN_IF_ERROR(ResolveValueTableColumnForMeasureExpression(
+        table, measure_expr, column_name, language_options, type_factory,
+        resolved_expr_out));
+  }
+
+  // `resolved_expr_out` can be null, for example, when `column_name` was not
+  // found in the table.
+  if (resolved_expr_out != nullptr) {
+    // It is ok for the measure definition expression `resolved_expr_out` to
+    // reference another measure column, e.g., m2 := MEASURE(AGG(m1) + 1).
+    //
+    // But there should not be catalog column that is of a composite type
+    // containing a measure type, e.g., STRUCT<MEASURE<T>>, which is not
+    // supported currently.
+    GOOGLESQL_RET_CHECK(resolved_expr_out->type()->IsMeasureType() ||
+              !IsOrContainsMeasure(resolved_expr_out->type()))
+        << "Catalog measure columns with composite types containing a measure "
+           "type (e.g. STRUCT or ARRAY of measures) are not supported.";
   }
   return absl::OkStatus();
 }

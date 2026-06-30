@@ -65,6 +65,7 @@ import com.google.googlesql.resolvedast.ResolvedNodes.ResolvedStaticDescribeScan
 import com.google.googlesql.resolvedast.ResolvedNodes.ResolvedSystemVariable;
 import com.google.googlesql.resolvedast.ResolvedNodes.ResolvedWindowFrame;
 import com.google.googlesql.resolvedast.ResolvedNodes.ResolvedWindowFrameExpr;
+import com.google.googlesql.resolvedast.ResolvedNodes.ResolvedWithinBoundExpr;
 import com.google.googlesql.resolvedast.ResolvedOptionEnums.AssignmentOp;
 import com.google.googlesql.resolvedast.ResolvedSetOperationScanEnums.SetOperationColumnMatchMode;
 import com.google.googlesql.resolvedast.ResolvedSetOperationScanEnums.SetOperationColumnPropagationMode;
@@ -538,6 +539,14 @@ class DebugStrings {
     }
   }
 
+  static void collectDebugStringFields(
+      ResolvedWithinBoundExpr node, List<DebugStringField> fields) {
+    if (node.getExpr() != null) {
+      // Use empty name to avoid printing "expr=" with extra indentation.
+      fields.add(new DebugStringField("", node.getExpr()));
+    }
+  }
+
   static void collectDebugStringFields(ResolvedFunctionRef node, List<DebugStringField> fields) {
     // No fields to add.
   }
@@ -673,6 +682,13 @@ class DebugStrings {
     return node.nodeKindString()
         + "(boundary_type="
         + node.getBoundaryType().name().replace('_', ' ')
+        + ")";
+  }
+
+  static String getNameForDebugString(ResolvedWithinBoundExpr node) {
+    return node.nodeKindString()
+        + "(within_bound_kind="
+        + node.getBoundKind().name().replace('_', ' ')
         + ")";
   }
 

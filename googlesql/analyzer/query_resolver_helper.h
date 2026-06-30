@@ -666,8 +666,10 @@ class SelectColumnStateList {
       const ExprResolutionInfo* expr_resolution_info);
 
   // <select_list_position> is 0-based position after star expansion.
-  SelectColumnState* GetSelectColumnState(int select_list_position);
-  const SelectColumnState* GetSelectColumnState(int select_list_position) const;
+  absl::StatusOr<SelectColumnState*> GetSelectColumnState(
+      int select_list_position);
+  absl::StatusOr<const SelectColumnState*> GetSelectColumnState(
+      int select_list_position) const;
 
   const std::vector<std::unique_ptr<SelectColumnState>>&
   select_column_state_list() const;

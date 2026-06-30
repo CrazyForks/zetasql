@@ -359,6 +359,7 @@ TypeKind:TYPE_ARRAY
 TypeKind:TYPE_BOOL
 TypeKind:TYPE_INT64
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function
 ==
 
 # Like the above, but also uses the output columns in contexts, e.g. GROUP BY
@@ -418,6 +419,7 @@ TypeKind:TYPE_ARRAY
 TypeKind:TYPE_BOOL
 TypeKind:TYPE_INT64
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function
 ==
 
 [name=collation_in_templated_tvf_implicit_return]
@@ -535,6 +537,7 @@ TimeResolution:Any
 TypeKind:TYPE_ARRAY
 TypeKind:TYPE_BOOL
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function
 ==
 
 # Ensure that collation gets dropped on concrete (STRING) args, and propagate
@@ -646,6 +649,7 @@ ResolvedNodeKind:Statement:RESOLVED_QUERY_STMT
 TimeResolution:Any
 TypeKind:TYPE_INT64
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function
 ==
 
 # Like the above, but also uses the output columns in contexts, e.g. GROUP BY
@@ -746,6 +750,7 @@ ResolvedNodeKind:Statement:RESOLVED_QUERY_STMT
 TimeResolution:Any
 TypeKind:TYPE_BOOL
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function
 ==
 
 [required_features=TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
@@ -805,3 +810,4 @@ ResolvedNodeKind:Statement:RESOLVED_QUERY_STMT
 TimeResolution:Any
 TypeKind:TYPE_BOOL
 TypeKind:TYPE_STRING
+collation_propagated_to_sql_function

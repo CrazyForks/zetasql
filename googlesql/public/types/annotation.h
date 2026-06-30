@@ -69,6 +69,10 @@ class AnnotationMap {
   AnnotationMap& operator=(const AnnotationMap&) = delete;
   virtual ~AnnotationMap() = default;
 
+  static bool IsNullOrEmpty(const AnnotationMap* annotation_map) {
+    return annotation_map == nullptr || annotation_map->Empty();
+  }
+
   // Sets annotation value for given AnnotationSpec ID, overwriting existing
   // value if it exists.
   // Returns a self reference for caller to be able to chain SetAnnotation()
@@ -85,7 +89,7 @@ class AnnotationMap {
   // calls.
   template <class T>
   AnnotationMap& SetAnnotation(const SimpleValue& value) {
-    static_assert(std::is_base_of<AnnotationSpec, T>::value,
+    static_assert(std::is_base_of_v<AnnotationSpec, T>,
                   "Must be a subclass of AnnotationSpec");
     return SetAnnotation(T::GetId(), value);
   }
@@ -100,7 +104,7 @@ class AnnotationMap {
   // Clears annotation value for the given AnnotationSpec ID if it exists.
   template <class T>
   void UnsetAnnotation() {
-    static_assert(std::is_base_of<AnnotationSpec, T>::value,
+    static_assert(std::is_base_of_v<AnnotationSpec, T>,
                   "Must be a subclass of AnnotationSpec");
     return UnsetAnnotation(T::GetId());
   }
@@ -109,7 +113,7 @@ class AnnotationMap {
   // all levels.
   template <class T>
   void UnsetAnnotationRecursively() {
-    static_assert(std::is_base_of<AnnotationSpec, T>::value,
+    static_assert(std::is_base_of_v<AnnotationSpec, T>,
                   "Must be a subclass of AnnotationSpec");
     return UnsetAnnotationRecursively(T::GetId());
   }
@@ -204,7 +208,7 @@ class AnnotationMap {
   // for the given AnnotationSpec type.
   template <class T>
   bool Has() const {
-    static_assert(std::is_base_of<AnnotationSpec, T>::value,
+    static_assert(std::is_base_of_v<AnnotationSpec, T>,
                   "Must be a subclass of AnnotationSpec");
     return !EmptyInternal(T::GetId());
   }

@@ -290,16 +290,17 @@ void GetStringFunctions(TypeFactory* type_factory,
         FunctionSignatureOptions().set_uses_operation_collation()},
        {bytes_type, {bytes_type, bytes_type, bytes_type}, FN_REPLACE_BYTES}});
 
-  InsertFunction(functions, options, "format", SCALAR,
-                 {{string_type,
-                   {string_type,
-                    {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions()
-                                             .set_argument_collation_mode(
-                                                 FunctionEnums::AFFECTS_NONE)
-                                             .set_cardinality(REPEATED)}},
-                   FN_FORMAT_STRING}},
-                 FunctionOptions().set_post_resolution_argument_constraint(
-                     &CheckFormatPostResolutionArguments));
+  InsertFunction(
+      functions, options, "format", SCALAR,
+      {{string_type,
+        {string_type,
+         {ARG_KIND_EXPR_ARBITRARY,
+          FunctionArgumentTypeOptions()
+              .set_argument_collation_mode(FunctionEnums::AFFECTS_NONE)
+              .set_cardinality(REPEATED)}},
+        FN_FORMAT_STRING}},
+      FunctionOptions().set_post_resolution_argument_constraint(
+          &CheckFormatPostResolutionArguments));
 
   FunctionSignatureOptions date_time_constructor_options =
       FunctionSignatureOptions().AddRequiredLanguageFeature(
@@ -638,13 +639,13 @@ void GetRegexFunctions(TypeFactory* type_factory,
 
   InsertFunction(
       functions, options, "regexp_extract_groups", SCALAR,
-      {{ARG_TYPE_ARBITRARY,  // Result type set by callback.
+      {{ARG_KIND_EXPR_ARBITRARY,  // Result type set by callback.
         {string_type,
          {string_type,
           FunctionArgumentTypeOptions().set_must_be_analysis_constant()}},
         FN_REGEXP_EXTRACT_GROUPS_STRING,
         FunctionSignatureOptions().set_rejects_collation()},
-       {ARG_TYPE_ARBITRARY,
+       {ARG_KIND_EXPR_ARBITRARY,
         {bytes_type,
          {bytes_type,
           FunctionArgumentTypeOptions().set_must_be_analysis_constant()}},
@@ -830,18 +831,19 @@ void GetErrorHandlingFunctions(TypeFactory* type_factory,
   InsertSimpleFunction(functions, options, "error", SCALAR,
                        {{int64_type, {string_type}, FN_ERROR}});
 
-  InsertSimpleFunction(
-      functions, options, "iferror", SCALAR,
-      {{ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1}, FN_IFERROR}},
-      FunctionOptions().set_may_suppress_side_effects(true));
+  InsertSimpleFunction(functions, options, "iferror", SCALAR,
+                       {{ARG_KIND_EXPR_ANY_1,
+                         {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
+                         FN_IFERROR}},
+                       FunctionOptions().set_may_suppress_side_effects(true));
 
   InsertFunction(functions, options, "iserror", SCALAR,
-                 {{bool_type, {ARG_TYPE_ANY_1}, FN_ISERROR}},
+                 {{bool_type, {ARG_KIND_EXPR_ANY_1}, FN_ISERROR}},
                  FunctionOptions().set_may_suppress_side_effects(true));
 
   InsertFunction(functions, options, "nulliferror", SCALAR,
-                 {{ARG_TYPE_ANY_1,
-                   {ARG_TYPE_ANY_1},
+                 {{ARG_KIND_EXPR_ANY_1,
+                   {ARG_KIND_EXPR_ANY_1},
                    FN_NULLIFERROR,
                    SetRewriter(REWRITE_NULLIFERROR_FUNCTION)}},
                  FunctionOptions().set_may_suppress_side_effects(true));
@@ -887,23 +889,25 @@ void GetConditionalFunctions(TypeFactory* type_factory,
   const Type* numeric_type = type_factory->get_numeric();
   const Type* bignumeric_type = type_factory->get_bignumeric();
 
-  InsertSimpleFunction(
-      functions, options, "if", SCALAR,
-      {{ARG_TYPE_ANY_1, {bool_type, ARG_TYPE_ANY_1, ARG_TYPE_ANY_1}, FN_IF}},
-      FunctionOptions().set_may_suppress_side_effects(true));
+  InsertSimpleFunction(functions, options, "if", SCALAR,
+                       {{ARG_KIND_EXPR_ANY_1,
+                         {bool_type, ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
+                         FN_IF}},
+                       FunctionOptions().set_may_suppress_side_effects(true));
 
   // COALESCE(expr1, ..., exprN): returns the first non-null expression.
   // In particular, COALESCE is used to express the output of FULL JOIN.
   InsertSimpleFunction(
       functions, options, "coalesce", SCALAR,
-      {{ARG_TYPE_ANY_1, {{ARG_TYPE_ANY_1, REPEATED}}, FN_COALESCE}},
+      {{ARG_KIND_EXPR_ANY_1, {{ARG_KIND_EXPR_ANY_1, REPEATED}}, FN_COALESCE}},
       FunctionOptions().set_may_suppress_side_effects(true));
 
   // IFNULL(expr1, expr2): if expr1 is not null, returns expr1, else expr2
-  InsertSimpleFunction(
-      functions, options, "ifnull", SCALAR,
-      {{ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1}, FN_IFNULL}},
-      FunctionOptions().set_may_suppress_side_effects(true));
+  InsertSimpleFunction(functions, options, "ifnull", SCALAR,
+                       {{ARG_KIND_EXPR_ANY_1,
+                         {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
+                         FN_IFNULL}},
+                       FunctionOptions().set_may_suppress_side_effects(true));
 
   bool uses_operation_collation_for_nullif =
       options.language_options.LanguageFeatureEnabled(
@@ -911,8 +915,8 @@ void GetConditionalFunctions(TypeFactory* type_factory,
   // NULLIF(expr1, expr2): NULL if expr1 = expr2, otherwise returns expr1.
   InsertFunction(
       functions, options, "nullif", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+      {{ARG_KIND_EXPR_ANY_1,
+        {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
         FN_NULLIF,
         FunctionSignatureOptions().set_uses_operation_collation(
             uses_operation_collation_for_nullif)}},
@@ -960,20 +964,20 @@ void GetConditionalFunctions(TypeFactory* type_factory,
   // in calculating propagation collation.
   InsertFunction(
       functions, options, "$case_with_value", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_TYPE_ANY_2,
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ANY_2,
           FunctionArgumentTypeOptions()
               .set_argument_collation_mode(FunctionEnums::AFFECTS_OPERATION)
               .set_must_support_equality(true)},
-         {ARG_TYPE_ANY_2,
+         {ARG_KIND_EXPR_ANY_2,
           FunctionArgumentTypeOptions()
               .set_argument_collation_mode(FunctionEnums::AFFECTS_OPERATION)
               .set_cardinality(REPEATED)},
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           FunctionArgumentTypeOptions()
               .set_argument_collation_mode(FunctionEnums::AFFECTS_PROPAGATION)
               .set_cardinality(REPEATED)},
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           FunctionArgumentTypeOptions().set_argument_collation_mode(
               FunctionEnums::AFFECTS_PROPAGATION)}},
         FN_CASE_WITH_VALUE,
@@ -985,19 +989,20 @@ void GetConditionalFunctions(TypeFactory* type_factory,
           .set_hide_supported_signatures(true)
           .set_get_sql_callback(&CaseWithValueFunctionSQL));
 
-  InsertSimpleFunction(
-      functions, options, "$case_no_value", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{bool_type, REPEATED}, {ARG_TYPE_ANY_1, REPEATED}, {ARG_TYPE_ANY_1}},
-        FN_CASE_NO_VALUE}},
-      FunctionOptions()
-          .set_supports_safe_error_mode(false)
-          .set_may_suppress_side_effects(true)
-          .set_sql_name("case")
-          .set_hide_supported_signatures(true)
-          .set_get_sql_callback(&CaseNoValueFunctionSQL)
-          .set_no_matching_signature_callback(
-              &NoMatchingSignatureForCaseNoValueFunction));
+  InsertSimpleFunction(functions, options, "$case_no_value", SCALAR,
+                       {{ARG_KIND_EXPR_ANY_1,
+                         {{bool_type, REPEATED},
+                          {ARG_KIND_EXPR_ANY_1, REPEATED},
+                          {ARG_KIND_EXPR_ANY_1}},
+                         FN_CASE_NO_VALUE}},
+                       FunctionOptions()
+                           .set_supports_safe_error_mode(false)
+                           .set_may_suppress_side_effects(true)
+                           .set_sql_name("case")
+                           .set_hide_supported_signatures(true)
+                           .set_get_sql_callback(&CaseNoValueFunctionSQL)
+                           .set_no_matching_signature_callback(
+                               &NoMatchingSignatureForCaseNoValueFunction));
 
   // Internal function $with_side_effects(expression ANY_1, payload BYTES).
   // Enabled only when FEATURE_ENFORCE_CONDITIONAL_EVALUATION is on.
@@ -1021,8 +1026,8 @@ void GetConditionalFunctions(TypeFactory* type_factory,
   // See (broken link)
   InsertFunction(
       functions, options, "$with_side_effects", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_TYPE_ANY_1}, {types::BytesType()}},
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ANY_1}, {types::BytesType()}},
         FN_WITH_SIDE_EFFECTS,
         FunctionSignatureOptions().set_is_internal(true)}},
       FunctionOptions()
@@ -1046,23 +1051,24 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
   const Function::Mode SCALAR = Function::SCALAR;
 
   // Is a particular key present in a proto map?
-  InsertSimpleFunction(functions, options, "proto_map_contains_key", SCALAR,
-                       {{type_factory->get_bool(),
-                         {ARG_PROTO_MAP_ANY, ARG_PROTO_MAP_KEY_ANY},
-                         FN_PROTO_MAP_CONTAINS_KEY}},
-                       FunctionOptions().AddRequiredLanguageFeature(
-                           LanguageFeature::FEATURE_PROTO_MAPS));
+  InsertSimpleFunction(
+      functions, options, "proto_map_contains_key", SCALAR,
+      {{type_factory->get_bool(),
+        {ARG_KIND_EXPR_PROTO_MAP_ANY, ARG_KIND_EXPR_PROTO_MAP_KEY_ANY},
+        FN_PROTO_MAP_CONTAINS_KEY}},
+      FunctionOptions().AddRequiredLanguageFeature(
+          LanguageFeature::FEATURE_PROTO_MAPS));
 
   // Is a particular key present in a proto map?
   std::initializer_list<FunctionArgumentTypeProxy> modify_map_args = {
-      ARG_PROTO_MAP_ANY,
-      {ARG_PROTO_MAP_KEY_ANY, FunctionArgumentType::REPEATED},
-      {ARG_PROTO_MAP_VALUE_ANY, FunctionArgumentType::REPEATED},
+      ARG_KIND_EXPR_PROTO_MAP_ANY,
+      {ARG_KIND_EXPR_PROTO_MAP_KEY_ANY, FunctionArgumentType::REPEATED},
+      {ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY, FunctionArgumentType::REPEATED},
   };
 
   InsertSimpleFunction(
       functions, options, "proto_modify_map", SCALAR,
-      {{ARG_PROTO_MAP_ANY, modify_map_args, FN_PROTO_MODIFY_MAP}},
+      {{ARG_KIND_EXPR_PROTO_MAP_ANY, modify_map_args, FN_PROTO_MODIFY_MAP}},
       FunctionOptions()
           .AddRequiredLanguageFeature(LanguageFeature::FEATURE_PROTO_MAPS)
           .set_pre_resolution_argument_constraint(
@@ -1119,13 +1125,13 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
        {bytes_type,
         {bytes_type, {bytes_type, FunctionArgumentType::REPEATED}},
         FN_CONCAT_OP_BYTES},
-       {ARG_ARRAY_TYPE_ANY_1,
-        {ARG_ARRAY_TYPE_ANY_1,
-         {ARG_ARRAY_TYPE_ANY_1, FunctionArgumentType::REPEATED}},
+       {ARG_KIND_EXPR_ARRAY_ANY_1,
+        {ARG_KIND_EXPR_ARRAY_ANY_1,
+         {ARG_KIND_EXPR_ARRAY_ANY_1, FunctionArgumentType::REPEATED}},
         FN_ARRAY_CONCAT_OP},
-       {ARG_TYPE_GRAPH_PATH,
-        {ARG_TYPE_GRAPH_PATH,
-         {ARG_TYPE_GRAPH_PATH, FunctionArgumentType::REPEATED}},
+       {ARG_KIND_EXPR_GRAPH_PATH,
+        {ARG_KIND_EXPR_GRAPH_PATH,
+         {ARG_KIND_EXPR_GRAPH_PATH, FunctionArgumentType::REPEATED}},
         FN_CONCAT_OP_PATH,
         FunctionSignatureOptions()
             .AddRequiredLanguageFeature(FEATURE_SQL_GRAPH)
@@ -1138,16 +1144,16 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
               CheckPreResolutionPathConcatConstraints));
 
   // RANGE_BUCKET: returns the bucket of the item in the array.
-  InsertFunction(
-      functions, options, "range_bucket", SCALAR,
-      {{int64_type,
-        {ARG_TYPE_ANY_1,
-         {ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                                    .set_uses_array_element_for_collation()}},
-        FN_RANGE_BUCKET,
-        FunctionSignatureOptions().set_uses_operation_collation()}},
-      FunctionOptions().set_pre_resolution_argument_constraint(
-          &CheckRangeBucketArguments));
+  InsertFunction(functions, options, "range_bucket", SCALAR,
+                 {{int64_type,
+                   {ARG_KIND_EXPR_ANY_1,
+                    {ARG_KIND_EXPR_ARRAY_ANY_1,
+                     FunctionArgumentTypeOptions()
+                         .set_uses_array_element_for_collation()}},
+                   FN_RANGE_BUCKET,
+                   FunctionSignatureOptions().set_uses_operation_collation()}},
+                 FunctionOptions().set_pre_resolution_argument_constraint(
+                     &CheckRangeBucketArguments));
 
   InsertSimpleFunction(
       functions, options, "bit_cast_to_int32", SCALAR,
@@ -1222,10 +1228,11 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
     // function is defined by an engine. Also, it allows us to use
     // FunctionSignatureOptions to define constraints and deprecation info for
     // this special function.
-    InsertSimpleFunction(
-        functions, options, "proto_default_if_null", SCALAR,
-        {{ARG_TYPE_ANY_1, {ARG_TYPE_ANY_1}, FN_PROTO_DEFAULT_IF_NULL}},
-        FunctionOptions().set_allow_external_usage(false));
+    InsertSimpleFunction(functions, options, "proto_default_if_null", SCALAR,
+                         {{ARG_KIND_EXPR_ANY_1,
+                           {ARG_KIND_EXPR_ANY_1},
+                           FN_PROTO_DEFAULT_IF_NULL}},
+                         FunctionOptions().set_allow_external_usage(false));
   }
 
   if (options.language_options.LanguageFeatureEnabled(
@@ -1239,7 +1246,7 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
     InsertSimpleFunction(functions, options, "enum_value_descriptor_proto",
                          SCALAR,
                          {{enum_value_descriptor_proto_type,
-                           {ARG_ENUM_ANY},
+                           {ARG_KIND_EXPR_ENUM_ANY},
                            FN_ENUM_VALUE_DESCRIPTOR_PROTO}},
                          FunctionOptions().set_compute_result_type_callback(
                              &GetOrMakeEnumValueDescriptorType));
@@ -1252,11 +1259,11 @@ void GetMiscellaneousFunctions(TypeFactory* type_factory,
   // APPLY(value, lambda) -> lambda(value)
   InsertFunction(
       functions, options, "apply", Function::SCALAR,
-      {{ARG_TYPE_ANY_2,
-        {{ARG_TYPE_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
-                              "value", kPositionalOnly)},
+      {{ARG_KIND_EXPR_ANY_2,
+        {{ARG_KIND_EXPR_ANY_1, FunctionArgumentTypeOptions().set_argument_name(
+                                   "value", kPositionalOnly)},
          FunctionArgumentType::Lambda(
-             {ARG_TYPE_ANY_1}, ARG_TYPE_ANY_2,
+             {ARG_KIND_EXPR_ANY_1}, ARG_KIND_EXPR_ANY_2,
              FunctionArgumentTypeOptions().set_argument_name("transform",
                                                              kPositionalOnly))},
         FN_APPLY,
@@ -1282,23 +1289,23 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
   // error is returned. The SAFE_ variants of the functions have the same
   // semantics with the exception of returning NULL rather than OUT_OF_RANGE
   // for a position that is out of bounds.
-  InsertFunction(
-      functions, options, "$array_at_offset", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {
-            {ARG_ARRAY_TYPE_ANY_1, FunctionArgumentTypeOptions()
-                                       .set_uses_array_element_for_collation()},
-            int64_type,
-        },
-        FN_ARRAY_AT_OFFSET}},
-      FunctionOptions()
-          .set_supports_safe_error_mode(false)
-          .set_sql_name("array[offset()]")
-          .set_get_sql_callback(&ArrayAtOffsetFunctionSQL));
+  InsertFunction(functions, options, "$array_at_offset", SCALAR,
+                 {{ARG_KIND_EXPR_ANY_1,
+                   {
+                       {ARG_KIND_EXPR_ARRAY_ANY_1,
+                        FunctionArgumentTypeOptions()
+                            .set_uses_array_element_for_collation()},
+                       int64_type,
+                   },
+                   FN_ARRAY_AT_OFFSET}},
+                 FunctionOptions()
+                     .set_supports_safe_error_mode(false)
+                     .set_sql_name("array[offset()]")
+                     .set_get_sql_callback(&ArrayAtOffsetFunctionSQL));
   InsertFunction(
       functions, options, "$array_at_ordinal", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_ARRAY_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ARRAY_ANY_1,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
          int64_type},
         FN_ARRAY_AT_ORDINAL}},
@@ -1308,8 +1315,8 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
           .set_get_sql_callback(&ArrayAtOrdinalFunctionSQL));
   InsertFunction(
       functions, options, "$safe_array_at_offset", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_ARRAY_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ARRAY_ANY_1,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
          int64_type},
         FN_SAFE_ARRAY_AT_OFFSET}},
@@ -1319,8 +1326,8 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
           .set_get_sql_callback(&SafeArrayAtOffsetFunctionSQL));
   InsertFunction(
       functions, options, "$safe_array_at_ordinal", SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_ARRAY_TYPE_ANY_1,
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ARRAY_ANY_1,
           FunctionArgumentTypeOptions().set_uses_array_element_for_collation()},
          int64_type},
         FN_SAFE_ARRAY_AT_ORDINAL}},
@@ -1336,8 +1343,8 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
   // In both cases, if the array or the arg is NULL, the result is NULL.
   InsertSimpleFunction(
       functions, options, "$proto_map_at_key", SCALAR,
-      {{ARG_PROTO_MAP_VALUE_ANY,
-        {ARG_PROTO_MAP_ANY, ARG_PROTO_MAP_KEY_ANY},
+      {{ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY,
+        {ARG_KIND_EXPR_PROTO_MAP_ANY, ARG_KIND_EXPR_PROTO_MAP_KEY_ANY},
         FN_PROTO_MAP_AT_KEY}},
       FunctionOptions()
           .set_supports_safe_error_mode(false)
@@ -1346,8 +1353,8 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
           .AddRequiredLanguageFeature(LanguageFeature::FEATURE_PROTO_MAPS));
   InsertSimpleFunction(
       functions, options, "$safe_proto_map_at_key", SCALAR,
-      {{ARG_PROTO_MAP_VALUE_ANY,
-        {ARG_PROTO_MAP_ANY, ARG_PROTO_MAP_KEY_ANY},
+      {{ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY,
+        {ARG_KIND_EXPR_PROTO_MAP_ANY, ARG_KIND_EXPR_PROTO_MAP_KEY_ANY},
         FN_SAFE_PROTO_MAP_AT_KEY}},
       FunctionOptions()
           .set_supports_safe_error_mode(false)
@@ -1379,22 +1386,22 @@ void GetSubscriptFunctions(TypeFactory* type_factory,
   }
   if (options.language_options.LanguageFeatureEnabled(FEATURE_MAP_TYPE)) {
     subscript_function_signatures.push_back(
-        {ARG_TYPE_ANY_2,
-         {ARG_MAP_TYPE_ANY_1_2, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_2,
+         {ARG_KIND_EXPR_MAP_ANY_1_2, ARG_KIND_EXPR_ANY_1},
          FN_MAP_SUBSCRIPT,
          FunctionSignatureOptions()
              .set_rejects_collation()
              .AddRequiredLanguageFeature(FEATURE_MAP_TYPE)});
     subscript_with_key_function_signatures.push_back(
-        {ARG_TYPE_ANY_2,
-         {ARG_MAP_TYPE_ANY_1_2, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_2,
+         {ARG_KIND_EXPR_MAP_ANY_1_2, ARG_KIND_EXPR_ANY_1},
          FN_MAP_SUBSCRIPT_WITH_KEY,
          FunctionSignatureOptions()
              .set_rejects_collation()
              .AddRequiredLanguageFeature(FEATURE_MAP_TYPE)});
     safe_subscript_with_key_function_signatures.push_back(
-        {ARG_TYPE_ANY_2,
-         {ARG_MAP_TYPE_ANY_1_2, ARG_TYPE_ANY_1},
+        {ARG_KIND_EXPR_ANY_2,
+         {ARG_KIND_EXPR_MAP_ANY_1_2, ARG_KIND_EXPR_ANY_1},
          FN_MAP_SAFE_SUBSCRIPT_WITH_KEY,
          FunctionSignatureOptions()
              .set_rejects_collation()
@@ -1570,7 +1577,7 @@ absl::Status GetJsonParseFunctions(
 
   std::vector<FunctionSignatureOnHeap> to_json_signatures = {
       {json_type,
-       {ARG_TYPE_ANY_1, {bool_type, stringify_wide_numbers_option}},
+       {ARG_KIND_EXPR_ANY_1, {bool_type, stringify_wide_numbers_option}},
        FN_TO_JSON},
   };
   std::vector<const Type*> extra_to_json_types = {};
@@ -1581,7 +1588,7 @@ absl::Status GetJsonParseFunctions(
 
   if (path_as_object_enabled) {
     to_json_signatures.push_back({json_type,
-                                  {ARG_TYPE_ANY_1,
+                                  {ARG_KIND_EXPR_ANY_1,
                                    {bool_type, stringify_wide_numbers_option},
                                    {bool_type, path_as_object_option}},
                                   FN_TO_JSON_PATH_AS_OBJECT});
@@ -1589,7 +1596,7 @@ absl::Status GetJsonParseFunctions(
   if (unsupported_fields_enabled) {
     to_json_signatures.push_back(
         {json_type,
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           {bool_type, stringify_wide_numbers_option},
           {unsupported_fields_type, unsupported_fields_option}},
          FN_TO_JSON_UNSUPPORTED_FIELDS});
@@ -1600,7 +1607,7 @@ absl::Status GetJsonParseFunctions(
     // options.
     to_json_signatures.push_back(
         {json_type,
-         {ARG_TYPE_ANY_1,
+         {ARG_KIND_EXPR_ANY_1,
           {bool_type, stringify_wide_numbers_option},
           {unsupported_fields_type, unsupported_fields_option},
           {bool_type, path_as_object_option}},
@@ -1613,10 +1620,10 @@ absl::Status GetJsonParseFunctions(
       to_json_signatures,
       /*function_options=*/to_json_function_options, extra_to_json_types));
 
-  InsertFunction(functions, options, "safe_to_json", Function::SCALAR,
-                 {{json_type, {ARG_TYPE_ANY_1}, FN_SAFE_TO_JSON}},
-                 FunctionOptions()
-                     .AddRequiredLanguageFeature(FEATURE_JSON_TYPE));
+  InsertFunction(
+      functions, options, "safe_to_json", Function::SCALAR,
+      {{json_type, {ARG_KIND_EXPR_ANY_1}, FN_SAFE_TO_JSON}},
+      FunctionOptions().AddRequiredLanguageFeature(FEATURE_JSON_TYPE));
   InsertFunction(
       functions, options, "parse_json", Function::SCALAR,
       {{json_type,
@@ -2004,8 +2011,9 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
   InsertFunction(
       functions, options, "json_array", Function::SCALAR,
       {{json_type,
-        {{ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
-                                  FunctionArgumentType::REPEATED)}},
+        {{ARG_KIND_EXPR_ARBITRARY,
+          FunctionArgumentTypeOptions().set_cardinality(
+              FunctionArgumentType::REPEATED)}},
         FN_JSON_ARRAY}},
       FunctionOptions()
           .set_post_resolution_argument_constraint(absl::bind_front(
@@ -2019,11 +2027,12 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
         {json_type,
          // Ensure at least one repetition ...
          path_arguments.json_path,
-         {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions()},
+         {ARG_KIND_EXPR_ARBITRARY, FunctionArgumentTypeOptions()},
          // ... Then any number of additional pairs of args.
          path_arguments.repeated_json_path,
-         {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
-                                  FunctionArgumentType::REPEATED)},
+         {ARG_KIND_EXPR_ARBITRARY,
+          FunctionArgumentTypeOptions().set_cardinality(
+              FunctionArgumentType::REPEATED)},
          {bool_type, FunctionArgumentTypeOptions()
                          .set_cardinality(FunctionEnums::OPTIONAL)
                          .set_must_be_constant()
@@ -2042,11 +2051,12 @@ void GetJsonArrayFunctions(const PathArguments& path_arguments,
         {json_type,
          // Ensure at least one repetition ...
          path_arguments.json_path,
-         {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions()},
+         {ARG_KIND_EXPR_ARBITRARY, FunctionArgumentTypeOptions()},
          // ... Then any number of additional pairs of args.
          path_arguments.repeated_json_path,
-         {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
-                                  FunctionArgumentType::REPEATED)},
+         {ARG_KIND_EXPR_ARBITRARY,
+          FunctionArgumentTypeOptions().set_cardinality(
+              FunctionArgumentType::REPEATED)},
          {bool_type, FunctionArgumentTypeOptions()
                          .set_cardinality(FunctionEnums::OPTIONAL)
                          .set_must_be_constant()
@@ -2243,7 +2253,7 @@ void GetJsonObjectManipulationFunctions(
   InsertFunction(
       functions, options, "to_json_string", Function::SCALAR,
       {{string_type,
-        {ARG_TYPE_ANY_1, {bool_type, FunctionArgumentType::OPTIONAL}},
+        {ARG_KIND_EXPR_ANY_1, {bool_type, FunctionArgumentType::OPTIONAL}},
         FN_TO_JSON_STRING,
         FunctionSignatureOptions().set_propagates_collation(false)}},
       /*function_options=*/
@@ -2256,11 +2266,12 @@ void GetJsonObjectManipulationFunctions(
       {{json_type,
         {{string_type, FunctionArgumentTypeOptions().set_cardinality(
                            FunctionArgumentType::REPEATED)},
-         {ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
-                                  FunctionArgumentType::REPEATED)}},
+         {ARG_KIND_EXPR_ARBITRARY,
+          FunctionArgumentTypeOptions().set_cardinality(
+              FunctionArgumentType::REPEATED)}},
         FN_JSON_OBJECT},
        {json_type,
-        {{array_string_type}, {ARG_ARRAY_TYPE_ANY_1}},
+        {{array_string_type}, {ARG_KIND_EXPR_ARRAY_ANY_1}},
         FN_JSON_OBJECT_ARRAYS}},
       FunctionOptions()
           .set_post_resolution_argument_constraint(absl::bind_front(
@@ -2278,10 +2289,10 @@ void GetJsonObjectManipulationFunctions(
           .AddRequiredLanguageFeature(FEATURE_JSON_TYPE)
           .AddRequiredLanguageFeature(FEATURE_JSON_MUTATOR_FUNCTIONS));
 
-  FunctionArgumentType first_set_value{ARG_TYPE_ARBITRARY};
+  FunctionArgumentType first_set_value{ARG_KIND_EXPR_ARBITRARY};
   FunctionArgumentType remaining_set_values{
-      ARG_TYPE_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
-                              FunctionArgumentType::REPEATED)};
+      ARG_KIND_EXPR_ARBITRARY, FunctionArgumentTypeOptions().set_cardinality(
+                                   FunctionArgumentType::REPEATED)};
   FunctionArgumentType create_if_missing{
       bool_type, FunctionArgumentTypeOptions()
                      .set_cardinality(FunctionEnums::OPTIONAL)
@@ -2629,16 +2640,16 @@ void GetNumericGreatestLeastFunctions(
     NameToFunctionMap* functions) {
   InsertFunction(
       functions, options, "greatest", Function::SCALAR,
-      {{ARG_TYPE_ANY_1,
-        {{ARG_TYPE_ANY_1, FunctionArgumentType::REPEATED}},
+      {{ARG_KIND_EXPR_ANY_1,
+        {{ARG_KIND_EXPR_ANY_1, FunctionArgumentType::REPEATED}},
         FN_GREATEST,
         FunctionSignatureOptions().set_uses_operation_collation()}},
       FunctionOptions().set_pre_resolution_argument_constraint(
           absl::bind_front(&CheckGreatestLeastArguments, "GREATEST")));
 
   InsertFunction(functions, options, "least", Function::SCALAR,
-                 {{ARG_TYPE_ANY_1,
-                   {{ARG_TYPE_ANY_1, FunctionArgumentType::REPEATED}},
+                 {{ARG_KIND_EXPR_ANY_1,
+                   {{ARG_KIND_EXPR_ANY_1, FunctionArgumentType::REPEATED}},
                    FN_LEAST,
                    FunctionSignatureOptions().set_uses_operation_collation()}},
                  FunctionOptions().set_pre_resolution_argument_constraint(
@@ -3760,8 +3771,8 @@ void GetGeographyFunctions(TypeFactory* type_factory,
       aggregate_analytic_function_options_and_geography_required);
   InsertSimpleFunction(
       functions, options, "st_nearest_neighbors", AGGREGATE,
-      {{ARG_TYPE_ANY_1,  //  Return type will be overridden.
-        {ARG_TYPE_ANY_1, geography_type, geography_type, int64_type},
+      {{ARG_KIND_EXPR_ANY_1,  //  Return type will be overridden.
+        {ARG_KIND_EXPR_ANY_1, geography_type, geography_type, int64_type},
         FN_ST_NEAREST_NEIGHBORS}},
       FunctionOptions(
           aggregate_analytic_function_options_and_geography_required)
@@ -3872,12 +3883,12 @@ void GetTypeOfFunction(TypeFactory* type_factory,
     InsertFunction(
         functions, options, "typeof", Function::SCALAR,
         {{type_factory->get_string(),
-          {ARG_TYPE_ARBITRARY},
+          {ARG_KIND_EXPR_ARBITRARY},
           FN_TYPEOF,
           SetRewriter(REWRITE_TYPEOF_FUNCTION).set_propagates_collation(false)},
          // TODO: Remove these signatures.
          {type_factory->get_string(),
-          {ARG_TYPE_GRAPH_ELEMENT},
+          {ARG_KIND_EXPR_GRAPH_ELEMENT},
           FN_TYPEOF_GRAPH_ELEMENT,
           SetRewriter(REWRITE_TYPEOF_FUNCTION)
               .set_propagates_collation(false)

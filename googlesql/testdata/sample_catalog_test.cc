@@ -138,6 +138,17 @@ TEST(SampleCatalogTest, SequenceFunction) {
   EXPECT_NE(function, nullptr);
 }
 
+TEST(SampleCatalogTest, ModelFunction) {
+  LanguageOptions options;
+  options.EnableMaximumLanguageFeatures();
+  TypeFactory type_factory;
+  SampleCatalog sample(options, &type_factory);
+
+  const Function* function = nullptr;
+  GOOGLESQL_ASSERT_OK(sample.catalog()->GetFunction("fn_with_model_arg", &function));
+  EXPECT_NE(function, nullptr);
+}
+
 // Compare output on column listing and Find methods for tables with each
 // ColumnListMode.
 TEST(SampleCatalogTest, LazyTables) {
@@ -248,7 +259,7 @@ TEST(SampleCatalogTest, BuiltInTVFSerialize) {
       {"custom_tvf"}, Function::kGoogleSQLFunctionGroupName,
       {FunctionSignature(
           FunctionArgumentType::AnyRelation(),
-          {FunctionArgumentType(ARG_TYPE_RELATION,
+          {FunctionArgumentType(ARG_KIND_RELATION,
                                 FunctionArgumentTypeOptions().set_argument_name(
                                     "t", FunctionEnums::POSITIONAL_OR_NAMED))},
           -1)},

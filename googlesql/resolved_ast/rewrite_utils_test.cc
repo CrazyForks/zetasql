@@ -46,6 +46,7 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "googlesql/resolved_ast/resolved_column.h"
+#include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/serialization.pb.h"
 #include "googlesql/resolved_ast/test_utils.h"
 #include "gmock/gmock.h"
@@ -3022,6 +3023,37 @@ TEST_F(TVFUtilsTest, CreateCteColumnSubqueryGeneratesNewColumnIds) {
   // column factory during the second call (#6, #7, #8) will be different
   // from the first call (#3, #4, #5).
   EXPECT_NE(subquery1->DebugString(), subquery2->DebugString());
+}
+
+class FakeExpr : public ResolvedExpr {
+ public:
+  FakeExpr()
+      : ResolvedExpr(types::Int64Type(),
+                     ResolvedNode::ConstructorOverload::NEW_CONSTRUCTOR) {}
+  ~FakeExpr() override = default;
+
+  ResolvedNodeKind node_kind() const override { return RESOLVED_LITERAL; }
+  std::string node_kind_string() const override { return "Literal"; }
+  absl::Status Accept(ResolvedASTVisitor* visitor) const override {
+    return visitor->DefaultVisit(this);
+  }
+  absl::Status SaveTo(Type::FileDescriptorSetMap* file_descriptor_set_map,
+                      AnyResolvedExprProto* proto) const override {
+    return absl::UnimplementedError("SaveTo not implemented for FakeExpr");
+  }
+};
+
+TEST(RewriteUtilsTest, CorrelateColumnRefsHandlesCopyFailureGracefully) {
+  auto fake_expr = std::make_unique<FakeExpr>();
+  auto subquery =
+      MakeResolvedSubqueryExpr(types::Int64Type(), ResolvedSubqueryExpr::SCALAR,
+                               /*parameter_list=*/{},
+                               /*in_expr=*/std::move(fake_expr),
+                               MakeResolvedSingleRowScan(/*column_list=*/{}));
+
+  EXPECT_THAT(CorrelateColumnRefs(*subquery),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unhandled node type in deep copy")));
 }
 
 }  // namespace

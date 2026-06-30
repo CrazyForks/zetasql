@@ -24,7 +24,14 @@ package(
     default_visibility = ["//googlesql/base:googlesql_implementation"],
 )
 
-exports_files(["external_extension.proto"])
+exports_files([
+    "external_extension.proto",
+    "bad_file_dependency.proto",
+    "bad_parse_schema.proto",
+    "bad_parse_schema_simple.proto",
+    "bad_reference.proto",
+    "conflicting_name_schema.proto",
+])
 
 filegroup(
     name = "test_files",
@@ -158,6 +165,25 @@ java_proto_library(
     deps = [":ambiguous_has_proto"],
 )
 
+proto_library(
+    name = "test_hop_tumble_proto",
+    srcs = ["test_hop_tumble.proto"],
+    deps = [
+        "//googlesql/public/proto:type_annotation_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "test_hop_tumble_cc_proto",
+    deps = [":test_hop_tumble_proto"],
+)
+
+java_proto_library(
+    name = "test_hop_tumble_java_proto",
+    deps = [":test_hop_tumble_proto"],
+)
+
 cc_library(
     name = "sample_annotation",
     srcs = ["sample_annotation.cc"],
@@ -214,6 +240,7 @@ cc_library(
     deps = [
         ":ambiguous_has_cc_proto",
         ":sample_annotation",
+        ":test_hop_tumble_cc_proto",
         ":test_packageless_cc_proto",
         ":test_proto3_cc_proto",
         ":test_schema_cc_proto",

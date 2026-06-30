@@ -401,7 +401,7 @@ absl::Status ExpressionSubstitutor::SetupLambdasCatalog(
     lambda_function->AddSignature(FunctionSignature(
         /*result_type=*/{lambda->body()->type()},
         /*arguments=*/
-        {{SignatureArgumentKind::ARG_TYPE_ARBITRARY,
+        {{SignatureArgumentKind::ARG_KIND_EXPR_ARBITRARY,
           FunctionArgumentType::REPEATED}},
         /*context_id=*/kSubstitutionLambdaContextId, signature_options));
     lambdas_catalog_->AddOwnedFunction(std::move(lambda_function));

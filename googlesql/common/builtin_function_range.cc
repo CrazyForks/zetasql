@@ -95,9 +95,9 @@ absl::Status PreResolutionArgConstraintForUntypedNullTwoRangeInputs(
   return absl::OkStatus();
 }
 
-void GetRangeFunctions(TypeFactory* type_factory,
-                       const GoogleSQLBuiltinFunctionOptions& options,
-                       NameToFunctionMap* functions) {
+absl::Status GetRangeFunctions(TypeFactory* type_factory,
+                               const GoogleSQLBuiltinFunctionOptions& options,
+                               NameToFunctionMap* functions) {
   const Type* bool_type = type_factory->get_bool();
   const Type* interval_type = type_factory->get_interval();
   const Type* date_range_type = types::DateRangeType();
@@ -105,16 +105,14 @@ void GetRangeFunctions(TypeFactory* type_factory,
   const Type* timestamp_range_type = types::TimestampRangeType();
 
   const Type* date_range_array_type;
-  GOOGLESQL_CHECK_OK(  // Crash OK
+  GOOGLESQL_RETURN_IF_ERROR(
       type_factory->MakeArrayType(date_range_type, &date_range_array_type));
   const Type* datetime_range_array_type;
-  GOOGLESQL_CHECK_OK(  // Crash OK
-      type_factory->MakeArrayType(datetime_range_type,
-                                  &datetime_range_array_type));
+  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeArrayType(datetime_range_type,
+                                              &datetime_range_array_type));
   const Type* timestamp_range_array_type;
-  GOOGLESQL_CHECK_OK(  // Crash OK
-      type_factory->MakeArrayType(timestamp_range_type,
-                                  &timestamp_range_array_type));
+  GOOGLESQL_RETURN_IF_ERROR(type_factory->MakeArrayType(timestamp_range_type,
+                                              &timestamp_range_array_type));
 
   static constexpr FunctionArgumentType::ArgumentCardinality OPTIONAL =
       FunctionArgumentType::OPTIONAL;
@@ -123,8 +121,8 @@ void GetRangeFunctions(TypeFactory* type_factory,
       FunctionOptions().AddRequiredLanguageFeature(FEATURE_RANGE_TYPE);
   InsertFunction(functions, options, "range", Function::SCALAR,
                  {{
-                     ARG_RANGE_TYPE_ANY_1,
-                     {ARG_TYPE_ANY_1, ARG_TYPE_ANY_1},
+                     ARG_KIND_EXPR_RANGE_ANY_1,
+                     {ARG_KIND_EXPR_ANY_1, ARG_KIND_EXPR_ANY_1},
                      FN_RANGE,
                  }},
                  FunctionOptions(range_options)
@@ -134,7 +132,7 @@ void GetRangeFunctions(TypeFactory* type_factory,
       functions, options, "range_is_start_unbounded", Function::SCALAR,
       {{
           bool_type,
-          {ARG_RANGE_TYPE_ANY_1},
+          {ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_IS_START_UNBOUNDED,
       }},
       FunctionOptions(range_options)
@@ -144,7 +142,7 @@ void GetRangeFunctions(TypeFactory* type_factory,
       functions, options, "range_is_end_unbounded", Function::SCALAR,
       {{
           bool_type,
-          {ARG_RANGE_TYPE_ANY_1},
+          {ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_IS_END_UNBOUNDED,
       }},
       FunctionOptions(range_options)
@@ -153,8 +151,8 @@ void GetRangeFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "range_start", Function::SCALAR,
       {{
-          ARG_TYPE_ANY_1,
-          {ARG_RANGE_TYPE_ANY_1},
+          ARG_KIND_EXPR_ANY_1,
+          {ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_START,
       }},
       FunctionOptions(range_options)
@@ -163,8 +161,8 @@ void GetRangeFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "range_end", Function::SCALAR,
       {{
-          ARG_TYPE_ANY_1,
-          {ARG_RANGE_TYPE_ANY_1},
+          ARG_KIND_EXPR_ANY_1,
+          {ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_END,
       }},
       FunctionOptions(range_options)
@@ -174,7 +172,7 @@ void GetRangeFunctions(TypeFactory* type_factory,
       functions, options, "range_overlaps", Function::SCALAR,
       {{
           bool_type,
-          {ARG_RANGE_TYPE_ANY_1, ARG_RANGE_TYPE_ANY_1},
+          {ARG_KIND_EXPR_RANGE_ANY_1, ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_OVERLAPS,
       }},
       FunctionOptions(range_options)
@@ -183,8 +181,8 @@ void GetRangeFunctions(TypeFactory* type_factory,
   InsertFunction(
       functions, options, "range_intersect", Function::SCALAR,
       {{
-          ARG_RANGE_TYPE_ANY_1,
-          {ARG_RANGE_TYPE_ANY_1, ARG_RANGE_TYPE_ANY_1},
+          ARG_KIND_EXPR_RANGE_ANY_1,
+          {ARG_KIND_EXPR_RANGE_ANY_1, ARG_KIND_EXPR_RANGE_ANY_1},
           FN_RANGE_INTERSECT,
       }},
       FunctionOptions(range_options)
@@ -233,17 +231,18 @@ void GetRangeFunctions(TypeFactory* type_factory,
       functions, options, "range_contains", Function::SCALAR,
       {{
            bool_type,
-           {ARG_RANGE_TYPE_ANY_1, ARG_RANGE_TYPE_ANY_1},
+           {ARG_KIND_EXPR_RANGE_ANY_1, ARG_KIND_EXPR_RANGE_ANY_1},
            FN_RANGE_CONTAINS_RANGE,
        },
        {
            bool_type,
-           {ARG_RANGE_TYPE_ANY_1, ARG_TYPE_ANY_1},
+           {ARG_KIND_EXPR_RANGE_ANY_1, ARG_KIND_EXPR_ANY_1},
            FN_RANGE_CONTAINS_ELEMENT,
        }},
       FunctionOptions(range_options)
           .set_pre_resolution_argument_constraint(
               &PreResolutionArgConstraintForUntypedNullOneRangeInput));
+  return absl::OkStatus();
 }
 
 }  // namespace googlesql

@@ -16,7 +16,7 @@
 
 module(
     name = "googlesql",
-    version = "2026.1.1",
+    version = "2026.6.1",
 )
 
 GOOGLESQL_JAVA_ARTIFACTS = [
@@ -46,7 +46,7 @@ GOOGLESQL_JAVA_ARTIFACTS = [
     "junit:junit:4.13.2",
 ]
 
-bazel_dep(name = "abseil-cpp", version = "20250814.1", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20260107.0", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "io_abseil_py")
 bazel_dep(name = "bazel_features", version = "1.33.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
@@ -59,7 +59,7 @@ bazel_dep(name = "google_benchmark", version = "1.9.4", repo_name = "com_github_
 bazel_dep(name = "googleapis", version = "0.0.0-20251003-2193a2bf", repo_name = "com_google_googleapis")
 bazel_dep(name = "googleapis-cc", version = "1.0.0")
 bazel_dep(name = "googletest", version = "1.17.0", repo_name = "com_google_googletest")
-bazel_dep(name = "grpc", version = "1.76.0.bcr.1", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "grpc", version = "1.81.1", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "grpc-java", version = "1.75.0", repo_name = "io_grpc_grpc_java")
 bazel_dep(name = "nlohmann_json", version = "3.12.0", repo_name = "json")
 bazel_dep(name = "platforms", version = "1.0.0")

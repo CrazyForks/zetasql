@@ -80,9 +80,9 @@ constexpr bool CanRepresentMaxPrecisely() {
 
 template <typename FloatType, typename ResultType>
 bool InRangeNoTruncate(FloatType value) {
-  static_assert(std::is_floating_point<FloatType>::value,
+  static_assert(std::is_floating_point_v<FloatType>,
                 "value must have floating point type");
-  static_assert(std::is_integral<ResultType>::value,
+  static_assert(std::is_integral_v<ResultType>,
                 "return value must have integral type");
   static_assert(sizeof(ResultType) <= 16,
                 "ResultType is no larger than 128 bits");
@@ -93,7 +93,7 @@ bool InRangeNoTruncate(FloatType value) {
     return false;
   }
   // Return false for unsigned type and negative value.
-  if (!std::is_signed<ResultType>::value && value < 0) {
+  if (!std::is_signed_v<ResultType> && value < 0) {
     return false;
   }
 

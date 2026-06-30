@@ -69,6 +69,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "googlesql/base/map_util.h"
 #include "googlesql/base/ret_check.h"
 
 namespace googlesql {
@@ -857,42 +858,66 @@ GraphDdlResolver::ResolveGraphPropertyList(
   };
 
   for (const auto& property_def : property_defs) {
+    bool is_x_as_x = false;
+    if (property_def->expr()->Is<ResolvedColumnRef>()) {
+      auto* ref = property_def->expr()->GetAs<ResolvedColumnRef>();
+      if (googlesql_base::CaseEqual(ref->column().name(),
+                                 property_def->property_declaration_name())) {
+        is_x_as_x = true;
+      }
+    }
+
     GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzerOptions::AddGraphProperty(
                         resolver_.analyzer_options(),
                         property_def->property_declaration_name(),
-                        property_def->expr()->type()))
+                        property_def->expr()->type(), is_x_as_x))
         .With(LocationOverride(ast_location));
   }
 
-  auto query_resolution_info =
-      std::make_unique<QueryResolutionInfo>(&resolver_);
-  auto measure_expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      query_resolution_info.get(), input_scope,
-      ExprResolutionInfoOptions{
-          .allows_aggregation = true,
-          .allows_analytic = false,
-          .clause_name = kPropertiesClause,
-          .is_graph_measure_expression = true,
-      });
+  // Build name-to-property map for all measure properties in this list.
+  CaseInsensitiveStringHashMap<const ASTGraphDerivedProperty*>
+      measure_properties;
+  // TODO: b/526817456 - Move this duplicate check to ValidateGraphPropertyList.
+  for (const auto& property : properties) {
+    if (IsMeasureProperty(property)) {
+      GOOGLESQL_ASSIGN_OR_RETURN(std::string name, GetPropertyDeclarationName(property));
+      if (!googlesql_base::InsertIfNotPresent(&measure_properties, {name, property})) {
+        return MakeSqlErrorAt(property)
+               << "Duplicate graph property name " << name;
+      }
+    }
+  }
+
+  // `unrecognized_graph_measure_name_` may be populated by the resolution
+  // of measure properties, so we assert it is empty at the beginning to avoid
+  // accidentally overwriting it.
+  GOOGLESQL_RET_CHECK(resolver_.unrecognized_graph_measure_name_.empty());
+  auto cleanup_resolver = absl::MakeCleanup(
+      [this] { resolver_.unrecognized_graph_measure_name_.clear(); });
+
+  ResolvedGraphPropertyDefinitionMap resolved_measure_properties;
+
   for (const auto& property : properties) {
     if (!IsMeasureProperty(property)) {
       continue;
     }
-
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        auto property_def,
-        ResolveGraphProperty(property, measure_expr_resolution_info.get()));
-
-    // Validate the resolved measure expression.
-    GOOGLESQL_RETURN_IF_ERROR(
-        ValidateMeasureExpression(property_def->sql(), *property_def->expr(),
-                                  resolver_.language(),
-                                  property_def->property_declaration_name()))
-        .With(LocationOverride(property->expression()));
-
-    property_defs.push_back(GetResolvedElementWithLocation(
-        std::move(property_def), property->location()));
+    CaseInsensitiveStringLinkedHashSet visited;
+    GOOGLESQL_RETURN_IF_ERROR(ResolveGraphMeasurePropertyRecursive(
+        property, input_scope, visited, measure_properties,
+        resolved_measure_properties));
   }
+
+  // Populate `property_defs` preserving the original definition order.
+  // TODO: b/526818550 - All measure properties are added at the end, which does
+  // not follow the syntax order. Fix this in a separate CL.
+  for (const auto& property : properties) {
+    if (IsMeasureProperty(property)) {
+      auto it = resolved_measure_properties.find(property);
+      GOOGLESQL_RET_CHECK(it != resolved_measure_properties.end());
+      property_defs.push_back(std::move(it->second));
+    }
+  }
+
   return property_defs;
 }
 
@@ -1588,6 +1613,125 @@ absl::Status GraphDdlResolver::ResolveCreatePropertyGraphStmt(
   *output = absl::WrapUnique(const_cast<ResolvedCreatePropertyGraphStmt*>(
       create_property_graph_stmt.release()));
   return absl::OkStatus();
+}
+
+absl::Status GraphDdlResolver::ResolveGraphMeasurePropertyRecursive(
+    const ASTGraphDerivedProperty* property, const NameScope* input_scope,
+    CaseInsensitiveStringLinkedHashSet& visited,
+    const CaseInsensitiveStringHashMap<const ASTGraphDerivedProperty*>&
+        measure_properties,
+    ResolvedGraphPropertyDefinitionMap& resolved_properties) const {
+  GOOGLESQL_ASSIGN_OR_RETURN(std::string measure_name,
+                   GetPropertyDeclarationName(property));
+
+  if (resolved_properties.contains(property)) {
+    return absl::OkStatus();
+  }
+
+  if (visited.contains(measure_name)) {
+    if (visited.size() == 1) {
+      return MakeSqlErrorAt(property)
+             << "The column " << measure_name << " is recursive";
+    }
+    std::string visited_str = absl::StrJoin(visited, ", ");
+    return MakeSqlErrorAt(property)
+           << "Recursive dependencies detected when resolving column "
+           << *visited.begin() << ", which include objects (" << visited_str
+           << ")";
+  }
+
+  visited.insert(measure_name);
+  auto cleanup_visited = absl::MakeCleanup(
+      [&visited, &measure_name] { visited.erase(measure_name); });
+
+  if (visited.size() > kMaxGraphMeasureRecursionDepth) {
+    return MakeSqlErrorAt(property)
+           << "Graph measure dependency chain is too deep: " << visited.size()
+           << " (limit: " << kMaxGraphMeasureRecursionDepth << ")";
+  }
+
+  static constexpr char kPropertiesClause[] = "PROPERTIES clause";
+
+  int dependency_count = 0;
+  while (true) {
+    if (++dependency_count > kMaxGraphMeasureDependencies) {
+      return MakeSqlErrorAt(property) << "Graph measure " << measure_name
+                                      << " has too many dependencies (limit: "
+                                      << kMaxGraphMeasureDependencies << ")";
+    }
+    resolver_.unrecognized_graph_measure_name_.clear();
+
+    auto query_resolution_info =
+        std::make_unique<QueryResolutionInfo>(&resolver_);
+    auto measure_expr_resolution_info = std::make_unique<ExprResolutionInfo>(
+        query_resolution_info.get(), input_scope,
+        ExprResolutionInfoOptions{
+            .allows_aggregation = true,
+            .allows_analytic = false,
+            .clause_name = kPropertiesClause,
+            .is_graph_measure_expression = true,
+        });
+
+    absl::StatusOr<std::unique_ptr<const ResolvedGraphPropertyDefinition>>
+        property_def_status =
+            ResolveGraphProperty(property, measure_expr_resolution_info.get());
+
+    if (property_def_status.ok()) {
+      std::unique_ptr<const ResolvedGraphPropertyDefinition> property_def =
+          std::move(property_def_status).value();
+
+      // Validate the resolved measure expression.
+      GOOGLESQL_RETURN_IF_ERROR(
+          ValidateMeasureExpression(property_def->sql(), *property_def->expr(),
+                                    resolver_.language(),
+                                    property_def->property_declaration_name()))
+          .With(LocationOverride(property));
+
+      // Register the resolved type in options for subsequent derived measures.
+      GOOGLESQL_ASSIGN_OR_RETURN(const Type* measure_type,
+                       resolver_.type_factory()->MakeMeasureType(
+                           property_def->expr()->type()));
+      bool is_x_as_x = false;
+      if (property_def->expr()->Is<ResolvedColumnRef>()) {
+        auto* ref = property_def->expr()->GetAs<ResolvedColumnRef>();
+        if (googlesql_base::CaseEqual(ref->column().name(),
+                                   property_def->property_declaration_name())) {
+          is_x_as_x = true;
+        }
+      }
+      GOOGLESQL_RETURN_IF_ERROR(InternalAnalyzerOptions::AddGraphProperty(
+                          resolver_.analyzer_options(),
+                          property_def->property_declaration_name(),
+                          measure_type, is_x_as_x))
+          .With(LocationOverride(property));
+
+      resolved_properties[property] = GetResolvedElementWithLocation(
+          std::move(property_def), property->location());
+      return absl::OkStatus();
+    }
+
+    // If there is no unrecognized name recorded, it is a real error, so return
+    // it.
+    if (resolver_.unrecognized_graph_measure_name_.empty()) {
+      return property_def_status.status();
+    }
+
+    // Find the dependency in the list of measure properties.
+    const ASTGraphDerivedProperty* const* dependency_property =
+        googlesql_base::FindOrNull(measure_properties,
+                        resolver_.unrecognized_graph_measure_name_.ToString());
+    if (dependency_property == nullptr) {
+      // The unrecognized name is not a measure property declared, so it cannot
+      // be an unresolved forward reference. Return the original resolution
+      // error.
+      return property_def_status.status();
+    }
+
+    // Recursively resolve the dependency.
+    GOOGLESQL_RETURN_IF_ERROR(ResolveGraphMeasurePropertyRecursive(
+        *dependency_property, input_scope, visited, measure_properties,
+        resolved_properties));
+  }
 }
 
 }  // namespace googlesql

@@ -17,6 +17,8 @@
 #ifndef GOOGLESQL_COMMON_MATCH_RECOGNIZE_ROW_EDGE_LIST_H_
 #define GOOGLESQL_COMMON_MATCH_RECOGNIZE_ROW_EDGE_LIST_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -28,13 +30,16 @@
 #include "absl/types/span.h"
 
 namespace googlesql::functions::match_recognize {
+
 // Data structure which allows each edge in an NFA to be marked or unmarked for
 // each row in a row sequence. Used to implement steps 4-6 in
 // (broken link).
+
 class RowEdgeList {
  public:
   // The edge_numbering provided must outlive this object.
-  explicit RowEdgeList(const CompiledNFA* /*absl_nonnull*/ nfa) : nfa_(*nfa) {}
+  explicit RowEdgeList(const CompiledNFA* /*absl_nonnull*/ nfa)
+      : nfa_(*nfa), num_rows_(0) {}
 
   // As copying can be expensive when dealing with large partitions, allow
   // objects of this class to be moved, but not copied.
@@ -78,12 +83,22 @@ class RowEdgeList {
  private:
   // Returns the index into `bits_` associated with the given
   // row number/edge number combination.
-  int GetBitIndex(int row_number, int edge_number) const;
+  size_t GetBitIndex(int row_number, int edge_number) const;
 
   const CompiledNFA& nfa_;
 
-  // One bit per row, per edge. Ordered by row number first, then edge number.
-  std::vector<bool> bits_;
+  // One bit per row, per edge, packed 64 bits per vector element, for
+  // performance reasons. Microbenchmark runs have shown this implementation to
+  // be considerably faster than the std::vector<bool> alternative.
+  //
+  // Ordered by row number first, then edge number.
+  std::vector<uint64_t> bits_;
+
+  // Number of rows stored. Kept in sync with bits_ so that bits_.size() is
+  // always equal to Ceil(num_rows_ * num_edges / 64).
+  int num_rows_ = 0;
 };
+
 }  // namespace googlesql::functions::match_recognize
+
 #endif  // GOOGLESQL_COMMON_MATCH_RECOGNIZE_ROW_EDGE_LIST_H_

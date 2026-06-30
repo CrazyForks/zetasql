@@ -32,8 +32,8 @@ void GetMeasureFunctions(TypeFactory* type_factory,
                          NameToFunctionMap* functions) {
   InsertFunction(
       functions, options, "AGG", Function::AGGREGATE,
-      {{ARG_TYPE_ANY_1,
-        {ARG_MEASURE_TYPE_ANY_1},
+      {{ARG_KIND_EXPR_ANY_1,
+        {ARG_KIND_EXPR_MEASURE_ANY_1},
         FN_AGG,
         FunctionSignatureOptions().set_rewrite_options(
             FunctionSignatureRewriteOptions().set_enabled(true).set_rewriter(

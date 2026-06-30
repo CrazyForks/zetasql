@@ -104,11 +104,12 @@ MakeArrayFaulty(std::vector<std::unique_ptr<const ResolvedExpr>> elements,
   FunctionArgumentType result_type(array_type,
                                    catalog_signature->result_type().options(),
                                    /*num_occurrences=*/1);
-  result_type.set_original_kind(SignatureArgumentKind::ARG_ARRAY_TYPE_ANY_1);
+  result_type.set_original_kind(
+      SignatureArgumentKind::ARG_KIND_EXPR_ARRAY_ANY_1);
   FunctionArgumentType arguments_type(array_type->element_type(),
                                       catalog_signature->argument(0).options(),
                                       static_cast<int>(elements.size()));
-  arguments_type.set_original_kind(SignatureArgumentKind::ARG_TYPE_ANY_1);
+  arguments_type.set_original_kind(SignatureArgumentKind::ARG_KIND_EXPR_ANY_1);
   FunctionSignature make_array_signature(result_type, {arguments_type},
                                          catalog_signature->context_id(),
                                          catalog_signature->options());

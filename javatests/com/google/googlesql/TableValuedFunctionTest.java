@@ -42,7 +42,7 @@ public final class TableValuedFunctionTest {
     ImmutableList<String> functionNamePath = ImmutableList.of("tvf_name");
     FunctionArgumentType relationArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder().build(),
             1);
     FunctionSignature signatureRelationArg =
@@ -66,7 +66,7 @@ public final class TableValuedFunctionTest {
     ImmutableList<String> functionNamePath = ImmutableList.of("tvf_name");
     FunctionArgumentType relationArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder().build(),
             1);
     FunctionSignature signatureRelationArg =
@@ -90,7 +90,7 @@ public final class TableValuedFunctionTest {
     ImmutableList<String> functionNamePath = ImmutableList.of("tvf_name");
     FunctionArgumentType relationArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder().build(),
             1);
     FunctionSignature signatureRelationArg =
@@ -114,7 +114,7 @@ public final class TableValuedFunctionTest {
     ImmutableList<String> functionNamePath = ImmutableList.of("tvf_name");
     FunctionArgumentType relationArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder().build(),
             1);
     FunctionSignature signatureRelationArg =
@@ -153,7 +153,7 @@ public final class TableValuedFunctionTest {
         TableValuedFunctionOptionsProto.newBuilder().setUsesUpperCaseSqlName(false).build();
     FunctionArgumentType relationWithSchemaArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder()
                 .setCardinality(ArgumentCardinality.REQUIRED)
                 .setRelationInputSchema(tvfSchema)
@@ -205,15 +205,15 @@ public final class TableValuedFunctionTest {
 
     FunctionArgumentType relationWithSchemaArg =
         new FunctionArgumentType(
-            SignatureArgumentKind.ARG_TYPE_RELATION,
+            SignatureArgumentKind.ARG_KIND_RELATION,
             FunctionArgumentType.FunctionArgumentTypeOptions.builder()
                 .setRelationInputSchema(tvfSchema)
                 .build(),
             1);
     FunctionArgumentType anyRelationArg =
-        new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_RELATION);
+        new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_RELATION);
     FunctionArgumentType anyTypeArg =
-        new FunctionArgumentType(SignatureArgumentKind.ARG_TYPE_ARBITRARY);
+        new FunctionArgumentType(SignatureArgumentKind.ARG_KIND_EXPR_ARBITRARY);
 
     long contextId = 0;
     FunctionSignature signatureRelationArg =

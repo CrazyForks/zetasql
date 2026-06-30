@@ -878,6 +878,7 @@ cc_test(
 test_suite(
     name = "fast",
     tags = [
+        "-benchmark",
         "-enormous",
         "-java",
         "-large",

@@ -179,8 +179,9 @@ constexpr absl::string_view kIsDestNodeOpFnName = "$is_dest_node";
 constexpr absl::string_view kInvalidBinaryOperatorStr =
     "$invalid_binary_operator";
 
-absl::string_view FunctionResolver::BinaryOperatorToFunctionName(
-    ASTBinaryExpression::Op op, bool is_not, bool* not_handled) {
+absl::StatusOr<absl::string_view>
+FunctionResolver::BinaryOperatorToFunctionName(ASTBinaryExpression::Op op,
+                                               bool is_not, bool* not_handled) {
   if (not_handled != nullptr) {
     *not_handled = false;
   }
@@ -221,7 +222,7 @@ absl::string_view FunctionResolver::BinaryOperatorToFunctionName(
       return kConcatOpFnName;
     case ASTBinaryExpression::DISTINCT:
       if (is_not) {
-        ABSL_CHECK(not_handled != nullptr);
+        GOOGLESQL_RET_CHECK(not_handled != nullptr);
         *not_handled = true;
         return kNotDistinctOpFnName;
       } else {
@@ -1811,6 +1812,18 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
       std::move(named_arguments), expected_result_type, resolved_expr_out);
 }
 
+// Returns the nested ASTFunctionRefArg if the argument is a function reference,
+// unwrapping named arguments if necessary. Returns nullptr otherwise.
+static const ASTFunctionRefArg* GetFunctionRefArgument(const ASTNode* arg) {
+  if (arg->Is<ASTFunctionRefArg>()) {
+    return arg->GetAsOrDie<ASTFunctionRefArg>();
+  }
+  if (arg->Is<ASTNamedArgument>()) {
+    return GetFunctionRefArgument(arg->GetAsOrDie<ASTNamedArgument>()->expr());
+  }
+  return nullptr;
+}
+
 // Shorthand to make ResolvedFunctionArgument from ResolvedExpr
 static std::unique_ptr<ResolvedFunctionArgument> MakeResolvedFunctionArgument(
     std::unique_ptr<const ResolvedExpr> expr) {
@@ -2165,17 +2178,27 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
             googlesql::MakeResolvedFunctionArgument();
         arg->set_sequence(std::move(resolved_sequence));
         arg_overrides.push_back(FunctionArgumentOverride{i, std::move(arg)});
+      } else if (input_arg_type.is_model()) {
+        const ASTModelArg* model_arg = arg_locations[i]->GetAs<ASTModelArg>();
+        std::unique_ptr<const ResolvedModel> resolved_model;
+        GOOGLESQL_RETURN_IF_ERROR(
+            resolver_->ResolveModel(model_arg->model_path(), &resolved_model));
+        std::unique_ptr<ResolvedFunctionArgument> arg =
+            MakeResolvedFunctionArgument();
+        arg->set_model(std::move(resolved_model));
+        arg_overrides.push_back(FunctionArgumentOverride{i, std::move(arg)});
       }
     } else if (input_arg_type.is_lambda() &&
                resolver_->language().LanguageFeatureEnabled(
                    FEATURE_UDF_LAMBDA_ARGUMENTS)) {
       const ASTNode* arg_ast = arg_locations[i];
-      if (arg_ast->Is<ASTPathExpression>()) {
-        // If the argument is a path expression (referencing a function-typed
-        // parameter), we look up the proxy function generated for it and create
-        // a ResolvedFunctionRef to pass as the argument override.
-        const ASTPathExpression* path_expr =
-            arg_ast->GetAsOrDie<ASTPathExpression>();
+      const ASTFunctionRefArg* func_ref = GetFunctionRefArgument(arg_ast);
+      if (func_ref != nullptr) {
+        // If the argument is a function reference, we look up the proxy
+        // function generated for it and create a ResolvedFunctionRef to pass as
+        // the argument override.
+        const ASTPathExpression* path_expr = func_ref->function_path();
+        GOOGLESQL_RET_CHECK_EQ(path_expr->num_names(), 1);
         IdString first_name = path_expr->first_name()->GetAsIdString();
 
         // Lookup the proxy function generated for the function-typed parameter.
@@ -2338,6 +2361,15 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
           << "No arg override found for sequence argument";
       GOOGLESQL_RET_CHECK(arg_override->argument->sequence() != nullptr);
       continue;
+    } else if (concrete_argument.IsModel()) {
+      GOOGLESQL_RET_CHECK(arguments[idx] == nullptr);
+      auto arg_override = std::find_if(
+          arg_overrides.begin(), arg_overrides.end(),
+          [&](const FunctionArgumentOverride& o) { return o.index == idx; });
+      GOOGLESQL_RET_CHECK(arg_override != arg_overrides.end())
+          << "No arg override found for model argument";
+      GOOGLESQL_RET_CHECK(arg_override->argument->model() != nullptr);
+      continue;
     }
     ABSL_DCHECK(arguments[idx] != nullptr);
     GOOGLESQL_RETURN_IF_ERROR(CheckArgumentConstraints(
@@ -2400,7 +2432,7 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     //    c. Some functions may templating plus custom checks to avoid
     //       enumerating all signatures. Those functions need to handle
     //       propagation in their custom code.
-    if (concrete_argument.original_kind() != ARG_TYPE_FIXED) {
+    if (concrete_argument.original_kind() != ARG_KIND_EXPR_FIXED) {
       // TODO: ANY STRING, and such type bounds which
       // may require coercion need to properly handle that coercion here, so
       // this may not always be a no-op, and we may need to set
@@ -2981,7 +3013,7 @@ absl::Status FunctionResolver::ResolveTemplatedSQLFunctionCall(
   GOOGLESQL_RET_CHECK_EQ(1, function.NumSignatures());
   const FunctionArgumentType& expected_type =
       function.signatures()[0].result_type();
-  if (expected_type.kind() == ARG_TYPE_FIXED) {
+  if (expected_type.kind() == ARG_KIND_EXPR_FIXED) {
     GOOGLESQL_RET_CHECK(expression != nullptr);
     if (absl::Status status = resolver_->CoerceExprToType(
             expression, expected_type.type(),

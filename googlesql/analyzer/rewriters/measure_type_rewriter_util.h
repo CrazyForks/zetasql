@@ -36,6 +36,9 @@
 
 namespace googlesql {
 
+inline constexpr int kReferencedColumnsFieldIndex = 0;
+inline constexpr int kKeyColumnsFieldIndex = 1;
+
 // Returns whether `expr` is a builtin function `AGG(MEASURE<T>) => T`.
 bool IsMeasureAggFunction(const ResolvedExpr* expr);
 

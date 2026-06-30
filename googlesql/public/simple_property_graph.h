@@ -440,7 +440,7 @@ class SimpleGraphPropertyDefinition : public GraphPropertyDefinition {
   // the deserialization code.
   // TODO: remove this field once we are able to store unique_ptrs on
   // the AnalyzerOutput.
-  const ResolvedExpr* resolved_expr_;
+  const ResolvedExpr* resolved_expr_ = nullptr;
   friend class InternalPropertyGraph;
 };
 class SimpleGraphDynamicLabel : public GraphDynamicLabel {

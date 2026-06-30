@@ -230,8 +230,10 @@ absl::Status GetBuiltinFunctionsAndTypes(
   GetErrorHandlingFunctions(&type_factory, options, &functions);
   GetConditionalFunctions(&type_factory, options, &functions);
   GetMiscellaneousFunctions(&type_factory, options, &functions);
+  GOOGLESQL_RETURN_IF_ERROR(
+      GetVectorFunctions(&type_factory, options, &functions, &types));
   GOOGLESQL_RETURN_IF_ERROR(GetDistanceFunctions(&type_factory, options, &functions,
-                                       output_properties));
+                                       &types, output_properties));
   GetArrayMiscFunctions(&type_factory, options, &functions);
   GetArrayAggregationFunctions(&type_factory, options, &functions);
   GetSubscriptFunctions(&type_factory, options, &functions);
@@ -248,12 +250,12 @@ absl::Status GetBuiltinFunctionsAndTypes(
   GetEncryptionFunctions(&type_factory, options, &functions);
   GetGeographyFunctions(&type_factory, options, &functions);
   GetCompressionFunctions(&type_factory, options, &functions);
-  GetAnonFunctions(&type_factory, options, &functions);
+  GOOGLESQL_RETURN_IF_ERROR(GetAnonFunctions(&type_factory, options, &functions));
   GOOGLESQL_RETURN_IF_ERROR(GetDifferentialPrivacyFunctions(&type_factory, options,
                                                   &functions, &types));
   GetTypeOfFunction(&type_factory, options, &functions);
   GetFilterFieldsFunction(&type_factory, options, &functions);
-  GetRangeFunctions(&type_factory, options, &functions);
+  GOOGLESQL_RETURN_IF_ERROR(GetRangeFunctions(&type_factory, options, &functions));
   GetArraySlicingFunctions(&type_factory, options, &functions);
   GetArrayFilteringFunctions(&type_factory, options, &functions);
   GetArrayTransformFunctions(&type_factory, options, &functions);

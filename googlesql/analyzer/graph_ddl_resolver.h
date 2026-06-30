@@ -29,6 +29,7 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/base/case.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/linked_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -92,6 +93,28 @@ class GraphDdlResolver {
       absl::flat_hash_map<absl::string_view, T,
                           googlesql_base::StringViewCaseHash,
                           googlesql_base::StringViewCaseEqual>;
+
+  using CaseInsensitiveStringLinkedHashSet =
+      absl::linked_hash_set<std::string, googlesql_base::StringViewCaseHash,
+                            googlesql_base::StringViewCaseEqual>;
+
+  template <typename T>
+  using CaseInsensitiveStringHashMap =
+      absl::flat_hash_map<std::string, T, googlesql_base::StringViewCaseHash,
+                          googlesql_base::StringViewCaseEqual>;
+
+  using ResolvedGraphPropertyDefinitionMap = absl::flat_hash_map<
+      const ASTGraphDerivedProperty*,
+      std::unique_ptr<const ResolvedGraphPropertyDefinition>>;
+
+  // The two constants below are used to limit the recursion resolution of
+  // forward measure dependencies.
+  //
+  // The maximum number of forward dependencies for a measure property.
+  static constexpr int kMaxGraphMeasureDependencies = 20;
+
+  // The maximum depth of a forward measure property dependency chain.
+  static constexpr int kMaxGraphMeasureRecursionDepth = 10;
 
   // Resolves `input_table_name` into a corresponding
   // ResolvedTableScan and inserts accessible names into
@@ -190,6 +213,54 @@ class GraphDdlResolver {
 
   absl::Status ValidateGraphPropertyList(
       absl::Span<const ASTGraphDerivedProperty* const> properties) const;
+
+  // Resolves a measure property recursively, handling forward declarations and
+  // tracking visited names to detect dependency cycles.
+  //
+  // Inputs:
+  // - `property`: The measure property to resolve.
+  // - `input_scope`: The scope for resolving the expression.
+  // - `ast_location`: AST location for general errors.
+  // - `visited`: Set of measure names visited on the current path.
+  // - `measure_properties`: All measure properties declared in the current
+  //   context, including unresolved ones.
+  //
+  // Output:
+  // - `resolved_properties`: Stores the resolved measure property definitions.
+  //
+  // The algorithm uses a trial-and-error approach to resolve forward
+  // declarations. It tries to resolve the measure property directly. If that
+  // fails, it checks if the error is due to an unrecognized name that may be a
+  // forward measure property declaration. If so, it recursively tries to
+  // resolve the dependency first, and if that succeeds, it registers the
+  // dependency measure property and retries resolving the original measure
+  // property.
+  //
+  // This trial-and-error approach is necessary because it is not possible to
+  // determine whether a name is a forward measure property declaration or not
+  // without trying to resolve it. For example, consider the following:
+  //
+  // ```
+  // MEASURE((SELECT 1 AS a) + 1) AS b,
+  // MEASURE(SUM(x)) AS a
+  // ```
+  //
+  // The `a` in the definition expression of `b` is not a reference to the
+  // measure property `a`, but we cannot know this until we actually resolve it.
+  //
+  // The time complexity of this function is O((V + E) * E * L), where
+  // - V is the number of measure properties, and
+  // - E is the number of dependencies between the measure properties, and
+  // - L is the time to resolve a single measure property.
+  //
+  // TODO: b/508012465 - We should improve the time complexity to O((V + E) * L)
+  // by avoiding the repeated resolution of the same measure property.
+  absl::Status ResolveGraphMeasurePropertyRecursive(
+      const ASTGraphDerivedProperty* property, const NameScope* input_scope,
+      CaseInsensitiveStringLinkedHashSet& visited,
+      const CaseInsensitiveStringHashMap<const ASTGraphDerivedProperty*>&
+          measure_properties,
+      ResolvedGraphPropertyDefinitionMap& resolved_properties) const;
 
   Resolver& resolver_;
 };

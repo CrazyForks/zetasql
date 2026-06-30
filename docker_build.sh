@@ -33,12 +33,21 @@ elif [ "$MODE" = "release" ]; then
   cp /googlesql/bazel-bin/googlesql/tools/execute_query/execute_query $HOME/bin/execute_query
 
   # Build Java artifacts
-  bazel build ${BAZEL_ARGS} -c opt --define=pom_version=${VERSION} java/...
+  ARTIFACTS=(client jni-channel jni-channel-darwin jni-channel-linux types)
+  targets=()
+  for artifact in "${ARTIFACTS[@]}"; do
+    target_name=${artifact//-/_}
+    targets+=("//java/com/google/googlesql:${target_name}_pom")
+    targets+=("//java/com/google/googlesql:${target_name}_jar")
+    targets+=("//java/com/google/googlesql:${target_name}_src")
+    targets+=("//java/com/google/googlesql:${target_name}_javadoc")
+  done
+  bazel build ${BAZEL_ARGS} -c opt --define=pom_version=${VERSION} "${targets[@]}"
 
   # Stage Java artifacts for copying
   mkdir -p /googlesql/java_staging
   bin=/googlesql/bazel-bin/java/com/google/googlesql
-  for artifact in client jni-channel jni-channel-darwin jni-channel-linux types; do
+  for artifact in "${ARTIFACTS[@]}"; do
     cp ${bin}/${artifact//-/_}_pom.xml /googlesql/java_staging/googlesql-${artifact}.pom
     cp ${bin}/${artifact//-/_}_jar.jar /googlesql/java_staging/googlesql-${artifact}.jar
     cp ${bin}/${artifact//-/_}_src.jar /googlesql/java_staging/googlesql-${artifact}-sources.jar

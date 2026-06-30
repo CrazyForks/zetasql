@@ -72,10 +72,17 @@ message TestTableOptionsProto {
   // be set to an empty string.
   optional string userid_column = 6;
 
-  // Annotations for each column of the table. nullptr from
-  // <TestTableOptions.column_annotations_> is serialized into an empty
-  // AnnotationMapProto object.
+  // Annotations for each column of the table. <column_annotations> is either
+  // empty or has the same number of elements as the number of the columns in
+  // the table. nullptr from <TestTableOptions.column_annotations_> is
+  // serialized into an empty AnnotationMapProto object.
   repeated googlesql.AnnotationMapProto column_annotations = 7;
+
+  // Pseudo-columns for each column of the table. <pseudo_columns> is either
+  // empty or has the same number of elements as the number of the columns in
+  // the table.
+  // Pseudo-columns can be selected explicitly but do not show up in SELECT *.
+  repeated bool pseudo_columns = 8;
 }
 
 message TestTableProto {
