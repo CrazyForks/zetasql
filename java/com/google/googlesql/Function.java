@@ -19,6 +19,7 @@ package com.google.googlesql;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 
+import com.google.common.base.Ascii;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -171,7 +172,7 @@ public class Function implements Serializable {
       name = getFullName();
     }
     if (options.getUsesUpperCaseSqlName()) {
-      name = name.toUpperCase();
+      name = Ascii.toUpperCase(name);
     }
     return name;
   }

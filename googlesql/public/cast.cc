@@ -328,6 +328,7 @@ const CastHashMap* InitializeGoogleSQLCasts() {
 
   ADD_TO_MAP(STRING,     UUID,       EXPLICIT_OR_LITERAL_OR_PARAMETER);
   ADD_TO_MAP(BYTES,      UUID,       EXPLICIT);
+  ADD_TO_MAP(COLUMN_LIST_SPEC, COLUMN_LIST_SPEC, IMPLICIT);
   // clang-format on
 
   return map;

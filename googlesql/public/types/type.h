@@ -233,6 +233,7 @@ class Type {
   bool IsSignedInteger() const { return IsInt32() || IsInt64(); }
   bool IsUnsignedInteger() const { return IsUint32() || IsUint64(); }
   bool IsUuid() const { return kind_ == TYPE_UUID; }
+  bool IsColumnListSpec() const { return kind_ == TYPE_COLUMN_LIST_SPEC; }
 
   // Simple types are those builtin types that can be represented with just a
   // TypeKind, with no parameters. This exists instead of IsScalarType because
@@ -321,6 +322,9 @@ class Type {
       return false;
     }
     if (IsTokenList()) {
+      return false;
+    }
+    if (IsColumnListSpec()) {
       return false;
     }
     return true;

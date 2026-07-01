@@ -175,6 +175,16 @@ TEST(CheckStringFormat, TestUnsupportedType) {
   EXPECT_THAT(CheckStringFormatUtf8ArgumentTypes("%t", {graph_element_type},
                                                  ProductMode::PRODUCT_EXTERNAL),
               StatusIs(absl::StatusCode::kUnimplemented));
+  EXPECT_THAT(CheckStringFormatUtf8ArgumentTypes(
+                  "%t", {type_factory.get_column_list_spec()},
+                  ProductMode::PRODUCT_EXTERNAL),
+              StatusIs(absl::StatusCode::kUnimplemented));
+  std::string output;
+  bool is_null;
+  EXPECT_THAT(
+      StringFormatUtf8("%t", {Value::Null(type_factory.get_column_list_spec())},
+                       ProductMode::PRODUCT_EXTERNAL, &output, &is_null),
+      StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 TEST(CheckStringFormat, UnsupportedForDeclarativeTypes) {

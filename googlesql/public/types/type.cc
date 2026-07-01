@@ -388,6 +388,12 @@ constexpr TypeKindInfoList MakeTypeKindInfoList() {
       .specificity = 37,
       .simple = false,
   };
+  kinds[TYPE_COLUMN_LIST_SPEC] = {
+      .name = "COLUMN_LIST_SPEC",
+      .cost = 38,
+      .specificity = 38,
+      .simple = true,
+  };
 
   return kinds;
 }
@@ -706,7 +712,8 @@ bool Type::SupportsPartitioning(const LanguageOptions& language_options,
 bool Type::SupportsPartitioningImpl(const LanguageOptions& language_options,
                                     const Type** no_partitioning_type) const {
   bool supports_partitioning =
-      !this->IsGeography() && !this->IsFloatingPoint() && !this->IsTokenList();
+      !this->IsGeography() && !this->IsFloatingPoint() &&
+      !this->IsTokenList() && !this->IsColumnListSpec();
   if (this->IsJson()) {
     supports_partitioning =
         language_options.LanguageFeatureEnabled(FEATURE_JSON_TYPE_COMPARISON);
@@ -720,7 +727,8 @@ bool Type::SupportsPartitioningImpl(const LanguageOptions& language_options,
 
 bool Type::SupportsOrdering(const LanguageOptions& language_options,
                             std::string* type_description) const {
-  bool supports_ordering = !IsGeography() && !IsTokenList();
+  bool supports_ordering =
+      !IsGeography() && !IsTokenList() && !IsColumnListSpec();
 
   if (this->IsJson()) {
     supports_ordering =

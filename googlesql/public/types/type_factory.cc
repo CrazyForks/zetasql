@@ -133,6 +133,7 @@ static const auto* StaticTypeSet() {
       types::JsonType(),
       types::TokenListType(),
       types::UuidType(),
+      types::ColumnListSpecType(),
   };
   return kStaticTypeSet;
 }
@@ -256,6 +257,9 @@ const Type* TypeFactory::get_bignumeric() { return types::BigNumericType(); }
 const Type* TypeFactory::get_json() { return types::JsonType(); }
 const Type* TypeFactory::get_tokenlist() { return types::TokenListType(); }
 const Type* TypeFactory::get_uuid() { return types::UuidType(); }
+const Type* TypeFactory::get_column_list_spec() {
+  return types::ColumnListSpecType();
+}
 
 const Type* TypeFactory::MakeSimpleType(TypeKind kind) {
   ABSL_CHECK(Type::IsSimpleType(kind))
@@ -1267,6 +1271,12 @@ static const Type* s_uuid_type() {
   return s_uuid_type;
 }
 
+static const Type* s_column_list_spec_type() {
+  static const Type* s_column_list_spec_type =
+      new SimpleType(s_type_factory(), TYPE_COLUMN_LIST_SPEC);
+  return s_column_list_spec_type;
+}
+
 static const EnumType* GetArrayFindModeEnumType() {
   static const EnumType* s_array_find_mode_enum_type = [] {
     const EnumType* enum_type;
@@ -1555,6 +1565,7 @@ const EnumType* UnsupportedFieldsEnumType() {
   return s_unsupported_fields_enum_type();
 }
 const Type* UuidType() { return s_uuid_type(); }
+const Type* ColumnListSpecType() { return s_column_list_spec_type(); }
 
 const ArrayType* Int32ArrayType() { return s_int32_array_type(); }
 const ArrayType* Int64ArrayType() { return s_int64_array_type(); }
@@ -1630,6 +1641,8 @@ const Type* TypeFromSimpleTypeKind(TypeKind type_kind) {
       return TokenListType();
     case TYPE_UUID:
       return UuidType();
+    case TYPE_COLUMN_LIST_SPEC:
+      return ColumnListSpecType();
     default:
       GOOGLESQL_VLOG(1) << "Could not build static Type from type: "
               << Type::TypeKindToString(type_kind, PRODUCT_INTERNAL);

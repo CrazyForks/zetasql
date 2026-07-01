@@ -134,6 +134,8 @@ const std::map<absl::string_view, TypeNameInfo>& SimpleTypeNameInfoMap() {
       {"json", {TYPE_JSON}},
       {"tokenlist", {TYPE_TOKENLIST}},
       {"uuid", {TYPE_UUID}},
+      {"column_list_spec",
+       {TYPE_COLUMN_LIST_SPEC, false, FEATURE_COLUMN_LIST_SPEC}},
   };
   return *result;
 }
@@ -229,6 +231,8 @@ const TypeKindInfo* GetSimpleTypeKindInfo(TypeKind kind) {
     result[TYPE_TOKENLIST] =
         TypeKindInfo::BuildWithTypeFeature(FEATURE_TOKENIZED_SEARCH);
     result[TYPE_UUID] = TypeKindInfo::BuildWithTypeFeature(FEATURE_UUID_TYPE);
+    result[TYPE_COLUMN_LIST_SPEC] =
+        TypeKindInfo::BuildWithTypeFeature(FEATURE_COLUMN_LIST_SPEC);
     return result;
   }());
   const int kind_id = static_cast<int>(kind);
@@ -497,6 +501,8 @@ std::string SimpleType::CapitalizedName() const {
       return "TokenList";
     case TYPE_UUID:
       return "Uuid";
+    case TYPE_COLUMN_LIST_SPEC:
+      return "ColumnListSpec";
     default:
       ABSL_LOG(FATAL) << "Unexpected simple type kind: " << kind();
   }
@@ -536,12 +542,22 @@ bool SimpleType::SupportsGroupingImpl(const LanguageOptions& language_options,
                                       const Type** no_grouping_type) const {
   const bool supports_grouping =
       !this->IsGeography() && !this->IsTokenList() &&
+      !this->IsColumnListSpec() &&
       !(this->IsJson() &&
         !language_options.LanguageFeatureEnabled(FEATURE_JSON_TYPE_COMPARISON));
   if (no_grouping_type != nullptr) {
     *no_grouping_type = supports_grouping ? nullptr : this;
   }
   return supports_grouping;
+}
+
+bool SimpleType::SupportsReturningImpl(const LanguageOptions& language_options,
+                                       const Type** no_returning_type) const {
+  const bool supports_returning = !this->IsColumnListSpec();
+  if (no_returning_type != nullptr) {
+    *no_returning_type = supports_returning ? nullptr : this;
+  }
+  return supports_returning;
 }
 
 void SimpleType::CopyValueContent(TypeKind kind, const ValueContent& from,

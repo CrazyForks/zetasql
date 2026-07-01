@@ -176,6 +176,7 @@ class TypeFactory : public TypeFactoryBase {
   const Type* get_json();
   const Type* get_tokenlist();
   const Type* get_uuid();
+  const Type* get_column_list_spec();
 
   // Return a Type object for a simple type.  This works for all
   // non-parameterized scalar types.  Enums, arrays, structs and protos must
@@ -661,6 +662,7 @@ const Type* JsonType();
 const Type* TokenListType();
 const StructType* EmptyStructType();
 const Type* UuidType();
+const Type* ColumnListSpecType();
 
 // ArrayTypes
 const ArrayType* Int32ArrayType();

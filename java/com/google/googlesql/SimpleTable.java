@@ -17,6 +17,9 @@
 
 package com.google.googlesql;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
+
+import com.google.common.base.Ascii;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -264,11 +267,10 @@ public final class SimpleTable implements Table {
 
   @Override
   public SimpleColumn findColumnByName(String name) {
-    if (name != null && !name.isEmpty() && columnsMap.containsKey(name.toLowerCase())) {
-      return columnsMap.get(name.toLowerCase());
-    } else {
+    if (isNullOrEmpty(name)) {
       return null;
     }
+    return columnsMap.get(Ascii.toLowerCase(name));
   }
 
   @Override
@@ -376,7 +378,7 @@ public final class SimpleTable implements Table {
       Preconditions.checkArgument(!column.getName().isEmpty(), "Empty column names not allowed");
     }
 
-    String columnName = column.getName().toLowerCase();
+    String columnName = Ascii.toLowerCase(column.getName());
     if (columnsMap.containsKey(columnName)) {
       Preconditions.checkArgument(
           allowDuplicateColumnNames, "Duplicate column in %s: %s", getFullName(), column.getName());

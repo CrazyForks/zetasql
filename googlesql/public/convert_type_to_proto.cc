@@ -389,6 +389,9 @@ absl::Status TypeToProtoConverter::MakeFieldDescriptor(
       return absl::UnimplementedError(absl::StrCat(
           "Proto type conversion for type ",
           field_type->TypeName(PRODUCT_EXTERNAL), " is not yet implemented."));
+    case TYPE_COLUMN_LIST_SPEC:
+      return absl::UnimplementedError(
+          "Proto type conversion for COLUMN_LIST_SPEC is not yet implemented.");
     case __TypeKind__switch_must_have_a_default__:
     case TYPE_UNKNOWN:
       break;  // Error generated below.

@@ -33,6 +33,7 @@
 #include "googlesql/public/error_helpers.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/function_signature.h"
+#include "googlesql/public/id_string.h"
 #include "googlesql/public/input_argument_type.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/signature_match_result.h"

@@ -346,8 +346,6 @@ class Stats {
   // Record the runtime duration of a executed statement.
   void RecordStatementExecutionTime(absl::Duration elapsed);
 
-  // Record the number of generated UDFs.
-  void RecordGeneratedUdfCount(int count) { num_generated_udfs_ += count; }
 
   // Record a failure that is not resolved by adding a known error entry.
   void RecordFailure(absl::string_view error_string) {
@@ -470,7 +468,6 @@ class Stats {
   ComplianceTestsLabels labels_proto_;
 
   int num_known_errors_ = 0;
-  int num_generated_udfs_ = 0;
 
   bool file_based_statements_ = false;
 };
@@ -553,7 +550,6 @@ void Stats::LogGoogletestProperties() const {
   RecordProperty("Passed", static_cast<int>(num_executed_ - failures_.size()));
   RecordProperty("Failed", static_cast<int>(failures_.size()));
   RecordProperty("KnownErrors", num_known_errors_);
-  RecordProperty("GeneratedUdfCount", num_generated_udfs_);
   RecordProperty(
       "Compliance",
       absl::StrCat((((num_executed_ - failures_.size()) * 1000 /
@@ -2172,10 +2168,6 @@ absl::Status SQLTestBase::AddFunctions(
     should_cache &= driver_status.ok();
   }
   if (should_cache) {
-    stats_->RecordGeneratedUdfCount(
-        static_cast<int>(create_function_stmts.size()));
-    udf_stmt_cache_.reserve(udf_stmt_cache_.size() +
-                            create_function_stmts.size());
     for (const auto& stmt : create_function_stmts) {
       udf_stmt_cache_.push_back(stmt);
     }

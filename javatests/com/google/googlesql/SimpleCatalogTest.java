@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
+import com.google.common.base.Ascii;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -217,7 +218,7 @@ public class SimpleCatalogTest {
     // Tests for adding tables
     catalog.addSimpleTable(table);
     assertThat(catalog.getTableList().contains(table)).isTrue();
-    assertThat(catalog.getTableNameList().contains(table.getName().toLowerCase())).isTrue();
+    assertThat(catalog.getTableNameList()).contains(Ascii.toLowerCase(table.getName()));
     try {
       catalog.addSimpleTable(table);
       fail();
@@ -238,12 +239,12 @@ public class SimpleCatalogTest {
     } catch (IllegalArgumentException expected) {
     }
     try {
-      catalog.addType(type.typeName().toUpperCase(), type);
+      catalog.addType(Ascii.toUpperCase(type.typeName()), type);
       fail();
     } catch (IllegalArgumentException expected) {
     }
     try {
-      catalog.addType(type.typeName().toLowerCase(), type);
+      catalog.addType(Ascii.toLowerCase(type.typeName()), type);
       fail();
     } catch (IllegalArgumentException expected) {
     }

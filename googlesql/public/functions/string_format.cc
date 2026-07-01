@@ -233,17 +233,13 @@ absl::Status StringFormatEvaluator::SetTypes(
 }
 
 bool StringFormatEvaluator::ProcessType(const Type* arg_type) {
-  if (arg_type->IsArray()) {
-    if (!ProcessType(arg_type->AsArray()->element_type())) {
+  for (const Type* type : arg_type->ComponentTypes()) {
+    if (!ProcessType(type)) {
       return false;
     }
-  } else if (arg_type->IsStruct()) {
-    for (const StructField& field : arg_type->AsStruct()->fields()) {
-      if (!ProcessType(field.type)) {
-        return false;
-      }
-    }
-  } else if (arg_type->IsProto()) {
+  }
+
+  if (arg_type->IsProto()) {
     const ProtoType* proto_type = arg_type->AsProto();
     const google::protobuf::Descriptor* descriptor = proto_type->descriptor();
 
@@ -266,7 +262,7 @@ bool StringFormatEvaluator::ProcessType(const Type* arg_type) {
                        descriptor->name()));
       return false;
     }
-  } else if (arg_type->IsGraphElement()) {
+  } else if (arg_type->IsGraphElement() || arg_type->IsColumnListSpec()) {
     status_ =
         absl::Status(absl::StatusCode::kUnimplemented,
                      absl::StrCat("Cannot format type ",
