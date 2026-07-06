@@ -544,7 +544,8 @@ absl::StatusOr<bool> FunctionSignatureMatcher::GetConcreteArgument(
         std::make_unique<FunctionArgumentType>(ARG_KIND_VOID, num_occurrences);
   } else {
     *output_argument = std::make_unique<FunctionArgumentType>(
-        argument.type(), std::move(options), num_occurrences);
+        argument.type(), std::move(options), num_occurrences,
+        argument.type_modifiers());
   }
 
   // Set the original templated kind for the concrete argument.

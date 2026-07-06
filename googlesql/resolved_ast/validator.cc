@@ -7855,6 +7855,11 @@ absl::Status Validator::ValidateRelationSchemaInResolvedFunctionArgument(
           << required_input_schema.column(col_idx).name;
       VALIDATOR_RET_CHECK(input_relation.column(col_idx).type->Equals(
           resolved_arg->argument_column_list(col_idx).type()));
+
+      VALIDATOR_RET_CHECK(
+          !input_relation.column(col_idx).type_modifiers.has_value() ||
+          input_relation.column(col_idx).type_modifiers->IsEmpty())
+          << "input relation column must not have type modifiers";
     }
   }
   return absl::OkStatus();
@@ -9547,7 +9552,8 @@ absl::Status Validator::ValidateGraphReturnOperator(const ResolvedScan* scan) {
                       curr_scan->Is<ResolvedGraphRefScan>() ||
                       curr_scan->Is<ResolvedOrderByScan>() ||
                       curr_scan->Is<ResolvedLimitOffsetScan>() ||
-                      curr_scan->Is<ResolvedAnalyticScan>());
+                      curr_scan->Is<ResolvedAnalyticScan>() ||
+                      curr_scan->Is<ResolvedGraphInsertScan>());
   return absl::OkStatus();
 }
 
@@ -9594,6 +9600,10 @@ absl::Status Validator::ValidateInnerGraphLinearScanStructure(
         case RESOLVED_LIMIT_OFFSET_SCAN:
           input_scan =
               primitive_ops[i]->GetAs<ResolvedLimitOffsetScan>()->input_scan();
+          break;
+        case RESOLVED_FINISH_SCAN:
+          input_scan =
+              primitive_ops[i]->GetAs<ResolvedFinishScan>()->input_scan();
           break;
         default:
           VALIDATOR_RET_CHECK_FAIL();
@@ -9654,6 +9664,10 @@ absl::Status Validator::ValidateInnerGraphLinearScanStructure(
               input_scan = arg->scan();
             }
           }
+          break;
+        case RESOLVED_GRAPH_INSERT_SCAN:
+          input_scan =
+              primitive_ops[i]->GetAs<ResolvedGraphInsertScan>()->input_scan();
           break;
         default:
           VALIDATOR_RET_CHECK_FAIL();

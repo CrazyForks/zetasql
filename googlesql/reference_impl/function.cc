@@ -1257,8 +1257,8 @@ struct ValueTraits<TYPE_STRING> {
 
   static Value ToValue(absl::string_view out) { return Value::String(out); }
 
-  static Value ToArray(absl::Span<const Value> values) {
-    return Value::Array(types::StringArrayType(), values);
+  static absl::StatusOr<Value> ToArray(absl::Span<const Value> values) {
+    return Value::MakeArray(types::StringArrayType(), values);
   }
 
   static Value NullValue() { return Value::NullString(); }
@@ -1279,8 +1279,8 @@ struct ValueTraits<TYPE_BYTES> {
 
   static Value ToValue(absl::string_view out) { return Value::Bytes(out); }
 
-  static Value ToArray(absl::Span<const Value> values) {
-    return Value::Array(types::BytesArrayType(), values);
+  static absl::StatusOr<Value> ToArray(absl::Span<const Value> values) {
+    return Value::MakeArray(types::BytesArrayType(), values);
   }
 
   static Value NullValue() { return Value::NullBytes(); }
@@ -3262,7 +3262,8 @@ absl::StatusOr<Value> GenerateArrayFunction::Eval(
       return ::googlesql_base::UnimplementedErrorBuilder()
              << "Unsupported argument type for generate_array.";
   }
-  Value array_value = Value::Array(output_type()->AsArray(), range_values);
+  GOOGLESQL_ASSIGN_OR_RETURN(Value array_value,
+                   Value::MakeArray(output_type()->AsArray(), range_values));
   if (array_value.physical_byte_size() >
       context->options().max_value_byte_size) {
     return MakeMaxArrayValueByteSizeExceededError(
@@ -4297,7 +4298,7 @@ absl::StatusOr<Value> ArrayReverseFunction::Eval(
 
   std::vector<Value> elements = args[0].elements();
   std::reverse(elements.begin(), elements.end());
-  return Value::Array(output_type()->AsArray(), elements);
+  return Value::MakeArray(output_type()->AsArray(), elements);
 }
 
 absl::StatusOr<Value> ArrayIsDistinctFunction::Eval(
@@ -4652,7 +4653,8 @@ absl::StatusOr<Value> ArraySliceFunction::Eval(
   const std::vector<Value>& elements = args[0].elements();
   std::vector<Value> result(elements.begin() + start,
                             elements.begin() + end + 1);
-  Value output = Value::Array(output_type()->AsArray(), result);
+  GOOGLESQL_ASSIGN_OR_RETURN(Value output,
+                   Value::MakeArray(output_type()->AsArray(), result));
   GOOGLESQL_RET_CHECK(output.is_valid());
   return output;
 }
@@ -10204,7 +10206,7 @@ absl::StatusOr<Value> SplitFunction::Eval(
     for (const std::string& s : parts) {
       values.push_back(Value::String(s));
     }
-    return Value::Array(types::StringArrayType(), values);
+    return Value::MakeArray(types::StringArrayType(), values);
   } else {
     absl::Status status;
     if (!functions::SplitBytes(args[0].bytes_value(), args[1].bytes_value(),
@@ -10214,7 +10216,7 @@ absl::StatusOr<Value> SplitFunction::Eval(
     for (const std::string& s : parts) {
       values.push_back(Value::Bytes(s));
     }
-    return Value::Array(types::BytesArrayType(), values);
+    return Value::MakeArray(types::BytesArrayType(), values);
   }
 }
 

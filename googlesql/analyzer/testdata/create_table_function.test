@@ -18,6 +18,34 @@ create table function myfunc (  )
 CreateTableFunctionStmt(name_path=myfunc, signature=() -> TABLE<x STRING>, has_explicit_return_schema=TRUE, language="UNDECLARED")
 ==
 
+# Type modifiers are not allowed in TABLE<>, without TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF.
+[language_features=MAXIMUM,+PARAMETERIZED_TYPES,+TIMESTAMP_PRECISION_ANNOTATION,+TIMESTAMP_PRECISION,+TIMESTAMP_PICOS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+create table function myfunc (t table<x timestamp(12), y string(10) collate 'und:ci'>) as select 1 as a, y as b from t
+--
+ERROR: Parameterized types are not supported in table function signatures [at 1:50]
+create table function myfunc (t table<x timestamp(12), y string(10) collate '...
+                                                 ^
+==
+
+# Type modifiers are not allowed in TABLE<> as return type, without TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF.
+[language_features=NONE,+PARAMETERIZED_TYPES,+TIMESTAMP_PRECISION_ANNOTATION,+TIMESTAMP_PRECISION,+TIMESTAMP_PICOS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+create table function myfunc (t table<x timestamp, y string>) returns table<a int64, b string(20) collate 'und:ci'> as select 1 as a, y as b from t
+--
+ERROR: Parameterized types are not supported in table function signatures [at 1:94]
+...y string>) returns table<a int64, b string(20) collate 'und:ci'> as select...
+                                             ^
+==
+
+
+# Type modifiers are not allowed on "ANY TABLE".
+[language_features=NONE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PRECISION_ANNOTATION,+TIMESTAMP_PRECISION,+TIMESTAMP_PICOS,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+create table function myfunc (t ANY TABLE(12)) as select * from t
+--
+ERROR: Syntax error: Expected ")" but got "(" [at 1:42]
+create table function myfunc (t ANY TABLE(12)) as select * from t
+                                         ^
+==
+
 create table function myfunc (  )
   returns table<x int64> as select 1 x;
 --
@@ -4092,3 +4120,89 @@ CreateTableFunctionStmt
 +-output_column_list=
   +-$graph_table.x#1 AS x [INT64]
   +-$graph_table.y#2 AS y [STRING]
+
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION]
+[no_java]
+create table function tvf_array_numeric(a ARRAY<numeric(10,2)>) returns table<x numeric(10,2)> as select * from unnest(a) as x;
+--
+CreateTableFunctionStmt
++-name_path=tvf_array_numeric
++-argument_name_list=[a]
++-signature=(ARRAY<NUMERIC> type_parameters:[(precision=10,scale=2)] a) -> TABLE<x NUMERIC type_parameters:(precision=10,scale=2)>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="select * from unnest(a) as x"
++-query=
+| +-ProjectScan
+|   +-column_list=[$subquery1.x#2]
+|   +-expr_list=
+|   | +-x#2 :=
+|   |   +-Cast(NUMERIC -> NUMERIC)
+|   |     +-ColumnRef(type=NUMERIC, column=$array.x#1)
+|   |     +-type_modifiers=type_parameters:(precision=10,scale=2)
+|   +-input_scan=
+|     +-ProjectScan
+|       +-column_list=[$array.x#1]
+|       +-input_scan=
+|         +-ArrayScan
+|           +-column_list=[$array.x#1]
+|           +-array_expr_list=
+|           | +-ArgumentRef(type=ARRAY<NUMERIC>, name="a")
+|           +-element_column_list=[$array.x#1]
++-output_column_list=
+  +-$subquery1.x#2 AS x [NUMERIC]
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION]
+[no_java]
+create table function tvf_table_with_array(t table<a ARRAY<numeric(10,2)>>) returns table<x numeric(10,2)> as select x from t cross join unnest(t.a) as x;
+--
+CreateTableFunctionStmt
++-name_path=tvf_table_with_array
++-argument_name_list=[t]
++-signature=(TABLE<a ARRAY<NUMERIC> type_parameters:[(precision=10,scale=2)]> t) -> TABLE<x NUMERIC type_parameters:(precision=10,scale=2)>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="select x from t cross join unnest(t.a) as x"
++-query=
+| +-ProjectScan
+|   +-column_list=[$subquery1.x#3]
+|   +-expr_list=
+|   | +-x#3 :=
+|   |   +-Cast(NUMERIC -> NUMERIC)
+|   |     +-ColumnRef(type=NUMERIC, column=$array.x#2)
+|   |     +-type_modifiers=type_parameters:(precision=10,scale=2)
+|   +-input_scan=
+|     +-ProjectScan
+|       +-column_list=[$array.x#2]
+|       +-input_scan=
+|         +-ArrayScan
+|           +-column_list=[t.a#1, $array.x#2]
+|           +-input_scan=
+|           | +-RelationArgumentScan(column_list=[t.a#1], name="t")
+|           +-array_expr_list=
+|           | +-ColumnRef(type=ARRAY<NUMERIC>, column=t.a#1)
+|           +-element_column_list=[$array.x#2]
++-output_column_list=
+  +-$subquery1.x#3 AS x [NUMERIC]
+==
+
+
+# TVF mixing ANY TABLE with explicit return schema containing TypeModifiers (SQL)
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+create table function tvf_any_table_return_modifier(t any table)
+  returns table<x numeric(10, 2)>
+  as select * from t;
+--
+CreateTableFunctionStmt(name_path=tvf_any_table_return_modifier, argument_name_list=[t], signature=(ANY TABLE t) -> TABLE<x NUMERIC type_parameters:(precision=10,scale=2)>, has_explicit_return_schema=TRUE, language="SQL", code="select * from t")
+==
+
+# TVF mixing ANY TABLE with fixed relation arguments containing TypeModifiers
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+create table function tvf_any_table_mix_fixed(t1 any table, t2 table<x numeric(10, 2)>)
+  as select * from t1 union all select * from t2;
+--
+CreateTableFunctionStmt(name_path=tvf_any_table_mix_fixed, argument_name_list=[t1, t2], signature=(ANY TABLE t1, TABLE<x NUMERIC type_parameters:(precision=10,scale=2)> t2) -> ANY TABLE, language="SQL", code="select * from t1 union all select * from t2")
+==

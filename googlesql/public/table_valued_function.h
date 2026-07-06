@@ -605,20 +605,21 @@ class TableValuedFunction {
 // Represents a column for some TVF input argument types (e.g. TVFRelation and
 // TVFModelArgument).
 struct TVFSchemaColumn {
-  TVFSchemaColumn(absl::string_view name_in, const Type* type_in,
-                  bool is_pseudo_column_in = false,
-                  bool is_passthrough_column_in = false,
-                  TypeModifiers type_modifiers_in = TypeModifiers())
+  TVFSchemaColumn(
+      absl::string_view name_in, const Type* type_in,
+      bool is_pseudo_column_in = false, bool is_passthrough_column_in = false,
+      std::optional<TypeModifiers> type_modifiers_in = TypeModifiers())
       : name(name_in),
         type(type_in),
         is_pseudo_column(is_pseudo_column_in),
         is_passthrough_column(is_passthrough_column_in),
         type_modifiers(std::move(type_modifiers_in)) {}
 
-  TVFSchemaColumn(absl::string_view name_in, AnnotatedType annotated_type_in,
-                  const bool is_pseudo_column_in = false,
-                  const bool is_passthrough_column_in = false,
-                  TypeModifiers type_modifiers_in = TypeModifiers())
+  TVFSchemaColumn(
+      absl::string_view name_in, AnnotatedType annotated_type_in,
+      const bool is_pseudo_column_in = false,
+      const bool is_passthrough_column_in = false,
+      std::optional<TypeModifiers> type_modifiers_in = TypeModifiers())
       : name(name_in),
         type(annotated_type_in.type),
         annotation_map(annotated_type_in.annotation_map),
@@ -661,8 +662,8 @@ struct TVFSchemaColumn {
     } else {
       result = type_name;
     }
-    if (!type_modifiers.IsEmpty()) {
-      absl::StrAppend(&result, " ", type_modifiers.DebugString());
+    if (type_modifiers.has_value() && !type_modifiers->IsEmpty()) {
+      absl::StrAppend(&result, " ", type_modifiers->DebugString());
     }
     if (is_passthrough_column) {
       absl::StrAppend(&result, " (passthrough)");
@@ -675,6 +676,9 @@ struct TVFSchemaColumn {
   std::string name;
   // The type and annotations. Doesn't own either pointer.
   const Type* type = nullptr;
+  // TODO - b/490102087: Discuss what to do with this variable now that we also
+  // have type modifiers. Probably this should be calculated from the type
+  // modifiers in constructors.
   const AnnotationMap* annotation_map = nullptr;
   bool is_pseudo_column;
   bool is_passthrough_column;
@@ -685,8 +689,16 @@ struct TVFSchemaColumn {
   std::optional<ParseLocationRange> name_parse_location_range;
   std::optional<ParseLocationRange> type_parse_location_range;
 
-  // The type modifiers of the column.
-  TypeModifiers type_modifiers;
+  // The type modifiers of the column. If the column represents a column in a
+  // TVF argument, its value must be std::nullopt.
+  // TODO - b/490102087: We plan to change the behavior to the following:
+  // - In the abstract signature, type_modifiers must have value.
+  // - In the concrete signature,
+  //   - if the corresponding argument in the abstract signature is
+  //     non-templated, type_modifiers is copied from the corresponding
+  //     argument, so it must have value.
+  //   - otherwise, type_modifiers must be std::nullopt.
+  std::optional<TypeModifiers> type_modifiers;
 };
 
 // To support GOOGLESQL_RET_CHECK_EQ.
@@ -732,18 +744,10 @@ class TVFRelation {
   // Creates a new value-table TVFRelation with at least one column, and the
   // first column (column 0) is treated as the value of the row. Additional
   // columns may be present and must be pseudo-columns.
+  ABSL_DEPRECATED("Use ValueTable(const Column&, const ColumnList&) instead.")
   static absl::StatusOr<TVFRelation> ValueTable(
       const Type* type, const ColumnList& pseudo_columns) {
-    ColumnList columns;
-    columns.reserve(pseudo_columns.size() + 1);
-    columns.emplace_back("", type);
-    for (const Column& column : pseudo_columns) {
-      GOOGLESQL_RET_CHECK(column.is_pseudo_column);
-      columns.push_back(column);
-    }
-    TVFRelation result = TVFRelation(std::move(columns));
-    result.is_value_table_ = true;
-    return result;
+    return ValueTable(Column("", type), pseudo_columns);
   }
 
   // Creates a new value-table TVFRelation. The first input column (column 0)
@@ -765,23 +769,31 @@ class TVFRelation {
 
   // Similar to the above function but accepts an <annotated_type> argument to
   // indicate both type and its annotation_map of the value-table column.
+  ABSL_DEPRECATED("Use ValueTable(const Column&, const ColumnList&) instead.")
   static absl::StatusOr<TVFRelation> ValueTable(
       AnnotatedType annotated_type, const ColumnList& pseudo_columns) {
-    ColumnList columns;
-    columns.reserve(pseudo_columns.size() + 1);
-    columns.emplace_back("", annotated_type);
-    for (const Column& column : pseudo_columns) {
-      GOOGLESQL_RET_CHECK(column.is_pseudo_column);
-      columns.push_back(column);
-    }
-    TVFRelation result = TVFRelation(std::move(columns));
-    result.is_value_table_ = true;
-    return result;
+    return ValueTable(Column("", annotated_type), pseudo_columns);
   }
 
   // Creates a new value-table TVFRelation with the provided column.
   static TVFRelation ValueTable(const Column& column) {
     TVFRelation result = TVFRelation({column});
+    result.is_value_table_ = true;
+    return result;
+  }
+
+  // Creates a new value-table TVFRelation with the provided column and
+  // pseudo-columns.
+  static absl::StatusOr<TVFRelation> ValueTable(
+      const Column& column, const ColumnList& pseudo_columns) {
+    ColumnList columns;
+    columns.reserve(pseudo_columns.size() + 1);
+    columns.push_back(column);
+    for (const Column& pseudo_column : pseudo_columns) {
+      GOOGLESQL_RET_CHECK(pseudo_column.is_pseudo_column);
+      columns.push_back(pseudo_column);
+    }
+    TVFRelation result = TVFRelation(std::move(columns));
     result.is_value_table_ = true;
     return result;
   }

@@ -297,6 +297,18 @@ CREATE PROCEDURE procedure_name(OUT param_a string(10))
                                                   ^
 ==
 
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+CREATE PROCEDURE procedure_name(OUT param_a string(10))
+BEGIN
+  DECLARE a int32;
+  SET a = 1;
+  SET param_a = "test";
+END;
+--
+CreateProcedureStmt(name_path=procedure_name, argument_name_list=[param_a], signature=(STRING type_parameters:(max_length=10) {procedure_argument_mode: OUT} param_a) -> <void>, procedure_body='BEGIN\n  DECLARE a int32;\n  SET a = 1;\n  SET param_a = "test";\nEND')
+==
+
 # Type with collation name is not supported.
 CREATE PROCEDURE procedure_name(OUT collated_a string collate 'und:ci')
 BEGIN

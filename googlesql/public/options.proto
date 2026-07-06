@@ -1570,10 +1570,10 @@ enum LanguageFeature {
   FEATURE_SQL_GRAPH_SAFE_SAME_ALL_DIFFERENT = 158
       [(language_feature_options).language_version = VERSION_1_5];
 
-  // Enables terminal DML on graph queries.
+  // Enables terminal DML INSERT on graph queries.
   // See (broken link):dml-insert.
   // REQUIRES: SQL_GRAPH feature to be enabled.
-  FEATURE_SQL_GRAPH_TERMINAL_DML = 160 [
+  FEATURE_SQL_GRAPH_TERMINAL_INSERT = 160 [
     (language_feature_options).language_version = VERSION_1_5,
     (language_feature_options).in_development = true
   ];

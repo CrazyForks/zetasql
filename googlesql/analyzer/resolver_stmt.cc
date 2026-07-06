@@ -1184,9 +1184,12 @@ absl::Status Resolver::ResolveQueryStatement(
   if (needs_generalized_query_stmt_) {
     GOOGLESQL_RET_CHECK(
         language().SupportsStatementKind(RESOLVED_GENERALIZED_QUERY_STMT));
-    GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(FEATURE_PIPES));
+    GOOGLESQL_RET_CHECK(
+        language().LanguageFeatureEnabled(FEATURE_PIPES) ||
+        language().LanguageFeatureEnabled(FEATURE_SQL_GRAPH_TERMINAL_INSERT));
     std::unique_ptr<const ResolvedOutputSchema> output_schema;
-    if (*output_name_list != nullptr) {
+    if (*output_name_list != nullptr &&
+        !(*output_name_list)->columns().empty()) {
       // We have an output schema here if the generalized statement returns a
       // final table from the main pipeline. e.g. TEE does, FORK doesn't.
       output_schema = MakeOutputSchema(**output_name_list);
@@ -5136,11 +5139,11 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
   bool has_return_type = false;
   TypeModifiers resolved_type_modifiers;
   if (has_explicit_return_type) {
+    const bool allow_type_modifiers = language().LanguageFeatureEnabled(
+        FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF);
     GOOGLESQL_RETURN_IF_ERROR(ResolveType(ast_statement->return_type(),
-                                // We do not currently support type parameters
-                                // or modifiers in the explicit RETURN type.
-                                {.allow_type_parameters = false,
-                                 .allow_collation = false,
+                                {.allow_type_parameters = allow_type_modifiers,
+                                 .allow_collation = allow_type_modifiers,
                                  .context = "function signatures"},
                                 &return_type, &resolved_type_modifiers));
     has_return_type = true;
@@ -5193,6 +5196,16 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
     return MakeSqlErrorAt(ast_statement->language())
            << "To write SQL functions, omit the LANGUAGE clause and write the "
               "function body using 'AS (expression)'";
+  }
+
+  if (!is_sql_function && has_explicit_return_type &&
+      !resolved_type_modifiers.IsEmpty()) {
+    // TODO: b/490102087 - Support type modifiers in the return type of
+    // non-sql functions: we just need to wrap the function call with a CAST
+    // to apply the type modifiers.
+    return MakeSqlErrorAt(ast_statement->return_type())
+           << "Type modifiers are not supported on the return type of "
+              "non-SQL user-defined functions";
   }
 
   std::string code_string;
@@ -5279,8 +5292,7 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
           "allowed",
           resolved_expr.get()));
     }
-    if (resolved_expr->type_annotation_map() != nullptr &&
-        !resolved_expr->type_annotation_map()->Empty()) {
+    if (!AnnotationMap::IsNullOrEmpty(resolved_expr->type_annotation_map())) {
       std::unique_ptr<AnnotationMap> annotations_to_block =
           resolved_expr->type_annotation_map()->Clone();
       annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
@@ -5302,16 +5314,22 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
 
     if (!has_return_type) {
       return_type = resolved_expr->type();
+      if (language().LanguageFeatureEnabled(
+              FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF)) {
+        GOOGLESQL_ASSIGN_OR_RETURN(resolved_type_modifiers,
+                         TypeModifiers::MakeTypeModifiers(
+                             resolved_expr->type_annotation_map()));
+      } else {
+        resolved_type_modifiers = TypeModifiers();
+      }
       has_return_type = true;
     } else {
       GOOGLESQL_RETURN_IF_ERROR(CreateAnnotationMapFromTypeWithModifiers(
                           return_type, resolved_type_modifiers)
                           .status());
       GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
-          sql_function_body->expression(),
-          // Note: when we support TypeModifiers on declared types, we should
-          // fill the resolved TypeModifiers here.
-          return_type, TypeModifiers(), kImplicitCoercion,
+          sql_function_body->expression(), return_type, resolved_type_modifiers,
+          kImplicitCoercion,
           "Function declared to return $0 but the function body produces "
           "incompatible type $1",
           &resolved_expr));
@@ -5356,7 +5374,8 @@ absl::Status Resolver::ResolveCreateFunctionStatement(
           ast_statement->return_type()->location());
     }
     signature = std::make_unique<FunctionSignature>(
-        FunctionArgumentType(return_type, options),
+        FunctionArgumentType(return_type, options, /*num_occurrences=*/-1,
+                             resolved_type_modifiers),
         arg_info->SignatureArguments(), /*context_id=*/0, signature_options);
   } else {
     const FunctionArgumentType any_type(ARG_KIND_EXPR_ARBITRARY,
@@ -5596,6 +5615,22 @@ absl::Status Resolver::ResolveCreateTableFunctionStatement(
     }
   }
 
+  if (language_string != "SQL" && has_explicit_return_schema) {
+    for (int i = 0; i < return_tvf_relation.num_columns(); ++i) {
+      const TVFRelation::Column& column = return_tvf_relation.column(i);
+      if (column.type_modifiers.has_value() &&
+          !column.type_modifiers->IsEmpty()) {
+        const ASTTVFSchemaColumn* ast_column =
+            ast_statement->return_tvf_schema()->columns()[i];
+        // TODO - b/490102087: Implement support for type modifiers on the
+        // return type of non-sql functions.
+        return MakeSqlErrorAt(ast_column->type())
+               << "Type modifiers are not supported on the return type of "
+                  "non-SQL table-valued functions";
+      }
+    }
+  }
+
   std::string code_string;
   if (code != nullptr) {
     code_string = code->string_value();
@@ -5760,33 +5795,52 @@ absl::Status Resolver::ResolveTVFSchema(
   // Check the columns of the parsed schema to see which ones have names.
   // If there is exactly one column and it has no name, then this schema
   // represents a value table. Otherwise, all columns must have names.
+  bool allow_type_modifiers = language().LanguageFeatureEnabled(
+      FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF);
   if (ast_tvf_schema->columns().size() == 1 &&
       ast_tvf_schema->columns()[0]->name() == nullptr) {
     GOOGLESQL_RET_CHECK(ast_tvf_schema->columns()[0]->type() != nullptr);
     const Type* resolved_type = nullptr;
+    TypeModifiers column_type_modifiers;
     GOOGLESQL_RETURN_IF_ERROR(ResolveType(ast_tvf_schema->columns()[0]->type(),
-                                {.context = "table function signatures"},
-                                &resolved_type,
-                                /*resolved_type_modifiers=*/nullptr));
-    TVFRelation::Column column("", resolved_type);
+                                {.allow_type_parameters = allow_type_modifiers,
+                                 .allow_collation = allow_type_modifiers,
+                                 .context = "table function signatures"},
+                                &resolved_type, &column_type_modifiers));
+    GOOGLESQL_ASSIGN_OR_RETURN(const AnnotationMap* annotation_map,
+                     CreateAnnotationMapFromTypeWithModifiers(
+                         resolved_type, column_type_modifiers));
+    TVFRelation::Column column(
+        /*name_in=*/"", AnnotatedType(resolved_type, annotation_map),
+        /*is_pseudo_column_in=*/false, /*is_passthrough_column_in=*/false,
+        std::move(column_type_modifiers));
     RecordTVFRelationColumnParseLocationsIfPresent(
         *ast_tvf_schema->columns()[0], &column);
     *tvf_relation = TVFRelation::ValueTable(column);
     return absl::OkStatus();
   }
   std::vector<TVFRelation::Column> tvf_relation_columns;
+  tvf_relation_columns.reserve(ast_tvf_schema->columns().size());
   for (const ASTTVFSchemaColumn* ast_tvf_schema_column :
        ast_tvf_schema->columns()) {
     const Type* resolved_type = nullptr;
+    TypeModifiers column_type_modifiers;
     GOOGLESQL_RETURN_IF_ERROR(ResolveType(ast_tvf_schema_column->type(),
-                                {.context = "table function signatures"},
-                                &resolved_type,
-                                /*resolved_type_modifiers=*/nullptr));
+                                {.allow_type_parameters = allow_type_modifiers,
+                                 .allow_collation = allow_type_modifiers,
+                                 .context = "table function signatures"},
+                                &resolved_type, &column_type_modifiers));
     std::string name;
     if (ast_tvf_schema_column->name() != nullptr) {
       name = ast_tvf_schema_column->name()->GetAsString();
     }
-    TVFRelation::Column column(name, resolved_type);
+    GOOGLESQL_ASSIGN_OR_RETURN(const AnnotationMap* annotation_map,
+                     CreateAnnotationMapFromTypeWithModifiers(
+                         resolved_type, column_type_modifiers));
+    TVFRelation::Column column(
+        name, AnnotatedType(resolved_type, annotation_map),
+        /*is_pseudo_column_in=*/false,
+        /*is_passthrough_column_in=*/false, std::move(column_type_modifiers));
     RecordTVFRelationColumnParseLocationsIfPresent(*ast_tvf_schema_column,
                                                    &column);
     tvf_relation_columns.push_back(column);
@@ -5890,18 +5944,19 @@ absl::Status Resolver::CheckSQLBodyReturnTypesAndCoerceIfNeeded(
     // with collation in the explicit result schema is not supported yet, and we
     // are not sure whether to propagate or drop the collation of TVF query
     // output when the explicit result schema has no collation.
-    if (provided_column.type_annotation_map() != nullptr &&
-        !provided_column.type_annotation_map()->Empty()) {
+    if (!AnnotationMap::IsNullOrEmpty(provided_column.type_annotation_map())) {
       std::string output_column_str =
           return_tvf_relation.is_value_table()
               ? "value-table column"
-              : "output column " + required_col_name;
+              : absl::StrCat("output column ", required_col_name);
       std::unique_ptr<AnnotationMap> annotations_to_block =
           provided_column.type_annotation_map()->Clone();
       annotations_to_block->UnsetAnnotationRecursively<CollationAnnotation>();
 
       if (!language().LanguageFeatureEnabled(
-              FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS)) {
+              FEATURE_TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS) &&
+          !language().LanguageFeatureEnabled(
+              FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF)) {
         if (CollationAnnotation::ExistsIn(
                 provided_column.type_annotation_map())) {
           const std::string error = absl::StrCat(
@@ -5978,7 +6033,10 @@ absl::Status Resolver::CheckSQLBodyReturnTypesAndCoerceIfNeeded(
         }
       }
     }
-    if (provided_col_idx != required_col_idx ||
+    const std::optional<TypeModifiers>& type_modifiers =
+        return_tvf_relation.column(required_col_idx).type_modifiers;
+    GOOGLESQL_RET_CHECK(type_modifiers.has_value());
+    if (provided_col_idx != required_col_idx || !type_modifiers->IsEmpty() ||
         !provided_col_type->Equals(required_annotated_col_type.type) ||
         !AnnotationMap::Equals(provided_column.type_annotation_map(),
                                required_annotated_col_type.annotation_map)) {
@@ -6029,27 +6087,23 @@ absl::Status Resolver::CheckSQLBodyReturnTypesAndCoerceIfNeeded(
       // Equals, then we accept the provided column as-is. Otherwise, if they
       // are implicitly coercible, we add a ResolvedCast to the required type.
       // This includes when the two types are Equivalent but not Equals.
-      if (provided_col_type->Equals(required_annotated_col_type.type) &&
+      const std::optional<TypeModifiers>& type_modifiers =
+          return_tvf_relation.column(required_col_idx).type_modifiers;
+      GOOGLESQL_RET_CHECK(type_modifiers.has_value());
+      if (type_modifiers->IsEmpty() &&
+          provided_col_type->Equals(required_annotated_col_type.type) &&
           AnnotationMap::Equals(provided_col.type_annotation_map(),
                                 required_annotated_col_type.annotation_map)) {
         new_column_list.push_back(provided_col);
       } else {
-        new_column_list.emplace_back(AllocateColumnId(), new_project_alias,
-                                     provided_col.name_id(),
-                                     required_annotated_col_type.type);
-
         std::unique_ptr<const ResolvedExpr> resolved_expr =
             MakeColumnRef(provided_col, /*is_correlated=*/false);
-
-        GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers type_modifiers,
-                         TypeModifiers::MakeTypeModifiers(
-                             required_annotated_col_type.annotation_map));
-
         GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
             statement_location, required_annotated_col_type.type,
-            std::move(type_modifiers), CoercionMode::kImplicitCoercion,
-            &resolved_expr));
-
+            *type_modifiers, CoercionMode::kImplicitCoercion, &resolved_expr));
+        new_column_list.emplace_back(AllocateColumnId(), new_project_alias,
+                                     provided_col.name_id(),
+                                     resolved_expr->annotated_type());
         new_project_columns.push_back(MakeResolvedComputedColumn(
             new_column_list.back(), std::move(resolved_expr)));
         RecordColumnAccess(new_column_list.back());
@@ -6587,9 +6641,14 @@ absl::Status Resolver::ResolveScalarFunctionParameter(
   //   1. Resolve the type.
   //   2. Reconcile the provided type and the default value (if any).
   const Type* resolved_type = nullptr;
+  TypeModifiers resolved_type_modifiers;
+  const bool allow_type_modifiers = language().LanguageFeatureEnabled(
+      FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF);
   GOOGLESQL_RETURN_IF_ERROR(ResolveType(function_param.type(),
-                              {.context = "function arguments"}, &resolved_type,
-                              /*resolved_type_modifiers=*/nullptr));
+                              {.allow_type_parameters = allow_type_modifiers,
+                               .allow_collation = allow_type_modifiers,
+                               .context = "function arguments"},
+                              &resolved_type, &resolved_type_modifiers));
   GOOGLESQL_RET_CHECK(resolved_type != nullptr) << function_param.DebugString();
   if (default_value.has_value()) {
     if (!resolved_type->Equals(default_value->type())) {
@@ -6633,10 +6692,19 @@ absl::Status Resolver::ResolveScalarFunctionParameter(
     argument_type_options.set_default(std::move(*default_value));
     argument_type_options.set_cardinality(FunctionArgumentType::OPTIONAL);
   }
+  GOOGLESQL_ASSIGN_OR_RETURN(const AnnotationMap* annotation_map,
+                   CreateAnnotationMapFromTypeWithModifiers(
+                       resolved_type, resolved_type_modifiers));
+
+  int num_occurrences =
+      argument_type_options.cardinality() == FunctionArgumentType::REQUIRED
+          ? 1
+          : -1;
   return arg_info.AddScalarArg(
       function_param.name()->GetAsIdString(), arg_kind,
-      FunctionArgumentType(resolved_type, std::move(argument_type_options)),
-      /*annotation_map=*/nullptr);
+      FunctionArgumentType(resolved_type, std::move(argument_type_options),
+                           num_occurrences, resolved_type_modifiers),
+      annotation_map);
 }
 
 absl::Status Resolver::ResolveFunctionParameters(

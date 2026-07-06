@@ -7270,6 +7270,18 @@ Resolver::CreateAnnotationMapFromTypeWithModifiers(
   return type_factory_->TakeOwnership(std::move(annotation_map));
 }
 
+absl::Status Resolver::CheckTypeModifiersFeaturesEnabled(
+    const TypeModifiers& type_modifiers) const {
+  if (!type_modifiers.type_parameters().IsEmpty()) {
+    GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
+        FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF));
+  }
+  if (!type_modifiers.collation().Empty()) {
+    GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT));
+  }
+  return absl::OkStatus();
+}
+
 // TODO: The noinline attribute is to prevent the stack usage
 // being added to its caller "Resolver::ResolveExpr" which is a recursive
 // function. Now the attribute has to be added for all callees. Hopefully

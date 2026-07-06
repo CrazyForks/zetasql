@@ -168,6 +168,9 @@ ReferenceDriver::ReferenceDriver(
 
   // TODO: Remove this once the feature is not in development.
   language_options_.EnableLanguageFeature(googlesql::FEATURE_TUMBLE_HOP_TVFS);
+  // TODO: Remove this once the feature is not in development.
+  language_options_.EnableLanguageFeature(
+      googlesql::FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF);
   // Optional evaluator features need to be enabled "manually" here since we do
   // not go through the public PreparedExpression/PreparedQuery interface, which
   // normally handles it.

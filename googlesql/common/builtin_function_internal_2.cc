@@ -831,7 +831,7 @@ void GetDatetimeDiffTruncLastNextFunctions(
       },
       require_civil_time_types.Copy().set_post_resolution_argument_constraint(
           [](const FunctionSignature& /*signature*/,
-             const std::vector<InputArgumentType>& arguments,
+             absl::Span<const InputArgumentType> arguments,
              const LanguageOptions& language_options) {
             return CheckDateDatetimeTimeTimestampDiffArguments(
                 "DATETIME_DIFF", arguments, language_options);

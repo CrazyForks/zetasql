@@ -881,7 +881,7 @@ class TreeGenerator:
         'blank_line': '\n'
     }
 
-    template = jinja_env.get_template(template_path)
+    template = jinja_env.get_template(template_path)  # pyrefly: ignore[bad-argument-type]
     out = open(output_path, 'wt')
     out.write(Trim(template.render(context)))
     out.close()

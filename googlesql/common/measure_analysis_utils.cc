@@ -331,7 +331,7 @@ absl::StatusOr<const ResolvedExpr*> AnalyzeMeasureExpressionInternal(
   LanguageOptions language_options = analyzer_options.language();
   AnalyzerOptions::LookupExpressionCallback callback =
       [&table, &type_factory, measure_expr_str, language_options](
-          const std::string& column_name,
+          absl::string_view column_name,
           std::unique_ptr<const ResolvedExpr>& resolved_expr_out)
       -> absl::Status {
     return ResolveColumnForMeasureExpression(

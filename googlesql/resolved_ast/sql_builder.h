@@ -1487,7 +1487,7 @@ class SQLBuilder : public ResolvedASTVisitor {
    public:
     PendingColumnsAutoRestorer(
         SQLBuilder& sql_builder,
-        const std::vector<std::unique_ptr<const ResolvedColumnRef>>&
+        absl::Span<const std::unique_ptr<const ResolvedColumnRef>>
             columns_to_expose);
 
     // Destructor restoring the previous state.

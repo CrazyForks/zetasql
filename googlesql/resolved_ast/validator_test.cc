@@ -39,9 +39,11 @@
 #include "googlesql/public/table_valued_function.h"
 #include "googlesql/public/templated_sql_function.h"
 #include "googlesql/public/templated_sql_tvf.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/make_node_vector.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
@@ -5404,6 +5406,75 @@ TEST(ValidatorTest, TVFArgumentInputSchemaMismatch) {
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("col_idx: 0 input_type: INT64 required_type: STRING")));
+}
+
+TEST(ValidatorTest, TVFArgumentInputRelationCannotHaveTypeModifiers) {
+  Validator validator;
+  IdStringPool pool;
+  TVFRelation output_relation({{"out_col", types::StringType()}});
+  FunctionArgumentType output_arg = FunctionArgumentType::RelationWithSchema(
+      output_relation, /*extra_relation_input_columns_allowed=*/false);
+
+  // Signature requires input schema `a STRING` without modifiers
+  TVFRelation tvf_relation_string({{"a", types::StringType()}});
+  FunctionArgumentType relation_arg_string =
+      FunctionArgumentType::RelationWithSchema(
+          tvf_relation_string, /*extra_relation_input_columns_allowed=*/false);
+  relation_arg_string.set_num_occurrences(1);
+  FunctionSignature signature_string(
+      output_arg, FunctionArgumentTypeList{relation_arg_string},
+      /*context_ptr=*/nullptr);
+
+  FixedOutputSchemaTVF tvf({"tvf_with_modifiers"}, {signature_string},
+                           output_relation);
+
+  // The actual input relation has a column with type modifiers!
+  Collation collation = Collation::MakeScalar("und:ci");
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(TypeParameters(), collation);
+  TVFRelation input_relation_with_modifiers(
+      {TVFSchemaColumn("a", types::StringType(), /*is_pseudo_column_in=*/false,
+                       /*is_passthrough_column_in=*/false, type_modifiers)});
+
+  auto tvf_signature = std::make_shared<TVFSignature>(
+      std::vector<TVFInputArgumentType>{
+          TVFInputArgumentType(input_relation_with_modifiers)},
+      output_relation);
+  auto concrete_signature = std::make_shared<FunctionSignature>(
+      FunctionArgumentType::RelationWithSchema(
+          output_relation, /*extra_relation_input_columns_allowed=*/false),
+      FunctionArgumentTypeList{relation_arg_string},
+      /*context_ptr=*/nullptr);
+
+  ResolvedColumn input_col_a(1, pool.Make("t"), pool.Make("a"),
+                             types::StringType());
+  const SimpleTable input_table("input_table", {{"a", types::StringType()}});
+  ResolvedColumn resolved_col_out(2, pool.Make("t"), pool.Make("a"),
+                                  types::StringType());
+
+  auto query_stmt_builder =
+      ResolvedQueryStmtBuilder()
+          .add_output_column_list(
+              MakeResolvedOutputColumn("a", resolved_col_out))
+          .set_query(ResolvedTVFScanBuilder()
+                         .add_column_list(resolved_col_out)
+                         .set_tvf(&tvf)
+                         .set_signature(tvf_signature)
+                         .set_alias("")
+                         .add_argument_list(
+                             ResolvedFunctionArgumentBuilder()
+                                 .set_scan(ResolvedTableScanBuilder()
+                                               .set_table(&input_table)
+                                               .add_column_list(input_col_a))
+                                 .add_argument_column_list(input_col_a))
+                         .set_function_call_signature(concrete_signature));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(auto query_stmt, std::move(query_stmt_builder).Build());
+  EXPECT_THAT(
+      validator.ValidateResolvedStatement(query_stmt.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("input relation column must not have type modifiers")));
 }
 
 }  // namespace

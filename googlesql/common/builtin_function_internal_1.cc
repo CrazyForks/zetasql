@@ -555,7 +555,7 @@ absl::Status CheckDateDatetimeTimeTimestampDiffArguments(
 
 absl::Status CheckBitwiseOperatorArgumentsHaveSameType(
     absl::string_view operator_string,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   // We do not want non-literal arguments to implicitly coerce.  We currently
   // have signatures for all the integer/BYTES types, so we only need to check
@@ -1227,7 +1227,7 @@ absl::Status CheckArgumentsSupportGrouping(
 absl::StatusOr<const Type*> GetOrMakeEnumValueDescriptorType(
     Catalog* catalog, TypeFactory* type_factory, CycleDetector* cycle,
     const FunctionSignature& /*signature*/,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const AnalyzerOptions& analyzer_options) {
   const Type* catalog_type = nullptr;
   absl::Status status =
@@ -1395,7 +1395,7 @@ absl::Status CheckArrayDistinctArguments(
 }
 
 absl::Status CheckRangeBucketArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (arguments.size() != 2) {
     // Let validation happen normally. It will return an error later.
@@ -1978,7 +1978,7 @@ static absl::StatusOr<bool> InsertTableValuedFunctionImpl(
 absl::Status InsertSimpleTableValuedFunction(
     NameToTableValuedFunctionMap* table_valued_functions,
     const GoogleSQLBuiltinFunctionOptions& options, absl::string_view name,
-    const std::vector<FunctionSignatureOnHeap>& signatures,
+    absl::Span<const FunctionSignatureOnHeap> signatures,
     TableValuedFunctionOptions table_valued_function_options) {
   std::vector<std::string> names;
   names.reserve(1);

@@ -267,7 +267,7 @@ bool ArgumentIsStringLiteral(const InputArgumentType& argument);
 
 absl::Status CheckBitwiseOperatorArgumentsHaveSameType(
     absl::string_view operator_string,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckBitwiseOperatorFirstArgumentIsIntegerOrBytes(
@@ -310,7 +310,7 @@ absl::Status CheckDateDatetimeTimeTimestampDiffArguments(
 absl::StatusOr<const Type*> GetOrMakeEnumValueDescriptorType(
     Catalog* catalog, TypeFactory* type_factory, CycleDetector* cycle,
     const FunctionSignature& /*signature*/,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const AnalyzerOptions& analyzer_options);
 
 absl::Status CheckTimeAddSubArguments(
@@ -407,7 +407,7 @@ absl::Status CheckArrayDistinctArguments(
     const LanguageOptions& language_options);
 
 absl::Status CheckRangeBucketArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 std::string AnonCountStarBadArgumentErrorPrefix(const FunctionSignature&,
@@ -556,7 +556,7 @@ void InsertSimpleNamespaceFunction(
 absl::Status InsertSimpleTableValuedFunction(
     NameToTableValuedFunctionMap* table_valued_functions,
     const GoogleSQLBuiltinFunctionOptions& options, absl::string_view name,
-    const std::vector<FunctionSignatureOnHeap>& signatures,
+    absl::Span<const FunctionSignatureOnHeap> signatures,
     TableValuedFunctionOptions table_valued_function_options);
 
 absl::Status InsertType(NameToTypeMap* types,

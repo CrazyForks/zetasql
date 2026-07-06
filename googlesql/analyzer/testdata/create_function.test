@@ -24,6 +24,84 @@ language SQL
          ^
 ==
 
+# Paramerized types are not allowed without TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF as parameter types.
+[language_features=MAXIMUM,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b numeric(10, 2)) returns int64 language testlang;
+--
+ERROR: Parameterized types are not supported in function arguments [at 1:33]
+create function myfunc(b numeric(10, 2)) returns int64 language testlang;
+                                ^
+==
+
+# Paramerized types are not allowed without TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF as the return type.
+[language_features=MAXIMUM,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b numeric) returns numeric(10, 2) language testlang;
+--
+ERROR: Parameterized types are not supported in function signatures [at 1:50]
+create function myfunc(b numeric) returns numeric(10, 2) language testlang;
+                                                 ^
+==
+
+# Error when the type paramters do not match the argument type.
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b int64(10, 2)) language testlang;
+--
+ERROR: INT64 does not support type parameters [at 1:31]
+create function myfunc(b int64(10, 2)) language testlang;
+                              ^
+==
+
+# Error when the type paramters are specified for templated type.
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b ANY TYPE (10)) language testlang;
+--
+ERROR: Syntax error: Expected ")" but got "(" [at 1:35]
+create function myfunc(b ANY TYPE (10)) language testlang;
+                                  ^
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b numeric(10, 2)) returns numeric(10, 2) language testlang;
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:50]
+create function myfunc(b numeric(10, 2)) returns numeric(10, 2) language test...
+                                                 ^
+
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PICOS,+NUMERIC_TYPE]
+[no_java]
+create function myfunc(b numeric(10, 2)) returns int64 language testlang;
+--
+CreateFunctionStmt(name_path=myfunc, has_explicit_return_type=TRUE, return_type=INT64, argument_name_list=[b], signature=(NUMERIC type_parameters:(precision=10,scale=2) b) -> INT64, language="testlang")
+==
+
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function myfunc(b numeric(10, 2)) returns numeric(10, 2) language testlang;
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:60]
+...aggregate function myfunc(b numeric(10, 2)) returns numeric(10, 2) languag...
+                                                       ^
+==
+
+# Non-SQL UDF with templated argument and return type modifier
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE]
+[no_java]
+create function templated_non_sql_numeric(x any type) returns numeric(10, 2) language js as "return 1;";
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:63]
+...templated_non_sql_numeric(x any type) returns numeric(10, 2) language js a...
+                                                 ^
+==
+
+
 create function myfunc() returns string
 language SQL
 as (5);
@@ -32,6 +110,201 @@ ERROR: Function cannot specify a LANGUAGE and include a SQL body [at 1:1]
 create function myfunc() returns string
 ^
 ==
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_IN_EXPLICIT_CAST]
+[no_java]
+create function myfunc(s struct<x numeric(10, 2), y string(11) collate 'und:ci'>) returns struct<x string(10) collate 'und:ci'> as (STRUCT(s.y));
+--
+CreateFunctionStmt
++-name_path=myfunc
++-has_explicit_return_type=TRUE
++-return_type=STRUCT<x STRING>
++-argument_name_list=[s]
++-signature=(STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci] s) -> STRUCT<x STRING> type_parameters:[(max_length=10)], collation:[und:ci]
++-language="SQL"
++-code="STRUCT(s.y)"
++-function_expression=
+  +-MakeStruct
+    +-type=STRUCT<x STRING>
+    +-type_annotation_map=<{Collation:"und:ci"}>
+    +-field_list=
+      +-Cast(STRING -> STRING)
+        +-type_annotation_map={Collation:"und:ci"}
+        +-GetStructField
+        | +-type=STRING
+        | +-type_annotation_map={Collation:"und:ci"}
+        | +-expr=
+        | | +-ArgumentRef(type=STRUCT<x NUMERIC, y STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, name="s")
+        | +-field_idx=1
+        +-type_modifiers=type_parameters:(max_length=10), collation:und:ci
+==
+
+# Test the collation is propagated to the implicit return type.
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_IN_EXPLICIT_CAST]
+[no_java]
+create function myfunc(s struct<x numeric(10, 2), y string(11) collate 'und:ci'>) as (s);
+--
+CreateFunctionStmt
++-name_path=myfunc
++-return_type=STRUCT<x NUMERIC, y STRING>
++-argument_name_list=[s]
++-signature=(STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci] s) -> STRUCT<x NUMERIC, y STRING> collation:[_,und:ci]
++-language="SQL"
++-code="s"
++-function_expression=
+  +-ArgumentRef(type=STRUCT<x NUMERIC, y STRING>, type_annotation_map=<_,{Collation:"und:ci"}>, name="s")
+==
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_IN_EXPLICIT_CAST]
+[no_java]
+create function myfunc(s struct<x numeric(10, 2), y string(11) collate 'und:ci'>, a ANY TYPE) as (s);
+--
+CreateFunctionStmt(name_path=myfunc, return_type=STRUCT<>, argument_name_list=[s, a], signature=(STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci] s, ANY TYPE a) -> ANY TYPE, language="SQL", code="s")
+==
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_IN_EXPLICIT_CAST]
+[no_java]
+create function myfunc(s struct<x numeric(10, 2), y string(11) collate 'und:ci'>, a ANY TYPE) returns struct<x numeric(10, 2), y string(11) collate 'und:ci'>
+as (s);
+--
+CreateFunctionStmt(name_path=myfunc, has_explicit_return_type=TRUE, return_type=STRUCT<x NUMERIC, y STRING>, argument_name_list=[s, a], signature=(STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci] s, ANY TYPE a) -> STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci], language="SQL", code="s")
+==
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_IN_EXPLICIT_CAST]
+[no_java]
+create function myfunc(s struct<x numeric(10, 2), y string(11) collate 'und:ci'>, a ANY TYPE) returns struct<x numeric(10, 2), y string(11) collate 'und:ci'>
+as (a);
+--
+CreateFunctionStmt(name_path=myfunc, has_explicit_return_type=TRUE, return_type=STRUCT<x NUMERIC, y STRING>, argument_name_list=[s, a], signature=(STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci] s, ANY TYPE a) -> STRUCT<x NUMERIC, y STRING> type_parameters:[(precision=10,scale=2),(max_length=11)], collation:[_,und:ci], language="SQL", code="a")
+==
+
+
+# ANY TYPE can't have type modifiers.
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+TIMESTAMP_PRECISION,+TIMESTAMP_PICOS]
+[no_java]
+create function myfunc(a ANY TYPE(12)) as (a);
+--
+ERROR: Syntax error: Expected ")" but got "(" [at 1:34]
+create function myfunc(a ANY TYPE(12)) as (a);
+                                 ^
+==
+
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function myfunc(x numeric(10, 2)) returns numeric(10, 2) language js as "return x;";
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:50]
+create function myfunc(x numeric(10, 2)) returns numeric(10, 2) language js a...
+                                                 ^
+==
+
+[language_features=MAXIMUM,+NUMERIC_TYPE,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function myfunc(x numeric(10, 2)) returns numeric(10, 2) language python as "return x";
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:50]
+create function myfunc(x numeric(10, 2)) returns numeric(10, 2) language pyth...
+                                                 ^
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function array_numeric_test(a array<numeric(10, 2)>) returns array<numeric(10, 2)> as (a);
+--
+CreateFunctionStmt
++-name_path=array_numeric_test
++-has_explicit_return_type=TRUE
++-return_type=ARRAY<NUMERIC>
++-argument_name_list=[a]
++-signature=(ARRAY<NUMERIC> type_parameters:[(precision=10,scale=2)] a) -> ARRAY<NUMERIC> type_parameters:[(precision=10,scale=2)]
++-language="SQL"
++-code="a"
++-function_expression=
+  +-Cast(ARRAY<NUMERIC> -> ARRAY<NUMERIC>)
+    +-ArgumentRef(type=ARRAY<NUMERIC>, name="a")
+    +-type_modifiers=type_parameters:[(precision=10,scale=2)]
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function struct_numeric_test(s struct<x numeric(10, 2)>) returns struct<x numeric(10, 2)> as (s);
+--
+CreateFunctionStmt
++-name_path=struct_numeric_test
++-has_explicit_return_type=TRUE
++-return_type=STRUCT<x NUMERIC>
++-argument_name_list=[s]
++-signature=(STRUCT<x NUMERIC> type_parameters:[(precision=10,scale=2)] s) -> STRUCT<x NUMERIC> type_parameters:[(precision=10,scale=2)]
++-language="SQL"
++-code="s"
++-function_expression=
+  +-Cast(STRUCT<x NUMERIC> -> STRUCT<x NUMERIC>)
+    +-ArgumentRef(type=STRUCT<x NUMERIC>, name="s")
+    +-type_modifiers=type_parameters:[(precision=10,scale=2)]
+==
+
+
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function array_of_struct_numeric_test(a array<struct<x numeric(10, 2)>>) returns array<struct<x numeric(10, 2)>> as (a);
+--
+CreateFunctionStmt
++-name_path=array_of_struct_numeric_test
++-has_explicit_return_type=TRUE
++-return_type=ARRAY<STRUCT<x NUMERIC>>
++-argument_name_list=[a]
++-signature=(ARRAY<STRUCT<x NUMERIC>> type_parameters:[[(precision=10,scale=2)]] a) -> ARRAY<STRUCT<x NUMERIC>> type_parameters:[[(precision=10,scale=2)]]
++-language="SQL"
++-code="a"
++-function_expression=
+  +-Cast(ARRAY<STRUCT<x NUMERIC>> -> ARRAY<STRUCT<x NUMERIC>>)
+    +-ArgumentRef(type=ARRAY<STRUCT<x NUMERIC>>, name="a")
+    +-type_modifiers=type_parameters:[[(precision=10,scale=2)]]
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+create function struct_containing_array_numeric_test(s struct<a array<numeric(10, 2)>>) returns struct<a array<numeric(10, 2)>> as (s);
+--
+CreateFunctionStmt
++-name_path=struct_containing_array_numeric_test
++-has_explicit_return_type=TRUE
++-return_type=STRUCT<a ARRAY<NUMERIC>>
++-argument_name_list=[s]
++-signature=(STRUCT<a ARRAY<NUMERIC>> type_parameters:[[(precision=10,scale=2)]] s) -> STRUCT<a ARRAY<NUMERIC>> type_parameters:[[(precision=10,scale=2)]]
++-language="SQL"
++-code="s"
++-function_expression=
+  +-Cast(STRUCT<a ARRAY<NUMERIC>> -> STRUCT<a ARRAY<NUMERIC>>)
+    +-ArgumentRef(type=STRUCT<a ARRAY<NUMERIC>>, name="s")
+    +-type_modifiers=type_parameters:[[(precision=10,scale=2)]]
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+COLLATION_SUPPORT]
+[no_java]
+[no_run_sqlbuilder]
+create function array_element_collate_test(a array<string(10) collate 'und:ci'>) returns string(10) collate 'und:ci' as (a[OFFSET(0)]);
+--
+CreateFunctionStmt
++-name_path=array_element_collate_test
++-has_explicit_return_type=TRUE
++-return_type=STRING
++-argument_name_list=[a]
++-signature=(ARRAY<STRING> type_parameters:[(max_length=10)], collation:[und:ci] a) -> STRING type_parameters:(max_length=10), collation:und:ci
++-language="SQL"
++-code="a[OFFSET(0)]"
++-function_expression=
+  +-Cast(STRING -> STRING)
+    +-type_annotation_map={Collation:"und:ci"}
+    +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<STRING>, INT64) -> STRING)
+    | +-type_annotation_map={Collation:"und:ci"}
+    | +-ArgumentRef(type=ARRAY<STRING>, type_annotation_map=<{Collation:"und:ci"}>, name="a")
+    | +-Literal(type=INT64, value=0)
+    +-type_modifiers=type_parameters:(max_length=10), collation:und:ci
+==
+
 
 # Simple function name.
 create function myfunc (  )

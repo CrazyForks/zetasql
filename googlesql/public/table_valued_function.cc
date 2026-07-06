@@ -42,6 +42,7 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_deserializer.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/type_modifiers.h"
 #include "absl/container/flat_hash_set.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
@@ -441,8 +442,8 @@ absl::StatusOr<TVFRelationColumnProto> TVFSchemaColumn::ToProto(
     GOOGLESQL_ASSIGN_OR_RETURN(*proto.mutable_type_parse_location_range(),
                      type_parse_location_range.value().ToProto());
   }
-  if (!type_modifiers.IsEmpty()) {
-    GOOGLESQL_RETURN_IF_ERROR(type_modifiers.Serialize(proto.mutable_type_modifiers()));
+  if (type_modifiers.has_value() && !type_modifiers->IsEmpty()) {
+    GOOGLESQL_RETURN_IF_ERROR(type_modifiers->Serialize(proto.mutable_type_modifiers()));
   }
   return proto;
 }
@@ -458,10 +459,14 @@ absl::StatusOr<TVFSchemaColumn> TVFSchemaColumn::FromProto(
     GOOGLESQL_RETURN_IF_ERROR(type_deserializer.type_factory()->DeserializeAnnotationMap(
         proto.annotation_map(), &annotation_map));
   }
-  TypeModifiers type_modifiers;
+  // TODO - b/490102087: Change the default value to std::nullopt. Using
+  // std::nullopt today causes java tests to fail because TVFSchemaColumn
+  // serialization in Java are not fully implemented yet.
+  std::optional<TypeModifiers> type_modifiers = TypeModifiers();
   if (proto.has_type_modifiers()) {
-    GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
+    GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers deserialized_type_modifiers,
                      TypeModifiers::Deserialize(proto.type_modifiers()));
+    type_modifiers = std::move(deserialized_type_modifiers);
   }
   TVFRelation::Column column(
       proto.name(), {type, annotation_map}, proto.is_pseudo_column(),
@@ -489,16 +494,16 @@ absl::StatusOr<TVFSchemaColumn> TVFSchemaColumn::FromProto(
 }
 
 absl::Status TVFSchemaColumn::IsValid(ProductMode product_mode) const {
-  if (!type_modifiers.IsEmpty()) {
+  if (type_modifiers.has_value() && !type_modifiers->IsEmpty()) {
     absl::Status status = type->ValidateResolvedTypeParameters(
-        type_modifiers.type_parameters(), product_mode);
+        type_modifiers->type_parameters(), product_mode);
     if (!status.ok()) {
       return MakeSqlError() << "Type parameters must have compatible structure "
                                "with the column type: "
                             << DebugString(false);
     }
 
-    const Collation& collation = type_modifiers.collation();
+    const Collation& collation = type_modifiers->collation();
     if (!collation.HasCompatibleStructure(type)) {
       return MakeSqlError() << "Collation must have compatible structure with "
                                "the column type: "
@@ -511,6 +516,18 @@ absl::Status TVFSchemaColumn::IsValid(ProductMode product_mode) const {
     return MakeSqlError()
            << "The annotation map is not compatible with column type: "
            << DebugString(false);
+  }
+
+  if (annotation_map != nullptr && type_modifiers.has_value() &&
+      !type_modifiers->collation().Empty()) {
+    absl::StatusOr<bool> equals_collation =
+        type_modifiers->collation().EqualsCollationAnnotation(annotation_map);
+    if (equals_collation.ok() && !equals_collation.value()) {
+      return MakeSqlError()
+             << "Collation in annotation map is not compatible with "
+                "type modifiers: "
+             << DebugString(false);
+    }
   }
 
   return absl::OkStatus();

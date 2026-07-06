@@ -631,6 +631,42 @@ create function f_lambda_any_table(p FUNCTION<ANY TABLE -> BOOL>) AS (1);
                                               ^
 ==
 
+# ERROR: Lambda input argument with type modifiers is not supported.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+PARAMETERIZED_TYPES,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+create function f_lambda_arg_modifier(p FUNCTION<STRING(10) -> BOOL>) AS (1);
+--
+ERROR: Parameterized types are not supported in function arguments [at 1:56]
+create function f_lambda_arg_modifier(p FUNCTION<STRING(10) -> BOOL>) AS (1);
+                                                       ^
+==
+
+# ERROR: Lambda input argument with collation is not supported.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+create function f_lambda_arg_collation(p FUNCTION<STRING COLLATE 'und:ci' -> BOOL>) AS (1);
+--
+ERROR: Type with collation name is not supported in function arguments [at 1:58]
+...function f_lambda_arg_collation(p FUNCTION<STRING COLLATE 'und:ci' -> BOOL...
+                                                     ^
+==
+
+# ERROR: Lambda return type with type modifiers is not supported.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+PARAMETERIZED_TYPES,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+create function f_lambda_ret_modifier(p FUNCTION<INT64 -> STRING(10)>) AS (1);
+--
+ERROR: Parameterized types are not supported in function arguments [at 1:65]
+create function f_lambda_ret_modifier(p FUNCTION<INT64 -> STRING(10)>) AS (1);
+                                                                ^
+==
+
+# ERROR: Lambda return type with collation is not supported.
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+create function f_lambda_ret_collation(p FUNCTION<INT64 -> STRING COLLATE 'und:ci'>) AS (1);
+--
+ERROR: Type with collation name is not supported in function arguments [at 1:67]
+...f_lambda_ret_collation(p FUNCTION<INT64 -> STRING COLLATE 'und:ci'>) AS (1);
+                                                     ^
+==
+
 # Templated UDF taking a concrete lambda.
 [language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+TEMPLATE_FUNCTIONS]
 create function f_templated_lambda(x ANY TYPE, p FUNCTION<INT64 -> BOOL>) AS (p(1));
@@ -794,6 +830,7 @@ ERROR: Collation "und:ci" in return type of user-defined function body is not al
 
 [prepare_database=udf_db_collation]
 [language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS]
+[no_java]
 
 # Lambda called with a collation parameter, with type annotation on function argument enabled.
 # TODO b/512814252 - Add test for lambda returning a collation
@@ -818,6 +855,7 @@ CreateFunctionStmt
 
 [use_database=udf_db_collation]
 [language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+ANNOTATION_FRAMEWORK,+COLLATION_SUPPORT]
+[no_java]
 
 # Lambda returns collated string
 SELECT 'abc' = f_with_collation(s -> COLLATE(s, 'und:ci'), 'abc');

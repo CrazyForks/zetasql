@@ -4460,10 +4460,13 @@ absl::Status Resolver::ResolveOrderBySimple(
   bool is_pipes = mode == OrderBySimpleMode::kPipes;
 
   auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      scope, scope, scope, /*allows_aggregation_in=*/false,
-      /*allows_analytic_in=*/true,
-      /*use_post_grouping_columns_in=*/false, clause_name,
-      query_resolution_info.get());
+      query_resolution_info.get(), scope,
+      ExprResolutionInfoOptions{
+          .allows_aggregation = false,
+          .allows_analytic = true,
+          .use_post_grouping_columns = false,
+          .clause_name = clause_name,
+      });
   GOOGLESQL_RETURN_IF_ERROR(ResolveOrderingExprs(
       order_by->ordering_expressions(), expr_resolution_info.get(),
       /*allow_ordinals=*/!is_gql, "GQL",
@@ -5136,6 +5139,13 @@ absl::Status Resolver::ResolveSelectAfterFrom(
     query_resolution_info->SetHasAggregation(has_aggregation);
   }
 
+  if (resolving_gql_dml_with_insert_ &&
+      (select->group_by() != nullptr ||
+       query_resolution_info->HasGroupByOrAggregation())) {
+    return MakeSqlErrorAt(select)
+           << "Aggregation is not supported in RETURN after INSERT";
+  }
+
   // Return an appropriate error for anonymization queries that don't perform
   // aggregation.
   // This check is required because we have to wait until after resolving the
@@ -5796,11 +5806,15 @@ absl::Status Resolver::ResolveQualifyExpr(
   }
 
   auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      having_and_order_by_scope, select_list_and_from_scan_scope,
-      having_and_order_by_scope,
-      /*allows_aggregation_in=*/true, /*allows_analytic_in=*/true,
-      query_resolution_info->HasAnalytic(), "QUALIFY clause",
-      query_resolution_info);
+      query_resolution_info, having_and_order_by_scope,
+      ExprResolutionInfoOptions{
+          .aggregate_name_scope = select_list_and_from_scan_scope,
+          .analytic_name_scope = having_and_order_by_scope,
+          .allows_aggregation = true,
+          .allows_analytic = true,
+          .use_post_grouping_columns = query_resolution_info->HasAnalytic(),
+          .clause_name = "QUALIFY clause",
+      });
   GOOGLESQL_RETURN_IF_ERROR(ResolveExpr(qualify->expression(), expr_resolution_info.get(),
                               resolved_qualify_expr));
 
@@ -5833,11 +5847,16 @@ absl::Status Resolver::ResolveHavingExpr(
   const bool already_saw_group_by_or_aggregation =
       query_resolution_info->HasGroupByOrAggregation();
   auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      having_and_order_by_scope, select_list_and_from_scan_scope,
-      having_and_order_by_scope,
-      /*allows_aggregation_in=*/true, /*allows_analytic_in=*/false,
-      query_resolution_info->HasGroupByOrAggregation(), "HAVING clause",
-      query_resolution_info);
+      query_resolution_info, having_and_order_by_scope,
+      ExprResolutionInfoOptions{
+          .aggregate_name_scope = select_list_and_from_scan_scope,
+          .analytic_name_scope = having_and_order_by_scope,
+          .allows_aggregation = true,
+          .allows_analytic = false,
+          .use_post_grouping_columns =
+              query_resolution_info->HasGroupByOrAggregation(),
+          .clause_name = "HAVING clause",
+      });
   GOOGLESQL_RETURN_IF_ERROR(ResolveExpr(having->expression(), expr_resolution_info.get(),
                               resolved_having_expr));
 
@@ -5895,12 +5914,16 @@ absl::Status Resolver::ResolveOrderByExprs(
   // logic though).  TODO: It is low priority but make this work.
   // Maybe wait until we get a feature request.
   auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      having_and_order_by_scope, select_list_and_from_scan_scope,
-      having_and_order_by_scope,
-      /*allows_aggregation_in=*/!is_post_distinct,
-      /*allows_analytic_in=*/!is_post_distinct,
-      query_resolution_info->HasGroupByOrAggregation(), clause_name,
-      query_resolution_info);
+      query_resolution_info, having_and_order_by_scope,
+      ExprResolutionInfoOptions{
+          .aggregate_name_scope = select_list_and_from_scan_scope,
+          .analytic_name_scope = having_and_order_by_scope,
+          .allows_aggregation = !is_post_distinct,
+          .allows_analytic = !is_post_distinct,
+          .use_post_grouping_columns =
+              query_resolution_info->HasGroupByOrAggregation(),
+          .clause_name = clause_name,
+      });
 
   bool is_gql_order_by = query_resolution_info->IsGqlReturn();
 
@@ -7542,14 +7565,14 @@ Resolver::ResolveOrderingExprWithGroupByExprEquivalenceFallback(
     // pre-group-by scope.
     auto pre_group_by_expr_resolution_info =
         std::make_unique<ExprResolutionInfo>(
+            post_group_by_expr_resolution_info->query_resolution_info,
             post_group_by_expr_resolution_info->aggregate_name_scope,
-            post_group_by_expr_resolution_info->aggregate_name_scope,
-            post_group_by_expr_resolution_info->aggregate_name_scope,
-            /*allows_aggregation_in=*/false,
-            /*allows_analytic_in=*/false,
-            /*use_post_grouping_columns_in=*/false,
-            /*clause_name_in=*/"ORDER BY",
-            post_group_by_expr_resolution_info->query_resolution_info);
+            ExprResolutionInfoOptions{
+                .allows_aggregation = false,
+                .allows_analytic = false,
+                .use_post_grouping_columns = false,
+                .clause_name = "ORDER BY",
+            });
     std::unique_ptr<const ResolvedExpr> resolved_pre_group_by_expr;
     absl::Status pre_group_by_resolve_status =
         ResolveExpr(ordering_expr, pre_group_by_expr_resolution_info.get(),
@@ -9128,7 +9151,7 @@ Resolver::ResolveSelectExpressionSecondPass(
     clause_name = "Graph WITH operator";
   }
   auto expr_resolution_info = std::make_unique<ExprResolutionInfo>(
-      query_resolution_info, group_by_scope, group_by_scope, group_by_scope,
+      query_resolution_info, group_by_scope,
       ExprResolutionInfoOptions{
           .allows_aggregation = true,
           .allows_analytic = true,
@@ -11831,7 +11854,6 @@ absl::Status Resolver::ResolveHavingMaxMinModifier(
            << resolved_expr->type()->ShortTypeName(product_mode());
   }
 
-
   GOOGLESQL_RET_CHECK(resolved_having != nullptr);
   ResolvedAggregateHavingModifier::HavingModifierKind kind;
   if (ast_having_modifier->modifier_kind() ==
@@ -12173,8 +12195,11 @@ absl::Status Resolver::ResolveTableExpression(
     case AST_GRAPH_TABLE_QUERY: {
       // In the future, if we support LATERAL on GRAPH_TABLE(), we would pass
       // `local_scope` instead of `external_scope` for the LATERAL case.
+      // GRAPH_TABLE() is a table subquery, hence `is_nested` is set to
+      // true.
       const auto* graph_query = table_expr->GetAsOrDie<ASTGraphTableQuery>();
-      return ResolveGraphTableQuery(graph_query, external_scope, output,
+      return ResolveGraphTableQuery(graph_query, external_scope,
+                                    /*is_nested=*/true, output,
                                     output_name_list);
     }
     case AST_GROUP_ROWS: {
@@ -12461,10 +12486,13 @@ absl::Status Resolver::ResolvePivotExpressions(
     std::vector<std::unique_ptr<const ResolvedExpr>>* pivot_expr_columns,
     QueryResolutionInfo& query_resolution_info) {
   auto info = std::make_unique<ExprResolutionInfo>(
-      scope, scope, scope,
-      /*allows_aggregation_in=*/true,
-      /*allows_analytic_in=*/false,
-      /*use_post_grouping_columns_in=*/false, "PIVOT", &query_resolution_info);
+      &query_resolution_info, scope,
+      ExprResolutionInfoOptions{
+          .allows_aggregation = true,
+          .allows_analytic = false,
+          .use_post_grouping_columns = false,
+          .clause_name = "PIVOT",
+      });
   for (const ASTPivotExpression* pivot_expr :
        ast_pivot_expr_list->expressions()) {
     std::unique_ptr<const ResolvedExpr> resolved_pivot_expr;
@@ -12544,11 +12572,13 @@ absl::Status Resolver::ResolveForExprInPivotClause(
     std::unique_ptr<const ResolvedExpr>* resolved_for_expr) {
   auto query_resolution_info = std::make_unique<QueryResolutionInfo>(this);
   auto info = std::make_unique<ExprResolutionInfo>(
-      scope, scope, scope,
-      /*allows_aggregation_in=*/false,
-      /*allows_analytic_in=*/false,
-      /*use_post_grouping_columns_in=*/false, "PIVOT",
-      query_resolution_info.get());
+      query_resolution_info.get(), scope,
+      ExprResolutionInfoOptions{
+          .allows_aggregation = false,
+          .allows_analytic = false,
+          .use_post_grouping_columns = false,
+          .clause_name = "PIVOT",
+      });
   GOOGLESQL_RETURN_IF_ERROR(ResolveExpr(for_expr, info.get(), resolved_for_expr));
   // TODO: figure out a way to remove the const_cast here.
   const_cast<ResolvedExpr*>(resolved_for_expr->get())
@@ -12575,11 +12605,13 @@ absl::Status Resolver::ResolveInClauseInPivotClause(
     // not being constant vs. the column not existing.
     auto query_resolution_info = std::make_unique<QueryResolutionInfo>(this);
     auto info = std::make_unique<ExprResolutionInfo>(
-        scope, scope, scope,
-        /*allows_aggregation_in=*/false,
-        /*allows_analytic_in=*/false,
-        /*use_post_grouping_columns_in=*/false, "IN clause",
-        query_resolution_info.get());
+        query_resolution_info.get(), scope,
+        ExprResolutionInfoOptions{
+            .allows_aggregation = false,
+            .allows_analytic = false,
+            .use_post_grouping_columns = false,
+            .clause_name = "IN clause",
+        });
 
     std::unique_ptr<const ResolvedExpr> resolved_in_expr;
     GOOGLESQL_RETURN_IF_ERROR(
@@ -12599,8 +12631,8 @@ absl::Status Resolver::ResolveInClauseInPivotClause(
           "PIVOT IN list item has collation which will be ignored"));
     }
 
-    if (resolved_in_expr->type_annotation_map() != nullptr &&
-        !resolved_in_expr->type_annotation_map()->Empty()) {
+    if (!AnnotationMap::IsNullOrEmpty(
+            resolved_in_expr->type_annotation_map())) {
       std::unique_ptr<AnnotationMap> clone =
           resolved_in_expr->type_annotation_map()->Clone();
       // Remove collation to check if there are any other annotations.
@@ -12837,11 +12869,13 @@ absl::Status Resolver::ResolveUnpivotInClause(
     const ASTUnpivotClause* ast_unpivot_clause, const NameScope* scope) {
   auto query_resolution_info = std::make_unique<QueryResolutionInfo>(this);
   auto info = std::make_unique<ExprResolutionInfo>(
-      scope, scope, scope,
-      /*allows_aggregation_in=*/false,
-      /*allows_analytic_in=*/false,
-      /*use_post_grouping_columns_in=*/false, "IN clause",
-      query_resolution_info.get());
+      query_resolution_info.get(), scope,
+      ExprResolutionInfoOptions{
+          .allows_aggregation = false,
+          .allows_analytic = false,
+          .use_post_grouping_columns = false,
+          .clause_name = "IN clause",
+      });
 
   absl::flat_hash_set<ResolvedColumn> input_columns;
   input_columns.insert(input_scan_columns->begin(), input_scan_columns->end());
@@ -13563,9 +13597,9 @@ absl::Status Resolver::ResolveMatchRecognizeMeasures(
 
   auto measure_expr_resolution_info = std::make_unique<ExprResolutionInfo>(
       query_resolution_info.get(), /*name_scope=*/measures_scope_post_agg.get(),
-      /*aggregate_name_scope=*/measures_scope.get(),
-      /*analytic_name_scope=*/measures_scope_post_agg.get(),
       ExprResolutionInfoOptions{
+          .aggregate_name_scope = measures_scope.get(),
+          .analytic_name_scope = measures_scope_post_agg.get(),
           // These will be controlled by ONE ROW vs ALL ROWS PER MATCH.
           .allows_aggregation = true,
           .allows_analytic = false,
@@ -15726,8 +15760,7 @@ absl::Status Resolver::CheckTVFArgumentHasNoUnsupportedAnnotations(
               Resolver::kCollationPropagatedToSqlFunctionFeatureLabel);
         }
       }
-      if (expr->type_annotation_map() != nullptr &&
-          !expr->type_annotation_map()->Empty()) {
+      if (!AnnotationMap::IsNullOrEmpty(expr->type_annotation_map())) {
         std::unique_ptr<AnnotationMap> annotations_to_block =
             expr->type_annotation_map()->Clone();
         // Collation is handled separately above
@@ -16124,6 +16157,25 @@ absl::Status Resolver::ResolveTVF(
                      ast_tvf->name()->ToIdentifierPathString());
     GOOGLESQL_RETURN_IF_ERROR(ValidateMeasureSource(
         ast_tvf, tvf_signature->result_table_schema(), measure_source));
+  }
+
+  for (const TVFRelation::Column& column :
+       tvf_signature->result_schema().columns()) {
+    if (column.type_modifiers.has_value() &&
+        !column.type_modifiers->IsEmpty()) {
+      if (!column.type_modifiers->type_parameters().IsEmpty()) {
+        GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
+            FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF))
+            << "Type modifiers in TVF return schema are not supported "
+               "without "
+               "FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF";
+      }
+      if (!column.type_modifiers->collation().Empty()) {
+        GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT))
+            << "Collation in TVF return schema are not supported without "
+               "FEATURE_COLLATION_SUPPORT";
+      }
+    }
   }
 
   bool is_value_table = tvf_signature->result_schema().is_value_table();
@@ -17034,10 +17086,27 @@ absl::Status Resolver::PrepareTVFInputArguments(
 
       if (result_signature->ConcreteArgument(arg_idx).original_kind() ==
           ARG_KIND_EXPR_FIXED) {
-        // Annotations are only propagated for templated arguments.
-        // Currently, fixed arguments can not have annotations, so for that case
-        // we can keep them empty. In the future, any TypeParams on the argument
-        // declaration should be taken into account here.
+        GOOGLESQL_RET_CHECK(result_signature->ConcreteArgument(arg_idx)
+                      .type_modifiers()
+                      .has_value());
+        type_modifiers = result_signature->ConcreteArgument(arg_idx)
+                             .type_modifiers()
+                             .value();
+        if (!type_modifiers.IsEmpty()) {
+          if (!type_modifiers.type_parameters().IsEmpty()) {
+            GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
+                FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF))
+                << "Type modifiers in TVF signatures are not supported "
+                   "without "
+                   "FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF";
+          }
+          if (!type_modifiers.collation().Empty()) {
+            GOOGLESQL_RET_CHECK(
+                language().LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT))
+                << "Collation in TVF signatures is not supported without "
+                   "FEATURE_COLLATION_SUPPORT";
+          }
+        }
       } else {
         GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers, TypeModifiers::MakeTypeModifiers(
                                              expr->type_annotation_map()));
@@ -17070,7 +17139,8 @@ absl::Status Resolver::PrepareTVFInputArguments(
   // Prepare the list of TVF input arguments for calling the
   // TableValuedFunction::Resolve method.
   tvf_input_arguments.reserve(resolved_tvf_args.size());
-  for (ResolvedTVFArg& resolved_tvf_arg : resolved_tvf_args) {
+  for (int arg_idx = 0; arg_idx < resolved_tvf_args.size(); ++arg_idx) {
+    ResolvedTVFArg& resolved_tvf_arg = resolved_tvf_args[arg_idx];
     if (resolved_tvf_arg.IsExpr()) {
       GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* expr, resolved_tvf_arg.GetExpr());
       if (expr->node_kind() == RESOLVED_LITERAL) {
@@ -17138,10 +17208,13 @@ absl::Status Resolver::PrepareTVFInputArguments(
                                       pseudo_column.annotated_type(),
                                       /*is_pseudo_column_in=*/true);
         }
+        TVFSchemaColumn value_column(
+            "", name_list->column(0).column().annotated_type(),
+            /*is_pseudo_column_in=*/false,
+            /*is_passthrough_column_in=*/false,
+            /*type_modifiers_in=*/std::nullopt);
         GOOGLESQL_ASSIGN_OR_RETURN(TVFRelation value_table_relation,
-                         TVFRelation::ValueTable(
-                             name_list->column(0).column().annotated_type(),
-                             pseudo_columns));
+                         TVFRelation::ValueTable(value_column, pseudo_columns));
         tvf_input_arguments.push_back(
             TVFInputArgumentType(value_table_relation));
       } else {
@@ -17154,7 +17227,10 @@ absl::Status Resolver::PrepareTVFInputArguments(
           RecordColumnAccess(column_list[j]);
           tvf_relation_columns.emplace_back(
               name_list->column(j).name().ToString(),
-              column_list[j].annotated_type());
+              column_list[j].annotated_type(),
+              /*is_pseudo_column_in=*/false,
+              /*is_passthrough_column_in=*/false,
+              /*type_modifiers_in=*/std::nullopt);
         }
         // Add pseudo columns to tvf_relation_columns.
         for (const auto& pseudo_column : pseudo_column_list) {
@@ -17437,8 +17513,14 @@ Resolver::CheckIfMustCoerceOrRearrangeTVFRelationArgColumns(
   }
 
   // If the required schema was a value table and no type coercion was
-  // necessary, then there is no need to add a projection.
+  // necessary, then there is no need to add a projection unless there are type
+  // modifiers.
   if (required_schema.is_value_table()) {
+    const std::optional<TypeModifiers>& type_modifiers =
+        required_schema.column(0).type_modifiers;
+    if (type_modifiers.has_value() && !type_modifiers->IsEmpty()) {
+      return true;
+    }
     return false;
   }
 
@@ -17451,6 +17533,15 @@ Resolver::CheckIfMustCoerceOrRearrangeTVFRelationArgColumns(
       return true;
     }
 
+    // If the column in the relation argument has type modifiers,
+    // e.g. NUMERIC(10, 2), STRING COLLATE "und:ci", coercion is needed to apply
+    // the type modifiers to the input column.
+    std::optional<TypeModifiers> type_modifiers =
+        required_schema.column(i).type_modifiers;
+    if (type_modifiers.has_value() && !type_modifiers->IsEmpty()) {
+      return true;
+    }
+
     // There is a target required schema. Currently this schema must be fully
     // concrete. Therefore, If there are any annotations, we'll need to coerce
     // to drop them as today no concrete argument can have annotations.
@@ -17458,7 +17549,7 @@ Resolver::CheckIfMustCoerceOrRearrangeTVFRelationArgColumns(
     // Note that we only care about the columns actually being requested.
     const auto* annotation_map =
         name_list->column(i).column().type_annotation_map();
-    if (annotation_map != nullptr && !annotation_map->Empty()) {
+    if (!AnnotationMap::IsNullOrEmpty(annotation_map)) {
       return true;
     }
   }
@@ -17531,25 +17622,54 @@ absl::Status Resolver::CoerceOrRearrangeTVFRelationArgColumns(
     const ResolvedColumn& provided_input_column =
         name_list->column(provided_col_idx).column();
 
-    // Concrete arguments currently cannot have annotations. If the input has
-    // any, we need a projection to drop them.
+    // Check if we need to add a coercion to the input column. The following
+    // table shows when coercion is needed:
+    //
+    //                               input_column_has_annotations
+    //                                  Yes     |    No
+    //                                 --------------------
+    // column_has_type_modifiers Yes     Yes (1) |  Yes (1)
+    //                          ----------------------------
+    //                           No      Yes (2) |  No
+    // Notes:
+    //   1 - Coercion is needed to apply the type modifiers of the column;
+    //   2 - The column has no type modifiers, but the input has annotations. In
+    //       this case, coercion is needed to drop the collation on the
+    //       input. Other annotations unrelated to type modifiers continue to
+    //       propagate.
+    //
+    // Thus, the condition that coercion is needed is
+    //    input_column_has_annotations || column_has_type_modifiers.
+    bool input_column_has_annotations = !AnnotationMap::IsNullOrEmpty(
+        provided_input_column.type_annotation_map());
+    const std::optional<TypeModifiers>& type_modifiers =
+        tvf_signature_arg.options()
+            .relation_input_schema()
+            .column(required_col_idx)
+            .type_modifiers;
+    GOOGLESQL_RET_CHECK(type_modifiers.has_value());
+    GOOGLESQL_RETURN_IF_ERROR(CheckTypeModifiersFeaturesEnabled(*type_modifiers));
+    bool column_has_type_modifiers = !type_modifiers->IsEmpty();
+    // TODO - b/490102087: We should be able to just always coerce. This will
+    // introduce some extra project/no-op casts and thus we need to update
+    // expected results of tests.
     if (result_type == nullptr &&
-        provided_input_column.type_annotation_map() != nullptr &&
-        !provided_input_column.type_annotation_map()->Empty()) {
+        (input_column_has_annotations || column_has_type_modifiers)) {
       result_type = provided_input_column.type();
     }
 
     if (result_type == nullptr) {
       new_column_list.push_back(provided_input_column);
     } else {
-      new_column_list.emplace_back(AllocateColumnId(), new_project_alias,
-                                   name_list->column(provided_col_idx).name(),
-                                   result_type);
       std::unique_ptr<const ResolvedExpr> resolved_cast(
           MakeColumnRef(provided_input_column, /*is_correlated=*/false));
       GOOGLESQL_RETURN_IF_ERROR(ResolveCastWithResolvedArgument(
-          ast_location, result_type, /*return_null_on_error=*/false,
-          &resolved_cast));
+          ast_location, result_type, /*format=*/nullptr, /*time_zone=*/nullptr,
+          *type_modifiers,
+          /*return_null_on_error=*/false, &resolved_cast));
+      new_column_list.emplace_back(AllocateColumnId(), new_project_alias,
+                                   name_list->column(provided_col_idx).name(),
+                                   resolved_cast->annotated_type());
       new_project_columns.push_back(MakeResolvedComputedColumn(
           new_column_list.back(), std::move(resolved_cast)));
     }
@@ -19146,12 +19266,13 @@ absl::Status Resolver::CoerceQueryStatementResultToTypes(
 NOINLINE_PREVENT_HUGE_STACK_FRAMES
 absl::Status Resolver::ResolveGraphTableQuery(
     const ASTGraphTableQuery* ast_graph_table_query,
-    const NameScope* external_scope,
+    const NameScope* external_scope, bool is_nested,
     std::unique_ptr<const ResolvedScan>* output,
     std::shared_ptr<const NameList>* output_name_list) {
   GraphTableQueryResolver graph_query_resolver(catalog_, this);
   GOOGLESQL_RETURN_IF_ERROR(graph_query_resolver.ResolveGraphTableQuery(
-      ast_graph_table_query, external_scope, output, output_name_list));
+      ast_graph_table_query, external_scope, is_nested, output,
+      output_name_list));
 
   for (const auto* op : ast_graph_table_query->postfix_operators()) {
     switch (op->node_kind()) {
@@ -19183,9 +19304,9 @@ absl::StatusOr<std::unique_ptr<const ResolvedScan>> Resolver::ResolveGqlQuery(
     const ASTGqlQuery* ast_gql_query, const NameScope* scope,
     std::shared_ptr<const NameList>* output_name_list) {
   std::unique_ptr<const ResolvedScan> output;
-  GOOGLESQL_RETURN_IF_ERROR(ResolveGraphTableQuery(ast_gql_query->graph_table(),
-                                         /*external_scope=*/scope, &output,
-                                         output_name_list));
+  GOOGLESQL_RETURN_IF_ERROR(ResolveGraphTableQuery(
+      ast_gql_query->graph_table(), /*external_scope=*/scope,
+      ast_gql_query->is_subquery(), &output, output_name_list));
   return output;
 }
 

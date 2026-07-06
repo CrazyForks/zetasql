@@ -489,4 +489,5 @@ known_errors {
   label: "collation_in_sql_functions_test:collation_in_templated_tvf_implicit_return_use_output_columns"
   label: "collation_in_sql_functions_test:collation_in_tvf_with_any_string_applies_correct_defaults"
   label: "collation_in_sql_functions_test:collation_in_tvf_with_any_string_explicit_args"
+  label: "call_sql_udf_test:call_tvf_table"
 }

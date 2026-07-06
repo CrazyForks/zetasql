@@ -3528,13 +3528,13 @@ regular expression syntax.
 **Examples**
 
 ```googlesql
-SELECT REGEXP_REPLACE('# Heading', r'^# ([a-zA-Z0-9\s]+$)', '<h1>\\1</h1>') AS html
+SELECT REGEXP_REPLACE('Jane Doe', r'^([\p{L}\x27-]+)\s+([\p{L}\x27-]+)$', r'\2, \1') AS formatted_name
 
-/*--------------------------+
- | html                     |
- +--------------------------+
- | <h1>Heading</h1>         |
- +--------------------------*/
+/*----------------+
+ | formatted_name |
+ +----------------+
+ | Doe, Jane      |
+ +----------------*/
 ```
 
 [string-link-to-re2]: https://github.com/google/re2/wiki/Syntax

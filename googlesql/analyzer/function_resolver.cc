@@ -1276,7 +1276,7 @@ absl::StatusOr<const AnnotationMap*>
 FunctionResolver::AdjustTypeAnnotationsForCast(
     const Type* source_type, const Type* target_type,
     const AnnotationMap* source_annotation_map) const {
-  if (source_annotation_map == nullptr || source_annotation_map->Empty()) {
+  if (AnnotationMap::IsNullOrEmpty(source_annotation_map)) {
     return source_annotation_map;
   }
   std::vector<const Type*> source_component_types =
@@ -2409,14 +2409,19 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     }
 
     const Type* target_type = concrete_argument.type();
-
     bool needs_coercion = !(arguments[idx])->type()->Equals(target_type);
-
-    // Currently, concrete arguments have no way to specify TypeModifiers.
-    // TODO: this code should focus on TypeModifiers, which are
-    // currently empty for concrete arguments. Annotations are to be computed
-    // as outputs.
-    TypeModifiers type_modifiers;
+    const std::optional<TypeModifiers>& concrete_argument_type_modifiers =
+        concrete_argument.type_modifiers();
+    GOOGLESQL_RET_CHECK(concrete_argument_type_modifiers.has_value());
+    TypeModifiers type_modifiers = concrete_argument_type_modifiers.value();
+    GOOGLESQL_RETURN_IF_ERROR(
+        resolver_->CheckTypeModifiersFeaturesEnabled(type_modifiers));
+    if (!type_modifiers.IsEmpty()) {
+      // Even if the type is the same, if the concrete argument has type
+      // modifiers, such as NUMERIC(10, 2), coercion is still needed to apply
+      // the type modifiers.
+      needs_coercion = true;
+    }
 
     // Annotations are propagated to the argument into the function is governed
     // by these rules:
@@ -2440,22 +2445,34 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
       GOOGLESQL_ASSIGN_OR_RETURN(type_modifiers,
                        TypeModifiers::MakeTypeModifiers(
                            arguments[idx]->type_annotation_map()));
-    } else if (!IsSqlFunction(function) &&
-               concrete_argument.options().argument_collation_mode() !=
-                   FunctionEnums::AFFECTS_NONE) {
-      if (arguments[idx]->type_annotation_map() != nullptr) {
-        GOOGLESQL_ASSIGN_OR_RETURN(
-            Collation collation,
-            Collation::MakeCollation(*arguments[idx]->type_annotation_map()));
-        type_modifiers = TypeModifiers::MakeTypeModifiers(TypeParameters(),
-                                                          std::move(collation));
-      }
     } else {
-      if (arguments[idx]->type_annotation_map() != nullptr &&
-          !arguments[idx]->type_annotation_map()->Empty()) {
-        // Even if the type is the same, we need to coerce to drop the
-        // annotations.
-        needs_coercion = true;
+      if (!IsSqlFunction(function) &&
+          concrete_argument.options().argument_collation_mode() !=
+              FunctionEnums::AFFECTS_NONE) {
+        // TODO - b/530291228: Validate that the argument type can have
+        // collations.
+        // TODO - b/530294555: Validate that the function must be GoogleSQL
+        // builtin.
+        GOOGLESQL_RET_CHECK(concrete_argument_type_modifiers->collation().Empty());
+        // This is a non-SQL function, and the argument is a FIXED type, which
+        // does care about collation, as indicated by
+        // "argument_collation_mode". This can be string function, for example,
+        // such as string contains. We do NOT want to drop collation, so we have
+        // to use the one carried by the arg, as indicated by the annotation.
+        if (arguments[idx]->type_annotation_map() != nullptr) {
+          GOOGLESQL_ASSIGN_OR_RETURN(
+              Collation collation,
+              Collation::MakeCollation(*arguments[idx]->type_annotation_map()));
+          type_modifiers = TypeModifiers::MakeTypeModifiers(
+              concrete_argument_type_modifiers->type_parameters(),
+              std::move(collation));
+        }
+      } else {
+        if (!AnnotationMap::IsNullOrEmpty(
+                arguments[idx]->type_annotation_map())) {
+          // Even if the type is the same, we need to coerce to drop collation.
+          needs_coercion = true;
+        }
       }
     }
 
@@ -2560,6 +2577,14 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     result_signature = std::move(new_signature);
     GOOGLESQL_RET_CHECK(result_signature->IsConcrete())
         << "result_signature: '" << result_signature->DebugString() << "'";
+  }
+
+  if (result_signature->result_type().type_modifiers().has_value() &&
+      !result_signature->result_type().type_modifiers()->IsEmpty()) {
+    const TypeModifiers& type_modifiers =
+        *result_signature->result_type().type_modifiers();
+    GOOGLESQL_RETURN_IF_ERROR(
+        resolver_->CheckTypeModifiersFeaturesEnabled(type_modifiers));
   }
 
   GOOGLESQL_RET_CHECK(!result_signature->result_type().IsVoid());

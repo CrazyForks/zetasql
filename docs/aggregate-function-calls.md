@@ -29,8 +29,10 @@ function_name(
 Each aggregate function supports all or a subset of the aggregate function call
 syntax. To build an aggregate function, use the following syntax:
 
-+ `DISTINCT`: Each distinct value of
-  `expression` is aggregated only once into the result.
++ `DISTINCT`: Aggregate each distinct value of an expression only once into the
+  result.
++ `function_arguments`: Specify the input values, columns, or expressions that
+  the aggregate function evaluates and summarizes across the rows of a group.
 + `IGNORE NULLS` or `RESPECT NULLS`: If `IGNORE NULLS` is
   specified, the `NULL` values are excluded from the result. If
   `RESPECT NULLS` is specified, both `NULL` and non-`NULL` values can be

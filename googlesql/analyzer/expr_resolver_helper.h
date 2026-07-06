@@ -224,12 +224,6 @@ struct ExprResolutionInfo {
   ExprResolutionInfo(QueryResolutionInfo* query_resolution_info,
                      const NameScope* name_scope_in,
                      ExprResolutionInfoOptions options);
-  // This constructor allows setting alternate aggregate and analytic scopes.
-  ExprResolutionInfo(QueryResolutionInfo* query_resolution_info,
-                     const NameScope* name_scope_in,
-                     const NameScope* aggregate_name_scope_in,
-                     const NameScope* analytic_name_scope_in,
-                     ExprResolutionInfoOptions options);
 
   // Construct an ExprResolutionInfo inheriting default options from
   // a parent expression, with overrides in `options`.
@@ -237,21 +231,6 @@ struct ExprResolutionInfo {
   explicit ExprResolutionInfo(ExprResolutionInfo* parent);
   ExprResolutionInfo(ExprResolutionInfo* parent,
                      ExprResolutionInfoOptions options);
-
-  // Construct an ExprResolutionInfo with this common set of args, used
-  // for resolving clauses in many places is resolver_query.cc.
-  // We have this shorthand rather than using the Options object because
-  // this exact set of options is very common.
-  // Prefer using Options rather than adding more optional args here.
-  ExprResolutionInfo(const NameScope* name_scope_in,
-                     const NameScope* aggregate_name_scope_in,
-                     const NameScope* analytic_name_scope_in,
-                     bool allows_aggregation_in, bool allows_analytic_in,
-                     bool use_post_grouping_columns_in,
-                     const char* clause_name_in,
-                     QueryResolutionInfo* query_resolution_info_in,
-                     const ASTExpression* top_level_ast_expr_in = nullptr,
-                     IdString column_alias_in = IdString());
 
   // Construct a ExprResolutionInfo from `parent`, setting the namescope to
   // `post_grouping_name_scope` and the `QueryResolutionInfo` to

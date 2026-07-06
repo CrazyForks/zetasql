@@ -70,7 +70,7 @@ static constexpr const char* kNoConstraintViolation = "";
 // equality operators: =, !=, IS DISTINCT FROM, IS NOT DISTINCT FROM.
 std::string JsonEqualityCoercionConstraintErrorMessage(
     const FunctionSignature& signature,
-    const std::vector<InputArgumentType>& arguments) {
+    absl::Span<const InputArgumentType> arguments) {
   ABSL_DCHECK_EQ(arguments.size(), 2) << "INTERNAL_ERROR: Equality with JSON and "
                                     "non-JSON should have exactly 2 "
                                     "arguments.";

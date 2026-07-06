@@ -8241,3 +8241,240 @@ QueryStmt
         |     +-Literal(type=STRING, value="abc")
         +-column_index_list=[0]
         +-function_call_signature=(optional(1) ANY TABLE, optional(1) STRING) -> TABLE<INT64>
+
+
+==
+
+[prepare_database=db_type_modifier]
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES]
+[no_java]
+[no_run_deserializer]
+CREATE TABLE FUNCTION ValueTableArgWithParamType(t TABLE<NUMERIC(10, 2)>)
+RETURNS TABLE<NUMERIC(11, 3)>
+AS SELECT t FROM t;
+--
+CreateTableFunctionStmt
++-name_path=ValueTableArgWithParamType
++-argument_name_list=[t]
++-signature=(TABLE<NUMERIC type_parameters:(precision=10,scale=2)> t) -> TABLE<NUMERIC type_parameters:(precision=11,scale=3)>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="SELECT t FROM t"
++-query=
+| +-ProjectScan
+|   +-column_list=[$subquery1.$value_column#2]
+|   +-expr_list=
+|   | +-$value_column#2 :=
+|   |   +-Cast(NUMERIC -> NUMERIC)
+|   |     +-ColumnRef(type=NUMERIC, column=t.$value_column#1)
+|   |     +-type_modifiers=type_parameters:(precision=11,scale=3)
+|   +-input_scan=
+|     +-ProjectScan
+|       +-column_list=[t.$value_column#1]
+|       +-input_scan=
+|         +-RelationArgumentScan(column_list=[t.$value_column#1], name="t", is_value_table=TRUE)
++-output_column_list=
+| +-$subquery1.$value_column#2 AS `$value_column` [NUMERIC]
++-is_value_table=TRUE
+==
+
+[use_database=db_type_modifier]
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
+[no_java]
+[no_run_deserializer]
+WITH tmp AS (
+  SELECT AS VALUE NUMERIC "1.234"
+)
+SELECT * FROM ValueTableArgWithParamType(TABLE tmp);
+--
+QueryStmt
++-output_column_list=
+| +-ValueTableArgWithParamType.$col0#4 AS `$col0` [NUMERIC]
++-query=
+  +-WithScan
+    +-column_list=[ValueTableArgWithParamType.$col0#4]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="tmp"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[tmp.$col1#1]
+    |       +-expr_list=
+    |       | +-$col1#1 := Literal(type=NUMERIC, value=1.234, has_explicit_type=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[ValueTableArgWithParamType.$col0#4]
+        +-input_scan=
+          +-TVFScan
+            +-column_list=[ValueTableArgWithParamType.$col0#4]
+            +-tvf=ValueTableArgWithParamType((TABLE<NUMERIC type_parameters:(precision=10,scale=2)> t) -> TABLE<NUMERIC type_parameters:(precision=11,scale=3)>)
+            +-signature=(TABLE<NUMERIC>) -> TABLE<NUMERIC>
+            +-argument_list=
+            | +-FunctionArgument
+            |   +-scan=
+            |   | +-ProjectScan
+            |   |   +-column_list=[$subquery1.tmp#3]
+            |   |   +-expr_list=
+            |   |   | +-tmp#3 :=
+            |   |   |   +-Cast(NUMERIC -> NUMERIC)
+            |   |   |     +-ColumnRef(type=NUMERIC, column=tmp.$value_column#2)
+            |   |   |     +-type_modifiers=type_parameters:(precision=10,scale=2)
+            |   |   +-input_scan=
+            |   |     +-WithRefScan(column_list=[tmp.$value_column#2], node_source="table_clause", with_query_name="tmp")
+            |   +-argument_column_list=[$subquery1.tmp#3]
+            +-column_index_list=[0]
+            +-function_call_signature=(TABLE<NUMERIC type_parameters:(precision=10,scale=2)> t) -> TABLE<NUMERIC type_parameters:(precision=11,scale=3)>
+==
+
+[prepare_database=db_collation_tvf]
+[language_features=MAXIMUM,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+[no_java]
+[no_run_deserializer]
+CREATE TABLE FUNCTION tvf_with_string_arg(t TABLE<a STRING>)
+RETURNS TABLE<a STRING>
+AS SELECT a FROM t;
+--
+CreateTableFunctionStmt
++-name_path=tvf_with_string_arg
++-argument_name_list=[t]
++-signature=(TABLE<a STRING> t) -> TABLE<a STRING>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="SELECT a FROM t"
++-query=
+| +-ProjectScan
+|   +-column_list=[t.a#1]
+|   +-input_scan=
+|     +-RelationArgumentScan(column_list=[t.a#1], name="t")
++-output_column_list=
+  +-t.a#1 AS a [STRING]
+==
+
+[use_database=db_collation_tvf]
+[language_features=MAXIMUM,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+[no_java]
+[no_run_deserializer]
+# Verifies that when a relation argument has a column with collation, but the TVF
+# signature expects a column without collation, the collation is correctly dropped
+# via a Cast to match the TVF signature.
+WITH tmp AS (
+  SELECT COLLATE('abc', 'und:ci') as a
+)
+SELECT * FROM tvf_with_string_arg(TABLE tmp);
+--
+QueryStmt
++-output_column_list=
+| +-tvf_with_string_arg.a#4 AS a [STRING]
++-query=
+  +-WithScan
+    +-column_list=[tvf_with_string_arg.a#4]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="tmp"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[tmp.a#1{Collation:"und:ci"}]
+    |       +-expr_list=
+    |       | +-a#1 :=
+    |       |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       |     +-type_annotation_map={Collation:"und:ci"}
+    |       |     +-Literal(type=STRING, value="abc")
+    |       |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[tvf_with_string_arg.a#4]
+        +-input_scan=
+          +-TVFScan
+            +-column_list=[tvf_with_string_arg.a#4]
+            +-tvf=tvf_with_string_arg((TABLE<a STRING> t) -> TABLE<a STRING>)
+            +-signature=(TABLE<a STRING>) -> TABLE<a STRING>
+            +-argument_list=
+            | +-FunctionArgument
+            |   +-scan=
+            |   | +-ProjectScan
+            |   |   +-column_list=[$subquery1.a#3]
+            |   |   +-expr_list=
+            |   |   | +-a#3 :=
+            |   |   |   +-Cast(STRING -> STRING)
+            |   |   |     +-ColumnRef(type=STRING, type_annotation_map={Collation:"und:ci"}, column=tmp.a#2{Collation:"und:ci"})
+            |   |   +-input_scan=
+            |   |     +-WithRefScan(column_list=[tmp.a#2{Collation:"und:ci"}], node_source="table_clause", with_query_name="tmp")
+            |   +-argument_column_list=[$subquery1.a#3]
+            +-column_index_list=[0]
+            +-function_call_signature=(TABLE<a STRING> t) -> TABLE<a STRING>
+==
+
+[prepare_database=db_collation_tvf]
+[language_features=MAXIMUM,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+[no_java]
+[no_run_deserializer]
+CREATE TABLE FUNCTION tvf_with_any_table(t ANY TABLE)
+AS SELECT * FROM t;
+--
+CreateTableFunctionStmt(name_path=tvf_with_any_table, argument_name_list=[t], signature=(ANY TABLE t) -> ANY TABLE, language="SQL", code="SELECT * FROM t")
+==
+
+[use_database=db_collation_tvf]
+[language_features=MAXIMUM,+TYPE_ANNOTATIONS_ON_SQL_FUNCTION_ARGUMENTS,+COLLATION_SUPPORT,+ANNOTATION_FRAMEWORK]
+[no_java]
+[no_run_deserializer]
+# Verifies that when a relation argument has a column with collation, and the TVF
+# signature accepts ANY TABLE, the collation is preserved on the column and no
+# coercion Cast is added.
+WITH tmp AS (
+  SELECT COLLATE('abc', 'und:ci') as a
+)
+SELECT * FROM tvf_with_any_table(TABLE tmp);
+--
+QueryStmt
++-output_column_list=
+| +-tvf_with_any_table.a#3{Collation:"und:ci"} AS a [STRING]
++-query=
+  +-WithScan
+    +-column_list=[tvf_with_any_table.a#3{Collation:"und:ci"}]
+    +-with_entry_list=
+    | +-WithEntry
+    |   +-with_query_name="tmp"
+    |   +-with_subquery=
+    |     +-ProjectScan
+    |       +-column_list=[tmp.a#1{Collation:"und:ci"}]
+    |       +-expr_list=
+    |       | +-a#1 :=
+    |       |   +-FunctionCall(GoogleSQL:collate(STRING, STRING) -> STRING)
+    |       |     +-type_annotation_map={Collation:"und:ci"}
+    |       |     +-Literal(type=STRING, value="abc")
+    |       |     +-Literal(type=STRING, value="und:ci", preserve_in_literal_remover=TRUE)
+    |       +-input_scan=
+    |         +-SingleRowScan
+    +-query=
+      +-ProjectScan
+        +-column_list=[tvf_with_any_table.a#3{Collation:"und:ci"}]
+        +-input_scan=
+          +-TVFScan
+            +-column_list=[tvf_with_any_table.a#3{Collation:"und:ci"}]
+            +-tvf=tvf_with_any_table((ANY TABLE t) -> ANY TABLE)
+            +-signature=(TABLE<a STRING{Collation:"und:ci"}>) -> TABLE<a STRING{Collation:"und:ci"}>
+            +-argument_list=
+            | +-FunctionArgument
+            |   +-scan=
+            |   | +-WithRefScan(column_list=[tmp.a#2{Collation:"und:ci"}], node_source="table_clause", with_query_name="tmp")
+            |   +-argument_column_list=[tmp.a#2{Collation:"und:ci"}]
+            +-column_index_list=[0]
+            +-function_call_signature=(ANY TABLE t) -> ANY TABLE
+
+With Templated SQL TVF signature:
+  tvf_with_any_table(TABLE<a STRING{Collation:"und:ci"}>) -> TABLE<a STRING{Collation:"und:ci"}>
+containing resolved templated query:
+QueryStmt
++-output_column_list=
+| +-t.a#1{Collation:"und:ci"} AS a [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=[t.a#1{Collation:"und:ci"}]
+    +-input_scan=
+      +-RelationArgumentScan(column_list=[t.a#1{Collation:"und:ci"}], name="t")
+

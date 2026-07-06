@@ -39,6 +39,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/ascii.h"
@@ -405,6 +406,13 @@ template <class VALUE>
 using IdStringHashMapCase =
     absl::flat_hash_map<IdString, VALUE, IdStringCaseHash,
                         IdStringCaseEqualFunc>;
+
+// Typedef for IdStringLinkedHashMapCase<VALUE>, a case-insensitive
+// insertion-ordered hash map of IdString -> VALUE.
+template <class VALUE>
+using IdStringLinkedHashMapCase =
+    absl::linked_hash_map<IdString, VALUE, IdStringCaseHash,
+                          IdStringCaseEqualFunc>;
 
 #endif  // SWIG
 

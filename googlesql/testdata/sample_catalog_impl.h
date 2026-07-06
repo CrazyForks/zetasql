@@ -147,6 +147,7 @@ class SampleCatalogImpl {
   absl::Status LoadCompositeKeyPropertyGraphs();
   absl::Status LoadPropertyGraphWithDynamicLabelAndProperties();
   absl::Status LoadPropertyGraphWithDynamicMultiLabelsAndProperties();
+  absl::Status LoadDmlTestPropertyGraph();
 
   // Loads several table-valued functions into the sample catalog. For a full
   // list of the signatures added, please see the beginning of the method

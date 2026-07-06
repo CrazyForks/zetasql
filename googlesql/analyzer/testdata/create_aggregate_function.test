@@ -248,3 +248,155 @@ CreateFunctionStmt
 +-function_expression=
 | +-ColumnRef(type=INT64, column=$aggregate.$agg1#1)
 +-sql_security=SQL_SECURITY_DEFINER
+==
+
+# UDA with ARRAY and SQL body
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function uda_array_numeric(a ARRAY<numeric(10,2)>) as (SUM(a[OFFSET(0)]));
+--
+CreateFunctionStmt
++-name_path=uda_array_numeric
++-return_type=NUMERIC
++-argument_name_list=[a]
++-signature=(ARRAY<NUMERIC> type_parameters:[(precision=10,scale=2)] a) -> NUMERIC
++-is_aggregate=TRUE
++-language="SQL"
++-code="SUM(a[OFFSET(0)])"
++-aggregate_expression_list=
+| +-$agg1#1 :=
+|   +-AggregateFunctionCall(GoogleSQL:sum(NUMERIC) -> NUMERIC)
+|     +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<NUMERIC>, INT64) -> NUMERIC)
+|       +-ArgumentRef(parse_location=76-77, type=ARRAY<NUMERIC>, name="a", argument_kind=AGGREGATE)
+|       +-Literal(type=INT64, value=0)
++-function_expression=
+  +-ColumnRef(type=NUMERIC, column=$aggregate.$agg1#1)
+==
+
+# UDA with STRUCT and SQL body
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function uda_struct(s STRUCT<x string(10), y timestamp(12)>) as (ARRAY_AGG(s));
+--
+CreateFunctionStmt
++-name_path=uda_struct
++-return_type=ARRAY<STRUCT<x STRING, y TIMESTAMP>>
++-argument_name_list=[s]
++-signature=(STRUCT<x STRING, y TIMESTAMP> type_parameters:[(max_length=10),(precision=12)] s) -> ARRAY<STRUCT<x STRING, y TIMESTAMP>>
++-is_aggregate=TRUE
++-language="SQL"
++-code="ARRAY_AGG(s)"
++-aggregate_expression_list=
+| +-$agg1#1 :=
+|   +-AggregateFunctionCall(GoogleSQL:array_agg(STRUCT<x STRING, y TIMESTAMP>) -> ARRAY<STRUCT<x STRING, y TIMESTAMP>>)
+|     +-ArgumentRef(parse_location=92-93, type=STRUCT<x STRING, y TIMESTAMP>, name="s", argument_kind=AGGREGATE)
++-function_expression=
+  +-ColumnRef(type=ARRAY<STRUCT<x STRING, y TIMESTAMP>>, column=$aggregate.$agg1#1)
+==
+
+# UDA with MAP and non-SQL language
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION,+MAP_TYPE]
+[no_java]
+create aggregate function uda_map(m MAP<timestamp(12), numeric(10, 2)>) returns numeric(10, 2) language js as """ body """;
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:81]
+...m MAP<timestamp(12), numeric(10, 2)>) returns numeric(10, 2) language js a...
+                                                 ^
+==
+
+# UDA with RANGE and non-SQL language
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION,+RANGE_TYPE]
+[no_java]
+create aggregate function uda_range(r RANGE<TIMESTAMP(12)>) returns RANGE<TIMESTAMP(12)> language python as """ body """;
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:69]
+...function uda_range(r RANGE<TIMESTAMP(12)>) returns RANGE<TIMESTAMP(12)> la...
+                                                      ^
+==
+
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION,+MAP_TYPE]
+[no_java]
+create aggregate function uda_map(m MAP<timestamp(12), numeric(10, 2)>) returns numeric language js as """ body """;
+--
+CreateFunctionStmt(name_path=uda_map, has_explicit_return_type=TRUE, return_type=NUMERIC, argument_name_list=[m], signature=(MAP<TIMESTAMP, NUMERIC> type_parameters:[(precision=12),(precision=10,scale=2)] m) -> NUMERIC, is_aggregate=TRUE, language="js", code=" body ")
+==
+
+# UDA with ARRAY of STRUCT
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function uda_array_struct(a ARRAY<STRUCT<x numeric(10,2)>>) as (SUM(a[OFFSET(0)].x));
+--
+CreateFunctionStmt
++-name_path=uda_array_struct
++-return_type=NUMERIC
++-argument_name_list=[a]
++-signature=(ARRAY<STRUCT<x NUMERIC>> type_parameters:[[(precision=10,scale=2)]] a) -> NUMERIC
++-is_aggregate=TRUE
++-language="SQL"
++-code="SUM(a[OFFSET(0)].x)"
++-aggregate_expression_list=
+| +-$agg1#1 :=
+|   +-AggregateFunctionCall(GoogleSQL:sum(NUMERIC) -> NUMERIC)
+|     +-GetStructField
+|       +-type=NUMERIC
+|       +-expr=
+|       | +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<STRUCT<x NUMERIC>>, INT64) -> STRUCT<x NUMERIC>)
+|       |   +-ArgumentRef(parse_location=85-86, type=ARRAY<STRUCT<x NUMERIC>>, name="a", argument_kind=AGGREGATE)
+|       |   +-Literal(type=INT64, value=0)
+|       +-field_idx=0
++-function_expression=
+  +-ColumnRef(type=NUMERIC, column=$aggregate.$agg1#1)
+==
+
+# UDA with STRUCT of ARRAY
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function uda_struct_array(s STRUCT<a ARRAY<numeric(10,2)>>) as (SUM(s.a[OFFSET(0)]));
+--
+CreateFunctionStmt
++-name_path=uda_struct_array
++-return_type=NUMERIC
++-argument_name_list=[s]
++-signature=(STRUCT<a ARRAY<NUMERIC>> type_parameters:[[(precision=10,scale=2)]] s) -> NUMERIC
++-is_aggregate=TRUE
++-language="SQL"
++-code="SUM(s.a[OFFSET(0)])"
++-aggregate_expression_list=
+| +-$agg1#1 :=
+|   +-AggregateFunctionCall(GoogleSQL:sum(NUMERIC) -> NUMERIC)
+|     +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<NUMERIC>, INT64) -> NUMERIC)
+|       +-GetStructField
+|       | +-type=ARRAY<NUMERIC>
+|       | +-expr=
+|       | | +-ArgumentRef(parse_location=85-86, type=STRUCT<a ARRAY<NUMERIC>>, name="s", argument_kind=AGGREGATE)
+|       | +-field_idx=0
+|       +-Literal(type=INT64, value=0)
++-function_expression=
+  +-ColumnRef(type=NUMERIC, column=$aggregate.$agg1#1)
+==
+
+# UDA with templated argument and return type modifier (SQL)
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function templated_uda_numeric(x any type) returns numeric(10, 2) as (SUM(CAST(x AS numeric(10, 2))));
+--
+CreateFunctionStmt(name_path=templated_uda_numeric, has_explicit_return_type=TRUE, return_type=NUMERIC, argument_name_list=[x], signature=(ANY TYPE x) -> NUMERIC type_parameters:(precision=10,scale=2), is_aggregate=TRUE, language="SQL", code="SUM(CAST(x AS numeric(10, 2)))")
+==
+
+# UDA with templated argument and return type modifier of STRUCT
+[prepare_database=db1]
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION,+COLLATION_SUPPORT]
+[no_java]
+create aggregate function templated_uda_struct(x any type) returns STRUCT<a STRING COLLATE 'und:ci', b NUMERIC(5, 2)> as (STRUCT(MAX(CAST(x AS STRING)), SUM(CAST(x AS NUMERIC))));
+--
+CreateFunctionStmt(name_path=templated_uda_struct, has_explicit_return_type=TRUE, return_type=STRUCT<a STRING, b NUMERIC>, argument_name_list=[x], signature=(ANY TYPE x) -> STRUCT<a STRING, b NUMERIC> type_parameters:[null,(precision=5,scale=2)], collation:[und:ci,_], is_aggregate=TRUE, language="SQL", code="STRUCT(MAX(CAST(x AS STRING)), SUM(CAST(x AS NUMERIC)))")
+==
+
+# UDA with templated argument and return type modifier (non-SQL)
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+CREATE_AGGREGATE_FUNCTION]
+[no_java]
+create aggregate function templated_uda_numeric_js(x any type) returns numeric(10, 2) language js as "return 1;";
+--
+ERROR: Type modifiers are not supported on the return type of non-SQL user-defined functions [at 1:72]
+...templated_uda_numeric_js(x any type) returns numeric(10, 2) language js as...
+                                                ^

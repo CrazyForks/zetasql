@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "googlesql/analyzer/graph_query_resolver_helper.h"
 #include "googlesql/analyzer/name_scope.h"
 #include "googlesql/analyzer/resolver.h"
 #include "googlesql/analyzer/set_operation_resolver_base.h"
@@ -90,42 +91,6 @@ class Resolver;
 class AnalyzerOptions;
 class QueryResolutionInfo;
 
-// With support for quantified path patterns, the output name list on
-// resolving any graph/path/element pattern will always contain 2 lists:
-// 1) <singleton_name_list> contains all the singleton variables (variables
-// that are not quantified).
-// 2) <group_name_list> contains all the group variables (variables that are
-// quantified).
-//
-// Note that whether a variable is treated as a singleton or group variable
-// is context specific. For example:
-// (
-//  ((a) -[e]-> (b <elem_scope>) WHERE <inner_scope>){1, 3}
-//  WHERE <outer_scope>
-// )
-// - <a>, <e>, <b> are singleton variables in the scope of <inner_scope>
-// - <b> is a singleton in <elem_scope>;
-// - However they are all group variables in the scope of <outer_scope>.
-struct GraphTableNamedVariables {
-  // Describes the context which outputs GraphTableNamedVariables.
-  const ASTNode* ast_node;
-  // Contains all the singleton variables for this 'ast_node'
-  std::shared_ptr<NameList> singleton_name_list = std::make_shared<NameList>();
-  // Contains all the group variables for this 'ast_node'
-  std::shared_ptr<NameList> group_name_list = std::make_shared<NameList>();
-
-  // Used during the resolution of a CALL subquery, to keep the correlated
-  // variables from the outside scope. The subquery can have multiple linear
-  // operators, so these correlated names travel all along.
-  // Always nullptr (not just an empty list) unless we're inside the body of
-  // of a CALL.
-  //
-  // INVARIANT: Names in the other lists are not allowed to conflict with
-  // names in this list, unlike outer names which would simply be shadowed.
-  // i.e., this list is always disjoint with the other lists.
-  std::shared_ptr<NameList> correlated_name_list = nullptr;
-};
-
 // This class performs resolution for GraphTable during GoogleSQL analysis.
 //
 class GraphTableQueryResolver {
@@ -143,7 +108,7 @@ class GraphTableQueryResolver {
   //    will be implied from the parent context
   absl::Status ResolveGraphTableQuery(
       const ASTGraphTableQuery* graph_table_query, const NameScope* scope,
-      std::unique_ptr<const ResolvedScan>* output,
+      bool is_nested, std::unique_ptr<const ResolvedScan>* output,
       NameListPtr* output_name_list);
 
   // Resolves a GQL EXISTS {graph_pattern} subquery.
@@ -240,15 +205,6 @@ class GraphTableQueryResolver {
       std::vector<std::unique_ptr<const ResolvedGraphMakeArrayVariable>>&
           new_group_variables);
 
-  // Represents the output of most ResolveGraph/Gql* statements
-  template <typename NodeType>
-  struct ResolvedGraphWithNameList {
-    // The output resolved node produced by the call.
-    std::unique_ptr<NodeType> resolved_node;
-    // The output graph namelists produced by the call.
-    GraphTableNamedVariables graph_name_lists;
-  };
-
   // Copy the graph input scan. The `input` can only be a SingleRowScan or a
   // GraphRefScan.
   absl::StatusOr<ResolvedGraphWithNameList<const ResolvedScan>>
@@ -307,7 +263,7 @@ class GraphTableQueryResolver {
       const ASTGqlOperator* gql_op, const NameScope* external_scope,
       std::vector<std::unique_ptr<const ResolvedScan>>& current_scan_list,
       ResolvedGraphWithNameList<const ResolvedScan> inputs,
-      bool is_first_statement_in_graph_query);
+      GqlQueryContext context);
 
   // Verifies that the sequence of linear query ops in `primitive_ops` is valid.
   absl::Status CheckGqlLinearQuery(
@@ -320,7 +276,7 @@ class GraphTableQueryResolver {
   ResolveGqlLinearQueryList(const ASTGqlOperatorList& gql_ops_list,
                             const NameScope* external_scope,
                             GraphTableNamedVariables input_graph_name_lists,
-                            bool is_first_statement_in_graph_query);
+                            GqlQueryContext context);
 
   // Resolves a GraphLinearScan with primitive gql operations (MATCH, RETURN) as
   // children. `input_graph_name_lists`s namelists are consumed for the current
@@ -329,7 +285,7 @@ class GraphTableQueryResolver {
   ResolveGqlLinearQuery(const ASTGqlOperatorList& gql_ops_list,
                         const NameScope* external_scope,
                         ResolvedGraphWithNameList<const ResolvedScan> inputs,
-                        bool is_first_statement_in_graph_query);
+                        GqlQueryContext context);
 
   // Resolves a chained list of gql operators. `input_graph_name_lists`s
   // namelists are consumed for the current input scan.
@@ -338,7 +294,7 @@ class GraphTableQueryResolver {
   ResolveGqlOperatorList(absl::Span<const ASTGqlOperator* const> gql_ops,
                          const NameScope* external_scope,
                          ResolvedGraphWithNameList<const ResolvedScan> inputs,
-                         bool is_first_statement_in_graph_query);
+                         GqlQueryContext context);
 
   // Resolves a match operator in GQL syntax, which first resolves a graph
   // pattern independently using `input_scope` (the scope at the start of a
@@ -392,7 +348,7 @@ class GraphTableQueryResolver {
   ResolveGqlInlineSubqueryCall(
       const ASTGqlInlineSubqueryCall& call_op, const NameScope* local_scope,
       ResolvedGraphWithNameList<const ResolvedScan> input,
-      bool is_first_statement_in_graph_query);
+      GqlQueryContext context);
 
   // Resolves a GQL CALL operator on a named TVF.
   absl::StatusOr<ResolvedGraphWithNameList<const ResolvedScan>>
@@ -414,7 +370,7 @@ class GraphTableQueryResolver {
   ResolveGqlSetOperation(const ASTGqlSetOperation& set_op,
                          const NameScope* external_scope,
                          ResolvedGraphWithNameList<const ResolvedScan> inputs,
-                         bool is_first_statement_in_graph_query);
+                         GqlQueryContext context);
 
   // Resolves a GQL query's SAMPLE operator.
   absl::StatusOr<ResolvedGraphWithNameList<const ResolvedScan>>
@@ -795,7 +751,7 @@ class GraphTableQueryResolver {
     absl::StatusOr<ResolvedGraphWithNameList<const ResolvedScan>> Resolve(
         const NameScope* external_scope,
         ResolvedGraphWithNameList<const ResolvedScan> inputs,
-        bool is_first_statement_in_graph_query);
+        GqlQueryContext context);
 
     // Validates that N-ary GQL set operation:
     // - contains the same set operator; and

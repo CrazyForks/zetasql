@@ -41,6 +41,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 #include "googlesql/base/status_macros.h"
 
@@ -83,7 +84,7 @@ absl::StatusOr<std::shared_ptr<TVFSignature>> TimeSeriesComputeResultType(
 // Perform post-resolution constraints on the TUMBLE and HOP TVFs.
 absl::Status ValidateTimeSeriesTVFArguments(
     TypeFactory* type_factory, const FunctionSignature& signature,
-    const std::vector<TVFInputArgumentType>& actual_arguments,
+    absl::Span<const TVFInputArgumentType> actual_arguments,
     const LanguageOptions& /*language_options*/) {
   GOOGLESQL_RET_CHECK(!actual_arguments.empty());
   GOOGLESQL_RET_CHECK(signature.context_id() == FN_TUMBLE ||

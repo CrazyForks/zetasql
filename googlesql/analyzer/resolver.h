@@ -276,6 +276,13 @@ class Resolver {
   absl::StatusOr<const AnnotationMap*> CreateAnnotationMapFromTypeWithModifiers(
       const Type* type, const TypeModifiers& type_modifiers) const;
 
+  // Checks if the language features are enabled for the given type modifiers.
+  // Specifically, checks
+  // FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF if type_modifiers
+  // is not empty, and FEATURE_COLLATION_SUPPORT if it has collation.
+  absl::Status CheckTypeModifiersFeaturesEnabled(
+      const TypeModifiers& type_modifiers) const;
+
   // If a CREATE TABLE FUNCTION statement contains RETURNS TABLE to explicitly
   // specify the output schema for the function's output table, this method
   // compares it against the schema actually returned by the SQL body (if
@@ -681,6 +688,10 @@ class Resolver {
   // This is true if we found any of the operators that only work in
   // ResolvedGeneralizedQueryStmt (not in ResolvedQueryStmt).
   bool needs_generalized_query_stmt_ = false;
+
+  // This is true if we are resolving a GQL DML statement containing an INSERT
+  // operator and have resolved the INSERT operator.
+  bool resolving_gql_dml_with_insert_ = false;
 
   // This is true if we found pipe FINISH, which requires
   // ResolvedTerminalQueryStmt or ResolvedGeneralizedQueryStmt.
@@ -5664,7 +5675,7 @@ class Resolver {
   // Resolves a GRAPH_TABLE query.
   absl::Status ResolveGraphTableQuery(
       const ASTGraphTableQuery* ast_graph_table_query,
-      const NameScope* external_scope,
+      const NameScope* external_scope, bool is_nested,
       std::unique_ptr<const ResolvedScan>* output,
       std::shared_ptr<const NameList>* output_name_list);
 
@@ -6772,6 +6783,7 @@ class Resolver {
   friend class FunctionResolver;
   friend class FunctionResolverTest;
   friend class GraphDdlResolver;
+  friend class GraphDmlResolver;
   friend class GraphTableQueryResolver;
   friend class ResolverTest;
   FRIEND_TEST(ResolverTest, TestGetFunctionNameAndArguments);

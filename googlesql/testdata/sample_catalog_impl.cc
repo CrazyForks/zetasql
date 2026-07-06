@@ -622,7 +622,7 @@ static absl::StatusOr<const AnnotationMap*>
 ComputeResultAnnotationsCallbackSqlError(
     const ResolvedFunctionCallBase& function_call, TypeFactory& type_factory) {
   for (const AnnotationMap* argument : GetArgumentAnnotations(function_call)) {
-    if (argument != nullptr && !argument->Empty()) {
+    if (!AnnotationMap::IsNullOrEmpty(argument)) {
       return MakeSqlError() << "Arguments should not have annotations";
     }
   }
@@ -772,6 +772,7 @@ absl::Status SampleCatalogImpl::LoadCatalogImpl(
   RETURN_IF_ERROR_UNLESS_DBG(
       LoadNonTemplatedSqlTableValuedFunctions(language_options));
   RETURN_IF_ERROR_UNLESS_DBG(LoadAmlBasedPropertyGraphs());
+  RETURN_IF_ERROR_UNLESS_DBG(LoadDmlTestPropertyGraph());
   RETURN_IF_ERROR_UNLESS_DBG(LoadMultiSrcDstEdgePropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadCompositeKeyPropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadPropertyGraphWithDynamicLabelAndProperties());
@@ -3594,6 +3595,53 @@ absl::Status SampleCatalogImpl::LoadFunctions() {
       {types_->get_bool(), {enum_TestEnum_}, /*context_id=*/-1});
   catalog_->AddOwnedFunction(function);
 
+  // Add a function that takes repeated NUMERIC(10,2) as arguments.
+  {
+    NumericTypeParametersProto numeric_type_param_proto;
+    numeric_type_param_proto.set_precision(10);
+    numeric_type_param_proto.set_scale(2);
+    auto type_param_or_error =
+        googlesql::TypeParameters::MakeNumericTypeParameters(
+            numeric_type_param_proto);
+    GOOGLESQL_CHECK_OK(type_param_or_error.status());
+    googlesql::TypeParameters type_param =
+        std::move(type_param_or_error).value();
+    googlesql::TypeModifiers type_modifiers =
+        googlesql::TypeModifiers::MakeTypeModifiers(type_param,
+                                                    googlesql::Collation());
+
+    FunctionArgumentType arg_type(types_->get_numeric(),
+                                  FunctionArgumentTypeOptions().set_cardinality(
+                                      FunctionArgumentType::REPEATED),
+                                  /*num_occurrences=*/-1, type_modifiers);
+
+    auto fn_repeated_numeric_10_2 = std::make_unique<googlesql::Function>(
+        "fn_repeated_numeric_10_2", "sample_functions", Function::SCALAR);
+    fn_repeated_numeric_10_2->AddSignature(
+        {types_->get_bool(), {arg_type}, /*context_id=*/-1});
+    catalog_->AddOwnedFunction(std::move(fn_repeated_numeric_10_2));
+  }
+
+  // Add a function that takes STRING with collation 'und:ci' as argument.
+  {
+    googlesql::TypeModifiers type_modifiers =
+        googlesql::TypeModifiers::MakeTypeModifiers(
+            googlesql::TypeParameters(),
+            googlesql::Collation::MakeScalar("und:ci"));
+
+    FunctionArgumentType arg_type(
+        types_->get_string(),
+        FunctionArgumentTypeOptions().set_argument_collation_mode(
+            FunctionEnums::AFFECTS_NONE),
+        /*num_occurrences=*/-1, type_modifiers);
+
+    auto fn_with_collation_arg = std::make_unique<googlesql::Function>(
+        "fn_with_collation_arg", "sample_functions", Function::SCALAR);
+    fn_with_collation_arg->AddSignature(
+        {types_->get_bool(), {arg_type}, /*context_id=*/-1});
+    catalog_->AddOwnedFunction(std::move(fn_with_collation_arg));
+  }
+
   // These sample functions are named 'fn_on_<typename>' with one argument of
   // type <typename> that returns a bool.
   AddFunctionWithArgumentType("bool", types_->get_bool());
@@ -4185,6 +4233,185 @@ RegisterForSampleCatalog intentionally_ret_check_rewrite =
                     .set_rewriter(REWRITE_BUILTIN_FUNCTION_INLINER)
                     .set_sql(R"sql(intentionally_ret_check())sql")
                     .set_allowed_function_groups({"sample_functions"}))}}));
+    });
+
+RegisterForSampleCatalog fn_collation_ret_check =
+    RegisterForSampleCatalog([](googlesql::SimpleCatalog* catalog_) {
+      googlesql::TypeFactory* types = catalog_->type_factory();
+      googlesql::TypeModifiers type_modifiers =
+          googlesql::TypeModifiers::MakeTypeModifiers(
+              googlesql::TypeParameters(),
+              googlesql::Collation::MakeScalar("und:ci"));
+      FunctionArgumentType arg_type(
+          types->get_string(),
+          FunctionArgumentTypeOptions().set_argument_collation_mode(
+              FunctionEnums::AFFECTS_OPERATION_AND_PROPAGATION),
+          /*num_occurrences=*/-1, type_modifiers);
+      catalog_->AddOwnedFunction(new Function(
+          "fn_collation_ret_check", "sample_functions", Function::SCALAR,
+          {{{types->get_bool(), {arg_type}, /*context_id=*/-1}}}));
+    });
+
+RegisterForSampleCatalog
+    fn_complex_concrete_arg_uses_collation_but_has_other_typemods =
+        RegisterForSampleCatalog([](googlesql::SimpleCatalog* catalog_) {
+          googlesql::TypeFactory* types = catalog_->type_factory();
+          googlesql::NumericTypeParametersProto numeric_type_param_proto;
+          numeric_type_param_proto.set_precision(5);
+          numeric_type_param_proto.set_scale(2);
+          auto numeric_type_param_or_error =
+              googlesql::TypeParameters::MakeNumericTypeParameters(
+                  numeric_type_param_proto);
+          GOOGLESQL_CHECK_OK(numeric_type_param_or_error.status());
+          googlesql::TypeParameters numeric_type_param =
+              std::move(numeric_type_param_or_error).value();
+
+          std::vector<googlesql::TypeParameters> child_list;
+          child_list.push_back(googlesql::TypeParameters());
+          child_list.push_back(numeric_type_param);
+
+          googlesql::TypeParameters struct_type_param;
+          struct_type_param.set_child_list(child_list);
+
+          googlesql::TypeModifiers type_modifiers =
+              googlesql::TypeModifiers::MakeTypeModifiers(
+                  struct_type_param, googlesql::Collation());
+
+          const googlesql::StructType* struct_type = nullptr;
+          GOOGLESQL_CHECK_OK(types->MakeStructType(
+              {{"", types->get_string()}, {"", types->get_numeric()}},
+              &struct_type));
+
+          const googlesql::ArrayType* array_string_type = nullptr;
+          GOOGLESQL_CHECK_OK(
+              types->MakeArrayType(types->get_string(), &array_string_type));
+
+          googlesql::FunctionArgumentType arg_type(
+              struct_type,
+              googlesql::FunctionArgumentTypeOptions()
+                  .set_argument_name("arg", googlesql::kPositionalOrNamed)
+                  .set_argument_collation_mode(
+                      googlesql::FunctionEnums::AFFECTS_OPERATION),
+              /*num_occurrences=*/-1, type_modifiers);
+
+          catalog_->AddOwnedFunction(new googlesql::Function(
+              "complex_concrete_arg_uses_collation_but_has_other_typemods",
+              "sample_functions", googlesql::Function::SCALAR,
+              {{{array_string_type, {arg_type}, /*context_id=*/-1}}}));
+        });
+
+RegisterForSampleCatalog
+    tvf_complex_concrete_arg_uses_collation_but_has_other_typemods =
+        RegisterForSampleCatalog([](googlesql::SimpleCatalog* catalog_) {
+          googlesql::TypeFactory* types = catalog_->type_factory();
+          googlesql::NumericTypeParametersProto numeric_type_param_proto;
+          numeric_type_param_proto.set_precision(5);
+          numeric_type_param_proto.set_scale(2);
+          auto numeric_type_param_or_error =
+              googlesql::TypeParameters::MakeNumericTypeParameters(
+                  numeric_type_param_proto);
+          GOOGLESQL_CHECK_OK(numeric_type_param_or_error.status());
+          googlesql::TypeParameters numeric_type_param =
+              std::move(numeric_type_param_or_error).value();
+
+          std::vector<googlesql::TypeParameters> child_list;
+          child_list.push_back(googlesql::TypeParameters());
+          child_list.push_back(numeric_type_param);
+
+          googlesql::TypeParameters struct_type_param;
+          struct_type_param.set_child_list(child_list);
+
+          googlesql::TypeModifiers type_modifiers =
+              googlesql::TypeModifiers::MakeTypeModifiers(
+                  struct_type_param, googlesql::Collation());
+
+          const googlesql::StructType* struct_type = nullptr;
+          GOOGLESQL_CHECK_OK(types->MakeStructType(
+              {{"", types->get_string()}, {"", types->get_numeric()}},
+              &struct_type));
+
+          // Define input relation schema: TABLE<col STRUCT<STRING,
+          // NUMERIC(5,2)>>
+          googlesql::TVFSchemaColumn input_col(
+              "col", struct_type, /*is_pseudo_column=*/false,
+              /*is_passthrough_column=*/false, type_modifiers);
+          googlesql::TVFRelation input_relation({input_col});
+
+          googlesql::FunctionArgumentType arg_type(
+              googlesql::ARG_TYPE_RELATION,
+              googlesql::FunctionArgumentTypeOptions(
+                  input_relation,
+                  /*extra_relation_input_columns_allowed=*/false)
+                  .set_argument_name("arg", googlesql::kPositionalOrNamed)
+                  .set_argument_collation_mode(
+                      googlesql::FunctionEnums::
+                          AFFECTS_OPERATION_AND_PROPAGATION));
+
+          googlesql::TVFRelation output_schema({{"result", types->get_bool()}});
+
+          catalog_->AddOwnedTableValuedFunction(
+              new googlesql::FixedOutputSchemaTVF(
+                  {"tvf_complex_concrete_arg_uses_collation_but_has_other_"
+                   "typemods"},
+                  {googlesql::FunctionSignature(
+                      googlesql::FunctionArgumentType::RelationWithSchema(
+                          output_schema,
+                          /*extra_relation_input_columns_allowed=*/false),
+                      {arg_type}, /*context_id=*/-1)},
+                  output_schema));
+        });
+
+RegisterForSampleCatalog fn_complex_concrete_and_templated_arg =
+    RegisterForSampleCatalog([](googlesql::SimpleCatalog* catalog_) {
+      googlesql::TypeFactory* types = catalog_->type_factory();
+
+      // Define arg: STRUCT<STRING, NUMERIC(5,2)>
+      googlesql::NumericTypeParametersProto numeric_type_param_proto;
+      numeric_type_param_proto.set_precision(5);
+      numeric_type_param_proto.set_scale(2);
+      auto numeric_type_param_or_error =
+          googlesql::TypeParameters::MakeNumericTypeParameters(
+              numeric_type_param_proto);
+      GOOGLESQL_CHECK_OK(numeric_type_param_or_error.status());
+      googlesql::TypeParameters numeric_type_param =
+          std::move(numeric_type_param_or_error).value();
+
+      std::vector<googlesql::TypeParameters> child_list;
+      child_list.push_back(googlesql::TypeParameters());
+      child_list.push_back(numeric_type_param);
+
+      googlesql::TypeParameters struct_type_param;
+      struct_type_param.set_child_list(child_list);
+
+      googlesql::TypeModifiers type_modifiers =
+          googlesql::TypeModifiers::MakeTypeModifiers(struct_type_param,
+                                                      googlesql::Collation());
+
+      const googlesql::StructType* struct_type = nullptr;
+      GOOGLESQL_CHECK_OK(types->MakeStructType(
+          {{"", types->get_string()}, {"", types->get_numeric()}},
+          &struct_type));
+
+      googlesql::FunctionArgumentType arg(
+          struct_type,
+          googlesql::FunctionArgumentTypeOptions()
+              .set_argument_name("arg", googlesql::kPositionalOrNamed)
+              .set_argument_collation_mode(
+                  googlesql::FunctionEnums::AFFECTS_OPERATION_AND_PROPAGATION),
+          /*num_occurrences=*/-1, type_modifiers);
+
+      // Define other_arg: ANY TYPE
+      googlesql::FunctionArgumentType other_arg(
+          googlesql::ARG_TYPE_ARBITRARY,
+          googlesql::FunctionArgumentTypeOptions()
+              .set_argument_name("other_arg", googlesql::kPositionalOrNamed)
+              .set_argument_collation_mode(
+                  googlesql::FunctionEnums::AFFECTS_OPERATION_AND_PROPAGATION));
+
+      catalog_->AddOwnedFunction(new googlesql::Function(
+          "complex_concrete_and_templated_arg_uses_collation",
+          "sample_functions", googlesql::Function::SCALAR,
+          {{{types->get_bool(), {arg, other_arg}, /*context_id=*/-1}}}));
     });
 
 }  // namespace
@@ -7305,6 +7532,159 @@ absl::Status SampleCatalogImpl::LoadEnhancedAmlPropertyGraph() {
   auto property_graph = std::make_unique<SimplePropertyGraph>(
       std::move(property_graph_name_path), std::move(node_tables),
       std::move(edge_tables), std::move(labels), std::move(property_dcls));
+
+  catalog_->AddOwnedPropertyGraph(std::move(property_graph));
+
+  return absl::OkStatus();
+}
+
+absl::Status SampleCatalogImpl::LoadDmlTestPropertyGraph() {
+  const std::vector<std::string> property_graph_name_path{"aml_dml"};
+
+  // Define the table with writable and non-writable columns.
+  auto* insert_test_table = new SimpleTable(
+      "InsertTestTable",
+      {
+          new SimpleColumn("InsertTestTable", "id", types_->get_int64(),
+                           {.is_writable_column = true}),
+          new SimpleColumn("InsertTestTable", "val", types_->get_string(),
+                           {.is_writable_column = true}),
+          new SimpleColumn("InsertTestTable", "readonly_col",
+                           types_->get_string(), {.is_writable_column = false}),
+      },
+      true /* take_ownership */);
+  GOOGLESQL_RET_CHECK_OK(insert_test_table->SetPrimaryKey({0}));
+  AddOwnedTable(insert_test_table);
+
+  // Property Declaration
+  auto id_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "id", property_graph_name_path, types_->get_int64());
+  auto val_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "val", property_graph_name_path, types_->get_string());
+  auto readonly_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "readonly_col", property_graph_name_path, types_->get_string());
+  auto derived_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "derived_col", property_graph_name_path, types_->get_string());
+  auto derived_func_property_dcl =
+      std::make_unique<SimpleGraphPropertyDeclaration>(
+          "derived_func_col", property_graph_name_path, types_->get_string());
+  auto measure_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "measure_col", property_graph_name_path, types_->get_int64(),
+      /*type_annotation_map=*/nullptr,
+      GraphPropertyDeclaration::Kind::kMeasure);
+
+  // Labels
+  auto property_dcls = absl::flat_hash_set<const GraphPropertyDeclaration*>{
+      id_property_dcl.get(),           val_property_dcl.get(),
+      readonly_property_dcl.get(),     derived_property_dcl.get(),
+      derived_func_property_dcl.get(), measure_property_dcl.get()};
+  auto label = std::make_unique<SimpleGraphElementLabel>(
+      "TestLabel", property_graph_name_path, property_dcls);
+
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>> property_defs;
+
+  // 1. Simple column ref (writable)
+  auto id_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(), insert_test_table->FindColumnByName("id"));
+  auto id_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      id_property_dcl.get(), "id");
+  InternalPropertyGraph::InternalSetResolvedExpr(id_prop_def.get(),
+                                                 id_col_ref.get());
+  property_defs.push_back(std::move(id_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(id_col_ref));
+
+  // 2. Simple column ref (writable)
+  auto val_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_string(), insert_test_table->FindColumnByName("val"));
+  auto val_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      val_property_dcl.get(), "val");
+  InternalPropertyGraph::InternalSetResolvedExpr(val_prop_def.get(),
+                                                 val_col_ref.get());
+  property_defs.push_back(std::move(val_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(val_col_ref));
+
+  // 3. Simple column ref (non-writable)
+  auto readonly_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_string(),
+      insert_test_table->FindColumnByName("readonly_col"));
+  auto readonly_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      readonly_property_dcl.get(), "readonly_col");
+  InternalPropertyGraph::InternalSetResolvedExpr(readonly_prop_def.get(),
+                                                 readonly_col_ref.get());
+  property_defs.push_back(std::move(readonly_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(readonly_col_ref));
+
+  // 4.1 Derived property (literal)
+  auto derived_expr = MakeResolvedLiteral(Value::String("!"));
+  auto derived_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      derived_property_dcl.get(), "'!'");
+  InternalPropertyGraph::InternalSetResolvedExpr(derived_prop_def.get(),
+                                                 derived_expr.get());
+  property_defs.push_back(std::move(derived_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(derived_expr));
+
+  // 4.2 Derived property (function call)
+  std::unique_ptr<const AnalyzerOutput> derived_func_out;
+  AnalyzerOptions options;
+  options.SetLookupCatalogColumnCallback(
+      [insert_test_table](
+          const std::string& column_name) -> absl::StatusOr<const Column*> {
+        const Column* column = insert_test_table->FindColumnByName(column_name);
+        if (column == nullptr) {
+          return absl::NotFoundError(
+              absl::StrCat("Cannot find column ", column_name));
+        }
+        return column;
+      });
+  GOOGLESQL_RET_CHECK_OK(AnalyzeExpression("CONCAT(val, '!')", options, catalog_.get(),
+                                 types_, &derived_func_out));
+
+  auto derived_func_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      derived_func_property_dcl.get(), "CONCAT(val, '!')");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      derived_func_prop_def.get(), derived_func_out->resolved_expr());
+  property_defs.push_back(std::move(derived_func_prop_def));
+  sql_object_artifacts_.push_back(std::move(derived_func_out));
+
+  // 5. Measure property
+  auto measure_expr = MakeResolvedLiteral(Value::Int64(0));
+  auto measure_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      measure_property_dcl.get(), "0");
+  InternalPropertyGraph::InternalSetResolvedExpr(measure_prop_def.get(),
+                                                 measure_expr.get());
+  property_defs.push_back(std::move(measure_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(measure_expr));
+
+  // Node Table
+  auto node_table = std::make_unique<const SimpleGraphNodeTable>(
+      insert_test_table->Name(), property_graph_name_path, insert_test_table,
+      std::vector<int>{0},
+      absl::flat_hash_set<const GraphElementLabel*>{label.get()},
+      std::move(property_defs));
+
+  // Graph
+  std::vector<std::unique_ptr<const GraphNodeTable>> node_tables;
+  node_tables.push_back(std::move(node_table));
+
+  std::vector<std::unique_ptr<const GraphEdgeTable>> edge_tables;
+
+  std::vector<std::unique_ptr<const GraphElementLabel>> labels;
+  labels.push_back(std::move(label));
+
+  std::vector<std::unique_ptr<const GraphPropertyDeclaration>>
+      property_declarations;
+  property_declarations.push_back(std::move(id_property_dcl));
+  property_declarations.push_back(std::move(val_property_dcl));
+  property_declarations.push_back(std::move(readonly_property_dcl));
+  property_declarations.push_back(std::move(derived_property_dcl));
+  property_declarations.push_back(std::move(derived_func_property_dcl));
+  property_declarations.push_back(std::move(measure_property_dcl));
+
+  auto property_graph = std::make_unique<SimplePropertyGraph>(
+      std::move(property_graph_name_path), std::move(node_tables),
+      std::move(edge_tables), std::move(labels),
+      std::move(property_declarations));
 
   catalog_->AddOwnedPropertyGraph(std::move(property_graph));
 

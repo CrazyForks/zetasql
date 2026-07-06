@@ -1823,11 +1823,16 @@ absl::Status SQLBuilder::VisitResolvedCast(const ResolvedCast* node) {
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<QueryFragment> result,
                    ProcessNode(node->expr()));
 
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      std::string type_name,
-      node->type()->TypeNameWithModifiers(
-          node->type_modifiers(), options_.language_options.product_mode(),
-          options_.use_external_float32));
+  TypeModifiers type_modifiers = node->type_modifiers();
+  if (!options_.language_options.LanguageFeatureEnabled(
+          FEATURE_COLLATION_IN_EXPLICIT_CAST)) {
+    type_modifiers.release_collation();
+  }
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::string type_name,
+                   node->type()->TypeNameWithModifiers(
+                       type_modifiers, options_.language_options.product_mode(),
+                       options_.use_external_float32));
   if (TypeIsOrContainsGraphElement(node->type())) {
     // Cast to graph element or container types with graph elements
     // is not supported in SQL so drop the cast. This cast
@@ -1857,7 +1862,7 @@ absl::Status SQLBuilder::VisitResolvedCast(const ResolvedCast* node) {
 
 SQLBuilder::PendingColumnsAutoRestorer::PendingColumnsAutoRestorer(
     SQLBuilder& sql_builder,
-    const std::vector<std::unique_ptr<const ResolvedColumnRef>>&
+    absl::Span<const std::unique_ptr<const ResolvedColumnRef>>
         columns_to_expose)
     : sql_builder_(sql_builder) {
   previous_pending_columns_.swap(sql_builder.mutable_pending_columns());
