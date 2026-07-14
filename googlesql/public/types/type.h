@@ -702,8 +702,7 @@ class Type {
   };
 
  protected:
-  // Types can only be created and destroyed by TypeFactory.
-  Type(const TypeFactoryBase* factory, TypeKind kind);
+  Type(const TypeFactoryBase& factory, TypeKind kind);
   virtual ~Type() = default;
 
   bool EqualsImpl(const Type* other_type, bool equivalent) const {
@@ -919,6 +918,15 @@ class Type {
   FRIEND_TEST(DeclarativeTypeTest, DeclarativeTypeEstimateMemoryOwned);
   FRIEND_TEST(DeclarativeTypeTest,
               DeclarativeTypeEstimateMemoryOwned_ComplexBackingType);
+
+  // Indicates whether the type uses pointer tagging to use an extra 4 bytes
+  // from the Type pointer slot, extending the space for content to 12 bytes.
+  // Values of those types are unable to store a Type pointer in their metadata,
+  // because some bytes are already taken by the content.
+  //
+  // Currently, only TIME and DATETIME use this scheme.
+  // See the description of ValueContent for more details.
+  virtual bool UsesExtendedInlineValueContent() const { return false; }
 
   // Copies value's content to another value. Is called when one value is
   // assigned to another. It's expected that content of destination is empty

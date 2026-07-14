@@ -293,14 +293,12 @@ MakeIteratorFactoryFromCsvFile(const absl::string_view contents,
     }
 
     // Make the iterator to return the table contents.
-    std::unique_ptr<EvaluatorTableIterator> iter(
-        new SimpleEvaluatorTableIterator(
-            columns, column_values, data->num_rows,
-            /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/
-            absl::flat_hash_set<int>(column_idxs.begin(), column_idxs.end()),
-            /*cancel_cb=*/[]() {},
-            /*set_deadline_cb=*/[](absl::Time t) {}, googlesql_base::Clock::RealClock()));
-    return iter;
+    return SimpleEvaluatorTableIterator::Create(
+        columns, column_values, data->num_rows,
+        /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/
+        absl::flat_hash_set<int>(column_idxs.begin(), column_idxs.end()),
+        /*cancel_cb=*/[]() {}, /*set_deadline_cb=*/[](absl::Time t) {},
+        googlesql_base::Clock::RealClock());
   };
   return factory;
 }

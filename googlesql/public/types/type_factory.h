@@ -523,12 +523,12 @@ class TypeFactory : public TypeFactoryBase {
   void AddDependency(const Type* /*absl_nonnull*/ other_type)
       ABSL_LOCKS_EXCLUDED(store_->mutex_);
 
-  const ProtoType* MakeProtoTypeImpl(
+  absl::StatusOr<const ProtoType*> MakeProtoTypeImpl(
       const google::protobuf::Descriptor* descriptor,
       absl::Span<const std::string> catalog_name_path)
       ABSL_LOCKS_EXCLUDED(store_->mutex_);
 
-  const EnumType* MakeEnumTypeImpl(
+  absl::StatusOr<const EnumType*> MakeEnumTypeImpl(
       const google::protobuf::EnumDescriptor* descriptor,
       absl::Span<const std::string> catalog_name_path, bool is_opaque)
       ABSL_LOCKS_EXCLUDED(store_->mutex_);

@@ -790,19 +790,6 @@ select fn_named_args_error_if_positional(
        ^
 ==
 
-# Invalid function call with named arguments. The resolver returns an error if
-# the first argument is used positionally, and this is the case here.
-select fn_named_args_error_if_positional_first_arg(
-    "%X",
-    date_string => "12/25/08");
---
-ERROR: No matching signature for function SAMPLE_FUNCTIONS:FN_NAMED_ARGS_ERROR_IF_POSITIONAL_FIRST_ARG
-  Argument types: STRING, date_string => STRING
-  Signature: FN_NAMED_ARGS_ERROR_IF_POSITIONAL_FIRST_ARG(format_string => STRING, [date_string=>]STRING)
-    Positional argument at 1 is invalid because argument `format_string` can only be referred to by name [at 1:8]
-select fn_named_args_error_if_positional_first_arg(
-       ^
-==
 
 # Invalid function call with named arguments. The resolver returns an error if
 # the first argument is used positionally, and this is the case here.
@@ -1558,7 +1545,7 @@ SELECT fn_rep_opt("a0", "r0", "r1", "r2", o0 => "o0", o1 => "o1");
 --
 ERROR: No matching signature for function SAMPLE_FUNCTIONS:FN_REP_OPT
   Argument types: STRING, STRING, STRING, STRING, o0 => STRING, o1 => STRING
-  Signature: FN_REP_OPT([a0=>]STRING, [[STRING, STRING, STRING], ...], [a1=>]STRING, [[o0=>]STRING], [[o1=>]STRING])
+  Signature: FN_REP_OPT(STRING, [[STRING, STRING, STRING], ...], [a1=>]STRING, [[o0=>]STRING], [[o1=>]STRING])
     Required named argument `a1` is not provided [at 1:8]
 SELECT fn_rep_opt("a0", "r0", "r1", "r2", o0 => "o0", o1 => "o1");
        ^

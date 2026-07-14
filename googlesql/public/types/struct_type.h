@@ -167,7 +167,7 @@ class StructType : public ListBackedType {
  private:
   // Caller must enforce that <nesting_depth> is accurate. No verification is
   // done.
-  StructType(const TypeFactoryBase* factory, std::vector<StructField> fields,
+  StructType(const TypeFactoryBase& factory, std::vector<StructField> fields,
              int nesting_depth);
   ~StructType() override;
 

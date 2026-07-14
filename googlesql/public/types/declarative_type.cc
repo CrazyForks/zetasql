@@ -27,10 +27,13 @@
 #include "googlesql/public/language_options.h"
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/type.pb.h"
+#include "googlesql/public/type_parameters.pb.h"
+#include "googlesql/public/types/collation.h"
 #include "googlesql/public/types/internal_utils.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_modifiers.h"
-#include "googlesql/public/types/value_equality_check_options.h"
+#include "googlesql/public/types/type_parameters.h"
+#include "googlesql/public/types/value_representations.h"
 #include "googlesql/public/value.pb.h"
 #include "absl/functional/overload.h"
 #include "absl/hash/hash.h"
@@ -40,6 +43,7 @@
 #include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "googlesql/base/ret_check.h"
 
 namespace googlesql {
 
@@ -56,7 +60,7 @@ size_t DeclarativeTypeDescriptor::GetEstimatedOwnedMemoryBytesSize() const {
              data_->additional_required_language_features);
 }
 
-DeclarativeType::DeclarativeType(const TypeFactoryBase* factory,
+DeclarativeType::DeclarativeType(const TypeFactoryBase& factory,
                                  DeclarativeTypeDescriptor data)
     : Type(factory, TYPE_DECLARATIVE), data_(std::move(data)) {
   // The only supertype for a declarative type is the backing type *IF* it
@@ -75,13 +79,17 @@ std::string DeclarativeType::TypeName(ProductMode mode) const {
   return data_.display_name();
 }
 
+// TODO: When we generalize the declarative type validation,
+// this method should validate the type and type modifiers.
 absl::StatusOr<std::string> DeclarativeType::TypeNameWithModifiers(
     const TypeModifiers& type_modifiers, ProductMode mode) const {
-  if (!type_modifiers.IsEmpty()) {
-    return absl::InvalidArgumentError(
-        "Type modifiers are not supported for declarative types");
+  if (type_modifiers.IsEmpty()) {
+    return data_.display_name();
   }
-  return data_.display_name();
+  GOOGLESQL_RET_CHECK(type_modifiers.collation().Empty())
+      << "Collation is not supported for declarative types";
+  return absl::StrCat(data_.display_name(),
+                      type_modifiers.type_parameters().ToParenthesizedString());
 }
 
 std::vector<const Type*> DeclarativeType::ComponentTypes() const { return {}; }
@@ -198,12 +206,21 @@ bool DeclarativeType::SupportsOrdering(const LanguageOptions& language_options,
 }
 
 void DeclarativeType::ClearValueContent(const ValueContent& value) const {
-  backing_type()->ClearValueContent(value);
+  if (backing_type()->UsesExtendedInlineValueContent()) {
+    value.GetAs<internal::ValueContentRef*>()->Unref();
+  } else {
+    backing_type()->ClearValueContent(value);
+  }
 }
 
 void DeclarativeType::CopyValueContent(const ValueContent& from,
                                        ValueContent* to) const {
-  backing_type()->CopyValueContent(from, to);
+  if (backing_type()->UsesExtendedInlineValueContent()) {
+    from.GetAs<internal::ValueContentRef*>()->Ref();
+    *to = from;
+  } else {
+    backing_type()->CopyValueContent(from, to);
+  }
 }
 
 std::string DeclarativeType::CapitalizedName() const {
@@ -237,6 +254,9 @@ int64_t DeclarativeType::GetEstimatedOwnedMemoryBytesSize() const {
 
 uint64_t DeclarativeType::GetValueContentExternallyAllocatedByteSize(
     const ValueContent& value) const {
+  if (backing_type()->UsesExtendedInlineValueContent()) {
+    return value.GetAs<internal::ValueContentRef*>()->physical_byte_size();
+  }
   return backing_type()->GetValueContentExternallyAllocatedByteSize(value);
 }
 
@@ -362,9 +382,16 @@ void DeclarativeType::DebugStringImpl(bool details, TypeOrStringVector* stack,
   absl::StrAppend(debug_string, data_.display_name());
 }
 
-absl::HashState DeclarativeType::HashTypeParameter(
-    absl::HashState state) const {
-  return absl::HashState::combine(std::move(state), id());
+const ValueContent& DeclarativeType::GetBackingContent(
+    const ValueContent& value_content, const DeclarativeType* decl_type) {
+  if (!decl_type->backing_type()->UsesExtendedInlineValueContent()) {
+    return value_content;
+  }
+  // The ValueContent is just a pointer to the wider content which is stored
+  // externally on the heap via ValueContentRef. This is the case for TIME
+  // and DATETIME which use a 12-byte ValueContent that cannot fit in
+  // Value::Metadata.
+  return value_content.GetAs<internal::ValueContentRef*>()->value();
 }
 
 bool DeclarativeType::ValueContentEquals(
@@ -372,18 +399,33 @@ bool DeclarativeType::ValueContentEquals(
     const ValueEqualityCheckOptions& options) const {
   ABSL_DCHECK(std::holds_alternative<DeclarativeTypeDescriptor::EqualityDelegated>(
       data_.equality_strategy()));
-  return backing_type()->ValueContentEquals(x, y, options);
+  return backing_type()->ValueContentEquals(
+      GetBackingContent(x, this), GetBackingContent(y, this), options);
 }
 
 bool DeclarativeType::ValueContentLess(const ValueContent& x,
                                        const ValueContent& y,
                                        const Type* other_type) const {
-  return backing_type()->ValueContentLess(x, y, other_type);
+  // When we define `ordering_strategy`, we should ABSL_DCHECK() that it's delegated
+  // to the backing type. Any custom ordering will be handled before we hit
+  // this point, and we should never execute this code path in that case.
+  return backing_type()->ValueContentLess(
+      GetBackingContent(x, this), GetBackingContent(y, this), backing_type());
 }
 
 absl::HashState DeclarativeType::HashValueContent(const ValueContent& value,
                                                   absl::HashState state) const {
-  return backing_type()->HashValueContent(value, std::move(state));
+  return backing_type()->HashValueContent(GetBackingContent(value, this),
+                                          std::move(state));
+}
+
+absl::HashState DeclarativeType::HashTypeParameter(
+    absl::HashState state) const {
+  // Combine the type's unique TypeId into the hash state so that declarative
+  // values with identical backing content but distinct declarative types
+  // produce distinct hash codes.
+  ABSL_DCHECK(ComponentTypes().empty());
+  return absl::HashState::combine(std::move(state), id());
 }
 
 std::string DeclarativeType::FormatValueContent(
@@ -393,12 +435,14 @@ std::string DeclarativeType::FormatValueContent(
 
 absl::Status DeclarativeType::SerializeValueContent(
     const ValueContent& value, ValueProto* value_proto) const {
-  return absl::UnimplementedError("Not implemented");
+  return backing_type()->SerializeValueContent(GetBackingContent(value, this),
+                                               value_proto);
 }
 
 absl::Status DeclarativeType::DeserializeValueContent(
     const ValueProto& value_proto, ValueContent* value) const {
-  return absl::UnimplementedError("Not implemented");
+  return absl::FailedPreconditionError(
+      "DeserializeValueContent should not be called for DECLARATIVE.");
 }
 
 }  // namespace googlesql

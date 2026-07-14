@@ -120,6 +120,12 @@ TEST_F(IsConstantTest, IsAnalysisConst) {
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("STRUCT(1 AS key, 2 AS value)"));
   EXPECT_TRUE(IsAnalysisConstant(result_expr()));
 
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': 1, 'b': 2 }"));
+  EXPECT_TRUE(IsAnalysisConstant(result_expr()));
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("NEW MAP<STRING, INT64> { 'a': 1 }"));
+  EXPECT_TRUE(IsAnalysisConstant(result_expr()));
+
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("STRUCT(1 AS a).a"));
   EXPECT_TRUE(IsAnalysisConstant(result_expr()));
 
@@ -157,6 +163,9 @@ TEST_F(IsConstantTest, IsImmutableConst) {
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("STRUCT(1, 2)"));
   EXPECT_TRUE(IsImmutableConstant(result_expr()));
 
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': 1, 'b': 2 }"));
+  EXPECT_TRUE(IsImmutableConstant(result_expr()));
+
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("[1, 2, 3]"));
   EXPECT_TRUE(IsImmutableConstant(result_expr()));
 
@@ -181,6 +190,10 @@ TEST_F(IsConstantTest, IsImmutableConst) {
 
   GOOGLESQL_ASSERT_OK(
       AnalyzeExpr("STRUCT('1' as key, ARRAY_CONCAT([1, 2], [3, 4]) as value)"));
+  EXPECT_FALSE(IsAnalysisConstant(result_expr()));
+  EXPECT_TRUE(IsImmutableConstant(result_expr()));
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': ARRAY_CONCAT([1, 2], [3, 4]) }"));
   EXPECT_FALSE(IsAnalysisConstant(result_expr()));
   EXPECT_TRUE(IsImmutableConstant(result_expr()));
 
@@ -218,6 +231,9 @@ TEST_F(IsConstantTest, IsStableConst) {
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("STRUCT(1, 2)"));
   EXPECT_TRUE(IsStableConstant(result_expr()));
 
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': 1, 'b': 2 }"));
+  EXPECT_TRUE(IsStableConstant(result_expr()));
+
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("RAND()"));
   EXPECT_FALSE(IsStableConstant(result_expr()));
 
@@ -237,6 +253,9 @@ TEST_F(IsConstantTest, IsStableConst) {
 
   GOOGLESQL_ASSERT_OK(
       AnalyzeExpr("STRUCT('1' as key, ARRAY_CONCAT([1, 2], [3, 4]) as value)"));
+  EXPECT_TRUE(IsStableConstant(result_expr()));
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': ARRAY_CONCAT([1, 2], [3, 4]) }"));
   EXPECT_TRUE(IsStableConstant(result_expr()));
 
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("(SELECT 1)"));
@@ -304,6 +323,10 @@ TEST_F(IsConstantTest, IsStableConst) {
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("ImmutableFuncWithArg(@param_int64)"));
   EXPECT_TRUE(IsStableConstant(result_expr()));
   EXPECT_FALSE(IsImmutableConstant(result_expr()));
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': @param_int64 }"));
+  EXPECT_TRUE(IsStableConstant(result_expr()));
+  EXPECT_FALSE(IsImmutableConstant(result_expr()));
 }
 
 TEST_F(IsConstantTest, IsQueryConst) {
@@ -326,6 +349,9 @@ TEST_F(IsConstantTest, IsQueryConst) {
   EXPECT_TRUE(IsQueryConstant(result_expr()));
 
   GOOGLESQL_ASSERT_OK(AnalyzeExpr("@@sysvar_int64"));
+  EXPECT_TRUE(IsQueryConstant(result_expr()));
+
+  GOOGLESQL_ASSERT_OK(AnalyzeExpr("MAP { 'a': @param_int64 }"));
   EXPECT_TRUE(IsQueryConstant(result_expr()));
 }
 

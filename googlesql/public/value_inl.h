@@ -49,6 +49,7 @@
 #include "googlesql/base/case.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
@@ -572,7 +573,7 @@ inline Value::Value(const BigNumericValue& bignumeric)
     : metadata_(TypeKind::TYPE_BIGNUMERIC),
       bignumeric_ptr_(new internal::BigNumericRef(bignumeric)) {}
 
-inline Value::Value(internal::JSONRef* json_ptr)
+inline Value::Value(internal::JSONRef* /*absl_nonnull*/ json_ptr)
     : metadata_(TypeKind::TYPE_JSON), json_ptr_(json_ptr) {
   ABSL_CHECK(json_ptr != nullptr);
 }
@@ -1029,6 +1030,22 @@ inline const Value& Value::element(int i) const {
   return elements()[i];
 }
 
+#ifndef SWIG
+inline absl::StatusOr<Value::ListView> Value::elements_view() const {
+  GOOGLESQL_RET_CHECK(type()->IsArray())
+      << "Not an array type: " << type()->DebugString();
+  GOOGLESQL_RET_CHECK(!is_null()) << "Null value";
+  return ListView(this);
+}
+
+inline absl::StatusOr<Value::ListView> Value::fields_view() const {
+  GOOGLESQL_RET_CHECK(type()->IsStruct())
+      << "Not a struct type: " << type()->DebugString();
+  GOOGLESQL_RET_CHECK(!is_null()) << "Null value";
+  return ListView(this);
+}
+#endif  // SWIG
+
 inline bool Value::Equals(const Value& that) const {
   return EqualsInternal(*this, that, /*allow_bags=*/false, /*options=*/{});
 }
@@ -1457,6 +1474,195 @@ inline Value Null(const Type* type) { return Value::Null(type); }
 inline Value Invalid() { return Value::Invalid(); }
 
 }  // namespace values
+
+#ifndef SWIG
+inline Value::ListView::ListView(const Value* value) : value_(value) {}
+
+inline Value::ListView::Iterator Value::ListView::begin() const {
+  return Iterator(value_, 0);
+}
+
+inline Value::ListView::Iterator Value::ListView::end() const {
+  return Iterator(value_, size());
+}
+
+inline int Value::ListView::size() const {
+  if (value_->type()->IsStruct()) {
+    return value_->num_fields();
+  }
+  return value_->num_elements();
+}
+
+inline bool Value::ListView::empty() const { return size() == 0; }
+
+inline Value Value::ListView::operator[](int i) const {
+  if (value_->type()->IsStruct()) {
+    return value_->field(i);
+  }
+  return value_->element(i);
+}
+
+inline Value Value::ListView::at(int i) const {
+  if (i < 0 || i >= size()) {
+    return Value::Invalid();
+  }
+  return (*this)[i];
+}
+
+inline Value Value::ListView::front() const { return (*this)[0]; }
+
+inline Value Value::ListView::back() const { return (*this)[size() - 1]; }
+
+inline std::vector<Value> Value::ListView::ToVector() const {
+  std::vector<Value> result;
+  int n = size();
+  result.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    result.push_back((*this)[i]);
+  }
+  return result;
+}
+
+inline Value::ListView::operator std::vector<Value>() const {
+  return ToVector();
+}
+
+inline bool operator==(const Value::ListView& a, const Value::ListView& b) {
+  if (a.size() != b.size()) return false;
+  for (int i = 0; i < a.size(); ++i) {
+    if (!a[i].Equals(b[i])) return false;
+  }
+  return true;
+}
+
+inline bool operator!=(const Value::ListView& a, const Value::ListView& b) {
+  return !(a == b);
+}
+
+inline bool operator==(const Value::ListView& a, const std::vector<Value>& b) {
+  if (a.size() != static_cast<int>(b.size())) return false;
+  for (size_t i = 0; i < b.size(); ++i) {
+    if (!a[static_cast<int>(i)].Equals(b[i])) return false;
+  }
+  return true;
+}
+
+inline bool operator==(const std::vector<Value>& a, const Value::ListView& b) {
+  return b == a;
+}
+
+inline bool operator!=(const Value::ListView& a, const std::vector<Value>& b) {
+  return !(a == b);
+}
+
+inline bool operator!=(const std::vector<Value>& a, const Value::ListView& b) {
+  return !(a == b);
+}
+
+inline Value Value::ListView::Iterator::operator*() const {
+  if (value_->type()->IsStruct()) {
+    return value_->field(index_);
+  }
+  return value_->element(index_);
+}
+
+inline Value Value::ListView::Iterator::operator[](difference_type n) const {
+  if (value_->type()->IsStruct()) {
+    return value_->field(index_ + static_cast<int>(n));
+  }
+  return value_->element(index_ + static_cast<int>(n));
+}
+
+inline Value::ListView::Iterator& Value::ListView::Iterator::operator++() {
+  ++index_;
+  return *this;
+}
+
+inline Value::ListView::Iterator Value::ListView::Iterator::operator++(int) {
+  Iterator tmp = *this;
+  ++index_;
+  return tmp;
+}
+
+inline Value::ListView::Iterator& Value::ListView::Iterator::operator--() {
+  --index_;
+  return *this;
+}
+
+inline Value::ListView::Iterator Value::ListView::Iterator::operator--(int) {
+  Iterator tmp = *this;
+  --index_;
+  return tmp;
+}
+
+inline Value::ListView::Iterator& Value::ListView::Iterator::operator+=(
+    difference_type n) {
+  index_ += static_cast<int>(n);
+  return *this;
+}
+
+inline Value::ListView::Iterator& Value::ListView::Iterator::operator-=(
+    difference_type n) {
+  index_ -= static_cast<int>(n);
+  return *this;
+}
+
+inline Value::ListView::Iterator operator+(
+    Value::ListView::Iterator it,
+    Value::ListView::Iterator::difference_type n) {
+  it += n;
+  return it;
+}
+
+inline Value::ListView::Iterator operator+(
+    Value::ListView::Iterator::difference_type n,
+    Value::ListView::Iterator it) {
+  it += n;
+  return it;
+}
+
+inline Value::ListView::Iterator operator-(
+    Value::ListView::Iterator it,
+    Value::ListView::Iterator::difference_type n) {
+  it -= n;
+  return it;
+}
+
+inline Value::ListView::Iterator::difference_type operator-(
+    const Value::ListView::Iterator& a, const Value::ListView::Iterator& b) {
+  return a.index_ - b.index_;
+}
+
+inline bool operator==(const Value::ListView::Iterator& a,
+                       const Value::ListView::Iterator& b) {
+  return a.value_ == b.value_ && a.index_ == b.index_;
+}
+
+inline bool operator!=(const Value::ListView::Iterator& a,
+                       const Value::ListView::Iterator& b) {
+  return !(a == b);
+}
+
+inline bool operator<(const Value::ListView::Iterator& a,
+                      const Value::ListView::Iterator& b) {
+  return a.index_ < b.index_;
+}
+
+inline bool operator>(const Value::ListView::Iterator& a,
+                      const Value::ListView::Iterator& b) {
+  return b < a;
+}
+
+inline bool operator<=(const Value::ListView::Iterator& a,
+                       const Value::ListView::Iterator& b) {
+  return !(b < a);
+}
+
+inline bool operator>=(const Value::ListView::Iterator& a,
+                       const Value::ListView::Iterator& b) {
+  return !(a < b);
+}
+#endif  // SWIG
 }  // namespace googlesql
 
 #endif  // GOOGLESQL_PUBLIC_VALUE_INL_H_

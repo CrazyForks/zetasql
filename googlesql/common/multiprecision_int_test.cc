@@ -2123,10 +2123,9 @@ TYPED_TEST(FixedIntGeneratedDataTest, ToString) {
     std::string actual = v.ToString();
     EXPECT_EQ(expect, actual);
     auto number = v.number();
-    actual =
-        VarIntBase<std::is_signed_v<typename T::Word>,
-                   typename std::make_unsigned<typename T::Word>::type>(number)
-            .ToString();
+    actual = VarIntBase<std::is_signed_v<typename T::Word>,
+                        std::make_unsigned_t<typename T::Word>>(number)
+                 .ToString();
     EXPECT_EQ(expect, actual);
   }
 }

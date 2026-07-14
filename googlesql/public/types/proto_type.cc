@@ -21,8 +21,7 @@
 #include <string>
 #include <utility>
 
-#include "googlesql/base/logging.h"
-#include "google/protobuf/util/field_comparator.h"
+#include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "googlesql/common/errors.h"
 #include "googlesql/common/float_margin.h"
@@ -43,9 +42,11 @@
 #include "googlesql/public/value_content.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/hash/hash.h"
+#include "googlesql/base/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
@@ -54,18 +55,21 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/message.h"
+#include "google/protobuf/repeated_ptr_field.h"
+#include "google/protobuf/util/field_comparator.h"
 
 namespace googlesql {
 
-ProtoType::ProtoType(const TypeFactory* factory,
-                     const google::protobuf::Descriptor* descriptor,
-                     const internal::CatalogName* catalog_name)
+ProtoType::ProtoType(const TypeFactory& factory,
+                     const google::protobuf::Descriptor* /*absl_nonnull*/ descriptor,
+                     const internal::CatalogName* /*absl_nullable*/ catalog_name)
     : Type(factory, TYPE_PROTO),
       descriptor_(descriptor),
       catalog_name_(catalog_name) {
-  ABSL_CHECK(descriptor_ != nullptr);
+  ABSL_DCHECK(descriptor_ != nullptr);
 }
 
 ProtoType::~ProtoType() = default;
@@ -811,7 +815,7 @@ absl::Status ProtoType::DeserializeValueContent(const ValueProto& value_proto,
   if (!value_proto.has_proto_value()) {
     return TypeMismatchError(value_proto);
   }
-  value->set(new internal::ProtoRep(this, value_proto.proto_value()));
+  value->set(new internal::ProtoRep(value_proto.proto_value()));
   return absl::OkStatus();
 }
 

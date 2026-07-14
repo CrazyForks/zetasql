@@ -42,7 +42,7 @@ from googlesql.parser.generator_utils import UpperCamelCase
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 580
+NEXT_NODE_TAG_ID = 590
 
 
 def GetTempTagId():
@@ -235,6 +235,10 @@ SCALAR_READ_WRITE_MODE = EnumScalarType('Mode', 'ASTTransactionReadWriteMode',
 SCALAR_IMPORT_KIND = EnumScalarType('ImportKind', 'ASTImportStatement',
                                     'MODULE')
 
+SCALAR_MACRO_VISIBILITY = EnumScalarType(
+    'MacroVisibility', 'ASTDefineMacroStatement', 'MACRO_VISIBILITY_UNSPECIFIED'
+)
+
 SCALAR_NULL_FILTER = EnumScalarType('NullFilter', 'ASTUnpivotClause',
                                     'kUnspecified')
 
@@ -322,6 +326,12 @@ SCALAR_QUANTIFIER_SYMBOL = EnumScalarType(
 SCALAR_GRAPH_NODE_TABLE_REFERENCE_TYPE = EnumScalarType(
     'NodeReferenceType', 'ASTGraphNodeTableReference',
     'NODE_REFERENCE_TYPE_UNSPECIFIED')
+
+SCALAR_GRAPH_NODE_TYPE_REFERENCE_TYPE = EnumScalarType(
+    'NodeReferenceType',
+    'ASTGraphNodeTypeReference',
+    'NODE_REFERENCE_TYPE_UNSPECIFIED',
+)
 
 SCALAR_GRAPH_LABEL_OPERATION_TYPE = EnumScalarType('OperationType',
                                                    'ASTGraphLabelOperation',
@@ -6387,6 +6397,10 @@ def main(argv):
 
   (5) GoogleSQL parses the argument as "DESCRIPTOR"; this syntax represents a
      descriptor on a list of columns with optional types.
+
+  (6) GoogleSQL parses the argument as "GRAPH path"; this syntax represents a
+      graph argument. In this case the graph_clause_ of this class is
+      non-empty.
       """,
       fields=[
           Field(
@@ -6395,8 +6409,8 @@ def main(argv):
               tag_id=2,
               field_loader=FieldLoaderMethod.OPTIONAL_EXPRESSION,
               private_comment="""
-              Only one of expr, table_clause, model_clause, connection_clause or
-              descriptor may be non-null.
+              Only one of expr, table_clause, model_clause, connection_clause,
+              graph_clause or descriptor may be non-null.
               """,
           ),
           Field('table_clause', 'ASTTableClause', tag_id=3),
@@ -6410,6 +6424,7 @@ def main(argv):
               tag_id=6,
               gen_setters_and_getters=False,
           ),
+          Field('graph_clause', 'ASTGraphClause', tag_id=7),
       ],
       extra_public_defs="""
   const ASTDescriptor* descriptor() const {return desc_;}
@@ -6505,6 +6520,22 @@ def main(argv):
           Field(
               'connection_path',
               'ASTExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED),
+      ])
+
+  gen.AddNode(
+      name='ASTGraphClause',
+      tag_id=586,
+      parent='ASTNode',
+      comment="""
+     This represents a clause of form "GRAPH <target>", where <target> is a
+     graph name.
+      """,
+      fields=[
+          Field(
+              'graph_path',
+              'ASTPathExpression',
               tag_id=2,
               field_loader=FieldLoaderMethod.REQUIRED),
       ])
@@ -11141,6 +11172,240 @@ def main(argv):
       """)
 
   gen.AddNode(
+      name='ASTCreatePropertyGraphTypeStatement',
+      tag_id=580,
+      parent='ASTCreateStatement',
+      comment="""
+      This statement:
+        `CREATE [OR REPLACE] PROPERTY GRAPH [IF NOT EXISTS] TYPE name`
+        `NODE TYPES (node_type_list)`
+        `[EDGE TYPES (edge_type_list)]`
+        `[OPTIONS (options_list)]`
+
+      A property graph type describes only the logical shape of a graph (its
+      element types, default labels and property declarations) without any
+      physical table bindings.
+
+      Both `node_type_list` and `edge_type_list` may be empty, e.g.
+      `NODE TYPES ()`, to declare a graph type with no node or edge types.
+      """,
+      fields=[
+          Field(
+              'name',
+              'ASTPathExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Path expression for the target property graph type.
+              """,
+          ),
+          Field(
+              'node_type_list',
+              'ASTGraphElementTypeList',
+              tag_id=3,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Node type definitions.
+              """,
+          ),
+          Field(
+              'edge_type_list',
+              'ASTGraphElementTypeList',
+              tag_id=4,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+              Edge type definitions.
+              """,
+          ),
+          Field(
+              'options_list',
+              'ASTOptionsList',
+              tag_id=5,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+              Options attached to the property graph type.
+              """,
+          ),
+      ],
+      extra_public_defs="""
+  const ASTPathExpression* GetDdlTarget() const override { return name_; }
+      """,
+  )
+
+  gen.AddNode(
+      name='ASTGraphElementTypeList',
+      tag_id=581,
+      parent='ASTNode',
+      fields=[
+          Field(
+              'element_types',
+              'ASTGraphElementType',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REST_AS_REPEATED,
+              comment="""
+              GraphElementType definitions.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTGraphElementType',
+      tag_id=582,
+      parent='ASTNode',
+      comment="""
+      A node or edge type definition in a CREATE PROPERTY GRAPH TYPE statement:
+        `name [FROM node_type] [TO node_type] [OPTIONS (...)] [properties clause]`
+
+      `name` is the element type name, which is also the name of its default
+      label. `node_type_references` holds the FROM/TO node type constraints and
+      is only present for edge types; each entry is tagged SOURCE or DESTINATION.
+      The `properties clause` is currently a `PROPERTIES (...)` list of simple
+      declarations; it may grow other forms (e.g. derived properties) later.
+      """,
+      fields=[
+          Field(
+              'name',
+              'ASTIdentifier',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Element type name; also the name of the default label.
+              """,
+          ),
+          Field(
+              'node_type_references',
+              'ASTGraphNodeTypeReference',
+              tag_id=3,
+              field_loader=FieldLoaderMethod.REPEATING_WHILE_IS_NODE_KIND,
+              comment="""
+              FROM/TO node type constraints, with at most one SOURCE (FROM) and
+              one DESTINATION (TO) entry. Size contract: 0 entries for a node
+              type; 1 (FROM only or TO only) or 2 (both) for an edge type. The
+              grammar (`node_type_source_clause? node_type_dest_clause?`) makes
+              >2 entries or duplicate FROM/TO impossible.
+
+              NOTE: Unlike ASTGraphElementTable, which uses two separate
+              OPTIONAL fields (source_node_reference, dest_node_reference) of the
+              same node kind, this is a single self-describing
+              (SOURCE/DESTINATION-tagged) vector. Edge *tables* always declare
+              both endpoints, so two same-kind OPTIONAL fields are unambiguous
+              there. Edge *types* may declare FROM only or TO only, and two
+              same-kind OPTIONAL fields would misassign a TO-only reference to
+              the source slot (the field loader matches positionally by node
+              kind). The tagged vector avoids that without needing two distinct
+              node classes. Do not "simplify" this to two OPTIONAL fields.
+              """,
+          ),
+          Field(
+              'property_list',
+              'ASTGraphPropertyDeclarationList',
+              tag_id=4,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+              Property declarations exposed by this element type.
+              """,
+          ),
+          Field(
+              'default_label_options_list',
+              'ASTOptionsList',
+              tag_id=5,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+              Options attached to the default label of this element type.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTGraphNodeTypeReference',
+      tag_id=583,
+      parent='ASTNode',
+      use_custom_debug_string=True,
+      comment="""
+      A FROM or TO node type constraint on an edge type:
+        `FROM node_type_name`   (SOURCE)
+        `TO   node_type_name`   (DESTINATION)
+      """,
+      fields=[
+          Field(
+              'node_type_name',
+              'ASTIdentifier',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Referenced node type name.
+              """,
+          ),
+          Field(
+              'node_reference_type',
+              SCALAR_GRAPH_NODE_TYPE_REFERENCE_TYPE,
+              tag_id=3,
+              comment="""
+              Whether this is a SOURCE (FROM) or DESTINATION (TO) reference.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTGraphPropertyDeclarationList',
+      tag_id=584,
+      parent='ASTNode',
+      fields=[
+          Field(
+              'property_declarations',
+              'ASTGraphPropertyDeclaration',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REST_AS_REPEATED,
+              comment="""
+              Property declarations.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
+      name='ASTGraphPropertyDeclaration',
+      tag_id=585,
+      parent='ASTNode',
+      comment="""
+      A simple property declaration in a graph element type:
+        `name type [OPTIONS (...)]`
+      """,
+      fields=[
+          Field(
+              'name',
+              'ASTIdentifier',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Property name.
+              """,
+          ),
+          Field(
+              'type',
+              'ASTType',
+              tag_id=3,
+              field_loader=FieldLoaderMethod.REQUIRED,
+              comment="""
+              Declared type of the property.
+              """,
+          ),
+          Field(
+              'options_list',
+              'ASTOptionsList',
+              tag_id=4,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+              comment="""
+              Options attached to the property.
+              """,
+          ),
+      ],
+  )
+
+  gen.AddNode(
       name='ASTGraphElementTableList',
       tag_id=374,
       parent='ASTNode',
@@ -12655,13 +12920,17 @@ def main(argv):
               'name',
               'ASTIdentifier',
               tag_id=2,
-              field_loader=FieldLoaderMethod.REQUIRED),
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
           Field(
               'body',
               'ASTMacroBody',
               tag_id=3,
-              field_loader=FieldLoaderMethod.REQUIRED),
-      ])
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+          Field('visibility', SCALAR_MACRO_VISIBILITY, tag_id=4),
+      ],
+  )
 
   gen.AddNode(
       name='ASTUndropStatement',
@@ -13431,6 +13700,76 @@ def main(argv):
               field_loader=FieldLoaderMethod.REQUIRED,
           ),
       ],
+  )
+
+  # Data Policy AST Nodes
+  gen.AddNode(
+      name='ASTCreateDataPolicyStatement',
+      tag_id=587,
+      parent='ASTCreateStatement',
+      comment="""
+      This represents a CREATE DATA_POLICY statement:
+      CREATE [OR REPLACE] DATA_POLICY [IF NOT EXISTS] <name_path>
+      [OPTIONS ( options_list )]
+      [WITH CONDITION ( <expression> )];
+      """,
+      fields=[
+          Field(
+              'name',
+              'ASTPathExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+          Field(
+              'options_list',
+              'ASTOptionsList',
+              tag_id=3,
+              field_loader=FieldLoaderMethod.OPTIONAL,
+          ),
+          Field(
+              'condition',
+              'ASTExpression',
+              tag_id=4,
+              field_loader=FieldLoaderMethod.OPTIONAL_EXPRESSION,
+          ),
+      ],
+      extra_public_defs="""
+  // Returns the target DDL path identifier.
+  const ASTPathExpression* GetDdlTarget() const override { return name_; }
+      """,
+  )
+
+  gen.AddNode(
+      name='ASTAlterDataPolicyStatement',
+      tag_id=588,
+      parent='ASTAlterStatementBase',
+      comment="""
+      Represents the statement:
+      ALTER DATA_POLICY [IF EXISTS] <name_path> <alter_action_list>;
+      """,
+      fields=[
+      ],  # Target 'path' and 'action_list' are
+      # inherited from ASTAlterStatementBase
+  )
+
+  gen.AddNode(
+      name='ASTSetConditionAction',
+      tag_id=589,
+      parent='ASTAlterAction',
+      comment="""
+      ALTER data policy action for "SET CONDITION (expression)" clause.
+      """,
+      fields=[
+          Field(
+              'condition',
+              'ASTExpression',
+              tag_id=2,
+              field_loader=FieldLoaderMethod.REQUIRED,
+          ),
+      ],
+      extra_public_defs="""
+  std::string GetSQLForAlterAction() const override;
+      """,
   )
 
   gen.Generate(output_path, template_path=template_path)

@@ -64,7 +64,7 @@ TEST(DeclarativeTypeTest, MinimalTypeCreation) {
       IsOkAndHolds("t1"));
 }
 
-TEST(DeclarativeTypeTest, TypeNameWithModifiersRequiresEmptyTypeModifiers) {
+TEST(DeclarativeTypeTest, TypeNameWithModifiersSupportsTypeModifiers) {
   TypeFactory type_factory;
   const Type* t1 = nullptr;
   GOOGLESQL_ASSERT_OK_AND_ASSIGN(t1,
@@ -86,14 +86,13 @@ TEST(DeclarativeTypeTest, TypeNameWithModifiersRequiresEmptyTypeModifiers) {
                        TypeParameters::MakeNumericTypeParameters(
                            std::move(numeric_type_params_proto)));
 
-  EXPECT_THAT(
-      t1->TypeNameWithModifiers(
-          TypeModifiers::MakeTypeModifiers(std::move(numeric_type_parameters),
-                                           Collation()),
-          ProductMode::PRODUCT_INTERNAL),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Type modifiers are not supported for declarative "
-                         "types")));
+  // TODO: The generalized declarative type validation is coming
+  // up and may restore this to an error.
+  EXPECT_THAT(t1->TypeNameWithModifiers(
+                  TypeModifiers::MakeTypeModifiers(
+                      std::move(numeric_type_parameters), Collation()),
+                  ProductMode::PRODUCT_INTERNAL),
+              IsOkAndHolds("t1(5, 3)"));
 }
 
 TEST(DeclarativeTypeTest, DeclarativeTypeDisallowingReturning) {
@@ -248,18 +247,101 @@ TEST(DeclarativeTypeTest,
   EXPECT_EQ(type_description, "ARRAY containing t1");
 }
 
-// TODO: b/479854648 - Decide on supporting declarative types with returning.
-TEST(DeclarativeTypeTest, DeclarativeTypeReturningDelegatedIsNotSupported) {
+TEST(DeclarativeTypeTest, DeclarativeTypeReturningDelegated) {
   TypeFactory type_factory;
-  EXPECT_THAT(type_factory.MakeDeclarativeType(
-                  DeclarativeTypeDescriptor()
-                      .set_type_id({"NS", "T1"})
-                      .set_display_name("t1")
-                      .set_backing_type(type_factory.get_int64())
-                      .set_returning_strategy(
-                          DeclarativeTypeDescriptor::ReturningDelegated{})),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Returning is not supported")));
+  LanguageOptions language_options;
+
+  const Type* t1 = nullptr;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      t1, type_factory.MakeDeclarativeType(
+              DeclarativeTypeDescriptor()
+                  .set_type_id({"NS", "T1"})
+                  .set_display_name("t1")
+                  .set_backing_type(type_factory.get_int64())
+                  .set_returning_strategy(
+                      DeclarativeTypeDescriptor::ReturningDelegated{})));
+  std::string type_description = "";
+  EXPECT_TRUE(t1->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "");
+
+  const Type* t_disallowed = nullptr;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      t_disallowed,
+      type_factory.MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "T_Disallowed"})
+              .set_display_name("T_Disallowed")
+              .set_backing_type(type_factory.get_int64())
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDisallowed{})));
+  EXPECT_FALSE(
+      t_disallowed->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "T_Disallowed");
+
+  // ARRAY<T_Disallowed> reports the correct type description for not returning.
+  type_description = "";
+  const Type* t_disallowed_array = nullptr;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(t_disallowed_array,
+                       type_factory.MakeArrayType(t_disallowed));
+  EXPECT_FALSE(t_disallowed_array->SupportsReturning(language_options,
+                                                     &type_description));
+  EXPECT_EQ(type_description, "T_Disallowed");
+
+  // DeclType based on ARRAY<T_Disallowed>, delegates returnability so will also
+  // be non-returnable. Note that it reports itself as the reason.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const Type* transitive,
+      type_factory.MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "T_Transitive"})
+              .set_display_name("T_Transitive")
+              .set_backing_type(t_disallowed_array)
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  type_description = "";
+  EXPECT_FALSE(
+      transitive->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "T_Transitive");
+
+  // Even if returning_strategy = ReturningDelegated for the declarative type,
+  // the backing type for a declarative type still must be returnable for the
+  // declarative type itself to be returnable.
+  const Type* t2 = nullptr;
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      t2, type_factory.MakeDeclarativeType(
+              DeclarativeTypeDescriptor()
+                  .set_type_id({"NS", "T2"})
+                  .set_display_name("t2")
+                  .set_backing_type(t_disallowed)
+                  .set_returning_strategy(
+                      DeclarativeTypeDescriptor::ReturningDelegated{})));
+  type_description = "";
+  EXPECT_FALSE(t2->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "t2");
+
+  // STRUCT<t2> reports the correct type description for not returning.
+  type_description = "";
+  const Type* t2_struct = nullptr;
+  GOOGLESQL_ASSERT_OK(type_factory.MakeStructType({{"a", t2}}, &t2_struct));
+  EXPECT_FALSE(
+      t2_struct->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "t2");
+
+  // DeclType based on STRUCT<T_Disallowed>, delegates returnability so will
+  // also be non-returnable. Note that it reports itself as the reason.
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const Type* transitive2,
+      type_factory.MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "T_Transitive2"})
+              .set_display_name("T_Transitive2")
+              .set_backing_type(t2_struct)
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  type_description = "";
+  EXPECT_FALSE(
+      transitive2->SupportsReturning(language_options, &type_description));
+  EXPECT_EQ(type_description, "T_Transitive2");
 }
 
 TEST(DeclarativeTypeTest, NoComponentTypes) {

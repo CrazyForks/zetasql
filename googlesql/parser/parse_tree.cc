@@ -1459,6 +1459,10 @@ std::string ASTSetOptionsAction::GetSQLForAlterAction() const {
   return "SET OPTIONS";
 }
 
+std::string ASTSetConditionAction::GetSQLForAlterAction() const {
+  return "SET CONDITION";
+}
+
 std::string ASTSetAsAction::GetSQLForAlterAction() const { return "SET AS"; }
 
 std::string ASTAddConstraintAction::SingleNodeDebugString() const {
@@ -1714,6 +1718,24 @@ std::string ASTGraphNodeTableReference::SingleNodeDebugString() const {
   return absl::StrCat(node_name, "(", ref_type, ")");
 }
 
+std::string ASTGraphNodeTypeReference::SingleNodeDebugString() const {
+  const std::string node_name = ASTNode::SingleNodeDebugString();
+  std::string ref_type;
+  switch (node_reference_type()) {
+    case ASTGraphNodeTypeReference::NODE_REFERENCE_TYPE_UNSPECIFIED:
+      ref_type = "<UNSPECIFIED>";
+      break;
+    case ASTGraphNodeTypeReference::SOURCE:
+      ref_type = "SOURCE";
+      break;
+    case ASTGraphNodeTypeReference::DESTINATION:
+      ref_type = "DESTINATION";
+      break;
+  }
+
+  return absl::StrCat(node_name, "(", ref_type, ")");
+}
+
 std::string ASTGraphLabelOperation::SingleNodeDebugString() const {
   const std::string node_name = ASTNode::SingleNodeDebugString();
   std::string op;
@@ -1810,6 +1832,8 @@ absl::string_view SchemaObjectKindToName(SchemaObjectKind schema_object_kind) {
       return "VIEW";
     case SchemaObjectKind::kPropertyGraph:
       return "PROPERTY GRAPH";
+    case SchemaObjectKind::kPropertyGraphType:
+      return "PROPERTY GRAPH TYPE";
     case SchemaObjectKind::kSequence:
       return "SEQUENCE";
     case SchemaObjectKind::kLiveTable:

@@ -55,6 +55,10 @@ public final class DeclarativeType extends Type {
     return descriptor.getTypeId();
   }
 
+  public Type getBackingType() {
+    return descriptor.getBackingType();
+  }
+
   public boolean isGoogleSqlBuiltin() {
     return descriptor.getTypeId().isGoogleSqlBuiltin();
   }
@@ -75,6 +79,7 @@ public final class DeclarativeType extends Type {
     return Objects.hashCode(descriptor.getTypeId());
   }
 
+  @SuppressWarnings("ReferenceEquality")
   public static boolean equalsImpl(
       DeclarativeType type1, DeclarativeType type2, boolean equivalent) {
     if (type1 == type2) {

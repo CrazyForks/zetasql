@@ -57,6 +57,7 @@ enum SchemaObjectKind {
   kSearchIndex = 22;
   kVectorIndex = 23;
   kAiIndex = 24;
+  kPropertyGraphType = 25;
 }
 
 message ASTBinaryExpressionEnums {
@@ -247,6 +248,14 @@ message ASTImportStatementEnums {
     // 0 reserved for future NOT_SET. See b/186246331.
     MODULE = 1;
     PROTO = 2;
+  }
+}
+
+message ASTDefineMacroStatementEnums {
+  enum MacroVisibility {
+    MACRO_VISIBILITY_UNSPECIFIED = 0;
+    PUBLIC = 1;
+    PRIVATE = 2;
   }
 }
 message ASTUnpivotClauseEnums {
@@ -459,6 +468,14 @@ message ASTSymbolQuantifierEnums {
 }
 
 message ASTGraphNodeTableReferenceEnums {
+  enum NodeReferenceType {
+    NODE_REFERENCE_TYPE_UNSPECIFIED = 0;
+    SOURCE = 1;
+    DESTINATION = 2;
+  }
+}
+
+message ASTGraphNodeTypeReferenceEnums {
   enum NodeReferenceType {
     NODE_REFERENCE_TYPE_UNSPECIFIED = 0;
     SOURCE = 1;

@@ -1,0 +1,435 @@
+[default language_features=NONE,+SQL_GRAPH]
+[default no_test_extract_table_names]
+[default enabled_ast_rewrites=DEFAULTS]
+[default show_sqlbuilder_output]
+
+select * from graph_table(
+  aml
+  match (a) -[b IS PersonOwnAccount]-> (c),
+        (a) -[]-> (n)
+  columns (a.Id, b.PersonId, c.Id as c_id, n.Id as n_id)
+)
+
+--
+QueryStmt
++-output_column_list=
+| +-$graph_table.Id#7 AS Id [INT64]
+| +-$graph_table.PersonId#8 AS PersonId [INT64]
+| +-$graph_table.c_id#9 AS c_id [INT64]
+| +-$graph_table.n_id#10 AS n_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[Id#7, PersonId#8, c_id#9, n_id#10]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[Id#7, PersonId#8, c_id#9, n_id#10]
+        +-property_graph=aml
+        +-input_scan=
+        | +-GraphScan
+        |   +-column_list=$element_table.[a#1, b#2, c#3, a#4, $element1#5, n#6]
+        |   +-input_scan_list=
+        |   | +-GraphPathScan
+        |   | | +-column_list=$element_table.[a#1, b#2, c#3]
+        |   | | +-input_scan_list=
+        |   | | | +-GraphNodeScan
+        |   | | | | +-column_list=[$element_table.a#1]
+        |   | | | | +-label_expr=
+        |   | | | | | +-GraphLabelNaryExpr
+        |   | | | | |   +-op=AND
+        |   | | | | |   +-operand_list=
+        |   | | | | |     +-GraphLabelNaryExpr
+        |   | | | | |     | +-op=OR
+        |   | | | | |     | +-operand_list=
+        |   | | | | |     |   +-GraphWildCardLabel
+        |   | | | | |     |   +-GraphLabelNaryExpr
+        |   | | | | |     |     +-op=NOT
+        |   | | | | |     |     +-operand_list=
+        |   | | | | |     |       +-GraphWildCardLabel
+        |   | | | | |     +-GraphLabelNaryExpr
+        |   | | | | |       +-op=OR
+        |   | | | | |       +-operand_list=
+        |   | | | | |         +-GraphWildCardLabel
+        |   | | | | |         +-GraphLabelNaryExpr
+        |   | | | | |           +-op=NOT
+        |   | | | | |           +-operand_list=
+        |   | | | | |             +-GraphWildCardLabel
+        |   | | | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   | | | +-GraphEdgeScan
+        |   | | | | +-column_list=[$element_table.b#2]
+        |   | | | | +-label_expr=
+        |   | | | | | +-GraphLabel(parse_location=52-68, label=aml.PersonOwnAccount)
+        |   | | | | +-target_element_table_list=[aml.PersonOwnAccount]
+        |   | | | | +-orientation=RIGHT
+        |   | | | +-GraphNodeScan
+        |   | | |   +-column_list=[$element_table.c#3]
+        |   | | |   +-label_expr=
+        |   | | |   | +-GraphLabelNaryExpr
+        |   | | |   |   +-op=OR
+        |   | | |   |   +-operand_list=
+        |   | | |   |     +-GraphWildCardLabel
+        |   | | |   |     +-GraphLabelNaryExpr
+        |   | | |   |       +-op=NOT
+        |   | | |   |       +-operand_list=
+        |   | | |   |         +-GraphWildCardLabel
+        |   | | |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   | | +-head=$element_table.a#1
+        |   | | +-tail=$element_table.c#3
+        |   | +-GraphPathScan
+        |   |   +-column_list=$element_table.[a#4, $element1#5, n#6]
+        |   |   +-input_scan_list=
+        |   |   | +-GraphNodeScan
+        |   |   | | +-column_list=[$element_table.a#4]
+        |   |   | | +-label_expr=
+        |   |   | | | +-GraphLabelNaryExpr
+        |   |   | | |   +-op=AND
+        |   |   | | |   +-operand_list=
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |     | +-op=OR
+        |   |   | | |     | +-operand_list=
+        |   |   | | |     |   +-GraphWildCardLabel
+        |   |   | | |     |   +-GraphLabelNaryExpr
+        |   |   | | |     |     +-op=NOT
+        |   |   | | |     |     +-operand_list=
+        |   |   | | |     |       +-GraphWildCardLabel
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |       +-op=OR
+        |   |   | | |       +-operand_list=
+        |   |   | | |         +-GraphWildCardLabel
+        |   |   | | |         +-GraphLabelNaryExpr
+        |   |   | | |           +-op=NOT
+        |   |   | | |           +-operand_list=
+        |   |   | | |             +-GraphWildCardLabel
+        |   |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   |   | +-GraphEdgeScan
+        |   |   | | +-column_list=[$element_table.$element1#5]
+        |   |   | | +-label_expr=
+        |   |   | | | +-GraphLabelNaryExpr
+        |   |   | | |   +-op=OR
+        |   |   | | |   +-operand_list=
+        |   |   | | |     +-GraphWildCardLabel
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |       +-op=NOT
+        |   |   | | |       +-operand_list=
+        |   |   | | |         +-GraphWildCardLabel
+        |   |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+        |   |   | | +-orientation=RIGHT
+        |   |   | +-GraphNodeScan
+        |   |   |   +-column_list=[$element_table.n#6]
+        |   |   |   +-label_expr=
+        |   |   |   | +-GraphLabelNaryExpr
+        |   |   |   |   +-op=OR
+        |   |   |   |   +-operand_list=
+        |   |   |   |     +-GraphWildCardLabel
+        |   |   |   |     +-GraphLabelNaryExpr
+        |   |   |   |       +-op=NOT
+        |   |   |   |       +-operand_list=
+        |   |   |   |         +-GraphWildCardLabel
+        |   |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   |   +-head=$element_table.a#4
+        |   |   +-tail=$element_table.n#6
+        |   +-filter_expr=
+        |     +-FunctionCall(GoogleSQL:$equal(GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>) -> BOOL)
+        |       +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#1)
+        |       +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#4)
+        +-shape_expr_list=
+          +-Id#7 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#1)
+          |   +-property=id(INT64)
+          +-PersonId#8 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, personId INT64>, column=$element_table.b#2)
+          |   +-property=personId(INT64)
+          +-c_id#9 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.c#3)
+          |   +-property=id(INT64)
+          +-n_id#10 :=
+            +-GraphGetElementProperty
+              +-type=INT64
+              +-expr=
+              | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#6)
+              +-property=id(INT64)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  aml_1.a_8 AS Id,
+  aml_1.a_9 AS PersonId,
+  aml_1.a_10 AS c_id,
+  aml_1.a_11 AS n_id
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS ((% | ! %) &(% | ! %)))
+      -[a_3 IS PersonOwnAccount]->
+      (a_4 IS (% | ! %)),
+      (a_5 IS ((% | ! %) &(% | ! %)))
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS (% | ! %))
+      WHERE
+        a_2 = a_5
+    COLUMNS(
+      a_2.id AS a_8,
+      a_3.personId AS a_9,
+      a_4.id AS a_10,
+      a_7.id AS a_11
+    )
+  ) AS aml_1;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS ((% | ! %) &(% | ! %)))
+      -[a_3 IS PersonOwnAccount]->
+      (a_4 IS (% | ! %)),
+      (a_5 IS ((% | ! %) &(% | ! %)))
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS (% | ! %))
+      WHERE
+        a_2 = a_5
+    COLUMNS(
+      a_2.id AS a_8,
+      a_3.personId AS a_9,
+      a_4.id AS a_10,
+      a_7.id AS a_11
+    )
+  ) AS aml_1
+|> SELECT
+     aml_1.a_8 AS Id,
+     aml_1.a_9 AS PersonId,
+     aml_1.a_10 AS c_id,
+     aml_1.a_11 AS n_id;
+
+==
+
+select * from graph_table(
+  aml
+  match (a) -[b IS PersonOwnAccount]-> (c),
+        (a) -[]-> (n)
+  WHERE a.Id < n.Id
+  columns (a.Id, b.PersonId, c.Id as c_id, n.Id as n_id)
+)
+
+--
+QueryStmt
++-output_column_list=
+| +-$graph_table.Id#7 AS Id [INT64]
+| +-$graph_table.PersonId#8 AS PersonId [INT64]
+| +-$graph_table.c_id#9 AS c_id [INT64]
+| +-$graph_table.n_id#10 AS n_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[Id#7, PersonId#8, c_id#9, n_id#10]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[Id#7, PersonId#8, c_id#9, n_id#10]
+        +-property_graph=aml
+        +-input_scan=
+        | +-GraphScan
+        |   +-column_list=$element_table.[a#1, b#2, c#3, a#4, $element1#5, n#6]
+        |   +-input_scan_list=
+        |   | +-GraphPathScan
+        |   | | +-column_list=$element_table.[a#1, b#2, c#3]
+        |   | | +-input_scan_list=
+        |   | | | +-GraphNodeScan
+        |   | | | | +-column_list=[$element_table.a#1]
+        |   | | | | +-label_expr=
+        |   | | | | | +-GraphLabelNaryExpr
+        |   | | | | |   +-op=AND
+        |   | | | | |   +-operand_list=
+        |   | | | | |     +-GraphLabelNaryExpr
+        |   | | | | |     | +-op=OR
+        |   | | | | |     | +-operand_list=
+        |   | | | | |     |   +-GraphWildCardLabel
+        |   | | | | |     |   +-GraphLabelNaryExpr
+        |   | | | | |     |     +-op=NOT
+        |   | | | | |     |     +-operand_list=
+        |   | | | | |     |       +-GraphWildCardLabel
+        |   | | | | |     +-GraphLabelNaryExpr
+        |   | | | | |       +-op=OR
+        |   | | | | |       +-operand_list=
+        |   | | | | |         +-GraphWildCardLabel
+        |   | | | | |         +-GraphLabelNaryExpr
+        |   | | | | |           +-op=NOT
+        |   | | | | |           +-operand_list=
+        |   | | | | |             +-GraphWildCardLabel
+        |   | | | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   | | | +-GraphEdgeScan
+        |   | | | | +-column_list=[$element_table.b#2]
+        |   | | | | +-label_expr=
+        |   | | | | | +-GraphLabel(parse_location=52-68, label=aml.PersonOwnAccount)
+        |   | | | | +-target_element_table_list=[aml.PersonOwnAccount]
+        |   | | | | +-orientation=RIGHT
+        |   | | | +-GraphNodeScan
+        |   | | |   +-column_list=[$element_table.c#3]
+        |   | | |   +-label_expr=
+        |   | | |   | +-GraphLabelNaryExpr
+        |   | | |   |   +-op=OR
+        |   | | |   |   +-operand_list=
+        |   | | |   |     +-GraphWildCardLabel
+        |   | | |   |     +-GraphLabelNaryExpr
+        |   | | |   |       +-op=NOT
+        |   | | |   |       +-operand_list=
+        |   | | |   |         +-GraphWildCardLabel
+        |   | | |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   | | +-head=$element_table.a#1
+        |   | | +-tail=$element_table.c#3
+        |   | +-GraphPathScan
+        |   |   +-column_list=$element_table.[a#4, $element1#5, n#6]
+        |   |   +-input_scan_list=
+        |   |   | +-GraphNodeScan
+        |   |   | | +-column_list=[$element_table.a#4]
+        |   |   | | +-label_expr=
+        |   |   | | | +-GraphLabelNaryExpr
+        |   |   | | |   +-op=AND
+        |   |   | | |   +-operand_list=
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |     | +-op=OR
+        |   |   | | |     | +-operand_list=
+        |   |   | | |     |   +-GraphWildCardLabel
+        |   |   | | |     |   +-GraphLabelNaryExpr
+        |   |   | | |     |     +-op=NOT
+        |   |   | | |     |     +-operand_list=
+        |   |   | | |     |       +-GraphWildCardLabel
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |       +-op=OR
+        |   |   | | |       +-operand_list=
+        |   |   | | |         +-GraphWildCardLabel
+        |   |   | | |         +-GraphLabelNaryExpr
+        |   |   | | |           +-op=NOT
+        |   |   | | |           +-operand_list=
+        |   |   | | |             +-GraphWildCardLabel
+        |   |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   |   | +-GraphEdgeScan
+        |   |   | | +-column_list=[$element_table.$element1#5]
+        |   |   | | +-label_expr=
+        |   |   | | | +-GraphLabelNaryExpr
+        |   |   | | |   +-op=OR
+        |   |   | | |   +-operand_list=
+        |   |   | | |     +-GraphWildCardLabel
+        |   |   | | |     +-GraphLabelNaryExpr
+        |   |   | | |       +-op=NOT
+        |   |   | | |       +-operand_list=
+        |   |   | | |         +-GraphWildCardLabel
+        |   |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+        |   |   | | +-orientation=RIGHT
+        |   |   | +-GraphNodeScan
+        |   |   |   +-column_list=[$element_table.n#6]
+        |   |   |   +-label_expr=
+        |   |   |   | +-GraphLabelNaryExpr
+        |   |   |   |   +-op=OR
+        |   |   |   |   +-operand_list=
+        |   |   |   |     +-GraphWildCardLabel
+        |   |   |   |     +-GraphLabelNaryExpr
+        |   |   |   |       +-op=NOT
+        |   |   |   |       +-operand_list=
+        |   |   |   |         +-GraphWildCardLabel
+        |   |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+        |   |   +-head=$element_table.a#4
+        |   |   +-tail=$element_table.n#6
+        |   +-filter_expr=
+        |     +-FunctionCall(GoogleSQL:$and(BOOL, repeated(1) BOOL) -> BOOL)
+        |       +-FunctionCall(GoogleSQL:$equal(GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>) -> BOOL)
+        |       | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#1)
+        |       | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#4)
+        |       +-FunctionCall(GoogleSQL:$less(INT64, INT64) -> BOOL)
+        |         +-GraphGetElementProperty
+        |         | +-type=INT64
+        |         | +-expr=
+        |         | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#1)
+        |         | +-property=id(INT64)
+        |         +-GraphGetElementProperty
+        |           +-type=INT64
+        |           +-expr=
+        |           | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#6)
+        |           +-property=id(INT64)
+        +-shape_expr_list=
+          +-Id#7 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#1)
+          |   +-property=id(INT64)
+          +-PersonId#8 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, personId INT64>, column=$element_table.b#2)
+          |   +-property=personId(INT64)
+          +-c_id#9 :=
+          | +-GraphGetElementProperty
+          |   +-type=INT64
+          |   +-expr=
+          |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.c#3)
+          |   +-property=id(INT64)
+          +-n_id#10 :=
+            +-GraphGetElementProperty
+              +-type=INT64
+              +-expr=
+              | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#6)
+              +-property=id(INT64)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  aml_1.a_8 AS Id,
+  aml_1.a_9 AS PersonId,
+  aml_1.a_10 AS c_id,
+  aml_1.a_11 AS n_id
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS ((% | ! %) &(% | ! %)))
+      -[a_3 IS PersonOwnAccount]->
+      (a_4 IS (% | ! %)),
+      (a_5 IS ((% | ! %) &(% | ! %)))
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS (% | ! %))
+      WHERE
+        (a_2 = a_5) AND ((a_2.id) < (a_7.id))
+    COLUMNS(
+      a_2.id AS a_8,
+      a_3.personId AS a_9,
+      a_4.id AS a_10,
+      a_7.id AS a_11
+    )
+  ) AS aml_1;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS ((% | ! %) &(% | ! %)))
+      -[a_3 IS PersonOwnAccount]->
+      (a_4 IS (% | ! %)),
+      (a_5 IS ((% | ! %) &(% | ! %)))
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS (% | ! %))
+      WHERE
+        (a_2 = a_5) AND ((a_2.id) < (a_7.id))
+    COLUMNS(
+      a_2.id AS a_8,
+      a_3.personId AS a_9,
+      a_4.id AS a_10,
+      a_7.id AS a_11
+    )
+  ) AS aml_1
+|> SELECT
+     aml_1.a_8 AS Id,
+     aml_1.a_9 AS PersonId,
+     aml_1.a_10 AS c_id,
+     aml_1.a_11 AS n_id;

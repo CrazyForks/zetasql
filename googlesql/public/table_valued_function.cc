@@ -537,7 +537,22 @@ std::string TVFRelation::GetSQLDeclaration(ProductMode product_mode) const {
   std::vector<std::string> strings;
   strings.reserve(columns().size());
   for (const Column& column : columns()) {
-    strings.push_back(column.type->TypeName(product_mode));
+    std::string type_name;
+    if (column.type_modifiers.has_value()) {
+      auto status_or_type_name = column.type->TypeNameWithModifiers(
+          *column.type_modifiers, product_mode);
+      if (status_or_type_name.ok()) {
+        type_name = status_or_type_name.value();
+      } else {
+        // This should never be hit since the signature containing it should be
+        // valid.
+        type_name =
+            absl::StrCat("ERROR: ", status_or_type_name.status().message());
+      }
+    } else {
+      type_name = column.type->TypeName(product_mode);
+    }
+    strings.push_back(type_name);
     // Prevent concatenating value column name or empty column name
     if ((!is_value_table() || column.is_pseudo_column) &&
         !column.name.empty()) {
@@ -579,9 +594,9 @@ absl::StatusOr<TVFRelation> TVFRelation::Deserialize(
     cols.push_back(column);
   }
   if (proto.is_value_table()) {
-    AnnotatedType annotated_type = cols[0].annotated_type();
+    Column value_col = std::move(cols[0]);
     cols.erase(cols.begin());
-    return TVFRelation::ValueTable(annotated_type, cols);
+    return TVFRelation::ValueTable(value_col, cols);
   } else {
     return TVFRelation(cols);
   }

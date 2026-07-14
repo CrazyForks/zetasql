@@ -95,6 +95,8 @@ class SimpleType : public Type {
   absl::Status ValidateResolvedTypeParameters(
       const TypeParameters& type_parameters, ProductMode mode) const override;
 
+  bool UsesExtendedInlineValueContent() const override;
+
  protected:
   ~SimpleType() override;
 

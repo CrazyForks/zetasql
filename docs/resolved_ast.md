@@ -141,6 +141,7 @@ Additional non-generated classes that are documented separately:
     <a id="ResolvedInlineLambda-toc" href="#ResolvedInlineLambda">ResolvedInlineLambda</a>
     <a id="ResolvedInsertRow-toc" href="#ResolvedInsertRow">ResolvedInsertRow</a>
     <a id="ResolvedLockMode-toc" href="#ResolvedLockMode">ResolvedLockMode</a>
+    <a id="ResolvedMakeMapEntry-toc" href="#ResolvedMakeMapEntry">ResolvedMakeMapEntry</a>
     <a id="ResolvedMakeProtoField-toc" href="#ResolvedMakeProtoField">ResolvedMakeProtoField</a>
     <a id="ResolvedMatchRecognizePatternExpr-toc" href="#ResolvedMatchRecognizePatternExpr">ResolvedMatchRecognizePatternExpr</a>
       <a id="ResolvedMatchRecognizePatternAnchor-toc" href="#ResolvedMatchRecognizePatternAnchor">ResolvedMatchRecognizePatternAnchor</a>
@@ -209,6 +210,7 @@ Additional non-generated classes that are documented separately:
     <a id="ResolvedGraphIsLabeledPredicate-toc" href="#ResolvedGraphIsLabeledPredicate">ResolvedGraphIsLabeledPredicate</a>
     <a id="ResolvedGraphMakeElement-toc" href="#ResolvedGraphMakeElement">ResolvedGraphMakeElement</a>
     <a id="ResolvedLiteral-toc" href="#ResolvedLiteral">ResolvedLiteral</a>
+    <a id="ResolvedMakeMap-toc" href="#ResolvedMakeMap">ResolvedMakeMap</a>
     <a id="ResolvedMakeProto-toc" href="#ResolvedMakeProto">ResolvedMakeProto</a>
     <a id="ResolvedMakeStruct-toc" href="#ResolvedMakeStruct">ResolvedMakeStruct</a>
     <a id="ResolvedParameter-toc" href="#ResolvedParameter">ResolvedParameter</a>
@@ -1149,6 +1151,40 @@ class ResolvedMakeProtoField : public <a href="#ResolvedArgument">ResolvedArgume
   FieldFormat::Format format() const;
 
   const <a href="#ResolvedExpr">ResolvedExpr</a>* expr() const;
+};
+</code></pre></p>
+
+### ResolvedMakeMap
+<a id="ResolvedMakeMap"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedExpr">ResolvedExpr</a>  &rsaquo; ResolvedMakeMap
+ &nbsp;(<a href="#ResolvedMakeMap-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// Construct a map value.  `type` is always a MapType.
+// `entry_list` contains the key-value pairs to populate the map.
+// Duplicate keys are rejected at evaluation time.</font>
+class ResolvedMakeMap : public <a href="#ResolvedExpr">ResolvedExpr</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_MAKE_MAP;
+
+  const std::vector&lt;std::unique_ptr&lt;const <a href="#ResolvedMakeMapEntry">ResolvedMakeMapEntry</a>&gt;&gt;&amp; entry_list() const;
+  int entry_list_size() const;
+  const <a href="#ResolvedMakeMapEntry">ResolvedMakeMapEntry</a>* entry_list(int i) const;
+};
+</code></pre></p>
+
+### ResolvedMakeMapEntry
+<a id="ResolvedMakeMapEntry"></a>
+
+<a href="#ResolvedNode">ResolvedNode</a> &rsaquo; <a href="#ResolvedArgument">ResolvedArgument</a>  &rsaquo; ResolvedMakeMapEntry
+ &nbsp;(<a href="#ResolvedMakeMapEntry-toc">tree</a>)
+
+<p><pre><code class="lang-c++"><font color="brown">// One key-value entry in a <a href="#ResolvedMakeMap">ResolvedMakeMap</a> expression.</font>
+class ResolvedMakeMapEntry : public <a href="#ResolvedArgument">ResolvedArgument</a> {
+  static const ResolvedNodeKind TYPE = RESOLVED_MAKE_MAP_ENTRY;
+
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* key() const;
+
+  const <a href="#ResolvedExpr">ResolvedExpr</a>* value() const;
 };
 </code></pre></p>
 

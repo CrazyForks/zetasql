@@ -346,11 +346,6 @@ public abstract class TypeFactory implements Serializable {
       Type backingType = descriptor.getBackingType();
       Preconditions.checkNotNull(backingType, "backingType must not be null");
 
-      // TODO: b/479854648 - Decide on supporting declarative types with returning.
-      Preconditions.checkArgument(
-          descriptor.getReturningStrategy()
-              == DeclarativeTypeProto.ReturningStrategy.RETURNING_DISALLOWED,
-          "Returning is not supported for declarative types");
 
       DeclarativeType declarativeType = new DeclarativeType(descriptor);
 

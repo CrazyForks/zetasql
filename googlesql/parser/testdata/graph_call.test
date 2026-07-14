@@ -528,11 +528,146 @@ FROM
 
 ==
 
-# We don't support "GRAPH g" arguments
+# "GRAPH g" arguments
 graph aml
 call tvf_graph(GRAPH aml)
 return 1 as one
 --
-ERROR: Syntax error: Expected ")" but got identifier "aml" [at 2:22]
-call tvf_graph(GRAPH aml)
-                     ^
+QueryStatement [0-51] [graph aml...return 1 as one]
+  Query [0-51] [graph aml...return 1 as one]
+    GqlQuery [0-51] [graph aml...return 1 as one]
+      GraphTableQuery [0-51] [graph aml...return 1 as one]
+        PathExpression [6-9] [aml]
+          Identifier(aml) [6-9] [aml]
+        GqlOperatorList [10-51] [call tvf_graph...turn 1 as one]
+          GqlOperatorList [10-51] [call tvf_graph...turn 1 as one]
+            GqlNamedCall [10-35] [call tvf_graph(GRAPH aml)]
+              TVF [15-35] [tvf_graph(GRAPH aml)]
+                PathExpression [15-24] [tvf_graph]
+                  Identifier(tvf_graph) [15-24] [tvf_graph]
+                TVFArgument [25-34] [GRAPH aml]
+                  GraphClause [25-34] [GRAPH aml]
+                    PathExpression [31-34] [aml]
+                      Identifier(aml) [31-34] [aml]
+            GqlReturn [36-51] [return 1 as one]
+              Select [43-51] [1 as one]
+                SelectList [43-51] [1 as one]
+                  SelectColumn [43-51] [1 as one]
+                    IntLiteral(1) [43-44] [1]
+                    Alias [45-51] [as one]
+                      Identifier(one) [48-51] [one]
+--
+GRAPH aml
+CALL tvf_graph(GRAPH aml)
+RETURN
+  1 AS one
+
+==
+
+# GRAPH argument with multi part path
+graph aml
+call tvf_graph(GRAPH a.b.c)
+return 1 as one
+--
+QueryStatement [0-53] [graph aml...return 1 as one]
+  Query [0-53] [graph aml...return 1 as one]
+    GqlQuery [0-53] [graph aml...return 1 as one]
+      GraphTableQuery [0-53] [graph aml...return 1 as one]
+        PathExpression [6-9] [aml]
+          Identifier(aml) [6-9] [aml]
+        GqlOperatorList [10-53] [call tvf_graph...turn 1 as one]
+          GqlOperatorList [10-53] [call tvf_graph...turn 1 as one]
+            GqlNamedCall [10-37] [call tvf_graph(GRAPH a.b.c)]
+              TVF [15-37] [tvf_graph(GRAPH a.b.c)]
+                PathExpression [15-24] [tvf_graph]
+                  Identifier(tvf_graph) [15-24] [tvf_graph]
+                TVFArgument [25-36] [GRAPH a.b.c]
+                  GraphClause [25-36] [GRAPH a.b.c]
+                    PathExpression [31-36] [a.b.c]
+                      Identifier(a) [31-32] [a]
+                      Identifier(b) [33-34] [b]
+                      Identifier(c) [35-36] [c]
+            GqlReturn [38-53] [return 1 as one]
+              Select [45-53] [1 as one]
+                SelectList [45-53] [1 as one]
+                  SelectColumn [45-53] [1 as one]
+                    IntLiteral(1) [45-46] [1]
+                    Alias [47-53] [as one]
+                      Identifier(one) [50-53] [one]
+--
+GRAPH aml
+CALL tvf_graph(GRAPH a.b.c)
+RETURN
+  1 AS one
+
+==
+
+# GRAPH argument with backticks
+graph aml
+call tvf_graph(GRAPH `a.b.c`)
+return 1 as one
+--
+QueryStatement [0-55] [graph aml...return 1 as one]
+  Query [0-55] [graph aml...return 1 as one]
+    GqlQuery [0-55] [graph aml...return 1 as one]
+      GraphTableQuery [0-55] [graph aml...return 1 as one]
+        PathExpression [6-9] [aml]
+          Identifier(aml) [6-9] [aml]
+        GqlOperatorList [10-55] [call tvf_graph...turn 1 as one]
+          GqlOperatorList [10-55] [call tvf_graph...turn 1 as one]
+            GqlNamedCall [10-39] [call tvf_graph(GRAPH `a.b.c`)]
+              TVF [15-39] [tvf_graph(GRAPH `a.b.c`)]
+                PathExpression [15-24] [tvf_graph]
+                  Identifier(tvf_graph) [15-24] [tvf_graph]
+                TVFArgument [25-38] [GRAPH `a.b.c`]
+                  GraphClause [25-38] [GRAPH `a.b.c`]
+                    PathExpression [31-38] [`a.b.c`]
+                      Identifier(`a.b.c`) [31-38] [`a.b.c`]
+            GqlReturn [40-55] [return 1 as one]
+              Select [47-55] [1 as one]
+                SelectList [47-55] [1 as one]
+                  SelectColumn [47-55] [1 as one]
+                    IntLiteral(1) [47-48] [1]
+                    Alias [49-55] [as one]
+                      Identifier(one) [52-55] [one]
+--
+GRAPH aml
+CALL tvf_graph(GRAPH `a.b.c`)
+RETURN
+  1 AS one
+
+==
+
+# GRAPH argument named graph
+graph aml
+call tvf_graph(GRAPH graph)
+return 1 as one
+--
+QueryStatement [0-53] [graph aml...return 1 as one]
+  Query [0-53] [graph aml...return 1 as one]
+    GqlQuery [0-53] [graph aml...return 1 as one]
+      GraphTableQuery [0-53] [graph aml...return 1 as one]
+        PathExpression [6-9] [aml]
+          Identifier(aml) [6-9] [aml]
+        GqlOperatorList [10-53] [call tvf_graph...turn 1 as one]
+          GqlOperatorList [10-53] [call tvf_graph...turn 1 as one]
+            GqlNamedCall [10-37] [call tvf_graph(GRAPH graph)]
+              TVF [15-37] [tvf_graph(GRAPH graph)]
+                PathExpression [15-24] [tvf_graph]
+                  Identifier(tvf_graph) [15-24] [tvf_graph]
+                TVFArgument [25-36] [GRAPH graph]
+                  GraphClause [25-36] [GRAPH graph]
+                    PathExpression [31-36] [graph]
+                      Identifier(graph) [31-36] [graph]
+            GqlReturn [38-53] [return 1 as one]
+              Select [45-53] [1 as one]
+                SelectList [45-53] [1 as one]
+                  SelectColumn [45-53] [1 as one]
+                    IntLiteral(1) [45-46] [1]
+                    Alias [47-53] [as one]
+                      Identifier(one) [50-53] [one]
+--
+GRAPH aml
+CALL tvf_graph(GRAPH graph)
+RETURN
+  1 AS one

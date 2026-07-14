@@ -3266,7 +3266,7 @@ public class ValueTest {
             "The number of fields in Value class has changed, "
                 + "please also update the proto and serialization code accordingly.")
         .that(TestUtil.getNonStaticFieldCount(Value.class))
-        .isEqualTo(11);
+        .isEqualTo(12);
   }
 
   @Test
@@ -3377,6 +3377,161 @@ public class ValueTest {
       fail(e.toString());
     }
     return builder.build();
+  }
+
+  @Test
+  public void testDeclarativeValueCreationAndAccessors() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    DeclarativeType declInt =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "IntDeclVal", 1))
+                .setDisplayName("int_decl_val")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .build());
+
+    Value backingVal = Value.createInt64Value(12345);
+    Value declVal = Value.createDeclarativeValue(declInt, backingVal);
+
+    assertThat(declVal.isValid()).isTrue();
+    assertThat(declVal.isNull()).isFalse();
+    assertThat(declVal.getType()).isEqualTo(declInt);
+    assertThat(declVal.getBackingValue()).isEqualTo(backingVal);
+    IllegalStateException exception =
+        assertThrows(IllegalStateException.class, () -> declVal.debugString(false));
+    assertThat(exception)
+        .hasMessageThat()
+        .contains("Printing values is not yet supported for declarative types");
+
+    Value declNull = Value.createNullValue(declInt);
+    assertThat(declNull.isNull()).isTrue();
+    assertThat(declNull.getType()).isEqualTo(declInt);
+  }
+
+  @Test
+  public void testDeclarativeValuePreconditions() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    DeclarativeType declInt =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "IntDeclVal", 1))
+                .setDisplayName("int_decl_val")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .build());
+
+    Value backingVal = Value.createInt64Value(12345);
+
+    assertThrows(NullPointerException.class, () -> Value.createDeclarativeValue(null, backingVal));
+    assertThrows(NullPointerException.class, () -> Value.createDeclarativeValue(declInt, null));
+
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> Value.createDeclarativeValue(declInt, Value.createStringValue("abc")));
+    assertThat(exception)
+        .hasMessageThat()
+        .contains("backingValue type mismatch: expected INT64, got STRING");
+
+    Value nullBackingVal = Value.createNullValue(TypeFactory.createSimpleType(TypeKind.TYPE_INT64));
+    Value declFromNull = Value.createDeclarativeValue(declInt, nullBackingVal);
+    assertThat(declFromNull.isNull()).isTrue();
+    assertThat(declFromNull.getType()).isEqualTo(declInt);
+  }
+
+  @Test
+  public void testDeclarativeValueSerializationAndHashing() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    DeclarativeType declInt =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "IntDeclHashVal", 1))
+                .setDisplayName("int_decl_hash_val")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .build());
+
+    DeclarativeType declIntOther =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "IntDeclOtherHashVal", 1))
+                .setDisplayName("int_decl_other_hash_val")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .build());
+
+    Value backingVal = Value.createInt64Value(12345);
+    Value declVal1 = Value.createDeclarativeValue(declInt, backingVal);
+    Value declVal2 = Value.createDeclarativeValue(declInt, backingVal);
+    Value declValOther = Value.createDeclarativeValue(declIntOther, backingVal);
+
+    assertThat(declVal1).isEqualTo(declVal2);
+    assertThat(declVal1.hashCode()).isEqualTo(declVal2.hashCode());
+    assertThat(declVal1.equals(declValOther)).isFalse();
+    assertThat(declVal1.hashCode()).isNotEqualTo(declValOther.hashCode());
+
+    ValueProto proto = declVal1.getProto();
+    Value deserialized = Value.deserialize(declInt, proto);
+    assertThat(deserialized).isEqualTo(declVal1);
+    assertThat(deserialized.getBackingValue()).isEqualTo(backingVal);
+  }
+
+  @Test
+  public void testNestedDeclarativeValue() {
+    TypeFactory factory = TypeFactory.uniqueNames();
+    DeclarativeType declInt64 =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "DeclInt64", 1))
+                .setDisplayName("decl_int64")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_INT64))
+                .build());
+
+    DeclarativeType declDatetime =
+        factory.createDeclarativeType(
+            DeclarativeTypeDescriptor.builder()
+                .setTypeId(new DeclarativeTypeDescriptor.TypeId("NS", "DeclDatetime", 1))
+                .setDisplayName("decl_datetime")
+                .setBackingType(TypeFactory.createSimpleType(TypeKind.TYPE_DATETIME))
+                .build());
+
+    // STRUCT<DeclInt64, DeclDatetime> (Composite wrapping declarative fields)
+    StructType structWithDeclFieldsType =
+        TypeFactory.createStructType(
+            ImmutableList.of(
+                new StructType.StructField("int_field", declInt64),
+                new StructType.StructField("dt_field", declDatetime)));
+
+    Value rawInt64 = Value.createInt64Value(12345);
+    Value rawDatetime = Value.createDatetimeValue(LocalDateTime.of(2026, 7, 8, 14, 25, 0));
+
+    Value wrappedInt64 = Value.createDeclarativeValue(declInt64, rawInt64);
+    Value wrappedDatetime = Value.createDeclarativeValue(declDatetime, rawDatetime);
+
+    Value structValue =
+        Value.createStructValue(
+            structWithDeclFieldsType, ImmutableList.of(wrappedInt64, wrappedDatetime));
+
+    assertThat(structValue.isValid()).isTrue();
+    assertThat(structValue.isNull()).isFalse();
+    assertThat(structValue.getType()).isEqualTo(structWithDeclFieldsType);
+
+    // Verify wrapped vs unwrapped values inside the struct
+    assertThat(structValue.getField(0)).isEqualTo(wrappedInt64);
+    assertThat(structValue.getField(0).getType()).isEqualTo(declInt64);
+    assertThat(structValue.getField(0).getBackingValue()).isEqualTo(rawInt64);
+    assertThat(structValue.getField(0).getConcreteValue()).isEqualTo(rawInt64);
+
+    assertThat(structValue.getField(1)).isEqualTo(wrappedDatetime);
+    assertThat(structValue.getField(1).getType()).isEqualTo(declDatetime);
+    assertThat(structValue.getField(1).getBackingValue()).isEqualTo(rawDatetime);
+    assertThat(structValue.getField(1).getConcreteValue()).isEqualTo(rawDatetime);
+
+    // Verify serialization and deserialization preserve wrapped and unwrapped values exactly
+    ValueProto structProto = structValue.getProto();
+    Value deserializedStruct = Value.deserialize(structWithDeclFieldsType, structProto);
+    assertThat(deserializedStruct).isEqualTo(structValue);
+    assertThat(deserializedStruct.getField(0).getType()).isEqualTo(declInt64);
+    assertThat(deserializedStruct.getField(0).getBackingValue()).isEqualTo(rawInt64);
+    assertThat(deserializedStruct.getField(1).getType()).isEqualTo(declDatetime);
+    assertThat(deserializedStruct.getField(1).getBackingValue()).isEqualTo(rawDatetime);
   }
 
   private static TypeFactory testFactory = TypeFactory.nonUniqueNames();

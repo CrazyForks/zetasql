@@ -157,9 +157,8 @@ struct MultisetValueContentContainerElementHasher {
   const Type* type;
 };
 
-ArrayType::ArrayType(const TypeFactoryBase* factory, const Type* element_type)
-    : ListBackedType(factory, TYPE_ARRAY), element_type_(element_type) {
-}
+ArrayType::ArrayType(const TypeFactoryBase& factory, const Type* element_type)
+    : ListBackedType(factory, TYPE_ARRAY), element_type_(element_type) {}
 
 ArrayType::~ArrayType() = default;
 

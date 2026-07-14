@@ -88,7 +88,7 @@ bool ArgumentsAreComparable(absl::Span<const InputArgumentType> arguments,
 
 // Checks whether all arguments are/are not arrays depending on the value of the
 // 'is_array' flag.
-bool ArgumentsArrayType(const std::vector<InputArgumentType>& arguments,
+bool ArgumentsArrayType(absl::Span<const InputArgumentType> arguments,
                         bool is_array, int* bad_argument_idx) {
   *bad_argument_idx = -1;
   for (int idx = 0; idx < arguments.size(); ++idx) {
@@ -354,7 +354,7 @@ std::string ArrayAtFunctionSQL(absl::string_view inner_function_name,
 std::string ArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("OFFSET", inputs);
 }
-std::string ArrayAtOrdinalFunctionSQL(const std::vector<std::string>& inputs) {
+std::string ArrayAtOrdinalFunctionSQL(absl::Span<const std::string> inputs) {
   return ArrayAtFunctionSQL("ORDINAL", inputs);
 }
 std::string SafeArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs) {
@@ -1006,11 +1006,13 @@ absl::Status CheckIsSupportedKeyType(
   std::set<std::string> active_key_types = supported_key_types;
   // TODO: b/513333509 - Add support for FPE_FF1 to all of the keys functions.
   if (language_options.LanguageFeatureEnabled(FEATURE_FPE_NEW_KEYSET) &&
-      function_name == "KEYS.NEW_KEYSET") {
+      (function_name == "KEYS.NEW_KEYSET" ||
+       function_name == "KEYS.NEW_WRAPPED_KEYSET")) {
     active_key_types.insert("FPE_FF1");
   }
   const std::string& key_type = argument.literal_value()->string_value();
-  if (function_name == "KEYS.NEW_KEYSET" && arguments.size() == 2) {
+  if ((function_name == "KEYS.NEW_KEYSET" && arguments.size() == 2) ||
+      (function_name == "KEYS.NEW_WRAPPED_KEYSET" && arguments.size() == 3)) {
     if (key_type == "AEAD_AES_GCM_256" ||
         key_type == "DETERMINISTIC_AEAD_AES_SIV_CMAC_256") {
       return MakeSqlError()
@@ -1174,7 +1176,7 @@ std::string NoMatchingSignatureForGenerateDateOrTimestampArrayFunction(
 
 std::string NoMatchingSignatureForSubscript(
     absl::string_view offset_or_ordinal, absl::string_view operator_name,
-    const std::vector<InputArgumentType>& arguments, ProductMode product_mode) {
+    absl::Span<const InputArgumentType> arguments, ProductMode product_mode) {
   const std::string element_type =
       (arguments.size() > 1 ? arguments[1].UserFacingName(product_mode) : "");
   const std::string element_string =
@@ -1191,7 +1193,7 @@ std::string NoMatchingSignatureForSubscript(
 
 absl::Status CheckArgumentsSupportEquality(
     absl::string_view comparison_name, const FunctionSignature& signature,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   GOOGLESQL_RET_CHECK_EQ(signature.NumConcreteArguments(), arguments.size());
   GOOGLESQL_RETURN_IF_ERROR(
@@ -1251,7 +1253,7 @@ absl::StatusOr<const Type*> GetOrMakeEnumValueDescriptorType(
 
 absl::Status PreResolutionCheckArgumentsSupportComparison(
     absl::string_view comparison_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   int bad_argument_idx;
   if (ArgumentsAreComparable(arguments, language_options, &bad_argument_idx)) {
@@ -1264,16 +1266,15 @@ absl::Status PreResolutionCheckArgumentsSupportComparison(
 
 absl::Status CheckArgumentsSupportComparison(
     absl::string_view comparison_name, const FunctionSignature& /*signature*/,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   return PreResolutionCheckArgumentsSupportComparison(
       comparison_name, arguments, language_options);
 }
 
-absl::Status CheckMinMaxArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
-    const LanguageOptions& language_options) {
+absl::Status CheckMinMaxArguments(absl::string_view function_name,
+                                  absl::Span<const InputArgumentType> arguments,
+                                  const LanguageOptions& language_options) {
   return PreResolutionCheckArgumentsSupportComparison(function_name, arguments,
                                                       language_options);
 }
@@ -1282,7 +1283,7 @@ absl::Status CheckMinMaxArguments(
 // so we need to check the flag.
 absl::Status CheckGreatestLeastArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   GOOGLESQL_RETURN_IF_ERROR(PreResolutionCheckArgumentsSupportComparison(
       function_name, arguments, language_options));
@@ -1299,7 +1300,7 @@ absl::Status CheckGreatestLeastArguments(
 }
 
 absl::Status CheckArrayAggArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   if (language_options.LanguageFeatureEnabled(FEATURE_ARRAY_OF_ARRAY)) {
     return absl::OkStatus();
@@ -1314,7 +1315,7 @@ absl::Status CheckArrayAggArguments(
 }
 
 absl::Status CheckArrayConcatArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options) {
   int bad_argument_idx;
   if (!ArgumentsArrayType(arguments, /*is_array=*/true, &bad_argument_idx)) {

@@ -117,6 +117,8 @@ public class Value implements Serializable {
   private final IntervalValue intervalValue;
   // Deserialized UUID value if the type is TYPE_UUID.
   private final UUID uuidValue;
+  // Backing value if the type is TYPE_DECLARATIVE.
+  private final Value backingValue;
 
   // Number of digits after the decimal point supported by the NUMERIC data type.
   private static final int NUMERIC_SCALE = 9;
@@ -151,6 +153,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /** Creates a Value of given type and proto value. */
@@ -166,6 +169,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /**
@@ -184,6 +188,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /**
@@ -202,6 +207,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /**
@@ -220,6 +226,7 @@ public class Value implements Serializable {
     this.start = start;
     this.end = end;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /**
@@ -238,6 +245,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /** Creates a value of type NUMERIC or BIGNUMERIC. */
@@ -253,6 +261,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /** Creates a value of type INTERVAL. */
@@ -268,6 +277,7 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = null;
+    this.backingValue = null;
   }
 
   /** Creates a value of type UUID. */
@@ -283,6 +293,23 @@ public class Value implements Serializable {
     this.start = null;
     this.end = null;
     this.uuidValue = uuidValue;
+    this.backingValue = null;
+  }
+
+  /** Creates a declarative value of given type, proto, and backing value. */
+  private Value(DeclarativeType type, ValueProto proto, Value backingValue) {
+    this.type = checkNotNull(type);
+    this.proto = checkNotNull(proto);
+    this.isNull = Value.isNullValue(proto);
+    this.fields = null;
+    this.elements = null;
+    this.mapEntries = null;
+    this.numericValue = null;
+    this.intervalValue = null;
+    this.start = null;
+    this.end = null;
+    this.uuidValue = null;
+    this.backingValue = backingValue;
   }
 
   private static IllegalArgumentException typeMismatchException(Type type, ValueProto proto) {
@@ -577,6 +604,26 @@ public class Value implements Serializable {
     return mapEntries.size();
   }
 
+  /** Returns the immediate backing value of a declarative value. */
+  public Value getBackingValue() {
+    Preconditions.checkState(!isNull(), "Value must not be null");
+    Preconditions.checkState(
+        getType().getKind() == TypeKind.TYPE_DECLARATIVE, "Value must be of type DECLARATIVE");
+    return checkNotNull(backingValue, "backingValue cannot be null");
+  }
+
+  /** Returns the leaf concrete backing value of a declarative value. */
+  public Value getConcreteValue() {
+    Preconditions.checkState(!isNull(), "Value must not be null");
+    Preconditions.checkState(
+        getType().getKind() == TypeKind.TYPE_DECLARATIVE, "Value must be of type DECLARATIVE");
+    Value current = this.backingValue;
+    while (current != null && current.getType().getKind() == TypeKind.TYPE_DECLARATIVE) {
+      current = current.backingValue;
+    }
+    return checkNotNull(current, "concrete value cannot be null");
+  }
+
   /**
    * Returns false if 'this' and 'other' have different type kinds.
    *
@@ -724,6 +771,11 @@ public class Value implements Serializable {
           return other.getMapEntries().equals(getMapEntries());
         }
         return false;
+      case TYPE_DECLARATIVE:
+        if (other.getType().equals(type)) {
+          return Objects.equals(other.backingValue, backingValue);
+        }
+        return false;
       default:
         throw new IllegalStateException("Shouldn't happen: compare with unsupported type " + type);
     }
@@ -827,6 +879,8 @@ public class Value implements Serializable {
           // Use combineUnordered to combine the entries, since MAP is unordered.
           return Hashing.combineUnordered(hashCodes).asInt();
         }
+      case TYPE_DECLARATIVE:
+        return Objects.hash(type.hashCode(), backingValue.hashCode());
       default:
         // Shouldn't happen, but it's a bad idea to throw from hashCode().
         return super.hashCode();
@@ -998,6 +1052,15 @@ public class Value implements Serializable {
           return String.format("%s%s}", verbose ? "Map{" : "{", result);
         }
 
+      case TYPE_DECLARATIVE:
+        {
+          if (isNull() && !verbose) {
+            return "NULL";
+          }
+          throw new IllegalStateException(
+              "Printing values is not yet supported for declarative types. Type: "
+                  + getType().debugString(verbose));
+        }
       default:
         throw new IllegalStateException(
             "Unexpected type kind expected internally only: " + getType().getKind());
@@ -1576,6 +1639,12 @@ public class Value implements Serializable {
               deserialize(keyType, entry.getKey()), deserialize(valueType, entry.getValue()));
         }
         return new Value(type.asMap(), proto, mapEntries);
+      case TYPE_DECLARATIVE:
+        {
+          DeclarativeType declType = type.asDeclarativeType();
+          Value backingValue = deserialize(declType.getBackingType(), proto);
+          return createDeclarativeValue(declType, backingValue);
+        }
 
       default:
         throw new IllegalArgumentException("Should not happen: unsupported type " + type);
@@ -1633,6 +1702,8 @@ public class Value implements Serializable {
       case TYPE_MAP:
         return isSupportedTypeKind(type.asMap().getKeyType())
             && isSupportedTypeKind(type.asMap().getValueType());
+      case TYPE_DECLARATIVE:
+        return isSupportedTypeKind(type.asDeclarativeType().getBackingType());
       default:
         return false;
     }
@@ -2002,6 +2073,22 @@ public class Value implements Serializable {
 
     ValueProto proto = ValueProto.newBuilder().setJsonValue(document).build();
     return new Value(jsonType, proto);
+  }
+
+  /** Returns a declarative Value of given {@code type} backed by {@code backingValue}. */
+  public static Value createDeclarativeValue(DeclarativeType type, Value backingValue) {
+    Preconditions.checkNotNull(type);
+    Preconditions.checkNotNull(backingValue);
+    Preconditions.checkArgument(isSupportedTypeKind(type));
+    if (backingValue.isNull()) {
+      return createNullValue(type);
+    }
+    Preconditions.checkArgument(
+        backingValue.getType().equals(type.getBackingType()),
+        "backingValue type mismatch: expected %s, got %s",
+        type.getBackingType().debugString(false),
+        backingValue.getType().debugString(false));
+    return new Value(type, backingValue.proto, backingValue);
   }
 
   /**

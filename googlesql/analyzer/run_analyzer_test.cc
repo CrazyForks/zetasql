@@ -2583,7 +2583,8 @@ class AnalyzerTestRunner {
         //   output_query_stmt->query()->is_ordered() ==
         //   sqlbuilder_query_stmt->query()->is_ordered();
       }
-      case RESOLVED_TERMINAL_QUERY_STMT: {
+      case RESOLVED_TERMINAL_QUERY_STMT:
+      case RESOLVED_GENERALIZED_QUERY_STMT: {
         // There's no output table, so these outputs are all equivalent.
         return true;
       }
@@ -3578,9 +3579,7 @@ class AnalyzerTestRunner {
       *result_string = absl::StrCat(
           "ERROR while analyzing SQLBuilder output: ", status_string,
           "\n[SQLBUILDER SQL]\n", formatted_sql);
-      if (test_case_options_.GetBool(kReproReanalyzeFailure)) {
-        return;
-      }
+
       FAIL() << *result_string;
     }
 

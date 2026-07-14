@@ -2879,6 +2879,22 @@ absl::StatusOr<std::unique_ptr<BuiltinScalarFunction>>
 BuiltinScalarFunction::CreateLikeAnyAllFunction(
     FunctionKind kind, const Type* output_type,
     absl::Span<const std::unique_ptr<AlgebraArg>> arguments) {
+  switch (kind) {
+    case FunctionKind::kLikeAny:
+    case FunctionKind::kNotLikeAny:
+    case FunctionKind::kLikeAnyWithCollation:
+    case FunctionKind::kNotLikeAnyWithCollation:
+    case FunctionKind::kLikeAll:
+    case FunctionKind::kNotLikeAll:
+    case FunctionKind::kLikeAllWithCollation:
+    case FunctionKind::kNotLikeAllWithCollation:
+      // These are the expected kinds.
+      break;
+    default:
+      GOOGLESQL_RET_CHECK_FAIL() << "Unexpected function kind for LikeAnyAllFunction: "
+                       << static_cast<int>(kind);
+  }
+
   std::vector<std::unique_ptr<RE2>> regexp;
   if (kind == FunctionKind::kLikeAny || kind == FunctionKind::kNotLikeAny ||
       kind == FunctionKind::kLikeAll || kind == FunctionKind::kNotLikeAll) {

@@ -204,6 +204,18 @@ absl::StatusOr<bool> IsConstantExpression(const ResolvedExpr* expr) {
       }
       return true;
     }
+    case RESOLVED_MAKE_MAP: {
+      const ResolvedMakeMap* make_map = expr->GetAs<ResolvedMakeMap>();
+      for (const auto& entry : make_map->entry_list()) {
+        GOOGLESQL_ASSIGN_OR_RETURN(bool key_is_const, IsConstantExpression(entry->key()));
+        GOOGLESQL_ASSIGN_OR_RETURN(bool val_is_const,
+                         IsConstantExpression(entry->value()));
+        if (!key_is_const || !val_is_const) {
+          return false;
+        }
+      }
+      return true;
+    }
 
     case RESOLVED_GRAPH_IS_LABELED_PREDICATE:
       // Only the operand needs to be evaluated for constness. The label-expr

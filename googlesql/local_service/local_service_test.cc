@@ -2308,6 +2308,26 @@ TEST_F(GoogleSqlLocalServiceImplTest, BuildSqlStatement) {
   EXPECT_THAT(response, EqualsProto(expectedResponse));
 }
 
+TEST_F(GoogleSqlLocalServiceImplTest, BuildSqlInvalidStatementReturnsError) {
+  BuildSqlRequest request;
+  ABSL_QCHECK(google::protobuf::TextFormat::ParseFromString(R"pb(resolved_statement {})pb",
+                                             &request));
+
+  BuildSqlResponse response;
+  absl::Status status = BuildSql(request, &response);
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(GoogleSqlLocalServiceImplTest, BuildSqlInvalidExpressionReturnsError) {
+  BuildSqlRequest request;
+  ABSL_QCHECK(google::protobuf::TextFormat::ParseFromString(R"pb(resolved_expression {})pb",
+                                             &request));
+
+  BuildSqlResponse response;
+  absl::Status status = BuildSql(request, &response);
+  EXPECT_FALSE(status.ok());
+}
+
 TEST_F(GoogleSqlLocalServiceImplTest, BuildSqlExpression) {
   BuildSqlRequest request;
   ABSL_QCHECK(google::protobuf::TextFormat::ParseFromString(

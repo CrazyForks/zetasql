@@ -182,6 +182,7 @@ class Unparser : public ParseTreeVisitor {
   void visitASTModelClause(const ASTModelClause* node, void* data) override;
   void visitASTConnectionClause(const ASTConnectionClause* node,
                                 void* data) override;
+  void visitASTGraphClause(const ASTGraphClause* node, void* data) override;
   void visitASTTVF(const ASTTVF* node, void* data) override;
   void visitASTTVFArgument(const ASTTVFArgument* node, void* data) override;
   void visitASTTVFSchema(const ASTTVFSchema* node, void* data) override;
@@ -241,6 +242,8 @@ class Unparser : public ParseTreeVisitor {
       const ASTCreatePrivilegeRestrictionStatement* node, void* data) override;
   void visitASTCreateRowAccessPolicyStatement(
       const ASTCreateRowAccessPolicyStatement* node, void* data) override;
+  void visitASTCreateDataPolicyStatement(
+      const ASTCreateDataPolicyStatement* node, void* data) override;
   void visitASTUndropStatement(const ASTUndropStatement* node,
                                void* data) override;
   void visitASTExportDataStatement(const ASTExportDataStatement* node,
@@ -513,6 +516,18 @@ class Unparser : public ParseTreeVisitor {
   void visitASTGqlSample(const ASTGqlSample* node, void* data) override;
   void visitASTCreatePropertyGraphStatement(
       const ASTCreatePropertyGraphStatement* node, void* data) override;
+  void visitASTCreatePropertyGraphTypeStatement(
+      const ASTCreatePropertyGraphTypeStatement* node, void* data) override;
+  void visitASTGraphElementTypeList(const ASTGraphElementTypeList* node,
+                                    void* data) override;
+  void visitASTGraphElementType(const ASTGraphElementType* node,
+                                void* data) override;
+  void visitASTGraphNodeTypeReference(const ASTGraphNodeTypeReference* node,
+                                      void* data) override;
+  void visitASTGraphPropertyDeclarationList(
+      const ASTGraphPropertyDeclarationList* node, void* data) override;
+  void visitASTGraphPropertyDeclaration(const ASTGraphPropertyDeclaration* node,
+                                        void* data) override;
   void visitASTGraphElementTableList(const ASTGraphElementTableList* node,
                                      void* data) override;
   void visitASTGraphElementTable(const ASTGraphElementTable* node,
@@ -904,6 +919,8 @@ class Unparser : public ParseTreeVisitor {
   void visitASTRebuildAction(const ASTRebuildAction* node, void* data) override;
   void visitASTSetOptionsAction(const ASTSetOptionsAction* node,
                                 void* data) override;
+  void visitASTSetConditionAction(const ASTSetConditionAction* node,
+                                  void* data) override;
   void visitASTSetAsAction(const ASTSetAsAction* node, void* data) override;
   void visitASTAddConstraintAction(const ASTAddConstraintAction* node,
                                    void* data) override;
@@ -946,6 +963,9 @@ class Unparser : public ParseTreeVisitor {
 
   void visitASTAlterAllRowAccessPoliciesStatement(
       const ASTAlterAllRowAccessPoliciesStatement* node, void* data) override;
+
+  void visitASTAlterDataPolicyStatement(const ASTAlterDataPolicyStatement* node,
+                                        void* data) override;
 
   void visitASTForeignKey(const ASTForeignKey* node, void* data) override;
   void visitASTForeignKeyReference(const ASTForeignKeyReference* node,

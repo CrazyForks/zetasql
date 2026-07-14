@@ -2194,6 +2194,13 @@ enum LanguageFeature {
     (language_feature_options).language_version = VERSION_1_5
   ];
 
+  // Enable SQL DDL syntax and resolution support for tag-based data policies.
+  // ((broken link))
+  FEATURE_TAG_DATA_POLICY_DDL = 15003 [
+    (language_feature_options).in_development = true,
+    (language_feature_options).language_version = VERSION_1_5
+  ];
+
   // Enable GoogleSQL modules. This feature will be turned on when analyzing
   // module contents and must be turned on when analyzing statements that may
   // import a module. In other context, it is useful to turn this feature on

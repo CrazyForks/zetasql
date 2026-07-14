@@ -753,6 +753,31 @@ TEST(ExecuteQuery, ExecuteQueryStateful) {
 )");
 }
 
+TEST(ExecuteQuery, TVFCallPrunedColumns) {
+  absl::FlagSaver fs;
+  ExecuteQueryConfig config;
+  config.mutable_analyzer_options().set_prune_unused_columns(true);
+  GOOGLESQL_ASSERT_OK(InitializeExecuteQueryConfig(config));
+  config.clear_tool_modes();
+  config.add_tool_mode(ToolMode::kExecute);
+
+  std::ostringstream output;
+  GOOGLESQL_EXPECT_OK(ExecuteQuery(
+      "CREATE TEMP TABLE FUNCTION tvf() AS (SELECT 1 AS a, 2 AS b);", config,
+      output));
+  EXPECT_EQ(output.str(), "TVF registered.\n");
+
+  output.str("");
+  GOOGLESQL_EXPECT_OK(ExecuteQuery("SELECT a FROM tvf();", config, output));
+  EXPECT_EQ(output.str(), R"(┌───┐
+│ a │
+├───┤
+│ 1 │
+└───┘
+
+)");
+}
+
 TEST(ExecuteQuery, ParseExpression) {
   absl::FlagSaver fs;
   ExecuteQueryConfig config;

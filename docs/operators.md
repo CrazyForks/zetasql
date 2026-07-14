@@ -2858,12 +2858,11 @@ expression_1 IS [NOT] DISTINCT FROM expression_2
 **Description**
 
 `IS DISTINCT FROM` returns `TRUE` if the input values are considered to be
-distinct from each other by the [`DISTINCT`][operators-distinct] and
-[`GROUP BY`][operators-group-by] clauses. Otherwise, returns `FALSE`.
+distinct from each other by the
+[`GROUP BY`][operators-group-by] clause. Otherwise, returns `FALSE`.
 
 `a IS DISTINCT FROM b` being `TRUE` is equivalent to:
 
-+ `SELECT COUNT(DISTINCT x) FROM UNNEST([a,b]) x` returning `2`.
 + `SELECT * FROM UNNEST([a,b]) x GROUP BY x` returning 2 rows.
 
 `a IS DISTINCT FROM b` is equivalent to `NOT (a = b)`, except for the

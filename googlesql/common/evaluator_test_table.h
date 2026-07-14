@@ -85,7 +85,7 @@ class EvaluatorTestTable : public SimpleTable {
       }
     }
 
-    return std::make_unique<SimpleEvaluatorTableIterator>(
+    return SimpleEvaluatorTableIterator::Create(
         columns, column_values, num_rows(), end_status_,
         scan_column_filter_idxs, cancel_cb_, set_deadline_cb_, clock_);
   }

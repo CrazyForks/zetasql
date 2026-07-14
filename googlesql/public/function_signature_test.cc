@@ -523,36 +523,40 @@ TEST(FunctionSignatureTests, LambdaFunctionArgumentTypeWithTypeModifiers) {
   // Type modifiers are not allowed in lambda argument types.
   FunctionArgumentType lambda_arg_type =
       FunctionArgumentType::Lambda({arg_type}, ARG_KIND_EXPR_ANY_1);
-  EXPECT_THAT(lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("ARG_TYPE_FIXED lambda argument must have "
-                                 "empty type modifiers")));
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("ARG_KIND_EXPR_FIXED lambda argument must have "
+                         "empty type modifiers")));
 
   lambda_arg_type =
       FunctionArgumentType::Lambda({ARG_KIND_EXPR_ANY_1}, arg_type);
-  EXPECT_THAT(lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("ARG_TYPE_FIXED lambda argument must have "
-                                 "empty type modifiers")));
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("ARG_KIND_EXPR_FIXED lambda argument must have "
+                         "empty type modifiers")));
 
   // Templated arguments cannot have empty type modifiers either (must be
   // std::nullopt).
   FunctionArgumentType templated_arg_with_empty_modifiers(
-      ARG_TYPE_ANY_1, FunctionArgumentTypeOptions(), /*num_occurrences=*/1,
+      ARG_KIND_EXPR_ANY_1, FunctionArgumentTypeOptions(), /*num_occurrences=*/1,
       TypeModifiers());
   lambda_arg_type = FunctionArgumentType::Lambda(
-      {templated_arg_with_empty_modifiers}, ARG_TYPE_ANY_2);
-  EXPECT_THAT(lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Non ARG_TYPE_FIXED lambda argument cannot "
-                                 "have type modifiers")));
+      {templated_arg_with_empty_modifiers}, ARG_KIND_EXPR_ANY_2);
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Non ARG_KIND_EXPR_FIXED lambda argument cannot "
+                         "have type modifiers")));
 
   lambda_arg_type = FunctionArgumentType::Lambda(
-      {ARG_TYPE_ANY_2}, templated_arg_with_empty_modifiers);
-  EXPECT_THAT(lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Non ARG_TYPE_FIXED lambda argument cannot "
-                                 "have type modifiers")));
+      {ARG_KIND_EXPR_ANY_2}, templated_arg_with_empty_modifiers);
+  EXPECT_THAT(
+      lambda_arg_type.IsValid(ProductMode::PRODUCT_EXTERNAL),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Non ARG_KIND_EXPR_FIXED lambda argument cannot "
+                         "have type modifiers")));
 }
 
 TEST(FunctionSignatureTests, FunctionSignatureWithDefaultValues) {
@@ -2885,5 +2889,70 @@ INSTANTIATE_TEST_SUITE_P(
                        FunctionArgumentType::Lambda({ARG_KIND_EXPR_ANY_1},
                                                     ARG_KIND_EXPR_ANY_1)}},
     }));
+
+TEST(FunctionSignatureTests, GetSQLDeclarationWithTypeModifiers) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  StringTypeParametersProto string_type_param_proto;
+  string_type_param_proto.set_max_length(123);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_param,
+      TypeParameters::MakeStringTypeParameters(string_type_param_proto));
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(type_param, collation);
+
+  FunctionArgumentType arg_type(factory.get_string(),
+                                FunctionArgumentTypeOptions(),
+                                /*num_occurrences=*/1, type_modifiers);
+  FunctionArgumentType arg_type_no_modifiers(factory.get_string(),
+                                             FunctionArgumentTypeOptions(),
+                                             /*num_occurrences=*/1);
+
+  // Test FunctionArgumentType::GetSQLDeclaration
+  EXPECT_EQ("STRING(123) COLLATE 'und:ci'",
+            arg_type.GetSQLDeclaration(ProductMode::PRODUCT_INTERNAL,
+                                       /*use_external_float32=*/false));
+  EXPECT_EQ("STRING", arg_type_no_modifiers.GetSQLDeclaration(
+                          ProductMode::PRODUCT_INTERNAL,
+                          /*use_external_float32=*/false));
+
+  // Test FunctionSignature::GetSQLDeclaration
+  FunctionArgumentTypeList arguments;
+  arguments.push_back(arg_type);
+  FunctionSignature signature(factory.get_int64(), arguments,
+                              /*context_id=*/-1);
+
+  FunctionArgumentTypeList arguments_no_modifiers;
+  arguments_no_modifiers.push_back(arg_type_no_modifiers);
+  FunctionSignature signature_no_modifiers(
+      factory.get_int64(), arguments_no_modifiers, /*context_id=*/-1);
+
+  EXPECT_EQ(signature.GetSQLDeclaration({} /* argument_names */,
+                                        ProductMode::PRODUCT_INTERNAL,
+                                        /*use_external_float32=*/false),
+            "(STRING(123) COLLATE 'und:ci') RETURNS INT64");
+  EXPECT_EQ(signature_no_modifiers.GetSQLDeclaration(
+                {} /* argument_names */, ProductMode::PRODUCT_INTERNAL,
+                /*use_external_float32=*/false),
+            "(STRING) RETURNS INT64");
+}
+
+TEST(FunctionSignatureTests, GetSQLDeclarationWithTypeModifiersError) {
+  TypeFactory factory;
+  Collation collation = Collation::MakeScalar("und:ci");
+  TypeModifiers type_modifiers =
+      TypeModifiers::MakeTypeModifiers(TypeParameters(), collation);
+
+  // Collation is not compatible with INT64, so TypeNameWithModifiers should
+  // fail.
+  FunctionArgumentType arg_type(factory.get_int64(),
+                                FunctionArgumentTypeOptions(),
+                                /*num_occurrences=*/1, type_modifiers);
+
+  std::string decl = arg_type.GetSQLDeclaration(ProductMode::PRODUCT_INTERNAL,
+                                                /*use_external_float32=*/false);
+  EXPECT_EQ("ERROR: Input collation und:ci is not compatible with type INT64",
+            decl);
+}
 
 }  // namespace googlesql

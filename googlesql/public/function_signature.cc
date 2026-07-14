@@ -362,11 +362,11 @@ FunctionArgumentType::Deserialize(const FunctionArgumentTypeProto& proto,
 
   std::optional<TypeModifiers> type_modifiers;
   if (proto.has_type_modifiers()) {
-    GOOGLESQL_RET_CHECK(proto.kind() == ARG_TYPE_FIXED);
+    GOOGLESQL_RET_CHECK(proto.kind() == ARG_KIND_EXPR_FIXED);
     GOOGLESQL_ASSIGN_OR_RETURN(TypeModifiers tm,
                      TypeModifiers::Deserialize(proto.type_modifiers()));
     type_modifiers = std::move(tm);
-  } else if (proto.kind() == ARG_TYPE_FIXED) {
+  } else if (proto.kind() == ARG_KIND_EXPR_FIXED) {
     // If not set, concrete args get empty type modifiers.
     type_modifiers = TypeModifiers();
   }
@@ -903,13 +903,13 @@ absl::Status FunctionArgumentType::CheckLambdaArgType(
       << "Only REQUIRED simple options are supported by function-type "
          "arguments";
 
-  if (arg_type.kind() == ARG_TYPE_FIXED) {
+  if (arg_type.kind() == ARG_KIND_EXPR_FIXED) {
     GOOGLESQL_RET_CHECK(arg_type.type_modifiers().has_value() &&
               arg_type.type_modifiers()->IsEmpty())
-        << "ARG_TYPE_FIXED lambda argument must have empty type modifiers";
+        << "ARG_KIND_EXPR_FIXED lambda argument must have empty type modifiers";
   } else {
     GOOGLESQL_RET_CHECK(!arg_type.type_modifiers().has_value())
-        << "Non ARG_TYPE_FIXED lambda argument cannot have type modifiers";
+        << "Non ARG_KIND_EXPR_FIXED lambda argument cannot have type modifiers";
   }
   return absl::OkStatus();
 }
@@ -1227,8 +1227,22 @@ std::string FunctionArgumentType::GetSQLDeclaration(
   }
   // TODO: Consider using UserFacingName() here.
   if (type_ != nullptr) {
-    absl::StrAppend(&result,
-                    type_->TypeName(product_mode, use_external_float32));
+    std::string type_name;
+    if (type_modifiers_.has_value()) {
+      auto type_name_with_modifiers = type_->TypeNameWithModifiers(
+          *type_modifiers_, product_mode, use_external_float32);
+      if (type_name_with_modifiers.ok()) {
+        type_name = type_name_with_modifiers.value();
+      } else {
+        // This should never be hit since we should only ever have valid args in
+        // the signature.
+        type_name = absl::StrCat("ERROR: ",
+                                 type_name_with_modifiers.status().message());
+      }
+    } else {
+      type_name = type_->TypeName(product_mode, use_external_float32);
+    }
+    absl::StrAppend(&result, type_name);
   } else if (options_->has_relation_input_schema()) {
     absl::StrAppend(
         &result,
@@ -1510,19 +1524,6 @@ FunctionSignature::GetComputeResultAnnotationsCallback() const {
 }
 
 namespace {
-absl::StatusOr<bool> HasColumnWithCollation(const TVFRelation& relation) {
-  for (const TVFSchemaColumn& column : relation.columns()) {
-    if (column.annotation_map != nullptr) {
-      GOOGLESQL_ASSIGN_OR_RETURN(Collation collation,
-                       Collation::MakeCollation(*column.annotation_map));
-      if (!collation.Empty()) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 // Decides if a FunctionSignature should have "RETURNS" clause in its SQL
 // declaration based on its <result_type> field.
 absl::StatusOr<bool> ShouldHaveReturnsClauseInSQLDeclaration(
@@ -1533,16 +1534,6 @@ absl::StatusOr<bool> ShouldHaveReturnsClauseInSQLDeclaration(
 
   if (result_type.IsRelation()) {
     if (!result_type.options().has_relation_input_schema()) {
-      return false;
-    }
-
-    // When TVF query has collated output columns, if an explicit result schema
-    // is present, the analyzer will throw an error. To avoid failing the
-    // reparsing test, we do not generate "RETURNS" clause for this situation.
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        bool has_column_with_collation,
-        HasColumnWithCollation(result_type.options().relation_input_schema()));
-    if (has_column_with_collation) {
       return false;
     }
   }
@@ -1563,7 +1554,9 @@ std::string FunctionSignature::GetSQLDeclaration(
     bool use_external_float32) const {
   std::string out = "(";
   for (int i = 0; i < arguments_.size(); ++i) {
-    if (i > 0) out += ", ";
+    if (i > 0) {
+      absl::StrAppend(&out, ", ");
+    }
     if (arguments_[i].options().procedure_argument_mode() !=
         FunctionEnums::NOT_SET) {
       absl::StrAppend(&out,

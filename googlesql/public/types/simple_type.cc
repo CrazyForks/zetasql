@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "googlesql/base/logging.h"
 #include "google/protobuf/timestamp.pb.h"
 #include "googlesql/common/errors.h"
 #include "googlesql/common/float_margin.h"
@@ -159,87 +158,80 @@ struct TypeKindInfo {
   // Only one of `type_feature` or `disabling_type_feature` should be set.
   std::optional<LanguageFeature> disabling_type_feature;
 
-  // Builds a TypeKindInfo for both product modes.
-  static TypeKindInfo Build() {
-    return TypeKindInfo(/*internal_product_mode_only=*/false, std::nullopt,
-                        std::nullopt);
-  }
-
-  // Builds a TypeKindInfo for `PRODUCT_INTERNAL`.
-  static TypeKindInfo BuildInternalOnly() {
-    return TypeKindInfo(/*internal_product_mode_only=*/true, std::nullopt,
-                        std::nullopt);
-  }
-
-  // Builds a TypeKindInfo for both product modes, controlled by `type_feature`.
-  static TypeKindInfo BuildWithTypeFeature(LanguageFeature type_feature) {
-    return TypeKindInfo(/*internal_product_mode_only=*/false, type_feature,
-                        std::nullopt);
-  }
-
-  // Builds a TypeKindInfo for both product modes, controlled by
-  // `disabling_type_feature`.
-  static TypeKindInfo BuildWithDisablingTypeFeature(
-      LanguageFeature disabling_type_feature) {
-    return TypeKindInfo(/*internal_product_mode_only=*/false, std::nullopt,
-                        disabling_type_feature);
-  }
-
-  TypeKindInfo() = default;
-
- private:
-  TypeKindInfo(bool internal_product_mode_only,
-               std::optional<LanguageFeature> type_feature,
-               std::optional<LanguageFeature> disabling_type_feature)
-      : valid(true), internal_product_mode_only(internal_product_mode_only) {
-    ABSL_CHECK(!(type_feature.has_value() &&  // Crash OK
-            disabling_type_feature.has_value()))
+  static absl::StatusOr<TypeKindInfo> Create(
+      bool internal_product_mode_only,
+      std::optional<LanguageFeature> type_feature = std::nullopt,
+      std::optional<LanguageFeature> disabling_type_feature = std::nullopt) {
+    GOOGLESQL_RET_CHECK(!(type_feature.has_value() && disabling_type_feature.has_value()))
         << "Only one of type_feature or disabling_type_feature should be set.";
-    this->type_feature = type_feature;
-    this->disabling_type_feature = disabling_type_feature;
+    TypeKindInfo info;
+    info.valid = true;
+    info.internal_product_mode_only = internal_product_mode_only;
+    info.type_feature = type_feature;
+    info.disabling_type_feature = disabling_type_feature;
+    return info;
   }
 };
 
-const TypeKindInfo* GetSimpleTypeKindInfo(TypeKind kind) {
+absl::StatusOr<const TypeKindInfo*> GetSimpleTypeKindInfo(TypeKind kind) {
   using TypeKindInfoArray = std::array<TypeKindInfo, TypeKind_ARRAYSIZE>;
-  static const absl::NoDestructor<TypeKindInfoArray> kMap([]() {
-    TypeKindInfoArray result;
-    result[TYPE_INT32] = TypeKindInfo::BuildInternalOnly();
-    result[TYPE_UINT32] = TypeKindInfo::BuildInternalOnly();
-    result[TYPE_INT64] = TypeKindInfo::Build();
-    result[TYPE_UINT64] = TypeKindInfo::BuildInternalOnly();
-    result[TYPE_BOOL] = TypeKindInfo::Build();
-    result[TYPE_FLOAT] =
-        TypeKindInfo::BuildWithDisablingTypeFeature(FEATURE_DISABLE_FLOAT32);
-    result[TYPE_DOUBLE] = TypeKindInfo::Build();
-    result[TYPE_BYTES] = TypeKindInfo::Build();
-    result[TYPE_STRING] = TypeKindInfo::Build();
-    result[TYPE_DATE] = TypeKindInfo::Build();
-    result[TYPE_TIMESTAMP] = TypeKindInfo::Build();
-    result[TYPE_TIME] = TypeKindInfo::BuildWithTypeFeature(FEATURE_CIVIL_TIME);
-    result[TYPE_DATETIME] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_CIVIL_TIME);
-    result[TYPE_INTERVAL] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_INTERVAL_TYPE);
-    result[TYPE_GEOGRAPHY] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_GEOGRAPHY);
-    result[TYPE_NUMERIC] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_NUMERIC_TYPE);
-    result[TYPE_BIGNUMERIC] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_BIGNUMERIC_TYPE);
-    result[TYPE_JSON] = TypeKindInfo::BuildWithTypeFeature(FEATURE_JSON_TYPE);
-    result[TYPE_TOKENLIST] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_TOKENIZED_SEARCH);
-    result[TYPE_UUID] = TypeKindInfo::BuildWithTypeFeature(FEATURE_UUID_TYPE);
-    result[TYPE_COLUMN_LIST_SPEC] =
-        TypeKindInfo::BuildWithTypeFeature(FEATURE_COLUMN_LIST_SPEC);
-    return result;
-  }());
+  static const absl::NoDestructor<absl::StatusOr<TypeKindInfoArray>> kMap(
+      []() -> absl::StatusOr<TypeKindInfoArray> {
+        TypeKindInfoArray result;
+        auto create_and_assign =
+            [&](TypeKind kind, bool internal,
+                std::optional<LanguageFeature> type_feat = std::nullopt,
+                std::optional<LanguageFeature> disabling_feat =
+                    std::nullopt) -> absl::Status {
+          GOOGLESQL_ASSIGN_OR_RETURN(
+              result[kind],
+              TypeKindInfo::Create(internal, type_feat, disabling_feat));
+          return absl::OkStatus();
+        };
+
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_INT32, /*internal=*/true));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_UINT32, /*internal=*/true));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_INT64, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_UINT64, /*internal=*/true));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_BOOL, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_FLOAT, /*internal=*/false,
+                                          std::nullopt,
+                                          FEATURE_DISABLE_FLOAT32));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_DOUBLE, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_BYTES, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_STRING, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_DATE, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_TIMESTAMP, /*internal=*/false));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_TIME, /*internal=*/false,
+                                          FEATURE_CIVIL_TIME));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_DATETIME, /*internal=*/false,
+                                          FEATURE_CIVIL_TIME));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_INTERVAL, /*internal=*/false,
+                                          FEATURE_INTERVAL_TYPE));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_GEOGRAPHY, /*internal=*/false,
+                                          FEATURE_GEOGRAPHY));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_NUMERIC, /*internal=*/false,
+                                          FEATURE_NUMERIC_TYPE));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_BIGNUMERIC, /*internal=*/false,
+                                          FEATURE_BIGNUMERIC_TYPE));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_JSON, /*internal=*/false,
+                                          FEATURE_JSON_TYPE));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_TOKENLIST, /*internal=*/false,
+                                          FEATURE_TOKENIZED_SEARCH));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_UUID, /*internal=*/false,
+                                          FEATURE_UUID_TYPE));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_COLUMN_LIST_SPEC,
+                                          /*internal=*/false,
+                                          FEATURE_COLUMN_LIST_SPEC));
+        return result;
+      }());
+
+  GOOGLESQL_RETURN_IF_ERROR(kMap->status());
   const int kind_id = static_cast<int>(kind);
-  if (kind_id < 0 || kind_id >= kMap->size()) {
+  if (kind_id < 0 || kind_id >= kMap->value().size()) {
     return nullptr;
   }
-  const TypeKindInfo& info = (*kMap)[kind_id];
+  const TypeKindInfo& info = kMap->value()[kind_id];
   return info.valid ? &info : nullptr;
 }
 
@@ -254,13 +246,15 @@ struct TypeInfo {
 
 // A map joining SimpleTypeNameInfoMap and SimpleTypeKindInfoMap.
 // Caller takes ownership of the result.
-std::map<absl::string_view, TypeInfo>* BuildSimpleTypeInfoMap() {
-  auto* result = new std::map<absl::string_view, TypeInfo>;
+absl::StatusOr<std::map<absl::string_view, TypeInfo>*>
+BuildSimpleTypeInfoMap() {
+  auto result = std::make_unique<std::map<absl::string_view, TypeInfo>>();
   for (const auto& item : SimpleTypeNameInfoMap()) {
     const TypeNameInfo& type_name_info = item.second;
     TypeKind type_kind = type_name_info.type_kind;
-    const TypeKindInfo* type_kind_info = GetSimpleTypeKindInfo(type_kind);
-    ABSL_CHECK(type_kind_info != nullptr)
+    GOOGLESQL_ASSIGN_OR_RETURN(const TypeKindInfo* type_kind_info,
+                     GetSimpleTypeKindInfo(type_kind));
+    GOOGLESQL_RET_CHECK(type_kind_info != nullptr)
         << TypeKind_Name(type_kind) << " not found in SimpleTypeKindInfoMap()";
     result->emplace(
         item.first,
@@ -270,7 +264,7 @@ std::map<absl::string_view, TypeInfo>* BuildSimpleTypeInfoMap() {
                  type_kind_info->type_feature, type_name_info.alias_feature,
                  type_kind_info->disabling_type_feature});
   }
-  return result;
+  return result.release();
 }
 
 DateValueContentType GetDateValue(const ValueContent& value) {
@@ -360,7 +354,7 @@ bool ReferencedValueLess(const ValueContent& x, const ValueContent& y) {
 }  // namespace
 
 SimpleType::SimpleType(const TypeFactoryBase* factory, TypeKind kind)
-    : Type(factory, kind) {
+    : Type(*factory, kind) {
   ABSL_CHECK(IsSimpleType(kind)) << kind;
 }
 
@@ -368,7 +362,12 @@ SimpleType::~SimpleType() = default;
 
 bool SimpleType::IsSupportedType(
     const LanguageOptions& language_options) const {
-  const TypeKindInfo* info = GetSimpleTypeKindInfo(kind());
+  absl::StatusOr<const TypeKindInfo*> info_or = GetSimpleTypeKindInfo(kind());
+  GOOGLESQL_DCHECK_OK(info_or.status());
+  if (!info_or.ok()) {
+    return false;
+  }
+  const TypeKindInfo* info = info_or.value();
   if (info == nullptr) {
     return false;
   }
@@ -511,10 +510,15 @@ std::string SimpleType::CapitalizedName() const {
 TypeKind SimpleType::GetTypeKindIfSimple(
     absl::string_view type_name, ProductMode mode,
     const LanguageOptions::LanguageFeatureSet* enabled_language_features) {
-  static const std::map<absl::string_view, TypeInfo>* type_map =
-      BuildSimpleTypeInfoMap();
+  static const absl::NoDestructor<
+      absl::StatusOr<std::map<absl::string_view, TypeInfo>*>>
+      kTypeMap(BuildSimpleTypeInfoMap());
+  GOOGLESQL_DCHECK_OK(kTypeMap->status());
+  if (!kTypeMap->ok()) {
+    return TYPE_UNKNOWN;
+  }
   const TypeInfo* type_info =
-      googlesql_base::FindOrNull(*type_map, absl::AsciiStrToLower(type_name));
+      googlesql_base::FindOrNull(*kTypeMap->value(), absl::AsciiStrToLower(type_name));
   if (type_info == nullptr) {
     return TYPE_UNKNOWN;
   }
@@ -558,6 +562,16 @@ bool SimpleType::SupportsReturningImpl(const LanguageOptions& language_options,
     *no_returning_type = supports_returning ? nullptr : this;
   }
   return supports_returning;
+}
+
+bool SimpleType::UsesExtendedInlineValueContent() const {
+  switch (kind()) {
+    case TYPE_TIME:
+    case TYPE_DATETIME:
+      return true;
+    default:
+      return false;
+  }
 }
 
 void SimpleType::CopyValueContent(TypeKind kind, const ValueContent& from,

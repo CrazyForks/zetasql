@@ -31,7 +31,9 @@
 #include "googlesql/public/id_string.h"
 #include "googlesql/public/property_graph.h"
 #include "googlesql/public/types/graph_element_type.h"
+#include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/types/type_modifiers.h"
+#include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "googlesql/resolved_ast/resolved_column.h"
@@ -169,19 +171,46 @@ template <typename T>
 absl::StatusOr<TargetTableAndLabels<T>> ResolveTargetTableAndLabels(
     const absl::flat_hash_set<const T*>& tables,
     const std::vector<IdString>& unique_label_names,
-    const ASTNode* error_location, GraphElementType::ElementKind element_kind) {
+    const ASTNode* error_location, GraphElementType::ElementKind element_kind,
+    bool supports_dynamic_element_type) {
   std::vector<TargetTableAndLabels<T>> matches;
+  bool seen_dynamic_label_table = false;
   for (const auto* table : tables) {
     bool has_all_requested_labels = true;
     std::vector<std::unique_ptr<const ResolvedGraphLabel>> target_labels;
     target_labels.reserve(unique_label_names.size());
     for (const auto& label_name : unique_label_names) {
       const GraphElementLabel* found_label = nullptr;
-      if (!table->FindLabelByName(label_name.ToString(), found_label).ok()) {
+      std::unique_ptr<const ResolvedLiteral> resolved_label_name;
+      if (table->FindLabelByName(label_name.ToString(), found_label).ok()) {
+        // Static label.
+        if (supports_dynamic_element_type) {
+          GOOGLESQL_ASSIGN_OR_RETURN(resolved_label_name,
+                           ResolvedLiteralBuilder()
+                               .set_type(types::StringType())
+                               .set_value(Value::String(label_name.ToString()))
+                               .set_has_explicit_type(true)
+                               .Build());
+        }
+        target_labels.push_back(MakeResolvedGraphLabel(
+            found_label, std::move(resolved_label_name)));
+      } else if (table->HasDynamicLabel() && supports_dynamic_element_type) {
+        GOOGLESQL_RET_CHECK(!seen_dynamic_label_table)
+            << "Multiple tables with dynamic labels are not supported";
+        seen_dynamic_label_table = true;
+        // Dynamic label.
+        GOOGLESQL_ASSIGN_OR_RETURN(resolved_label_name,
+                         ResolvedLiteralBuilder()
+                             .set_type(types::StringType())
+                             .set_value(Value::String(label_name.ToString()))
+                             .set_has_explicit_type(true)
+                             .Build());
+        target_labels.push_back(MakeResolvedGraphLabel(
+            found_label, std::move(resolved_label_name)));
+      } else {
         has_all_requested_labels = false;
         break;
       }
-      target_labels.push_back(MakeResolvedGraphLabel(found_label, nullptr));
     }
     if (has_all_requested_labels) {
       matches.push_back(TargetTableAndLabels<T>{
@@ -343,45 +372,69 @@ GraphDmlResolver::ResolveInsertProperties(
              << "' is not allowed in INSERT property specification";
     }
 
-    // Find the static property definition in the target element table.
-    const GraphPropertyDefinition* prop_def = nullptr;
+    // First, try to find the static property definition in the target element
+    // table.
+    const GraphPropertyDefinition* static_prop_def = nullptr;
     absl::Status find_prop_status = target_table->FindPropertyDefinitionByName(
-        prop_id.ToStringView(), prop_def);
-    // TODO: b/483141502 - support dynamic properties.
-    if (absl::IsNotFound(find_prop_status)) {
-      return MakeSqlErrorAt(prop)
-             << "Property '" << prop_id << "' not found in table "
-             << target_table->Name();
+        prop_id.ToStringView(), static_prop_def);
+
+    if (find_prop_status.ok()) {
+      GOOGLESQL_RETURN_IF_ERROR(ValidatePropertyIsWritable(static_prop_def, prop));
+    } else if (absl::IsNotFound(find_prop_status)) {
+      if (!target_table->HasDynamicProperties()) {
+        return MakeSqlErrorAt(prop)
+               << "Property '" << prop_id << "' not found in table "
+               << target_table->Name();
+      }
+
+      const GraphDynamicProperties* dynamic_properties = nullptr;
+      GOOGLESQL_RETURN_IF_ERROR(target_table->GetDynamicProperties(dynamic_properties));
+      GOOGLESQL_RET_CHECK(dynamic_properties != nullptr);
+
+      GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* val_expr,
+                       dynamic_properties->GetValueExpression());
+      GOOGLESQL_RET_CHECK_NE(val_expr, nullptr);
+      GOOGLESQL_RET_CHECK(val_expr->Is<ResolvedCatalogColumnRef>());
+      const auto* col_ref = val_expr->GetAs<ResolvedCatalogColumnRef>();
+      if (!col_ref->column()->IsWritableColumn()) {
+        return MakeSqlErrorAt(prop)
+               << "Cannot insert dynamic property '" << prop_id
+               << "' because the dynamic properties backing column '"
+               << col_ref->column()->Name() << "' is read-only";
+      }
+    } else {
+      GOOGLESQL_RETURN_IF_ERROR(find_prop_status);
     }
-    GOOGLESQL_RETURN_IF_ERROR(find_prop_status);
 
-    GOOGLESQL_RETURN_IF_ERROR(ValidatePropertyIsWritable(prop_def, prop));
-
+    std::unique_ptr<const ResolvedExpr> resolved_value_expr;
     auto expr_info = std::make_unique<ExprResolutionInfo>(
         input_scope, "INSERT property value");
-    std::unique_ptr<const ResolvedExpr> resolved_value_expr;
     GOOGLESQL_RETURN_IF_ERROR(resolver_->ResolveExpr(prop->value(), expr_info.get(),
                                            &resolved_value_expr));
 
-    // Coerce the value expression to the property's static type using implicit
-    // assignment semantics.
-    GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
-        prop->value(), prop_def->GetDeclaration().Type(), TypeModifiers(),
-        Resolver::kImplicitAssignment,
-        absl::StrCat("Cannot insert value of type $1 into property '",
-                     prop_id.ToStringView(), "' of type $0"),
-        &resolved_value_expr));
+    if (static_prop_def != nullptr) {
+      // Coerce the value expression to the property's static type using
+      // implicit assignment semantics.
+      GOOGLESQL_RETURN_IF_ERROR(resolver_->CoerceExprToType(
+          prop->value(), static_prop_def->GetDeclaration().Type(),
+          TypeModifiers(), Resolver::kImplicitAssignment,
+          absl::StrCat("Cannot insert value of type $1 into property '",
+                       prop_id.ToStringView(), "' of type $0"),
+          &resolved_value_expr));
+    }
 
+    const GraphPropertyDeclaration* static_property_decl =
+        static_prop_def != nullptr ? &static_prop_def->GetDeclaration()
+                                   : nullptr;
     auto prop_item = MakeResolvedGraphDMLPropertyItem(
-        prop_id.ToString(), &prop_def->GetDeclaration(),
+        prop_id.ToString(), static_property_decl,
         std::move(resolved_value_expr));
     property_items.push_back(std::move(prop_item));
   }
   return property_items;
 }
 
-absl::StatusOr<const GraphElementType*>
-GraphDmlResolver::BuildStaticGraphElementType(
+absl::StatusOr<const GraphElementType*> GraphDmlResolver::BuildGraphElementType(
     const GraphElementTable* target_table,
     GraphElementType::ElementKind element_kind) {
   absl::flat_hash_set<const GraphPropertyDefinition*> prop_defs;
@@ -395,8 +448,13 @@ GraphDmlResolver::BuildStaticGraphElementType(
   }
 
   const GraphElementType* elem_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(resolver_->type_factory_->MakeGraphElementType(
-      graph_->NamePath(), element_kind, property_types, &elem_type));
+  if (target_table->HasDynamicProperties()) {
+    GOOGLESQL_RETURN_IF_ERROR(resolver_->type_factory_->MakeDynamicGraphElementType(
+        graph_->NamePath(), element_kind, property_types, &elem_type));
+  } else {
+    GOOGLESQL_RETURN_IF_ERROR(resolver_->type_factory_->MakeGraphElementType(
+        graph_->NamePath(), element_kind, property_types, &elem_type));
+  }
   return elem_type;
 }
 
@@ -410,9 +468,8 @@ GraphDmlResolver::ResolveGqlInsert(
   // Keep track of all the variables resolved in the current INSERT statement.
   IdStringLinkedHashMapCase<ResolvedColumn> variables;
 
-  // Fetch all the node and edge tables in the graph.
-  // TODO: b/483141502 - Support dynamic graph tables. They are returned here
-  // but not yet supported in the resolution.
+  // Fetch all the node and edge tables in the graph. This includes both static
+  // and dynamic element tables.
   absl::flat_hash_set<const GraphNodeTable*> node_tables;
   GOOGLESQL_RETURN_IF_ERROR(graph_->GetNodeTables(node_tables));
   absl::flat_hash_set<const GraphEdgeTable*> edge_tables;
@@ -519,11 +576,13 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertNodePattern(
       std::vector<IdString> unique_label_names,
       ValidateAndGetUniqueInsertLabelNames(filler, GraphElementType::kNode));
 
-  // Find a single matching table that has all the requested labels.
+  // Find a single matching node table that has all the requested labels.
   GOOGLESQL_ASSIGN_OR_RETURN(auto result,
-                   ResolveTargetTableAndLabels(node_tables, unique_label_names,
-                                               filler->label_filter(),
-                                               GraphElementType::kNode));
+                   ResolveTargetTableAndLabels(
+                       node_tables, unique_label_names, filler->label_filter(),
+                       GraphElementType::kNode,
+                       resolver_->language().LanguageFeatureEnabled(
+                           FEATURE_SQL_GRAPH_DYNAMIC_ELEMENT_TYPE)));
   const GraphNodeTable* target_table = result.table;
 
   // Resolve the property specification.
@@ -534,7 +593,7 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertNodePattern(
   // Add the newly declared variable to the variables map.
   GOOGLESQL_ASSIGN_OR_RETURN(
       const GraphElementType* element_type,
-      BuildStaticGraphElementType(target_table, GraphElementType::kNode));
+      BuildGraphElementType(target_table, GraphElementType::kNode));
   const ASTIdentifier* ast_variable = filler->variable_name();
   ResolvedColumn element_col(resolver_->AllocateColumnId(),
                              /*table_name=*/kElementTableName,
@@ -582,33 +641,36 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertEdgePattern(
       std::vector<IdString> unique_label_names,
       ValidateAndGetUniqueInsertLabelNames(filler, GraphElementType::kEdge));
 
-  // Find a single matching table that has all the requested labels.
+  // Find a single matching edge table that has all the requested labels.
   GOOGLESQL_ASSIGN_OR_RETURN(auto result,
-                   ResolveTargetTableAndLabels(edge_tables, unique_label_names,
-                                               filler->label_filter(),
-                                               GraphElementType::kEdge));
-  // Validate that the edge's expected source and destination node tables match
-  // provided source and destination node tables.
-  const GraphEdgeTable* target_table = result.table;
+                   ResolveTargetTableAndLabels(
+                       edge_tables, unique_label_names, filler->label_filter(),
+                       GraphElementType::kEdge,
+                       resolver_->language().LanguageFeatureEnabled(
+                           FEATURE_SQL_GRAPH_DYNAMIC_ELEMENT_TYPE)));
 
+  // Validate that the edge's expected source and destination node tables match
+  // the provided source and destination node tables.
+  const GraphEdgeTable* target_table = result.table;
   const GraphNodeTable* expected_source_node_table =
       target_table->GetSourceNodeTable()->GetReferencedNodeTable();
   const GraphNodeTable* expected_dest_node_table =
       target_table->GetDestNodeTable()->GetReferencedNodeTable();
 
-  // 1. Try to find the single table if the node is newly inserted.
+  // Try to find the endpoint node element tables if any of the edge's endpoints
+  // is newly inserted.
   const GraphNodeTable* actual_source_node_table =
       GetInsertedNodeTable(source_col, insert_node_list);
   const GraphNodeTable* actual_dest_node_table =
       GetInsertedNodeTable(dest_col, insert_node_list);
 
-  // 2. Validate the source node.
+  // Validate the edge's source node.
   GOOGLESQL_RETURN_IF_ERROR(ValidateEdgeEndpoint(*edge_pattern, *target_table,
                                        actual_source_node_table,
                                        *expected_source_node_table, source_col,
                                        /*is_source=*/true));
 
-  // 3. Validate the destination node.
+  // Validate the edge's destination node.
   GOOGLESQL_RETURN_IF_ERROR(ValidateEdgeEndpoint(*edge_pattern, *target_table,
                                        actual_dest_node_table,
                                        *expected_dest_node_table, dest_col,
@@ -622,7 +684,7 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertEdgePattern(
   // Add the newly declared variable to the variables map.
   GOOGLESQL_ASSIGN_OR_RETURN(
       const GraphElementType* element_type,
-      BuildStaticGraphElementType(target_table, GraphElementType::kEdge));
+      BuildGraphElementType(target_table, GraphElementType::kEdge));
   const ASTIdentifier* ast_variable = filler->variable_name();
   ResolvedColumn elem_col(resolver_->AllocateColumnId(),
                           /*table_name=*/kElementTableName,
@@ -666,9 +728,9 @@ absl::Status GraphDmlResolver::ValidateEdgeEndpoint(
     // supertype of the required node type.
     const GraphElementType* element_type = node_col.type()->AsGraphElement();
     const GraphElementType* required_element_type = nullptr;
-    GOOGLESQL_ASSIGN_OR_RETURN(required_element_type,
-                     BuildStaticGraphElementType(&expected_node_table,
-                                                 GraphElementType::kNode));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        required_element_type,
+        BuildGraphElementType(&expected_node_table, GraphElementType::kNode));
     if (!required_element_type->CoercibleTo(element_type)) {
       return MakeSqlErrorAt(&error_location)
              << "The actual " << node_kind << " node type "

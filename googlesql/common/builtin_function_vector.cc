@@ -44,7 +44,6 @@ absl::Status GetVectorFunctions(TypeFactory* type_factory,
     return absl::OkStatus();
   }
 
-  // TODO: Add returning support to Vector type.
   GOOGLESQL_ASSIGN_OR_RETURN(
       const Type* vector_type,
       type_factory->MakeDeclarativeType(
@@ -54,7 +53,7 @@ absl::Status GetVectorFunctions(TypeFactory* type_factory,
               .set_display_name(kVectorTypeName)
               .set_backing_type(type_factory->get_bytes())
               .set_returning_strategy(
-                  DeclarativeTypeDescriptor::ReturningDisallowed{})
+                  DeclarativeTypeDescriptor::ReturningDelegated{})
               .set_additional_required_language_features(
                   {FEATURE_VECTOR_TYPE})));
   const auto& [it, inserted] =

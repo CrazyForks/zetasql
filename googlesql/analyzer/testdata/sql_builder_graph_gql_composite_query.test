@@ -1,0 +1,2863 @@
+[default language_features=NONE,+ORDER_BY_COLLATE,+NULLS_FIRST_LAST_IN_ORDER_BY,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_EXPOSE_GRAPH_ELEMENT,+SQL_GRAPH_BOUNDED_PATH_QUANTIFICATION]
+[default no_test_extract_table_names]
+[default enabled_ast_rewrites=DEFAULTS]
+[default run_sqlbuilder]
+[default show_sqlbuilder_output]
+
+# SQLBuilder test for GQL set op with two inputs.
+select gt.* from
+graph_table(aml
+  match (n)
+  return n.name, 1 AS number, CONCAT("str", "_suffix") AS concat_str
+  UNION ALL
+  match (n)
+  return 2 AS number, n.name, CONCAT("str", "_suffix") AS concat_str
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.name#9 AS name [STRING]
+| +-$graph_set_op.number#10 AS number [INT64]
+| +-$graph_set_op.concat_str#11 AS concat_str [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_set_op.[name#9, number#10, concat_str#11]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[name#9, number#10, concat_str#11]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[name#9, number#10, concat_str#11]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[name#9, number#10, concat_str#11]
+                +-op_type=UNION_ALL
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$element_table.n#1]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=[$element_table.n#1]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.n#1]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabelNaryExpr
+                | | |     | |   |   |   +-op=OR
+                | | |     | |   |   |   +-operand_list=
+                | | |     | |   |   |     +-GraphWildCardLabel
+                | | |     | |   |   |     +-GraphLabelNaryExpr
+                | | |     | |   |   |       +-op=NOT
+                | | |     | |   |   |       +-operand_list=
+                | | |     | |   |   |         +-GraphWildCardLabel
+                | | |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   +-head=$element_table.n#1
+                | | |     | |   +-tail=$element_table.n#1
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | | |       +-expr_list=
+                | | |       | +-name#2 :=
+                | | |       | | +-GraphGetElementProperty
+                | | |       | |   +-type=STRING
+                | | |       | |   +-expr=
+                | | |       | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#1)
+                | | |       | |   +-property=name(STRING)
+                | | |       | +-number#3 := Literal(type=INT64, value=1)
+                | | |       | +-concat_str#4 :=
+                | | |       |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+                | | |       |     +-Literal(type=STRING, value="str")
+                | | |       |     +-Literal(type=STRING, value="_suffix")
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=[$element_table.n#1])
+                | | +-output_column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[name#7, number#6, concat_str#8]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=[$element_table.n#5]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=[$element_table.n#5]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.n#5]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabelNaryExpr
+                |   |     | |   |   |   +-op=OR
+                |   |     | |   |   |   +-operand_list=
+                |   |     | |   |   |     +-GraphWildCardLabel
+                |   |     | |   |   |     +-GraphLabelNaryExpr
+                |   |     | |   |   |       +-op=NOT
+                |   |     | |   |   |       +-operand_list=
+                |   |     | |   |   |         +-GraphWildCardLabel
+                |   |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   +-head=$element_table.n#5
+                |   |     | |   +-tail=$element_table.n#5
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[number#6, name#7, concat_str#8]
+                |   |       +-expr_list=
+                |   |       | +-number#6 := Literal(type=INT64, value=2)
+                |   |       | +-name#7 :=
+                |   |       | | +-GraphGetElementProperty
+                |   |       | |   +-type=STRING
+                |   |       | |   +-expr=
+                |   |       | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#5)
+                |   |       | |   +-property=name(STRING)
+                |   |       | +-concat_str#8 :=
+                |   |       |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+                |   |       |     +-Literal(type=STRING, value="str")
+                |   |       |     +-Literal(type=STRING, value="_suffix")
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=[$element_table.n#5])
+                |   +-output_column_list=$graph_table.[name#7, number#6, concat_str#8]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  projectscan_7.a_2 AS name,
+  projectscan_7.a_3 AS number,
+  projectscan_7.a_4 AS concat_str
+FROM
+  (
+    SELECT
+      aml_1.a_3 AS a_3,
+      aml_1.a_2 AS a_2,
+      aml_1.a_4 AS a_4
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_5 IS (% | ! %))
+        RETURN
+          a_5.name AS a_2,
+          1 AS a_3,
+          CONCAT("str", "_suffix") AS a_4
+        UNION ALL
+        MATCH
+          (a_6 IS (% | ! %))
+        RETURN
+          2 AS a_3,
+          a_6.name AS a_2,
+          CONCAT("str", "_suffix") AS a_4
+      ) AS aml_1
+  ) AS projectscan_7;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_5 IS (% | ! %))
+    RETURN
+      a_5.name AS a_2,
+      1 AS a_3,
+      CONCAT("str", "_suffix") AS a_4
+    UNION ALL
+    MATCH
+      (a_6 IS (% | ! %))
+    RETURN
+      2 AS a_3,
+      a_6.name AS a_2,
+      CONCAT("str", "_suffix") AS a_4
+  ) AS aml_1
+|> SELECT
+     aml_1.a_3 AS a_3,
+     aml_1.a_2 AS a_2,
+     aml_1.a_4 AS a_4
+|> AS projectscan_7
+|> SELECT
+     projectscan_7.a_2 AS name,
+     projectscan_7.a_3 AS number,
+     projectscan_7.a_4 AS concat_str;
+==
+
+# SQLBuilder test for GQL set op with ORDER BY and GROUP BY in each RETURN.
+select gt.* from
+graph_table(aml
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN distinct p.name as name, COUNT(DISTINCT p.id) as distinct_ids, ARRAY_AGG(a.id)[OFFSET(0)] AS first_acc_id
+    GROUP BY name
+  UNION ALL
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN DISTINCT
+    COUNT(DISTINCT p.id) as distinct_ids, ARRAY_AGG(a.id)[OFFSET(0)] AS first_acc_id, p.name as name
+    GROUP BY name
+    ORDER BY name COLLATE "en_US" DESC NULLS LAST
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.name#22 AS name [STRING]
+| +-$graph_set_op.distinct_ids#23 AS distinct_ids [INT64]
+| +-$graph_set_op.first_acc_id#24 AS first_acc_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_set_op.[name#22, distinct_ids#23, first_acc_id#24]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[name#22, distinct_ids#23, first_acc_id#24]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[name#22, distinct_ids#23, first_acc_id#24]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[name#22, distinct_ids#23, first_acc_id#24]
+                +-op_type=UNION_ALL
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=$element_table.[p#1, e#2, a#3]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=$element_table.[p#1, e#2, a#3]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   | | +-column_list=[$element_table.p#1]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabel(parse_location=44-50, label=aml.Person)
+                | | |     | |   | | +-target_element_table_list=[aml.Person]
+                | | |     | |   | +-GraphEdgeScan
+                | | |     | |   | | +-column_list=[$element_table.e#2]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabelNaryExpr
+                | | |     | |   | | |   +-op=OR
+                | | |     | |   | | |   +-operand_list=
+                | | |     | |   | | |     +-GraphWildCardLabel
+                | | |     | |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   | | |       +-op=NOT
+                | | |     | |   | | |       +-operand_list=
+                | | |     | |   | | |         +-GraphWildCardLabel
+                | | |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                | | |     | |   | | +-orientation=RIGHT
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.a#3]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabel(parse_location=60-67, label=aml.Account)
+                | | |     | |   |   +-target_element_table_list=[aml.Account]
+                | | |     | |   +-head=$element_table.p#1
+                | | |     | |   +-tail=$element_table.a#3
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-AggregateScan
+                | | |       +-column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10]
+                | | |       +-input_scan=
+                | | |       | +-ProjectScan
+                | | |       |   +-column_list=$graph_table.[name#6, distinct_ids#4, $agg2#5, first_acc_id#7]
+                | | |       |   +-expr_list=
+                | | |       |   | +-first_acc_id#7 :=
+                | | |       |   |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<INT64>, INT64) -> INT64)
+                | | |       |   |     +-ColumnRef(type=ARRAY<INT64>, column=$graph_table.$agg2#5)
+                | | |       |   |     +-Literal(type=INT64, value=0)
+                | | |       |   +-input_scan=
+                | | |       |     +-AggregateScan
+                | | |       |       +-column_list=$graph_table.[name#6, distinct_ids#4, $agg2#5]
+                | | |       |       +-input_scan=
+                | | |       |       | +-GraphRefScan(column_list=$element_table.[p#1, e#2, a#3])
+                | | |       |       +-group_by_list=
+                | | |       |       | +-name#6 :=
+                | | |       |       |   +-GraphGetElementProperty
+                | | |       |       |     +-type=STRING
+                | | |       |       |     +-expr=
+                | | |       |       |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+                | | |       |       |     +-property=name(STRING)
+                | | |       |       +-aggregate_list=
+                | | |       |         +-distinct_ids#4 :=
+                | | |       |         | +-AggregateFunctionCall(GoogleSQL:count(INT64) -> INT64)
+                | | |       |         |   +-GraphGetElementProperty
+                | | |       |         |   | +-type=INT64
+                | | |       |         |   | +-expr=
+                | | |       |         |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+                | | |       |         |   | +-property=id(INT64)
+                | | |       |         |   +-distinct=TRUE
+                | | |       |         +-$agg2#5 :=
+                | | |       |           +-AggregateFunctionCall(GoogleSQL:array_agg(INT64) -> ARRAY<INT64>)
+                | | |       |             +-GraphGetElementProperty
+                | | |       |               +-type=INT64
+                | | |       |               +-expr=
+                | | |       |               | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#3)
+                | | |       |               +-property=id(INT64)
+                | | |       +-group_by_list=
+                | | |         +-name#8 := ColumnRef(type=STRING, column=$graph_table.name#6)
+                | | |         +-distinct_ids#9 := ColumnRef(type=INT64, column=$graph_table.distinct_ids#4)
+                | | |         +-first_acc_id#10 := ColumnRef(type=INT64, column=$graph_table.first_acc_id#7)
+                | | +-output_column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[name#21, distinct_ids#19, first_acc_id#20]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=$element_table.[p#11, e#12, a#13]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=$element_table.[p#11, e#12, a#13]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   | | +-column_list=[$element_table.p#11]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabel(parse_location=225-231, label=aml.Person)
+                |   |     | |   | | +-target_element_table_list=[aml.Person]
+                |   |     | |   | +-GraphEdgeScan
+                |   |     | |   | | +-column_list=[$element_table.e#12]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabelNaryExpr
+                |   |     | |   | | |   +-op=OR
+                |   |     | |   | | |   +-operand_list=
+                |   |     | |   | | |     +-GraphWildCardLabel
+                |   |     | |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   | | |       +-op=NOT
+                |   |     | |   | | |       +-operand_list=
+                |   |     | |   | | |         +-GraphWildCardLabel
+                |   |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                |   |     | |   | | +-orientation=RIGHT
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.a#13]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabel(parse_location=241-248, label=aml.Account)
+                |   |     | |   |   +-target_element_table_list=[aml.Account]
+                |   |     | |   +-head=$element_table.p#11
+                |   |     | |   +-tail=$element_table.a#13
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-OrderByScan
+                |   |       +-column_list=$graph_table.[distinct_ids#19, first_acc_id#20, name#21]
+                |   |       +-is_ordered=TRUE
+                |   |       +-input_scan=
+                |   |       | +-AggregateScan
+                |   |       |   +-column_list=$graph_table.[distinct_ids#19, first_acc_id#20, name#21]
+                |   |       |   +-input_scan=
+                |   |       |   | +-ProjectScan
+                |   |       |   |   +-column_list=$graph_table.[name#17, distinct_ids#14, $agg2#15, first_acc_id#18]
+                |   |       |   |   +-expr_list=
+                |   |       |   |   | +-first_acc_id#18 :=
+                |   |       |   |   |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<INT64>, INT64) -> INT64)
+                |   |       |   |   |     +-ColumnRef(type=ARRAY<INT64>, column=$graph_table.$agg2#15)
+                |   |       |   |   |     +-Literal(type=INT64, value=0)
+                |   |       |   |   +-input_scan=
+                |   |       |   |     +-AggregateScan
+                |   |       |   |       +-column_list=$graph_table.[name#17, distinct_ids#14, $agg2#15]
+                |   |       |   |       +-input_scan=
+                |   |       |   |       | +-ProjectScan
+                |   |       |   |       |   +-column_list=[$element_table.p#11, $element_table.e#12, $element_table.a#13, $pre_groupby.name#16]
+                |   |       |   |       |   +-expr_list=
+                |   |       |   |       |   | +-name#16 :=
+                |   |       |   |       |   |   +-GraphGetElementProperty
+                |   |       |   |       |   |     +-type=STRING
+                |   |       |   |       |   |     +-expr=
+                |   |       |   |       |   |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#11)
+                |   |       |   |       |   |     +-property=name(STRING)
+                |   |       |   |       |   +-input_scan=
+                |   |       |   |       |     +-GraphRefScan(column_list=$element_table.[p#11, e#12, a#13])
+                |   |       |   |       +-group_by_list=
+                |   |       |   |       | +-name#17 := ColumnRef(type=STRING, column=$pre_groupby.name#16)
+                |   |       |   |       +-aggregate_list=
+                |   |       |   |         +-distinct_ids#14 :=
+                |   |       |   |         | +-AggregateFunctionCall(GoogleSQL:count(INT64) -> INT64)
+                |   |       |   |         |   +-GraphGetElementProperty
+                |   |       |   |         |   | +-type=INT64
+                |   |       |   |         |   | +-expr=
+                |   |       |   |         |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#11)
+                |   |       |   |         |   | +-property=id(INT64)
+                |   |       |   |         |   +-distinct=TRUE
+                |   |       |   |         +-$agg2#15 :=
+                |   |       |   |           +-AggregateFunctionCall(GoogleSQL:array_agg(INT64) -> ARRAY<INT64>)
+                |   |       |   |             +-GraphGetElementProperty
+                |   |       |   |               +-type=INT64
+                |   |       |   |               +-expr=
+                |   |       |   |               | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#13)
+                |   |       |   |               +-property=id(INT64)
+                |   |       |   +-group_by_list=
+                |   |       |     +-distinct_ids#19 := ColumnRef(type=INT64, column=$graph_table.distinct_ids#14)
+                |   |       |     +-first_acc_id#20 := ColumnRef(type=INT64, column=$graph_table.first_acc_id#18)
+                |   |       |     +-name#21 := ColumnRef(type=STRING, column=$graph_table.name#17)
+                |   |       +-order_by_item_list=
+                |   |         +-OrderByItem
+                |   |           +-column_ref=
+                |   |           | +-ColumnRef(type=STRING, column=$graph_table.name#21)
+                |   |           +-collation_name=
+                |   |           | +-Literal(type=STRING, value="en_US")
+                |   |           +-is_descending=TRUE
+                |   |           +-null_order=NULLS_LAST
+                |   +-output_column_list=$graph_table.[name#21, distinct_ids#19, first_acc_id#20]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  projectscan_11.a_2 AS name,
+  projectscan_11.a_3 AS distinct_ids,
+  projectscan_11.a_4 AS first_acc_id
+FROM
+  (
+    SELECT
+      aml_1.a_3 AS a_3,
+      aml_1.a_4 AS a_4,
+      aml_1.a_2 AS a_2
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_5 IS Person)
+          -[a_6 IS (% | ! %)]->
+          (a_7 IS Account)
+        RETURN DISTINCT
+          a_5.name AS a_2,
+          COUNT(DISTINCT a_5.id) AS a_3,
+          ARRAY_AGG(a_7.id)[OFFSET(0)] AS a_4
+        GROUP BY a_5.name
+        UNION ALL
+        MATCH
+          (a_8 IS Person)
+          -[a_9 IS (% | ! %)]->
+          (a_10 IS Account)
+        RETURN DISTINCT
+          COUNT(DISTINCT a_8.id) AS a_3,
+          ARRAY_AGG(a_10.id)[OFFSET(0)] AS a_4,
+          a_8.name AS a_2
+        GROUP BY a_8.name
+        ORDER BY a_2 COLLATE "en_US" DESC NULLS LAST
+      ) AS aml_1
+  ) AS projectscan_11;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_5 IS Person)
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS Account)
+    RETURN DISTINCT
+      a_5.name AS a_2,
+      COUNT(DISTINCT a_5.id) AS a_3,
+      ARRAY_AGG(a_7.id)[OFFSET(0)] AS a_4
+    GROUP BY a_5.name
+    UNION ALL
+    MATCH
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
+    RETURN DISTINCT
+      COUNT(DISTINCT a_8.id) AS a_3,
+      ARRAY_AGG(a_10.id)[OFFSET(0)] AS a_4,
+      a_8.name AS a_2
+    GROUP BY a_8.name
+    ORDER BY a_2 COLLATE "en_US" DESC NULLS LAST
+  ) AS aml_1
+|> SELECT
+     aml_1.a_3 AS a_3,
+     aml_1.a_4 AS a_4,
+     aml_1.a_2 AS a_2
+|> AS projectscan_11
+|> SELECT
+     projectscan_11.a_2 AS name,
+     projectscan_11.a_3 AS distinct_ids,
+     projectscan_11.a_4 AS first_acc_id;
+==
+
+# SQLBuilder test for GQL set op with subquery, in a GRAPH_TABLE operator.
+select gt.* from
+graph_table(aml
+  MATCH (n:Person)
+  RETURN
+    1 AS id,
+    EXISTS {
+      GRAPH aml
+      MATCH (n2:Person where n2.name = 'Dana')
+      RETURN 1 as one
+    } AS val
+  UNION ALL
+  MATCH (n:Person)
+  RETURN
+    EXISTS {
+      GRAPH aml
+      MATCH (n2:Person where n2.name = 'Dana')
+      RETURN 1 as one
+    } AS val,
+    2 AS id
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.id#11 AS id [INT64]
+| +-$graph_set_op.val#12 AS val [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_set_op.[id#11, val#12]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[id#11, val#12]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[id#11, val#12]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[id#11, val#12]
+                +-op_type=UNION_ALL
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[id#4, val#5]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$element_table.n#1]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=[$element_table.n#1]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.n#1]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabel(parse_location=44-50, label=aml.Person)
+                | | |     | |   |   +-target_element_table_list=[aml.Person]
+                | | |     | |   +-head=$element_table.n#1
+                | | |     | |   +-tail=$element_table.n#1
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[id#4, val#5]
+                | | |       +-expr_list=
+                | | |       | +-id#4 := Literal(type=INT64, value=1)
+                | | |       | +-val#5 :=
+                | | |       |   +-SubqueryExpr
+                | | |       |     +-type=BOOL
+                | | |       |     +-subquery_type=EXISTS
+                | | |       |     +-subquery=
+                | | |       |       +-GraphTableScan
+                | | |       |         +-column_list=[$graph_table.one#3]
+                | | |       |         +-property_graph=aml
+                | | |       |         +-input_scan=
+                | | |       |           +-GraphLinearScan
+                | | |       |             +-column_list=[$graph_table.one#3]
+                | | |       |             +-scan_list=
+                | | |       |               +-GraphLinearScan
+                | | |       |                 +-column_list=[$graph_table.one#3]
+                | | |       |                 +-scan_list=
+                | | |       |                   +-GraphScan
+                | | |       |                   | +-column_list=[$element_table.n2#2]
+                | | |       |                   | +-input_scan_list=
+                | | |       |                   | | +-GraphPathScan
+                | | |       |                   | |   +-column_list=[$element_table.n2#2]
+                | | |       |                   | |   +-input_scan_list=
+                | | |       |                   | |   | +-GraphNodeScan
+                | | |       |                   | |   |   +-column_list=[$element_table.n2#2]
+                | | |       |                   | |   |   +-filter_expr=
+                | | |       |                   | |   |   | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+                | | |       |                   | |   |   |   +-GraphGetElementProperty
+                | | |       |                   | |   |   |   | +-type=STRING
+                | | |       |                   | |   |   |   | +-expr=
+                | | |       |                   | |   |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n2#2)
+                | | |       |                   | |   |   |   | +-property=name(STRING)
+                | | |       |                   | |   |   |   +-Literal(type=STRING, value="Dana")
+                | | |       |                   | |   |   +-label_expr=
+                | | |       |                   | |   |   | +-GraphLabel(parse_location=119-125, label=aml.Person)
+                | | |       |                   | |   |   +-target_element_table_list=[aml.Person]
+                | | |       |                   | |   +-head=$element_table.n2#2
+                | | |       |                   | |   +-tail=$element_table.n2#2
+                | | |       |                   | +-input_scan=
+                | | |       |                   |   +-SingleRowScan
+                | | |       |                   +-ProjectScan
+                | | |       |                     +-column_list=[$graph_table.one#3]
+                | | |       |                     +-expr_list=
+                | | |       |                     | +-one#3 := Literal(type=INT64, value=1)
+                | | |       |                     +-input_scan=
+                | | |       |                       +-GraphRefScan(column_list=[$element_table.n2#2])
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=[$element_table.n#1])
+                | | +-output_column_list=$graph_table.[id#4, val#5]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[id#10, val#9]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=[$element_table.n#6]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=[$element_table.n#6]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.n#6]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabel(parse_location=208-214, label=aml.Person)
+                |   |     | |   |   +-target_element_table_list=[aml.Person]
+                |   |     | |   +-head=$element_table.n#6
+                |   |     | |   +-tail=$element_table.n#6
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[val#9, id#10]
+                |   |       +-expr_list=
+                |   |       | +-val#9 :=
+                |   |       | | +-SubqueryExpr
+                |   |       | |   +-type=BOOL
+                |   |       | |   +-subquery_type=EXISTS
+                |   |       | |   +-subquery=
+                |   |       | |     +-GraphTableScan
+                |   |       | |       +-column_list=[$graph_table.one#8]
+                |   |       | |       +-property_graph=aml
+                |   |       | |       +-input_scan=
+                |   |       | |         +-GraphLinearScan
+                |   |       | |           +-column_list=[$graph_table.one#8]
+                |   |       | |           +-scan_list=
+                |   |       | |             +-GraphLinearScan
+                |   |       | |               +-column_list=[$graph_table.one#8]
+                |   |       | |               +-scan_list=
+                |   |       | |                 +-GraphScan
+                |   |       | |                 | +-column_list=[$element_table.n2#7]
+                |   |       | |                 | +-input_scan_list=
+                |   |       | |                 | | +-GraphPathScan
+                |   |       | |                 | |   +-column_list=[$element_table.n2#7]
+                |   |       | |                 | |   +-input_scan_list=
+                |   |       | |                 | |   | +-GraphNodeScan
+                |   |       | |                 | |   |   +-column_list=[$element_table.n2#7]
+                |   |       | |                 | |   |   +-filter_expr=
+                |   |       | |                 | |   |   | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+                |   |       | |                 | |   |   |   +-GraphGetElementProperty
+                |   |       | |                 | |   |   |   | +-type=STRING
+                |   |       | |                 | |   |   |   | +-expr=
+                |   |       | |                 | |   |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n2#7)
+                |   |       | |                 | |   |   |   | +-property=name(STRING)
+                |   |       | |                 | |   |   |   +-Literal(type=STRING, value="Dana")
+                |   |       | |                 | |   |   +-label_expr=
+                |   |       | |                 | |   |   | +-GraphLabel(parse_location=270-276, label=aml.Person)
+                |   |       | |                 | |   |   +-target_element_table_list=[aml.Person]
+                |   |       | |                 | |   +-head=$element_table.n2#7
+                |   |       | |                 | |   +-tail=$element_table.n2#7
+                |   |       | |                 | +-input_scan=
+                |   |       | |                 |   +-SingleRowScan
+                |   |       | |                 +-ProjectScan
+                |   |       | |                   +-column_list=[$graph_table.one#8]
+                |   |       | |                   +-expr_list=
+                |   |       | |                   | +-one#8 := Literal(type=INT64, value=1)
+                |   |       | |                   +-input_scan=
+                |   |       | |                     +-GraphRefScan(column_list=[$element_table.n2#7])
+                |   |       | +-id#10 := Literal(type=INT64, value=2)
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=[$element_table.n#6])
+                |   +-output_column_list=$graph_table.[id#10, val#9]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  projectscan_10.a_2 AS id,
+  projectscan_10.a_3 AS val
+FROM
+  (
+    SELECT
+      aml_1.a_3 AS a_3,
+      aml_1.a_2 AS a_2
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_4 IS Person)
+        RETURN
+          1 AS a_2,
+          EXISTS {
+            GRAPH aml
+            MATCH
+              (a_5 IS Person
+              WHERE
+                (a_5.name) = "Dana")
+            RETURN
+              1 AS a_6
+          } AS a_3
+        UNION ALL
+        MATCH
+          (a_7 IS Person)
+        RETURN
+          EXISTS {
+            GRAPH aml
+            MATCH
+              (a_8 IS Person
+              WHERE
+                (a_8.name) = "Dana")
+            RETURN
+              1 AS a_9
+          } AS a_3,
+          2 AS a_2
+      ) AS aml_1
+  ) AS projectscan_10;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_4 IS Person)
+    RETURN
+      1 AS a_2,
+      EXISTS {
+        GRAPH aml
+        MATCH
+          (a_5 IS Person
+          WHERE
+            (a_5.name) = "Dana")
+        RETURN
+          1 AS a_6
+      } AS a_3
+    UNION ALL
+    MATCH
+      (a_7 IS Person)
+    RETURN
+      EXISTS {
+        GRAPH aml
+        MATCH
+          (a_8 IS Person
+          WHERE
+            (a_8.name) = "Dana")
+        RETURN
+          1 AS a_9
+      } AS a_3,
+      2 AS a_2
+  ) AS aml_1
+|> SELECT
+     aml_1.a_3 AS a_3,
+     aml_1.a_2 AS a_2
+|> AS projectscan_10
+|> SELECT
+     projectscan_10.a_2 AS id,
+     projectscan_10.a_3 AS val;
+==
+
+# SQLBuilder test for GQL set op with subquery, in a top level GRAPH statement.
+GRAPH aml
+MATCH (n:Person)
+RETURN
+  1 AS id,
+  EXISTS {
+    GRAPH aml
+    MATCH (n2:Person where n2.name = 'Dana')
+    RETURN 1 as one
+  } AS val
+UNION ALL
+MATCH (n:Person)
+RETURN
+  EXISTS {
+    GRAPH aml
+    MATCH (n2:Person where n2.name = 'Dana')
+    RETURN 1 as one
+  } AS val,
+  2 AS id
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.id#11 AS id [INT64]
+| +-$graph_set_op.val#12 AS val [BOOL]
++-query=
+  +-GraphTableScan
+    +-column_list=$graph_set_op.[id#11, val#12]
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-column_list=$graph_set_op.[id#11, val#12]
+        +-scan_list=
+          +-SetOperationScan
+            +-column_list=$graph_set_op.[id#11, val#12]
+            +-op_type=UNION_ALL
+            +-input_item_list=
+            | +-SetOperationItem
+            | | +-scan=
+            | | | +-GraphLinearScan
+            | | |   +-column_list=$graph_table.[id#4, val#5]
+            | | |   +-scan_list=
+            | | |     +-GraphScan
+            | | |     | +-column_list=[$element_table.n#1]
+            | | |     | +-input_scan_list=
+            | | |     | | +-GraphPathScan
+            | | |     | |   +-column_list=[$element_table.n#1]
+            | | |     | |   +-input_scan_list=
+            | | |     | |   | +-GraphNodeScan
+            | | |     | |   |   +-column_list=[$element_table.n#1]
+            | | |     | |   |   +-label_expr=
+            | | |     | |   |   | +-GraphLabel(parse_location=19-25, label=aml.Person)
+            | | |     | |   |   +-target_element_table_list=[aml.Person]
+            | | |     | |   +-head=$element_table.n#1
+            | | |     | |   +-tail=$element_table.n#1
+            | | |     | +-input_scan=
+            | | |     |   +-SingleRowScan
+            | | |     +-ProjectScan
+            | | |       +-column_list=$graph_table.[id#4, val#5]
+            | | |       +-expr_list=
+            | | |       | +-id#4 := Literal(type=INT64, value=1)
+            | | |       | +-val#5 :=
+            | | |       |   +-SubqueryExpr
+            | | |       |     +-type=BOOL
+            | | |       |     +-subquery_type=EXISTS
+            | | |       |     +-subquery=
+            | | |       |       +-GraphTableScan
+            | | |       |         +-column_list=[$graph_table.one#3]
+            | | |       |         +-property_graph=aml
+            | | |       |         +-input_scan=
+            | | |       |           +-GraphLinearScan
+            | | |       |             +-column_list=[$graph_table.one#3]
+            | | |       |             +-scan_list=
+            | | |       |               +-GraphLinearScan
+            | | |       |                 +-column_list=[$graph_table.one#3]
+            | | |       |                 +-scan_list=
+            | | |       |                   +-GraphScan
+            | | |       |                   | +-column_list=[$element_table.n2#2]
+            | | |       |                   | +-input_scan_list=
+            | | |       |                   | | +-GraphPathScan
+            | | |       |                   | |   +-column_list=[$element_table.n2#2]
+            | | |       |                   | |   +-input_scan_list=
+            | | |       |                   | |   | +-GraphNodeScan
+            | | |       |                   | |   |   +-column_list=[$element_table.n2#2]
+            | | |       |                   | |   |   +-filter_expr=
+            | | |       |                   | |   |   | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+            | | |       |                   | |   |   |   +-GraphGetElementProperty
+            | | |       |                   | |   |   |   | +-type=STRING
+            | | |       |                   | |   |   |   | +-expr=
+            | | |       |                   | |   |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n2#2)
+            | | |       |                   | |   |   |   | +-property=name(STRING)
+            | | |       |                   | |   |   |   +-Literal(type=STRING, value="Dana")
+            | | |       |                   | |   |   +-label_expr=
+            | | |       |                   | |   |   | +-GraphLabel(parse_location=84-90, label=aml.Person)
+            | | |       |                   | |   |   +-target_element_table_list=[aml.Person]
+            | | |       |                   | |   +-head=$element_table.n2#2
+            | | |       |                   | |   +-tail=$element_table.n2#2
+            | | |       |                   | +-input_scan=
+            | | |       |                   |   +-SingleRowScan
+            | | |       |                   +-ProjectScan
+            | | |       |                     +-column_list=[$graph_table.one#3]
+            | | |       |                     +-expr_list=
+            | | |       |                     | +-one#3 := Literal(type=INT64, value=1)
+            | | |       |                     +-input_scan=
+            | | |       |                       +-GraphRefScan(column_list=[$element_table.n2#2])
+            | | |       +-input_scan=
+            | | |         +-GraphRefScan(column_list=[$element_table.n#1])
+            | | +-output_column_list=$graph_table.[id#4, val#5]
+            | +-SetOperationItem
+            |   +-scan=
+            |   | +-GraphLinearScan
+            |   |   +-column_list=$graph_table.[id#10, val#9]
+            |   |   +-scan_list=
+            |   |     +-GraphScan
+            |   |     | +-column_list=[$element_table.n#6]
+            |   |     | +-input_scan_list=
+            |   |     | | +-GraphPathScan
+            |   |     | |   +-column_list=[$element_table.n#6]
+            |   |     | |   +-input_scan_list=
+            |   |     | |   | +-GraphNodeScan
+            |   |     | |   |   +-column_list=[$element_table.n#6]
+            |   |     | |   |   +-label_expr=
+            |   |     | |   |   | +-GraphLabel(parse_location=165-171, label=aml.Person)
+            |   |     | |   |   +-target_element_table_list=[aml.Person]
+            |   |     | |   +-head=$element_table.n#6
+            |   |     | |   +-tail=$element_table.n#6
+            |   |     | +-input_scan=
+            |   |     |   +-SingleRowScan
+            |   |     +-ProjectScan
+            |   |       +-column_list=$graph_table.[val#9, id#10]
+            |   |       +-expr_list=
+            |   |       | +-val#9 :=
+            |   |       | | +-SubqueryExpr
+            |   |       | |   +-type=BOOL
+            |   |       | |   +-subquery_type=EXISTS
+            |   |       | |   +-subquery=
+            |   |       | |     +-GraphTableScan
+            |   |       | |       +-column_list=[$graph_table.one#8]
+            |   |       | |       +-property_graph=aml
+            |   |       | |       +-input_scan=
+            |   |       | |         +-GraphLinearScan
+            |   |       | |           +-column_list=[$graph_table.one#8]
+            |   |       | |           +-scan_list=
+            |   |       | |             +-GraphLinearScan
+            |   |       | |               +-column_list=[$graph_table.one#8]
+            |   |       | |               +-scan_list=
+            |   |       | |                 +-GraphScan
+            |   |       | |                 | +-column_list=[$element_table.n2#7]
+            |   |       | |                 | +-input_scan_list=
+            |   |       | |                 | | +-GraphPathScan
+            |   |       | |                 | |   +-column_list=[$element_table.n2#7]
+            |   |       | |                 | |   +-input_scan_list=
+            |   |       | |                 | |   | +-GraphNodeScan
+            |   |       | |                 | |   |   +-column_list=[$element_table.n2#7]
+            |   |       | |                 | |   |   +-filter_expr=
+            |   |       | |                 | |   |   | +-FunctionCall(GoogleSQL:$equal(STRING, STRING) -> BOOL)
+            |   |       | |                 | |   |   |   +-GraphGetElementProperty
+            |   |       | |                 | |   |   |   | +-type=STRING
+            |   |       | |                 | |   |   |   | +-expr=
+            |   |       | |                 | |   |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n2#7)
+            |   |       | |                 | |   |   |   | +-property=name(STRING)
+            |   |       | |                 | |   |   |   +-Literal(type=STRING, value="Dana")
+            |   |       | |                 | |   |   +-label_expr=
+            |   |       | |                 | |   |   | +-GraphLabel(parse_location=219-225, label=aml.Person)
+            |   |       | |                 | |   |   +-target_element_table_list=[aml.Person]
+            |   |       | |                 | |   +-head=$element_table.n2#7
+            |   |       | |                 | |   +-tail=$element_table.n2#7
+            |   |       | |                 | +-input_scan=
+            |   |       | |                 |   +-SingleRowScan
+            |   |       | |                 +-ProjectScan
+            |   |       | |                   +-column_list=[$graph_table.one#8]
+            |   |       | |                   +-expr_list=
+            |   |       | |                   | +-one#8 := Literal(type=INT64, value=1)
+            |   |       | |                   +-input_scan=
+            |   |       | |                     +-GraphRefScan(column_list=[$element_table.n2#7])
+            |   |       | +-id#10 := Literal(type=INT64, value=2)
+            |   |       +-input_scan=
+            |   |         +-GraphRefScan(column_list=[$element_table.n#6])
+            |   +-output_column_list=$graph_table.[id#10, val#9]
+            +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  graphtablescan_10.a_2 AS id,
+  graphtablescan_10.a_3 AS val
+FROM
+  (
+    SELECT
+      aml_1.a_3 AS a_3,
+      aml_1.a_2 AS a_2
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_4 IS Person)
+        RETURN
+          1 AS a_2,
+          EXISTS {
+            GRAPH aml
+            MATCH
+              (a_5 IS Person
+              WHERE
+                (a_5.name) = "Dana")
+            RETURN
+              1 AS a_6
+          } AS a_3
+        UNION ALL
+        MATCH
+          (a_7 IS Person)
+        RETURN
+          EXISTS {
+            GRAPH aml
+            MATCH
+              (a_8 IS Person
+              WHERE
+                (a_8.name) = "Dana")
+            RETURN
+              1 AS a_9
+          } AS a_3,
+          2 AS a_2
+      ) AS aml_1
+  ) AS graphtablescan_10;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_4 IS Person)
+    RETURN
+      1 AS a_2,
+      EXISTS {
+        GRAPH aml
+        MATCH
+          (a_5 IS Person
+          WHERE
+            (a_5.name) = "Dana")
+        RETURN
+          1 AS a_6
+      } AS a_3
+    UNION ALL
+    MATCH
+      (a_7 IS Person)
+    RETURN
+      EXISTS {
+        GRAPH aml
+        MATCH
+          (a_8 IS Person
+          WHERE
+            (a_8.name) = "Dana")
+        RETURN
+          1 AS a_9
+      } AS a_3,
+      2 AS a_2
+  ) AS aml_1
+|> SELECT
+     aml_1.a_3 AS a_3,
+     aml_1.a_2 AS a_2
+|> AS graphtablescan_10
+|> SELECT
+     graphtablescan_10.a_2 AS id,
+     graphtablescan_10.a_3 AS val;
+==
+
+# SQLBuilder test for GQL set op with quantified path, which produces
+# group name list during resolution.
+select ARRAY_LENGTH(a) AS a_len, ARRAY_LENGTH(e) AS e_len, ARRAY_LENGTH(b) AS b_len
+from graph_table(aml
+  MATCH ((a)-[e]->(b)){1, 3}
+  RETURN *
+  UNION ALL
+  MATCH ((a)-[e]->(b)){1, 3}
+  RETURN *
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.a_len#26 AS a_len [INT64]
+| +-$query.e_len#27 AS e_len [INT64]
+| +-$query.b_len#28 AS b_len [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[a_len#26, e_len#27, b_len#28]
+    +-expr_list=
+    | +-a_len#26 :=
+    | | +-FunctionCall(GoogleSQL:array_length(ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>) -> INT64)
+    | |   +-ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$graph_set_op.a#23)
+    | +-e_len#27 :=
+    | | +-FunctionCall(GoogleSQL:array_length(ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>) -> INT64)
+    | |   +-ColumnRef(type=ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>, column=$graph_set_op.e#24)
+    | +-b_len#28 :=
+    |   +-FunctionCall(GoogleSQL:array_length(ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>) -> INT64)
+    |     +-ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$graph_set_op.b#25)
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[a#23, e#24, b#25]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[a#23, e#24, b#25]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[a#23, e#24, b#25]
+                +-op_type=UNION_ALL
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[a#9, e#10, b#11]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$path_scan.$head#7, $element_table.a#4, $element_table.e#5, $element_table.b#6, $path_scan.$tail#8]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=[$path_scan.$head#7, $element_table.a#4, $element_table.e#5, $element_table.b#6, $path_scan.$tail#8]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   | | +-column_list=[$element_table.a#1]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabelNaryExpr
+                | | |     | |   | | |   +-op=OR
+                | | |     | |   | | |   +-operand_list=
+                | | |     | |   | | |     +-GraphWildCardLabel
+                | | |     | |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   | | |       +-op=NOT
+                | | |     | |   | | |       +-operand_list=
+                | | |     | |   | | |         +-GraphWildCardLabel
+                | | |     | |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   | +-GraphEdgeScan
+                | | |     | |   | | +-column_list=[$element_table.e#2]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabelNaryExpr
+                | | |     | |   | | |   +-op=OR
+                | | |     | |   | | |   +-operand_list=
+                | | |     | |   | | |     +-GraphWildCardLabel
+                | | |     | |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   | | |       +-op=NOT
+                | | |     | |   | | |       +-operand_list=
+                | | |     | |   | | |         +-GraphWildCardLabel
+                | | |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                | | |     | |   | | +-orientation=RIGHT
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.b#3]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabelNaryExpr
+                | | |     | |   |   |   +-op=OR
+                | | |     | |   |   |   +-operand_list=
+                | | |     | |   |   |     +-GraphWildCardLabel
+                | | |     | |   |   |     +-GraphLabelNaryExpr
+                | | |     | |   |   |       +-op=NOT
+                | | |     | |   |   |       +-operand_list=
+                | | |     | |   |   |         +-GraphWildCardLabel
+                | | |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   +-head=$path_scan.$head#7
+                | | |     | |   +-tail=$path_scan.$tail#8
+                | | |     | |   +-quantifier=
+                | | |     | |   | +-GraphPathPatternQuantifier
+                | | |     | |   |   +-lower_bound=
+                | | |     | |   |   | +-Literal(type=INT64, value=1)
+                | | |     | |   |   +-upper_bound=
+                | | |     | |   |     +-Literal(type=INT64, value=3)
+                | | |     | |   +-group_variable_list=
+                | | |     | |     +-GraphMakeArrayVariable(element=$element_table.a#1, array=$element_table.a#4)
+                | | |     | |     +-GraphMakeArrayVariable(element=$element_table.e#2, array=$element_table.e#5)
+                | | |     | |     +-GraphMakeArrayVariable(element=$element_table.b#3, array=$element_table.b#6)
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[a#9, e#10, b#11]
+                | | |       +-expr_list=
+                | | |       | +-a#9 := ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.a#4)
+                | | |       | +-e#10 := ColumnRef(type=ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>, column=$element_table.e#5)
+                | | |       | +-b#11 := ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.b#6)
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=$element_table.[a#4, e#5, b#6])
+                | | +-output_column_list=$graph_table.[a#9, e#10, b#11]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[a#20, e#21, b#22]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=[$path_scan.$head#18, $element_table.a#15, $element_table.e#16, $element_table.b#17, $path_scan.$tail#19]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=[$path_scan.$head#18, $element_table.a#15, $element_table.e#16, $element_table.b#17, $path_scan.$tail#19]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   | | +-column_list=[$element_table.a#12]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabelNaryExpr
+                |   |     | |   | | |   +-op=OR
+                |   |     | |   | | |   +-operand_list=
+                |   |     | |   | | |     +-GraphWildCardLabel
+                |   |     | |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   | | |       +-op=NOT
+                |   |     | |   | | |       +-operand_list=
+                |   |     | |   | | |         +-GraphWildCardLabel
+                |   |     | |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   | +-GraphEdgeScan
+                |   |     | |   | | +-column_list=[$element_table.e#13]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabelNaryExpr
+                |   |     | |   | | |   +-op=OR
+                |   |     | |   | | |   +-operand_list=
+                |   |     | |   | | |     +-GraphWildCardLabel
+                |   |     | |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   | | |       +-op=NOT
+                |   |     | |   | | |       +-operand_list=
+                |   |     | |   | | |         +-GraphWildCardLabel
+                |   |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                |   |     | |   | | +-orientation=RIGHT
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.b#14]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabelNaryExpr
+                |   |     | |   |   |   +-op=OR
+                |   |     | |   |   |   +-operand_list=
+                |   |     | |   |   |     +-GraphWildCardLabel
+                |   |     | |   |   |     +-GraphLabelNaryExpr
+                |   |     | |   |   |       +-op=NOT
+                |   |     | |   |   |       +-operand_list=
+                |   |     | |   |   |         +-GraphWildCardLabel
+                |   |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   +-head=$path_scan.$head#18
+                |   |     | |   +-tail=$path_scan.$tail#19
+                |   |     | |   +-quantifier=
+                |   |     | |   | +-GraphPathPatternQuantifier
+                |   |     | |   |   +-lower_bound=
+                |   |     | |   |   | +-Literal(type=INT64, value=1)
+                |   |     | |   |   +-upper_bound=
+                |   |     | |   |     +-Literal(type=INT64, value=3)
+                |   |     | |   +-group_variable_list=
+                |   |     | |     +-GraphMakeArrayVariable(element=$element_table.a#12, array=$element_table.a#15)
+                |   |     | |     +-GraphMakeArrayVariable(element=$element_table.e#13, array=$element_table.e#16)
+                |   |     | |     +-GraphMakeArrayVariable(element=$element_table.b#14, array=$element_table.b#17)
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[a#20, e#21, b#22]
+                |   |       +-expr_list=
+                |   |       | +-a#20 := ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.a#15)
+                |   |       | +-e#21 := ColumnRef(type=ARRAY<GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>>, column=$element_table.e#16)
+                |   |       | +-b#22 := ColumnRef(type=ARRAY<GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>>, column=$element_table.b#17)
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=$element_table.[a#15, e#16, b#17])
+                |   +-output_column_list=$graph_table.[a#20, e#21, b#22]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  ARRAY_LENGTH(graphtablescan_11.a_2) AS a_len,
+  ARRAY_LENGTH(graphtablescan_11.a_3) AS e_len,
+  ARRAY_LENGTH(graphtablescan_11.a_4) AS b_len
+FROM
+  (
+    SELECT
+      aml_1.a_2 AS a_2,
+      aml_1.a_3 AS a_3,
+      aml_1.a_4 AS a_4
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (
+            (a_5 IS (% | ! %))
+            -[a_6 IS (% | ! %)]->
+            (a_7 IS (% | ! %))
+          ) { 1, 3 }
+        RETURN
+          a_5 AS a_2,
+          a_6 AS a_3,
+          a_7 AS a_4
+        UNION ALL
+        MATCH
+          (
+            (a_8 IS (% | ! %))
+            -[a_9 IS (% | ! %)]->
+            (a_10 IS (% | ! %))
+          ) { 1, 3 }
+        RETURN
+          a_8 AS a_2,
+          a_9 AS a_3,
+          a_10 AS a_4
+      ) AS aml_1
+  ) AS graphtablescan_11;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (
+        (a_5 IS (% | ! %))
+        -[a_6 IS (% | ! %)]->
+        (a_7 IS (% | ! %))
+      ) { 1, 3 }
+    RETURN
+      a_5 AS a_2,
+      a_6 AS a_3,
+      a_7 AS a_4
+    UNION ALL
+    MATCH
+      (
+        (a_8 IS (% | ! %))
+        -[a_9 IS (% | ! %)]->
+        (a_10 IS (% | ! %))
+      ) { 1, 3 }
+    RETURN
+      a_8 AS a_2,
+      a_9 AS a_3,
+      a_10 AS a_4
+  ) AS aml_1
+|> SELECT
+     aml_1.a_2 AS a_2,
+     aml_1.a_3 AS a_3,
+     aml_1.a_4 AS a_4
+|> AS graphtablescan_11
+|> SELECT
+     ARRAY_LENGTH(graphtablescan_11.a_2) AS a_len,
+     ARRAY_LENGTH(graphtablescan_11.a_3) AS e_len,
+     ARRAY_LENGTH(graphtablescan_11.a_4) AS b_len;
+==
+
+# SQLBuilder test for GQL set op with sub-path, which produces
+# group name list during resolution.
+select a.name AS source_name, b.name AS destination_name, e.accountId AS transfer_id
+from graph_table(aml
+  MATCH ( -[e:Transfer]-> ((a) -> (b)) WHERE e.accountId = a.id)
+  RETURN a, b, e
+  INTERSECT DISTINCT
+  MATCH ( -[e:Transfer]-> ((a) -> (b)) WHERE e.accountId = a.id)
+  RETURN e, a, b
+)
+--
+QueryStmt
++-output_column_list=
+| +-$query.source_name#20 AS source_name [STRING]
+| +-$query.destination_name#21 AS destination_name [STRING]
+| +-$query.transfer_id#22 AS transfer_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[source_name#20, destination_name#21, transfer_id#22]
+    +-expr_list=
+    | +-source_name#20 :=
+    | | +-GraphGetElementProperty
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$graph_set_op.a#17)
+    | |   +-property=name(STRING)
+    | +-destination_name#21 :=
+    | | +-GraphGetElementProperty
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$graph_set_op.b#18)
+    | |   +-property=name(STRING)
+    | +-transfer_id#22 :=
+    |   +-GraphGetElementProperty
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>, column=$graph_set_op.e#19)
+    |     +-property=accountId(INT64)
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[a#17, b#18, e#19]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[a#17, b#18, e#19]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[a#17, b#18, e#19]
+                +-op_type=INTERSECT_DISTINCT
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[a#6, b#7, e#8]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=$element_table.[$element1#1, e#2, a#3, $element2#4, b#5]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=$element_table.[$element1#1, e#2, a#3, $element2#4, b#5]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   | | +-column_list=[$element_table.$element1#1]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabelNaryExpr
+                | | |     | |   | | |   +-op=OR
+                | | |     | |   | | |   +-operand_list=
+                | | |     | |   | | |     +-GraphWildCardLabel
+                | | |     | |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   | | |       +-op=NOT
+                | | |     | |   | | |       +-operand_list=
+                | | |     | |   | | |         +-GraphWildCardLabel
+                | | |     | |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   | +-GraphEdgeScan
+                | | |     | |   | | +-column_list=[$element_table.e#2]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabel(parse_location=120-128, label=aml.Transfer)
+                | | |     | |   | | +-target_element_table_list=[aml.Transfer]
+                | | |     | |   | | +-orientation=RIGHT
+                | | |     | |   | +-GraphPathScan
+                | | |     | |   |   +-column_list=$element_table.[a#3, $element2#4, b#5]
+                | | |     | |   |   +-input_scan_list=
+                | | |     | |   |   | +-GraphNodeScan
+                | | |     | |   |   | | +-column_list=[$element_table.a#3]
+                | | |     | |   |   | | +-label_expr=
+                | | |     | |   |   | | | +-GraphLabelNaryExpr
+                | | |     | |   |   | | |   +-op=OR
+                | | |     | |   |   | | |   +-operand_list=
+                | | |     | |   |   | | |     +-GraphWildCardLabel
+                | | |     | |   |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   |   | | |       +-op=NOT
+                | | |     | |   |   | | |       +-operand_list=
+                | | |     | |   |   | | |         +-GraphWildCardLabel
+                | | |     | |   |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   |   | +-GraphEdgeScan
+                | | |     | |   |   | | +-column_list=[$element_table.$element2#4]
+                | | |     | |   |   | | +-label_expr=
+                | | |     | |   |   | | | +-GraphLabelNaryExpr
+                | | |     | |   |   | | |   +-op=OR
+                | | |     | |   |   | | |   +-operand_list=
+                | | |     | |   |   | | |     +-GraphWildCardLabel
+                | | |     | |   |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   |   | | |       +-op=NOT
+                | | |     | |   |   | | |       +-operand_list=
+                | | |     | |   |   | | |         +-GraphWildCardLabel
+                | | |     | |   |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                | | |     | |   |   | | +-orientation=RIGHT
+                | | |     | |   |   | +-GraphNodeScan
+                | | |     | |   |   |   +-column_list=[$element_table.b#5]
+                | | |     | |   |   |   +-label_expr=
+                | | |     | |   |   |   | +-GraphLabelNaryExpr
+                | | |     | |   |   |   |   +-op=OR
+                | | |     | |   |   |   |   +-operand_list=
+                | | |     | |   |   |   |     +-GraphWildCardLabel
+                | | |     | |   |   |   |     +-GraphLabelNaryExpr
+                | | |     | |   |   |   |       +-op=NOT
+                | | |     | |   |   |   |       +-operand_list=
+                | | |     | |   |   |   |         +-GraphWildCardLabel
+                | | |     | |   |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   |   +-head=$element_table.a#3
+                | | |     | |   |   +-tail=$element_table.b#5
+                | | |     | |   +-filter_expr=
+                | | |     | |   | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                | | |     | |   |   +-GraphGetElementProperty
+                | | |     | |   |   | +-type=INT64
+                | | |     | |   |   | +-expr=
+                | | |     | |   |   | | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>, column=$element_table.e#2)
+                | | |     | |   |   | +-property=accountId(INT64)
+                | | |     | |   |   +-GraphGetElementProperty
+                | | |     | |   |     +-type=INT64
+                | | |     | |   |     +-expr=
+                | | |     | |   |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#3)
+                | | |     | |   |     +-property=id(INT64)
+                | | |     | |   +-head=$element_table.$element1#1
+                | | |     | |   +-tail=$element_table.b#5
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[a#6, b#7, e#8]
+                | | |       +-expr_list=
+                | | |       | +-a#6 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#3)
+                | | |       | +-b#7 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.b#5)
+                | | |       | +-e#8 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>, column=$element_table.e#2)
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=$element_table.[$element1#1, e#2, a#3, $element2#4, b#5])
+                | | +-output_column_list=$graph_table.[a#6, b#7, e#8]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[a#15, b#16, e#14]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=$element_table.[$element3#9, e#10, a#11, $element4#12, b#13]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=$element_table.[$element3#9, e#10, a#11, $element4#12, b#13]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   | | +-column_list=[$element_table.$element3#9]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabelNaryExpr
+                |   |     | |   | | |   +-op=OR
+                |   |     | |   | | |   +-operand_list=
+                |   |     | |   | | |     +-GraphWildCardLabel
+                |   |     | |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   | | |       +-op=NOT
+                |   |     | |   | | |       +-operand_list=
+                |   |     | |   | | |         +-GraphWildCardLabel
+                |   |     | |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   | +-GraphEdgeScan
+                |   |     | |   | | +-column_list=[$element_table.e#10]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabel(parse_location=223-231, label=aml.Transfer)
+                |   |     | |   | | +-target_element_table_list=[aml.Transfer]
+                |   |     | |   | | +-orientation=RIGHT
+                |   |     | |   | +-GraphPathScan
+                |   |     | |   |   +-column_list=$element_table.[a#11, $element4#12, b#13]
+                |   |     | |   |   +-input_scan_list=
+                |   |     | |   |   | +-GraphNodeScan
+                |   |     | |   |   | | +-column_list=[$element_table.a#11]
+                |   |     | |   |   | | +-label_expr=
+                |   |     | |   |   | | | +-GraphLabelNaryExpr
+                |   |     | |   |   | | |   +-op=OR
+                |   |     | |   |   | | |   +-operand_list=
+                |   |     | |   |   | | |     +-GraphWildCardLabel
+                |   |     | |   |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   |   | | |       +-op=NOT
+                |   |     | |   |   | | |       +-operand_list=
+                |   |     | |   |   | | |         +-GraphWildCardLabel
+                |   |     | |   |   | | +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   |   | +-GraphEdgeScan
+                |   |     | |   |   | | +-column_list=[$element_table.$element4#12]
+                |   |     | |   |   | | +-label_expr=
+                |   |     | |   |   | | | +-GraphLabelNaryExpr
+                |   |     | |   |   | | |   +-op=OR
+                |   |     | |   |   | | |   +-operand_list=
+                |   |     | |   |   | | |     +-GraphWildCardLabel
+                |   |     | |   |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   |   | | |       +-op=NOT
+                |   |     | |   |   | | |       +-operand_list=
+                |   |     | |   |   | | |         +-GraphWildCardLabel
+                |   |     | |   |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                |   |     | |   |   | | +-orientation=RIGHT
+                |   |     | |   |   | +-GraphNodeScan
+                |   |     | |   |   |   +-column_list=[$element_table.b#13]
+                |   |     | |   |   |   +-label_expr=
+                |   |     | |   |   |   | +-GraphLabelNaryExpr
+                |   |     | |   |   |   |   +-op=OR
+                |   |     | |   |   |   |   +-operand_list=
+                |   |     | |   |   |   |     +-GraphWildCardLabel
+                |   |     | |   |   |   |     +-GraphLabelNaryExpr
+                |   |     | |   |   |   |       +-op=NOT
+                |   |     | |   |   |   |       +-operand_list=
+                |   |     | |   |   |   |         +-GraphWildCardLabel
+                |   |     | |   |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   |   +-head=$element_table.a#11
+                |   |     | |   |   +-tail=$element_table.b#13
+                |   |     | |   +-filter_expr=
+                |   |     | |   | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+                |   |     | |   |   +-GraphGetElementProperty
+                |   |     | |   |   | +-type=INT64
+                |   |     | |   |   | +-expr=
+                |   |     | |   |   | | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>, column=$element_table.e#10)
+                |   |     | |   |   | +-property=accountId(INT64)
+                |   |     | |   |   +-GraphGetElementProperty
+                |   |     | |   |     +-type=INT64
+                |   |     | |   |     +-expr=
+                |   |     | |   |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#11)
+                |   |     | |   |     +-property=id(INT64)
+                |   |     | |   +-head=$element_table.$element3#9
+                |   |     | |   +-tail=$element_table.b#13
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[e#14, a#15, b#16]
+                |   |       +-expr_list=
+                |   |       | +-e#14 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>, column=$element_table.e#10)
+                |   |       | +-a#15 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.a#11)
+                |   |       | +-b#16 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.b#13)
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=$element_table.[$element3#9, e#10, a#11, $element4#12, b#13])
+                |   +-output_column_list=$graph_table.[a#15, b#16, e#14]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  graphtablescan_15.a_2.name AS source_name,
+  graphtablescan_15.a_3.name AS destination_name,
+  graphtablescan_15.a_4.accountId AS transfer_id
+FROM
+  (
+    SELECT
+      aml_1.a_4 AS a_4,
+      aml_1.a_2 AS a_2,
+      aml_1.a_3 AS a_3
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (
+            (a_5 IS (% | ! %))
+            -[a_6 IS Transfer]->
+            (
+              (a_7 IS (% | ! %))
+              -[a_8 IS (% | ! %)]->
+              (a_9 IS (% | ! %))
+            )
+            WHERE
+              (a_6.accountId) = (a_7.id)
+          )
+        RETURN
+          a_7 AS a_2,
+          a_9 AS a_3,
+          a_6 AS a_4
+        INTERSECT DISTINCT
+        MATCH
+          (
+            (a_10 IS (% | ! %))
+            -[a_11 IS Transfer]->
+            (
+              (a_12 IS (% | ! %))
+              -[a_13 IS (% | ! %)]->
+              (a_14 IS (% | ! %))
+            )
+            WHERE
+              (a_11.accountId) = (a_12.id)
+          )
+        RETURN
+          a_11 AS a_4,
+          a_12 AS a_2,
+          a_14 AS a_3
+      ) AS aml_1
+  ) AS graphtablescan_15;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (
+        (a_5 IS (% | ! %))
+        -[a_6 IS Transfer]->
+        (
+          (a_7 IS (% | ! %))
+          -[a_8 IS (% | ! %)]->
+          (a_9 IS (% | ! %))
+        )
+        WHERE
+          (a_6.accountId) = (a_7.id)
+      )
+    RETURN
+      a_7 AS a_2,
+      a_9 AS a_3,
+      a_6 AS a_4
+    INTERSECT DISTINCT
+    MATCH
+      (
+        (a_10 IS (% | ! %))
+        -[a_11 IS Transfer]->
+        (
+          (a_12 IS (% | ! %))
+          -[a_13 IS (% | ! %)]->
+          (a_14 IS (% | ! %))
+        )
+        WHERE
+          (a_11.accountId) = (a_12.id)
+      )
+    RETURN
+      a_11 AS a_4,
+      a_12 AS a_2,
+      a_14 AS a_3
+  ) AS aml_1
+|> SELECT
+     aml_1.a_4 AS a_4,
+     aml_1.a_2 AS a_2,
+     aml_1.a_3 AS a_3
+|> AS graphtablescan_15
+|> SELECT
+     graphtablescan_15.a_2.name AS source_name,
+     graphtablescan_15.a_3.name AS destination_name,
+     graphtablescan_15.a_4.accountId AS transfer_id;
+==
+
+# SQLBuilder test for GQL set op with three inputs.
+select gt.* from
+graph_table(aml
+  match (n)
+  return n.name, 1 AS number, CONCAT("str", "_suffix") AS concat_str
+  UNION DISTINCT
+  match (n)
+  return 2 AS number, n.name, CONCAT("str", "_suffix") AS concat_str
+  UNION DISTINCT
+  match (n)
+  return n.name, CONCAT("str", "_suffix") AS concat_str, 3 AS number
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.name#13 AS name [STRING]
+| +-$graph_set_op.number#14 AS number [INT64]
+| +-$graph_set_op.concat_str#15 AS concat_str [STRING]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_set_op.[name#13, number#14, concat_str#15]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[name#13, number#14, concat_str#15]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[name#13, number#14, concat_str#15]
+            +-scan_list=
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[name#13, number#14, concat_str#15]
+                +-op_type=UNION_DISTINCT
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$element_table.n#1]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=[$element_table.n#1]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.n#1]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabelNaryExpr
+                | | |     | |   |   |   +-op=OR
+                | | |     | |   |   |   +-operand_list=
+                | | |     | |   |   |     +-GraphWildCardLabel
+                | | |     | |   |   |     +-GraphLabelNaryExpr
+                | | |     | |   |   |       +-op=NOT
+                | | |     | |   |   |       +-operand_list=
+                | | |     | |   |   |         +-GraphWildCardLabel
+                | | |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   +-head=$element_table.n#1
+                | | |     | |   +-tail=$element_table.n#1
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | | |       +-expr_list=
+                | | |       | +-name#2 :=
+                | | |       | | +-GraphGetElementProperty
+                | | |       | |   +-type=STRING
+                | | |       | |   +-expr=
+                | | |       | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#1)
+                | | |       | |   +-property=name(STRING)
+                | | |       | +-number#3 := Literal(type=INT64, value=1)
+                | | |       | +-concat_str#4 :=
+                | | |       |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+                | | |       |     +-Literal(type=STRING, value="str")
+                | | |       |     +-Literal(type=STRING, value="_suffix")
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=[$element_table.n#1])
+                | | +-output_column_list=$graph_table.[name#2, number#3, concat_str#4]
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[name#7, number#6, concat_str#8]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$element_table.n#5]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=[$element_table.n#5]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.n#5]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabelNaryExpr
+                | | |     | |   |   |   +-op=OR
+                | | |     | |   |   |   +-operand_list=
+                | | |     | |   |   |     +-GraphWildCardLabel
+                | | |     | |   |   |     +-GraphLabelNaryExpr
+                | | |     | |   |   |       +-op=NOT
+                | | |     | |   |   |       +-operand_list=
+                | | |     | |   |   |         +-GraphWildCardLabel
+                | | |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                | | |     | |   +-head=$element_table.n#5
+                | | |     | |   +-tail=$element_table.n#5
+                | | |     | +-input_scan=
+                | | |     |   +-SingleRowScan
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[number#6, name#7, concat_str#8]
+                | | |       +-expr_list=
+                | | |       | +-number#6 := Literal(type=INT64, value=2)
+                | | |       | +-name#7 :=
+                | | |       | | +-GraphGetElementProperty
+                | | |       | |   +-type=STRING
+                | | |       | |   +-expr=
+                | | |       | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#5)
+                | | |       | |   +-property=name(STRING)
+                | | |       | +-concat_str#8 :=
+                | | |       |   +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+                | | |       |     +-Literal(type=STRING, value="str")
+                | | |       |     +-Literal(type=STRING, value="_suffix")
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=[$element_table.n#5])
+                | | +-output_column_list=$graph_table.[name#7, number#6, concat_str#8]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[name#10, number#12, concat_str#11]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=[$element_table.n#9]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=[$element_table.n#9]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.n#9]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabelNaryExpr
+                |   |     | |   |   |   +-op=OR
+                |   |     | |   |   |   +-operand_list=
+                |   |     | |   |   |     +-GraphWildCardLabel
+                |   |     | |   |   |     +-GraphLabelNaryExpr
+                |   |     | |   |   |       +-op=NOT
+                |   |     | |   |   |       +-operand_list=
+                |   |     | |   |   |         +-GraphWildCardLabel
+                |   |     | |   |   +-target_element_table_list=[aml.Account,aml.Person,aml.Syndicate]
+                |   |     | |   +-head=$element_table.n#9
+                |   |     | |   +-tail=$element_table.n#9
+                |   |     | +-input_scan=
+                |   |     |   +-SingleRowScan
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[name#10, concat_str#11, number#12]
+                |   |       +-expr_list=
+                |   |       | +-name#10 :=
+                |   |       | | +-GraphGetElementProperty
+                |   |       | |   +-type=STRING
+                |   |       | |   +-expr=
+                |   |       | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, balance UINT64, birthday DATE, data BYTES, id INT64, name STRING, syndicateData ARRAY<INT64>, syndicateId INT64, syndicateName STRING>, column=$element_table.n#9)
+                |   |       | |   +-property=name(STRING)
+                |   |       | +-concat_str#11 :=
+                |   |       | | +-FunctionCall(GoogleSQL:concat(STRING, repeated(1) STRING) -> STRING)
+                |   |       | |   +-Literal(type=STRING, value="str")
+                |   |       | |   +-Literal(type=STRING, value="_suffix")
+                |   |       | +-number#12 := Literal(type=INT64, value=3)
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=[$element_table.n#9])
+                |   +-output_column_list=$graph_table.[name#10, number#12, concat_str#11]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  projectscan_8.a_2 AS name,
+  projectscan_8.a_3 AS number,
+  projectscan_8.a_4 AS concat_str
+FROM
+  (
+    SELECT
+      aml_1.a_2 AS a_2,
+      aml_1.a_4 AS a_4,
+      aml_1.a_3 AS a_3
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_5 IS (% | ! %))
+        RETURN
+          a_5.name AS a_2,
+          1 AS a_3,
+          CONCAT("str", "_suffix") AS a_4
+        UNION DISTINCT
+        MATCH
+          (a_6 IS (% | ! %))
+        RETURN
+          2 AS a_3,
+          a_6.name AS a_2,
+          CONCAT("str", "_suffix") AS a_4
+        UNION DISTINCT
+        MATCH
+          (a_7 IS (% | ! %))
+        RETURN
+          a_7.name AS a_2,
+          CONCAT("str", "_suffix") AS a_4,
+          3 AS a_3
+      ) AS aml_1
+  ) AS projectscan_8;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_5 IS (% | ! %))
+    RETURN
+      a_5.name AS a_2,
+      1 AS a_3,
+      CONCAT("str", "_suffix") AS a_4
+    UNION DISTINCT
+    MATCH
+      (a_6 IS (% | ! %))
+    RETURN
+      2 AS a_3,
+      a_6.name AS a_2,
+      CONCAT("str", "_suffix") AS a_4
+    UNION DISTINCT
+    MATCH
+      (a_7 IS (% | ! %))
+    RETURN
+      a_7.name AS a_2,
+      CONCAT("str", "_suffix") AS a_4,
+      3 AS a_3
+  ) AS aml_1
+|> SELECT
+     aml_1.a_2 AS a_2,
+     aml_1.a_4 AS a_4,
+     aml_1.a_3 AS a_3
+|> AS projectscan_8
+|> SELECT
+     projectscan_8.a_2 AS name,
+     projectscan_8.a_3 AS number,
+     projectscan_8.a_4 AS concat_str;
+==
+
+# SQLBuilder test for GQL set op with RETURN *.
+select gt.* from
+graph_table(aml
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN *
+  UNION ALL
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN p, a, e
+
+  NEXT
+
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN distinct p.name as name, COUNT(DISTINCT p.id) as distinct_ids, ARRAY_AGG(a.id)[OFFSET(0)] AS first_acc_id
+    GROUP BY name
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_table.name#23 AS name [STRING]
+| +-$graph_table.distinct_ids#24 AS distinct_ids [INT64]
+| +-$graph_table.first_acc_id#25 AS first_acc_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[name#23, distinct_ids#24, first_acc_id#25]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[name#23, distinct_ids#24, first_acc_id#25]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_table.[name#23, distinct_ids#24, first_acc_id#25]
+            +-scan_list=
+              +-SetOperationScan
+              | +-column_list=$graph_set_op.[p#13, e#14, a#15]
+              | +-op_type=UNION_ALL
+              | +-input_item_list=
+              | | +-SetOperationItem
+              | | | +-scan=
+              | | | | +-GraphLinearScan
+              | | | |   +-column_list=$graph_table.[p#4, e#5, a#6]
+              | | | |   +-scan_list=
+              | | | |     +-GraphScan
+              | | | |     | +-column_list=$element_table.[p#1, e#2, a#3]
+              | | | |     | +-input_scan_list=
+              | | | |     | | +-GraphPathScan
+              | | | |     | |   +-column_list=$element_table.[p#1, e#2, a#3]
+              | | | |     | |   +-input_scan_list=
+              | | | |     | |   | +-GraphNodeScan
+              | | | |     | |   | | +-column_list=[$element_table.p#1]
+              | | | |     | |   | | +-label_expr=
+              | | | |     | |   | | | +-GraphLabel(parse_location=44-50, label=aml.Person)
+              | | | |     | |   | | +-target_element_table_list=[aml.Person]
+              | | | |     | |   | +-GraphEdgeScan
+              | | | |     | |   | | +-column_list=[$element_table.e#2]
+              | | | |     | |   | | +-label_expr=
+              | | | |     | |   | | | +-GraphLabelNaryExpr
+              | | | |     | |   | | |   +-op=OR
+              | | | |     | |   | | |   +-operand_list=
+              | | | |     | |   | | |     +-GraphWildCardLabel
+              | | | |     | |   | | |     +-GraphLabelNaryExpr
+              | | | |     | |   | | |       +-op=NOT
+              | | | |     | |   | | |       +-operand_list=
+              | | | |     | |   | | |         +-GraphWildCardLabel
+              | | | |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+              | | | |     | |   | | +-orientation=RIGHT
+              | | | |     | |   | +-GraphNodeScan
+              | | | |     | |   |   +-column_list=[$element_table.a#3]
+              | | | |     | |   |   +-label_expr=
+              | | | |     | |   |   | +-GraphLabel(parse_location=60-67, label=aml.Account)
+              | | | |     | |   |   +-target_element_table_list=[aml.Account]
+              | | | |     | |   +-head=$element_table.p#1
+              | | | |     | |   +-tail=$element_table.a#3
+              | | | |     | +-input_scan=
+              | | | |     |   +-SingleRowScan
+              | | | |     +-ProjectScan
+              | | | |       +-column_list=$graph_table.[p#4, e#5, a#6]
+              | | | |       +-expr_list=
+              | | | |       | +-p#4 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+              | | | |       | +-e#5 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#2)
+              | | | |       | +-a#6 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#3)
+              | | | |       +-input_scan=
+              | | | |         +-GraphRefScan(column_list=$element_table.[p#1, e#2, a#3])
+              | | | +-output_column_list=$graph_table.[p#4, e#5, a#6]
+              | | +-SetOperationItem
+              | |   +-scan=
+              | |   | +-GraphLinearScan
+              | |   |   +-column_list=$graph_table.[p#10, e#12, a#11]
+              | |   |   +-scan_list=
+              | |   |     +-GraphScan
+              | |   |     | +-column_list=$element_table.[p#7, e#8, a#9]
+              | |   |     | +-input_scan_list=
+              | |   |     | | +-GraphPathScan
+              | |   |     | |   +-column_list=$element_table.[p#7, e#8, a#9]
+              | |   |     | |   +-input_scan_list=
+              | |   |     | |   | +-GraphNodeScan
+              | |   |     | |   | | +-column_list=[$element_table.p#7]
+              | |   |     | |   | | +-label_expr=
+              | |   |     | |   | | | +-GraphLabel(parse_location=103-109, label=aml.Person)
+              | |   |     | |   | | +-target_element_table_list=[aml.Person]
+              | |   |     | |   | +-GraphEdgeScan
+              | |   |     | |   | | +-column_list=[$element_table.e#8]
+              | |   |     | |   | | +-label_expr=
+              | |   |     | |   | | | +-GraphLabelNaryExpr
+              | |   |     | |   | | |   +-op=OR
+              | |   |     | |   | | |   +-operand_list=
+              | |   |     | |   | | |     +-GraphWildCardLabel
+              | |   |     | |   | | |     +-GraphLabelNaryExpr
+              | |   |     | |   | | |       +-op=NOT
+              | |   |     | |   | | |       +-operand_list=
+              | |   |     | |   | | |         +-GraphWildCardLabel
+              | |   |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+              | |   |     | |   | | +-orientation=RIGHT
+              | |   |     | |   | +-GraphNodeScan
+              | |   |     | |   |   +-column_list=[$element_table.a#9]
+              | |   |     | |   |   +-label_expr=
+              | |   |     | |   |   | +-GraphLabel(parse_location=119-126, label=aml.Account)
+              | |   |     | |   |   +-target_element_table_list=[aml.Account]
+              | |   |     | |   +-head=$element_table.p#7
+              | |   |     | |   +-tail=$element_table.a#9
+              | |   |     | +-input_scan=
+              | |   |     |   +-SingleRowScan
+              | |   |     +-ProjectScan
+              | |   |       +-column_list=$graph_table.[p#10, a#11, e#12]
+              | |   |       +-expr_list=
+              | |   |       | +-p#10 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#7)
+              | |   |       | +-a#11 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#9)
+              | |   |       | +-e#12 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#8)
+              | |   |       +-input_scan=
+              | |   |         +-GraphRefScan(column_list=$element_table.[p#7, e#8, a#9])
+              | |   +-output_column_list=$graph_table.[p#10, e#12, a#11]
+              | +-column_match_mode=CORRESPONDING
+              +-GraphLinearScan
+                +-column_list=$graph_table.[name#23, distinct_ids#24, first_acc_id#25]
+                +-scan_list=
+                  +-GraphScan
+                  | +-column_list=[$graph_set_op.p#13, $graph_set_op.e#14, $graph_set_op.a#15, $element_table.p#16, $element_table.e#17, $element_table.a#18]
+                  | +-input_scan_list=
+                  | | +-GraphPathScan
+                  | |   +-column_list=$element_table.[p#16, e#17, a#18]
+                  | |   +-input_scan_list=
+                  | |   | +-GraphNodeScan
+                  | |   | | +-column_list=[$element_table.p#16]
+                  | |   | | +-label_expr=
+                  | |   | | | +-GraphLabel(parse_location=165-171, label=aml.Person)
+                  | |   | | +-target_element_table_list=[aml.Person]
+                  | |   | +-GraphEdgeScan
+                  | |   | | +-column_list=[$element_table.e#17]
+                  | |   | | +-label_expr=
+                  | |   | | | +-GraphLabelNaryExpr
+                  | |   | | |   +-op=OR
+                  | |   | | |   +-operand_list=
+                  | |   | | |     +-GraphWildCardLabel
+                  | |   | | |     +-GraphLabelNaryExpr
+                  | |   | | |       +-op=NOT
+                  | |   | | |       +-operand_list=
+                  | |   | | |         +-GraphWildCardLabel
+                  | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                  | |   | | +-orientation=RIGHT
+                  | |   | +-GraphNodeScan
+                  | |   |   +-column_list=[$element_table.a#18]
+                  | |   |   +-label_expr=
+                  | |   |   | +-GraphLabel(parse_location=181-188, label=aml.Account)
+                  | |   |   +-target_element_table_list=[aml.Account]
+                  | |   +-head=$element_table.p#16
+                  | |   +-tail=$element_table.a#18
+                  | +-filter_expr=
+                  | | +-FunctionCall(GoogleSQL:$and(BOOL, repeated(2) BOOL) -> BOOL)
+                  | |   +-FunctionCall(GoogleSQL:$equal(GRAPH_NODE(aml)<balance UINT64, id INT64>, GRAPH_NODE(aml)<balance UINT64, id INT64>) -> BOOL)
+                  | |   | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#18)
+                  | |   | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_set_op.a#15)
+                  | |   +-FunctionCall(GoogleSQL:$equal(GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>) -> BOOL)
+                  | |   | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#17)
+                  | |   | +-ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$graph_set_op.e#14)
+                  | |   +-FunctionCall(GoogleSQL:$equal(GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>) -> BOOL)
+                  | |     +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#16)
+                  | |     +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$graph_set_op.p#13)
+                  | +-input_scan=
+                  |   +-GraphRefScan(column_list=$graph_set_op.[p#13, e#14, a#15])
+                  +-AggregateScan
+                    +-column_list=$graph_table.[name#23, distinct_ids#24, first_acc_id#25]
+                    +-input_scan=
+                    | +-ProjectScan
+                    |   +-column_list=$graph_table.[name#21, distinct_ids#19, $agg2#20, first_acc_id#22]
+                    |   +-expr_list=
+                    |   | +-first_acc_id#22 :=
+                    |   |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<INT64>, INT64) -> INT64)
+                    |   |     +-ColumnRef(type=ARRAY<INT64>, column=$graph_table.$agg2#20)
+                    |   |     +-Literal(type=INT64, value=0)
+                    |   +-input_scan=
+                    |     +-AggregateScan
+                    |       +-column_list=$graph_table.[name#21, distinct_ids#19, $agg2#20]
+                    |       +-input_scan=
+                    |       | +-GraphRefScan(column_list=$element_table.[p#16, e#17, a#18])
+                    |       +-group_by_list=
+                    |       | +-name#21 :=
+                    |       |   +-GraphGetElementProperty
+                    |       |     +-type=STRING
+                    |       |     +-expr=
+                    |       |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#16)
+                    |       |     +-property=name(STRING)
+                    |       +-aggregate_list=
+                    |         +-distinct_ids#19 :=
+                    |         | +-AggregateFunctionCall(GoogleSQL:count(INT64) -> INT64)
+                    |         |   +-GraphGetElementProperty
+                    |         |   | +-type=INT64
+                    |         |   | +-expr=
+                    |         |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#16)
+                    |         |   | +-property=id(INT64)
+                    |         |   +-distinct=TRUE
+                    |         +-$agg2#20 :=
+                    |           +-AggregateFunctionCall(GoogleSQL:array_agg(INT64) -> ARRAY<INT64>)
+                    |             +-GraphGetElementProperty
+                    |               +-type=INT64
+                    |               +-expr=
+                    |               | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#18)
+                    |               +-property=id(INT64)
+                    +-group_by_list=
+                      +-name#23 := ColumnRef(type=STRING, column=$graph_table.name#21)
+                      +-distinct_ids#24 := ColumnRef(type=INT64, column=$graph_table.distinct_ids#19)
+                      +-first_acc_id#25 := ColumnRef(type=INT64, column=$graph_table.first_acc_id#22)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  aml_1.a_14 AS name,
+  aml_1.a_15 AS distinct_ids,
+  aml_1.a_16 AS first_acc_id
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_5 IS Person)
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS Account)
+    RETURN
+      a_5 AS a_2,
+      a_6 AS a_3,
+      a_7 AS a_4
+    UNION ALL
+    MATCH
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
+    RETURN
+      a_8 AS a_2,
+      a_10 AS a_4,
+      a_9 AS a_3
+    NEXT
+    MATCH
+      (a_11 IS Person)
+      -[a_12 IS (% | ! %)]->
+      (a_13 IS Account)
+      WHERE
+        (a_13 = a_4) AND (a_12 = a_3) AND (a_11 = a_2)
+    RETURN DISTINCT
+      a_11.name AS a_14,
+      COUNT(DISTINCT a_11.id) AS a_15,
+      ARRAY_AGG(a_13.id)[OFFSET(0)] AS a_16
+    GROUP BY a_11.name
+  ) AS aml_1;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_5 IS Person)
+      -[a_6 IS (% | ! %)]->
+      (a_7 IS Account)
+    RETURN
+      a_5 AS a_2,
+      a_6 AS a_3,
+      a_7 AS a_4
+    UNION ALL
+    MATCH
+      (a_8 IS Person)
+      -[a_9 IS (% | ! %)]->
+      (a_10 IS Account)
+    RETURN
+      a_8 AS a_2,
+      a_10 AS a_4,
+      a_9 AS a_3
+    NEXT
+    MATCH
+      (a_11 IS Person)
+      -[a_12 IS (% | ! %)]->
+      (a_13 IS Account)
+      WHERE
+        (a_13 = a_4) AND (a_12 = a_3) AND (a_11 = a_2)
+    RETURN DISTINCT
+      a_11.name AS a_14,
+      COUNT(DISTINCT a_11.id) AS a_15,
+      ARRAY_AGG(a_13.id)[OFFSET(0)] AS a_16
+    GROUP BY a_11.name
+  ) AS aml_1
+|> SELECT
+     aml_1.a_14 AS name,
+     aml_1.a_15 AS distinct_ids,
+     aml_1.a_16 AS first_acc_id;
+==
+
+# SQLBuilder test for GQL set op after NEXT.
+select name, distinct_ids, first_acc_id
+from
+graph_table(aml
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN distinct p.name as name, COUNT(DISTINCT p.id) as distinct_ids, ARRAY_AGG(a.id)[OFFSET(0)] AS first_acc_id
+    GROUP BY name
+
+  NEXT
+
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN *
+  UNION ALL
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN p, a, e, "Alice" AS name, 1 AS distinct_ids, 100 AS first_acc_id
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_set_op.name#29 AS name [STRING]
+| +-$graph_set_op.distinct_ids#30 AS distinct_ids [INT64]
+| +-$graph_set_op.first_acc_id#31 AS first_acc_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_set_op.[name#29, distinct_ids#30, first_acc_id#31]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_set_op.[name#29, distinct_ids#30, first_acc_id#31, p#32, e#33, a#34]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_set_op.[name#29, distinct_ids#30, first_acc_id#31, p#32, e#33, a#34]
+            +-scan_list=
+              +-GraphLinearScan
+              | +-column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10]
+              | +-scan_list=
+              |   +-GraphScan
+              |   | +-column_list=$element_table.[p#1, e#2, a#3]
+              |   | +-input_scan_list=
+              |   | | +-GraphPathScan
+              |   | |   +-column_list=$element_table.[p#1, e#2, a#3]
+              |   | |   +-input_scan_list=
+              |   | |   | +-GraphNodeScan
+              |   | |   | | +-column_list=[$element_table.p#1]
+              |   | |   | | +-label_expr=
+              |   | |   | | | +-GraphLabel(parse_location=72-78, label=aml.Person)
+              |   | |   | | +-target_element_table_list=[aml.Person]
+              |   | |   | +-GraphEdgeScan
+              |   | |   | | +-column_list=[$element_table.e#2]
+              |   | |   | | +-label_expr=
+              |   | |   | | | +-GraphLabelNaryExpr
+              |   | |   | | |   +-op=OR
+              |   | |   | | |   +-operand_list=
+              |   | |   | | |     +-GraphWildCardLabel
+              |   | |   | | |     +-GraphLabelNaryExpr
+              |   | |   | | |       +-op=NOT
+              |   | |   | | |       +-operand_list=
+              |   | |   | | |         +-GraphWildCardLabel
+              |   | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+              |   | |   | | +-orientation=RIGHT
+              |   | |   | +-GraphNodeScan
+              |   | |   |   +-column_list=[$element_table.a#3]
+              |   | |   |   +-label_expr=
+              |   | |   |   | +-GraphLabel(parse_location=88-95, label=aml.Account)
+              |   | |   |   +-target_element_table_list=[aml.Account]
+              |   | |   +-head=$element_table.p#1
+              |   | |   +-tail=$element_table.a#3
+              |   | +-input_scan=
+              |   |   +-SingleRowScan
+              |   +-AggregateScan
+              |     +-column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10]
+              |     +-input_scan=
+              |     | +-ProjectScan
+              |     |   +-column_list=$graph_table.[name#6, distinct_ids#4, $agg2#5, first_acc_id#7]
+              |     |   +-expr_list=
+              |     |   | +-first_acc_id#7 :=
+              |     |   |   +-FunctionCall(GoogleSQL:$array_at_offset(ARRAY<INT64>, INT64) -> INT64)
+              |     |   |     +-ColumnRef(type=ARRAY<INT64>, column=$graph_table.$agg2#5)
+              |     |   |     +-Literal(type=INT64, value=0)
+              |     |   +-input_scan=
+              |     |     +-AggregateScan
+              |     |       +-column_list=$graph_table.[name#6, distinct_ids#4, $agg2#5]
+              |     |       +-input_scan=
+              |     |       | +-GraphRefScan(column_list=$element_table.[p#1, e#2, a#3])
+              |     |       +-group_by_list=
+              |     |       | +-name#6 :=
+              |     |       |   +-GraphGetElementProperty
+              |     |       |     +-type=STRING
+              |     |       |     +-expr=
+              |     |       |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+              |     |       |     +-property=name(STRING)
+              |     |       +-aggregate_list=
+              |     |         +-distinct_ids#4 :=
+              |     |         | +-AggregateFunctionCall(GoogleSQL:count(INT64) -> INT64)
+              |     |         |   +-GraphGetElementProperty
+              |     |         |   | +-type=INT64
+              |     |         |   | +-expr=
+              |     |         |   | | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+              |     |         |   | +-property=id(INT64)
+              |     |         |   +-distinct=TRUE
+              |     |         +-$agg2#5 :=
+              |     |           +-AggregateFunctionCall(GoogleSQL:array_agg(INT64) -> ARRAY<INT64>)
+              |     |             +-GraphGetElementProperty
+              |     |               +-type=INT64
+              |     |               +-expr=
+              |     |               | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#3)
+              |     |               +-property=id(INT64)
+              |     +-group_by_list=
+              |       +-name#8 := ColumnRef(type=STRING, column=$graph_table.name#6)
+              |       +-distinct_ids#9 := ColumnRef(type=INT64, column=$graph_table.distinct_ids#4)
+              |       +-first_acc_id#10 := ColumnRef(type=INT64, column=$graph_table.first_acc_id#7)
+              +-SetOperationScan
+                +-column_list=$graph_set_op.[name#29, distinct_ids#30, first_acc_id#31, p#32, e#33, a#34]
+                +-op_type=UNION_ALL
+                +-input_item_list=
+                | +-SetOperationItem
+                | | +-scan=
+                | | | +-GraphLinearScan
+                | | |   +-column_list=$graph_table.[name#14, distinct_ids#15, first_acc_id#16, p#17, e#18, a#19]
+                | | |   +-scan_list=
+                | | |     +-GraphScan
+                | | |     | +-column_list=[$graph_table.name#8, $graph_table.distinct_ids#9, $graph_table.first_acc_id#10, $element_table.p#11, $element_table.e#12, $element_table.a#13]
+                | | |     | +-input_scan_list=
+                | | |     | | +-GraphPathScan
+                | | |     | |   +-column_list=$element_table.[p#11, e#12, a#13]
+                | | |     | |   +-input_scan_list=
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   | | +-column_list=[$element_table.p#11]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabel(parse_location=250-256, label=aml.Person)
+                | | |     | |   | | +-target_element_table_list=[aml.Person]
+                | | |     | |   | +-GraphEdgeScan
+                | | |     | |   | | +-column_list=[$element_table.e#12]
+                | | |     | |   | | +-label_expr=
+                | | |     | |   | | | +-GraphLabelNaryExpr
+                | | |     | |   | | |   +-op=OR
+                | | |     | |   | | |   +-operand_list=
+                | | |     | |   | | |     +-GraphWildCardLabel
+                | | |     | |   | | |     +-GraphLabelNaryExpr
+                | | |     | |   | | |       +-op=NOT
+                | | |     | |   | | |       +-operand_list=
+                | | |     | |   | | |         +-GraphWildCardLabel
+                | | |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                | | |     | |   | | +-orientation=RIGHT
+                | | |     | |   | +-GraphNodeScan
+                | | |     | |   |   +-column_list=[$element_table.a#13]
+                | | |     | |   |   +-label_expr=
+                | | |     | |   |   | +-GraphLabel(parse_location=266-273, label=aml.Account)
+                | | |     | |   |   +-target_element_table_list=[aml.Account]
+                | | |     | |   +-head=$element_table.p#11
+                | | |     | |   +-tail=$element_table.a#13
+                | | |     | +-input_scan=
+                | | |     |   +-GraphRefScan(column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10])
+                | | |     +-ProjectScan
+                | | |       +-column_list=$graph_table.[name#14, distinct_ids#15, first_acc_id#16, p#17, e#18, a#19]
+                | | |       +-expr_list=
+                | | |       | +-name#14 := ColumnRef(type=STRING, column=$graph_table.name#8)
+                | | |       | +-distinct_ids#15 := ColumnRef(type=INT64, column=$graph_table.distinct_ids#9)
+                | | |       | +-first_acc_id#16 := ColumnRef(type=INT64, column=$graph_table.first_acc_id#10)
+                | | |       | +-p#17 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#11)
+                | | |       | +-e#18 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#12)
+                | | |       | +-a#19 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#13)
+                | | |       +-input_scan=
+                | | |         +-GraphRefScan(column_list=[$graph_table.name#8, $graph_table.distinct_ids#9, $graph_table.first_acc_id#10, $element_table.p#11, $element_table.e#12, $element_table.a#13])
+                | | +-output_column_list=$graph_table.[name#14, distinct_ids#15, first_acc_id#16, p#17, e#18, a#19]
+                | +-SetOperationItem
+                |   +-scan=
+                |   | +-GraphLinearScan
+                |   |   +-column_list=$graph_table.[name#26, distinct_ids#27, first_acc_id#28, p#23, e#25, a#24]
+                |   |   +-scan_list=
+                |   |     +-GraphScan
+                |   |     | +-column_list=[$graph_table.name#8, $graph_table.distinct_ids#9, $graph_table.first_acc_id#10, $element_table.p#20, $element_table.e#21, $element_table.a#22]
+                |   |     | +-input_scan_list=
+                |   |     | | +-GraphPathScan
+                |   |     | |   +-column_list=$element_table.[p#20, e#21, a#22]
+                |   |     | |   +-input_scan_list=
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   | | +-column_list=[$element_table.p#20]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabel(parse_location=309-315, label=aml.Person)
+                |   |     | |   | | +-target_element_table_list=[aml.Person]
+                |   |     | |   | +-GraphEdgeScan
+                |   |     | |   | | +-column_list=[$element_table.e#21]
+                |   |     | |   | | +-label_expr=
+                |   |     | |   | | | +-GraphLabelNaryExpr
+                |   |     | |   | | |   +-op=OR
+                |   |     | |   | | |   +-operand_list=
+                |   |     | |   | | |     +-GraphWildCardLabel
+                |   |     | |   | | |     +-GraphLabelNaryExpr
+                |   |     | |   | | |       +-op=NOT
+                |   |     | |   | | |       +-operand_list=
+                |   |     | |   | | |         +-GraphWildCardLabel
+                |   |     | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                |   |     | |   | | +-orientation=RIGHT
+                |   |     | |   | +-GraphNodeScan
+                |   |     | |   |   +-column_list=[$element_table.a#22]
+                |   |     | |   |   +-label_expr=
+                |   |     | |   |   | +-GraphLabel(parse_location=325-332, label=aml.Account)
+                |   |     | |   |   +-target_element_table_list=[aml.Account]
+                |   |     | |   +-head=$element_table.p#20
+                |   |     | |   +-tail=$element_table.a#22
+                |   |     | +-input_scan=
+                |   |     |   +-GraphRefScan(column_list=$graph_table.[name#8, distinct_ids#9, first_acc_id#10])
+                |   |     +-ProjectScan
+                |   |       +-column_list=$graph_table.[p#23, a#24, e#25, name#26, distinct_ids#27, first_acc_id#28]
+                |   |       +-expr_list=
+                |   |       | +-p#23 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#20)
+                |   |       | +-a#24 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#22)
+                |   |       | +-e#25 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#21)
+                |   |       | +-name#26 := Literal(type=STRING, value="Alice")
+                |   |       | +-distinct_ids#27 := Literal(type=INT64, value=1)
+                |   |       | +-first_acc_id#28 := Literal(type=INT64, value=100)
+                |   |       +-input_scan=
+                |   |         +-GraphRefScan(column_list=[$graph_table.name#8, $graph_table.distinct_ids#9, $graph_table.first_acc_id#10, $element_table.p#20, $element_table.e#21, $element_table.a#22])
+                |   +-output_column_list=$graph_table.[name#26, distinct_ids#27, first_acc_id#28, p#23, e#25, a#24]
+                +-column_match_mode=CORRESPONDING
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  graphtablescan_20.a_8 AS name,
+  graphtablescan_20.a_9 AS distinct_ids,
+  graphtablescan_20.a_10 AS first_acc_id
+FROM
+  (
+    SELECT
+      aml_1.a_11 AS a_11,
+      aml_1.a_13 AS a_13,
+      aml_1.a_12 AS a_12,
+      aml_1.a_8 AS a_8,
+      aml_1.a_9 AS a_9,
+      aml_1.a_10 AS a_10
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_2 IS Person)
+          -[a_3 IS (% | ! %)]->
+          (a_4 IS Account)
+        RETURN DISTINCT
+          a_2.name AS a_5,
+          COUNT(DISTINCT a_2.id) AS a_6,
+          ARRAY_AGG(a_4.id)[OFFSET(0)] AS a_7
+        GROUP BY a_2.name
+        NEXT
+        MATCH
+          (a_14 IS Person)
+          -[a_15 IS (% | ! %)]->
+          (a_16 IS Account)
+        RETURN
+          a_5 AS a_8,
+          a_6 AS a_9,
+          a_7 AS a_10,
+          a_14 AS a_11,
+          a_15 AS a_12,
+          a_16 AS a_13
+        UNION ALL
+        MATCH
+          (a_17 IS Person)
+          -[a_18 IS (% | ! %)]->
+          (a_19 IS Account)
+        RETURN
+          a_17 AS a_11,
+          a_19 AS a_13,
+          a_18 AS a_12,
+          "Alice" AS a_8,
+          1 AS a_9,
+          100 AS a_10
+      ) AS aml_1
+  ) AS graphtablescan_20;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
+    RETURN DISTINCT
+      a_2.name AS a_5,
+      COUNT(DISTINCT a_2.id) AS a_6,
+      ARRAY_AGG(a_4.id)[OFFSET(0)] AS a_7
+    GROUP BY a_2.name
+    NEXT
+    MATCH
+      (a_14 IS Person)
+      -[a_15 IS (% | ! %)]->
+      (a_16 IS Account)
+    RETURN
+      a_5 AS a_8,
+      a_6 AS a_9,
+      a_7 AS a_10,
+      a_14 AS a_11,
+      a_15 AS a_12,
+      a_16 AS a_13
+    UNION ALL
+    MATCH
+      (a_17 IS Person)
+      -[a_18 IS (% | ! %)]->
+      (a_19 IS Account)
+    RETURN
+      a_17 AS a_11,
+      a_19 AS a_13,
+      a_18 AS a_12,
+      "Alice" AS a_8,
+      1 AS a_9,
+      100 AS a_10
+  ) AS aml_1
+|> SELECT
+     aml_1.a_11 AS a_11,
+     aml_1.a_13 AS a_13,
+     aml_1.a_12 AS a_12,
+     aml_1.a_8 AS a_8,
+     aml_1.a_9 AS a_9,
+     aml_1.a_10 AS a_10
+|> AS graphtablescan_20
+|> SELECT
+     graphtablescan_20.a_8 AS name,
+     graphtablescan_20.a_9 AS distinct_ids,
+     graphtablescan_20.a_10 AS first_acc_id;
+==
+
+# Repro for b/330730443
+# SQLBuilder test for GQL RETURN * and ORDER BY.
+SELECT p.name AS person_name, a.id AS account_id
+FROM graph_table(aml
+  MATCH (p:Person)-[e]->(a:Account)
+  RETURN *
+  ORDER BY p.name, a.id
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$query.person_name#9 AS person_name [STRING]
+| +-$query.account_id#10 AS account_id [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[person_name#9, account_id#10]
+    +-expr_list=
+    | +-person_name#9 :=
+    | | +-GraphGetElementProperty
+    | |   +-type=STRING
+    | |   +-expr=
+    | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$graph_table.p#4)
+    | |   +-property=name(STRING)
+    | +-account_id#10 :=
+    |   +-GraphGetElementProperty
+    |     +-type=INT64
+    |     +-expr=
+    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_table.a#6)
+    |     +-property=id(INT64)
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[p#4, e#5, a#6]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_table.[p#4, e#5, a#6]
+            +-scan_list=
+              +-GraphLinearScan
+                +-column_list=$graph_table.[p#4, e#5, a#6]
+                +-scan_list=
+                  +-GraphScan
+                  | +-column_list=$element_table.[p#1, e#2, a#3]
+                  | +-input_scan_list=
+                  | | +-GraphPathScan
+                  | |   +-column_list=$element_table.[p#1, e#2, a#3]
+                  | |   +-input_scan_list=
+                  | |   | +-GraphNodeScan
+                  | |   | | +-column_list=[$element_table.p#1]
+                  | |   | | +-label_expr=
+                  | |   | | | +-GraphLabel(parse_location=81-87, label=aml.Person)
+                  | |   | | +-target_element_table_list=[aml.Person]
+                  | |   | +-GraphEdgeScan
+                  | |   | | +-column_list=[$element_table.e#2]
+                  | |   | | +-label_expr=
+                  | |   | | | +-GraphLabelNaryExpr
+                  | |   | | |   +-op=OR
+                  | |   | | |   +-operand_list=
+                  | |   | | |     +-GraphWildCardLabel
+                  | |   | | |     +-GraphLabelNaryExpr
+                  | |   | | |       +-op=NOT
+                  | |   | | |       +-operand_list=
+                  | |   | | |         +-GraphWildCardLabel
+                  | |   | | +-target_element_table_list=[aml.PersonOwnAccount,aml.Transfer]
+                  | |   | | +-orientation=RIGHT
+                  | |   | +-GraphNodeScan
+                  | |   |   +-column_list=[$element_table.a#3]
+                  | |   |   +-label_expr=
+                  | |   |   | +-GraphLabel(parse_location=97-104, label=aml.Account)
+                  | |   |   +-target_element_table_list=[aml.Account]
+                  | |   +-head=$element_table.p#1
+                  | |   +-tail=$element_table.a#3
+                  | +-input_scan=
+                  |   +-SingleRowScan
+                  +-OrderByScan
+                    +-column_list=$graph_table.[p#4, e#5, a#6]
+                    +-is_ordered=TRUE
+                    +-input_scan=
+                    | +-ProjectScan
+                    |   +-column_list=[$element_table.p#1, $element_table.e#2, $element_table.a#3, $graph_table.p#4, $graph_table.e#5, $graph_table.a#6, $orderby.$orderbycol1#7, $orderby.$orderbycol2#8]
+                    |   +-expr_list=
+                    |   | +-$orderbycol1#7 :=
+                    |   | | +-GraphGetElementProperty
+                    |   | |   +-type=STRING
+                    |   | |   +-expr=
+                    |   | |   | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$graph_table.p#4)
+                    |   | |   +-property=name(STRING)
+                    |   | +-$orderbycol2#8 :=
+                    |   |   +-GraphGetElementProperty
+                    |   |     +-type=INT64
+                    |   |     +-expr=
+                    |   |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_table.a#6)
+                    |   |     +-property=id(INT64)
+                    |   +-input_scan=
+                    |     +-ProjectScan
+                    |       +-column_list=[$element_table.p#1, $element_table.e#2, $element_table.a#3, $graph_table.p#4, $graph_table.e#5, $graph_table.a#6]
+                    |       +-expr_list=
+                    |       | +-p#4 := ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.p#1)
+                    |       | +-e#5 := ColumnRef(type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, personId INT64, targetAccountId INT64>, column=$element_table.e#2)
+                    |       | +-a#6 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#3)
+                    |       +-input_scan=
+                    |         +-GraphRefScan(column_list=$element_table.[p#1, e#2, a#3])
+                    +-order_by_item_list=
+                      +-OrderByItem
+                      | +-column_ref=
+                      |   +-ColumnRef(type=STRING, column=$orderby.$orderbycol1#7)
+                      +-OrderByItem
+                        +-column_ref=
+                          +-ColumnRef(type=INT64, column=$orderby.$orderbycol2#8)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  graphtablescan_8.a_5.name AS person_name,
+  graphtablescan_8.a_7.id AS account_id
+FROM
+  (
+    SELECT
+      aml_1.a_5 AS a_5,
+      aml_1.a_6 AS a_6,
+      aml_1.a_7 AS a_7
+    FROM
+      GRAPH_TABLE(
+        aml
+        MATCH
+          (a_2 IS Person)
+          -[a_3 IS (% | ! %)]->
+          (a_4 IS Account)
+        RETURN
+          a_2 AS a_5,
+          a_3 AS a_6,
+          a_4 AS a_7
+        ORDER BY a_2.name, a_4.id
+      ) AS aml_1
+  ) AS graphtablescan_8;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+      -[a_3 IS (% | ! %)]->
+      (a_4 IS Account)
+    RETURN
+      a_2 AS a_5,
+      a_3 AS a_6,
+      a_4 AS a_7
+    ORDER BY a_2.name, a_4.id
+  ) AS aml_1
+|> SELECT
+     aml_1.a_5 AS a_5,
+     aml_1.a_6 AS a_6,
+     aml_1.a_7 AS a_7
+|> AS graphtablescan_8
+|> SELECT
+     graphtablescan_8.a_5.name AS person_name,
+     graphtablescan_8.a_7.id AS account_id;
+==
+
+# Repro for b/330730443
+# SQLBuilder test for GQL RETURN * and ORDER BY.
+SELECT *
+FROM graph_table(aml
+  RETURN 1 AS a, COUNT(1) AS c
+  GROUP BY a
+  NEXT
+  RETURN *
+  ORDER BY a, c
+) gt
+--
+QueryStmt
++-output_column_list=
+| +-$graph_table.a#3 AS a [INT64]
+| +-$graph_table.c#4 AS c [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[a#3, c#4]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[a#3, c#4]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_table.[a#3, c#4]
+            +-scan_list=
+              +-GraphLinearScan
+              | +-column_list=$graph_table.[a#2, c#1]
+              | +-scan_list=
+              |   +-ProjectScan
+              |     +-column_list=$graph_table.[a#2, c#1]
+              |     +-input_scan=
+              |       +-AggregateScan
+              |         +-column_list=$graph_table.[a#2, c#1]
+              |         +-input_scan=
+              |         | +-SingleRowScan
+              |         +-group_by_list=
+              |         | +-a#2 := Literal(type=INT64, value=1)
+              |         +-aggregate_list=
+              |           +-c#1 :=
+              |             +-AggregateFunctionCall(GoogleSQL:count(INT64) -> INT64)
+              |               +-Literal(type=INT64, value=1)
+              +-GraphLinearScan
+                +-column_list=$graph_table.[a#3, c#4]
+                +-scan_list=
+                  +-OrderByScan
+                    +-column_list=$graph_table.[a#3, c#4]
+                    +-is_ordered=TRUE
+                    +-input_scan=
+                    | +-ProjectScan
+                    |   +-column_list=$graph_table.[a#2, c#1, a#3, c#4]
+                    |   +-expr_list=
+                    |   | +-a#3 := ColumnRef(type=INT64, column=$graph_table.a#2)
+                    |   | +-c#4 := ColumnRef(type=INT64, column=$graph_table.c#1)
+                    |   +-input_scan=
+                    |     +-GraphRefScan(column_list=$graph_table.[a#2, c#1])
+                    +-order_by_item_list=
+                      +-OrderByItem
+                      | +-column_ref=
+                      |   +-ColumnRef(type=INT64, column=$graph_table.a#3)
+                      +-OrderByItem
+                        +-column_ref=
+                          +-ColumnRef(type=INT64, column=$graph_table.c#4)
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  aml_1.a_4 AS a,
+  aml_1.a_5 AS c
+FROM
+  GRAPH_TABLE(
+    aml
+    RETURN
+      1 AS a_2,
+      COUNT(1) AS a_3
+    GROUP BY a_2
+    NEXT
+    RETURN
+      a_2 AS a_4,
+      a_3 AS a_5
+    ORDER BY a_4, a_5
+  ) AS aml_1;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    RETURN
+      1 AS a_2,
+      COUNT(1) AS a_3
+    GROUP BY a_2
+    NEXT
+    RETURN
+      a_2 AS a_4,
+      a_3 AS a_5
+    ORDER BY a_4, a_5
+  ) AS aml_1
+|> SELECT
+     aml_1.a_4 AS a,
+     aml_1.a_5 AS c;
+==
+
+# SQLBuilder test: verify column order preservation in GQL NEXT (repro for bug)
+select gt.* from
+graph_table(aml
+  match (n:Person)
+  return n.name as name_val, COUNT(n) as count_val
+    group by name_val
+  next
+  return name_val, count_val
+) gt
+--
+
+
+QueryStmt
++-output_column_list=
+| +-$graph_table.name_val#4 AS name_val [STRING]
+| +-$graph_table.count_val#5 AS count_val [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=$graph_table.[name_val#4, count_val#5]
+    +-input_scan=
+      +-GraphTableScan
+        +-column_list=$graph_table.[name_val#4, count_val#5]
+        +-property_graph=aml
+        +-input_scan=
+          +-GraphLinearScan
+            +-column_list=$graph_table.[name_val#4, count_val#5]
+            +-scan_list=
+              +-GraphLinearScan
+              | +-column_list=$graph_table.[name_val#3, count_val#2]
+              | +-scan_list=
+              |   +-GraphScan
+              |   | +-column_list=[$element_table.n#1]
+              |   | +-input_scan_list=
+              |   | | +-GraphPathScan
+              |   | |   +-column_list=[$element_table.n#1]
+              |   | |   +-input_scan_list=
+              |   | |   | +-GraphNodeScan
+              |   | |   |   +-column_list=[$element_table.n#1]
+              |   | |   |   +-label_expr=
+              |   | |   |   | +-GraphLabel(parse_location=44-50, label=aml.Person)
+              |   | |   |   +-target_element_table_list=[aml.Person]
+              |   | |   +-head=$element_table.n#1
+              |   | |   +-tail=$element_table.n#1
+              |   | +-input_scan=
+              |   |   +-SingleRowScan
+              |   +-ProjectScan
+              |     +-column_list=$graph_table.[name_val#3, count_val#2]
+              |     +-input_scan=
+              |       +-AggregateScan
+              |         +-column_list=$graph_table.[name_val#3, count_val#2]
+              |         +-input_scan=
+              |         | +-GraphRefScan(column_list=[$element_table.n#1])
+              |         +-group_by_list=
+              |         | +-name_val#3 :=
+              |         |   +-GraphGetElementProperty
+              |         |     +-type=STRING
+              |         |     +-expr=
+              |         |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n#1)
+              |         |     +-property=name(STRING)
+              |         +-aggregate_list=
+              |           +-count_val#2 :=
+              |             +-AggregateFunctionCall(GoogleSQL:count(GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>) -> INT64)
+              |               +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n#1)
+              +-GraphLinearScan
+                +-column_list=$graph_table.[name_val#4, count_val#5]
+                +-scan_list=
+                  +-ProjectScan
+                    +-column_list=$graph_table.[name_val#4, count_val#5]
+                    +-expr_list=
+                    | +-name_val#4 := ColumnRef(type=STRING, column=$graph_table.name_val#3)
+                    | +-count_val#5 := ColumnRef(type=INT64, column=$graph_table.count_val#2)
+                    +-input_scan=
+                      +-GraphRefScan(column_list=$graph_table.[name_val#3, count_val#2])
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+SELECT
+  aml_1.a_5 AS name_val,
+  aml_1.a_6 AS count_val
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+    RETURN
+      a_2.name AS a_3,
+      COUNT(a_2) AS a_4
+    GROUP BY a_3
+    NEXT
+    RETURN
+      a_3 AS a_5,
+      a_4 AS a_6
+  ) AS aml_1;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+FROM
+  GRAPH_TABLE(
+    aml
+    MATCH
+      (a_2 IS Person)
+    RETURN
+      a_2.name AS a_3,
+      COUNT(a_2) AS a_4
+    GROUP BY a_3
+    NEXT
+    RETURN
+      a_3 AS a_5,
+      a_4 AS a_6
+  ) AS aml_1
+|> SELECT
+     aml_1.a_5 AS name_val,
+     aml_1.a_6 AS count_val;

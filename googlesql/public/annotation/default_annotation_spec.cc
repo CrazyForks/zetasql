@@ -149,38 +149,38 @@ absl::Status DefaultAnnotationSpec::CheckAndPropagateForFunctionCallBase(
   const FunctionSignature& signature = function_call.signature();
   GOOGLESQL_RET_CHECK(signature.IsConcrete());
 
-  // TODO: Replace this with the actual propagation logic for each
-  // function.
-  switch (signature.context_id()) {
-    // Graph functions:
-    case FN_PATH_NODES:
-    case FN_PATH_EDGES:
-    case FN_PATH_FIRST:
-    case FN_PATH_LAST:
-    case FN_PATH_CREATE:
-    case FN_UNCHECKED_PATH_CREATE:
-    case FN_CONCAT_PATH:
-    case FN_UNCHECKED_CONCAT_PATH: {
-      for (const auto& arg : function_call.argument_list()) {
-        if (arg->IsExpression() && arg->type_annotation_map() != nullptr &&
-            !arg->type_annotation_map()->Empty()) {
-          return MakeSqlError()
-                 << "Annotation propagation is not supported for function "
-                 << function_call.function()->Name();
-        }
-      }
-      return absl::OkStatus();
-    }
-    default:
-      break;
-  }
-
   // This map contains only the root templated kinds, (ARG_KIND_EXPR_ANY_1,
   // ARG_KIND_EXPR_ANY_2, ..etc) but not the related kinds like
   // ARG_KIND_EXPR_ARRAY_ANY_1. Nor ARBITRARY either, since arbitrary types
   // are unrelated to each other.
   absl::flat_hash_map<SignatureArgumentKind, std::unique_ptr<AnnotationMap>>
       merging_map;
+
+  if (function_call.function()->IsGoogleSQLBuiltin()) {
+    // TODO: Migrate these to use
+    // compute_result_annotations_callback.
+    switch (signature.context_id()) {
+      case FN_PATH_NODES:
+        return PropagateForPathExtraction(
+            function_call, GraphElementType::kNode,
+            result_annotation_map->AsStructMap()->mutable_field(0));
+      case FN_PATH_EDGES:
+        return PropagateForPathExtraction(
+            function_call, GraphElementType::kEdge,
+            result_annotation_map->AsStructMap()->mutable_field(0));
+      case FN_PATH_FIRST:
+      case FN_PATH_LAST:
+        return PropagateForPathExtraction(
+            function_call, GraphElementType::kNode, result_annotation_map);
+      case FN_PATH_CREATE:
+      case FN_UNCHECKED_PATH_CREATE:
+      case FN_CONCAT_PATH:
+      case FN_UNCHECKED_CONCAT_PATH:
+        return PropagateForPathCreation(function_call, result_annotation_map);
+      default:
+        break;
+    }
+  }
 
   // First pass, we collect annotations from all expression arguments.
   for (int i = 0; i < signature.NumConcreteArguments(); ++i) {
@@ -274,6 +274,28 @@ absl::Status DefaultAnnotationSpec::CheckAndPropagateForMakeStruct(
     GOOGLESQL_RETURN_IF_ERROR(
         MergeAnnotations(make_struct.field_list(i)->type_annotation_map(),
                          *result_annotation_map->mutable_field(i)));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status DefaultAnnotationSpec::CheckAndPropagateForMakeMap(
+    const ResolvedMakeMap& make_map,
+    StructAnnotationMap* result_annotation_map) {
+  if (result_annotation_map == nullptr) {
+    return absl::OkStatus();
+  }
+  GOOGLESQL_RET_CHECK_EQ(result_annotation_map->num_fields(), 2);
+  for (const auto& entry : make_map.entry_list()) {
+    if (entry->key()->type_annotation_map() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(
+          MergeAnnotations(entry->key()->type_annotation_map(),
+                           *result_annotation_map->mutable_field(0)));
+    }
+    if (entry->value()->type_annotation_map() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(
+          MergeAnnotations(entry->value()->type_annotation_map(),
+                           *result_annotation_map->mutable_field(1)));
+    }
   }
   return absl::OkStatus();
 }
@@ -403,4 +425,53 @@ std::string DefaultAnnotationSpec::Name() const {
     return absl::StrCat("Annotation[", std::to_string(Id()), "]");
   }
 }
+
+absl::Status DefaultAnnotationSpec::PropagateForPathExtraction(
+    const ResolvedFunctionCallBase& function_call,
+    GraphElementType::ElementKind element_kind, AnnotationMap* dest_map) const {
+  GOOGLESQL_RET_CHECK_EQ(function_call.argument_list_size(), 1);
+  const auto* arg0 = function_call.argument_list(0);
+  const AnnotationMap* arg_map = arg0->type_annotation_map();
+  if (arg_map != nullptr && arg_map->IsStructMap()) {
+    int src_field_index = (element_kind == GraphElementType::kNode) ? 0 : 1;
+    return MergeAnnotations(arg_map->AsStructMap()->field(src_field_index),
+                            *dest_map);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status DefaultAnnotationSpec::PropagateForPathCreation(
+    const ResolvedFunctionCallBase& function_call,
+    AnnotationMap* result_annotation_map) const {
+  GOOGLESQL_RET_CHECK(result_annotation_map->IsStructMap());
+  auto* node_result_map =
+      result_annotation_map->AsStructMap()->mutable_field(0);
+  auto* edge_result_map =
+      result_annotation_map->AsStructMap()->mutable_field(1);
+
+  if (function_call.signature().context_id() == FN_CONCAT_PATH ||
+      function_call.signature().context_id() == FN_UNCHECKED_CONCAT_PATH) {
+    for (const auto& arg : function_call.argument_list()) {
+      const AnnotationMap* arg_map = arg->type_annotation_map();
+      if (arg_map == nullptr || !arg_map->IsStructMap()) continue;
+      GOOGLESQL_RETURN_IF_ERROR(
+          MergeAnnotations(arg_map->AsStructMap()->field(0), *node_result_map));
+      GOOGLESQL_RETURN_IF_ERROR(
+          MergeAnnotations(arg_map->AsStructMap()->field(1), *edge_result_map));
+    }
+  } else {
+    for (int i = 0; i < function_call.argument_list_size(); ++i) {
+      const auto* arg = function_call.argument_list(i);
+      const AnnotationMap* arg_map = arg->type_annotation_map();
+      if (arg_map == nullptr) continue;
+      if (i % 2 == 0) {
+        GOOGLESQL_RETURN_IF_ERROR(MergeAnnotations(arg_map, *node_result_map));
+      } else {
+        GOOGLESQL_RETURN_IF_ERROR(MergeAnnotations(arg_map, *edge_result_map));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace googlesql

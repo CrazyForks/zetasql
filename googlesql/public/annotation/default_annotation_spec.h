@@ -74,6 +74,9 @@ class DefaultAnnotationSpec : public AnnotationSpec {
   absl::Status CheckAndPropagateForMakeStruct(
       const ResolvedMakeStruct& make_struct,
       StructAnnotationMap* result_annotation_map) override;
+  absl::Status CheckAndPropagateForMakeMap(
+      const ResolvedMakeMap& make_map,
+      StructAnnotationMap* result_annotation_map) override;
 
   // Drops all annotations as we are casting to a new type. Subclasses can
   // override this behavior if they want to annotate the output.
@@ -146,6 +149,15 @@ class DefaultAnnotationSpec : public AnnotationSpec {
       AnnotatedType annotated_type, SignatureArgumentKind original_kind,
       absl::flat_hash_map<SignatureArgumentKind,
                           std::unique_ptr<AnnotationMap>>& merging_map) const;
+
+ private:
+  absl::Status PropagateForPathExtraction(
+      const ResolvedFunctionCallBase& function_call,
+      GraphElementType::ElementKind element_kind,
+      AnnotationMap* dest_map) const;
+  absl::Status PropagateForPathCreation(
+      const ResolvedFunctionCallBase& function_call,
+      AnnotationMap* result_annotation_map) const;
 };
 
 // Helper function to retrieve argument `i` from `function_call`, removing

@@ -30,6 +30,7 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/types/type_parameters.h"
+#include "absl/base/nullability.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
@@ -304,8 +305,9 @@ class ProtoType : public Type {
 
   // Does not take ownership of <factory> or <descriptor>.  The <descriptor>
   // must outlive the type.
-  ProtoType(const TypeFactory* factory, const google::protobuf::Descriptor* descriptor,
-            const internal::CatalogName* catalog_name);
+  ProtoType(const TypeFactory& factory,
+            const google::protobuf::Descriptor* /*absl_nonnull*/ descriptor,
+            const internal::CatalogName* /*absl_nullable*/ catalog_name);
   ~ProtoType() override;
 
   bool SupportsGroupingImpl(const LanguageOptions& language_options,

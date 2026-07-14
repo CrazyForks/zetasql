@@ -22,7 +22,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import com.google.googlesql.GoogleSQLOptions.ProductMode;
 import com.google.googlesql.GoogleSQLType.DeclarativeTypeProto;
-import org.junit.Assert;
+import com.google.googlesql.GoogleSQLType.TypeProto;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -89,9 +89,8 @@ public class DeclarativeTypeTest {
     assertThat(type1.equivalent(intType)).isFalse();
   }
 
-  // TODO: b/479854648 - Decide on supporting declarative types with returning.
   @Test
-  public void testDeclarativeTypeReturningDelegatedIsNotSupported() {
+  public void testDeclarativeTypeReturningDelegated() {
     TypeFactory factory = TypeFactory.uniqueNames();
 
     DeclarativeTypeDescriptor descriptor =
@@ -101,11 +100,11 @@ public class DeclarativeTypeTest {
             .setBackingType(TypeFactory.createSimpleType(GoogleSQLType.TypeKind.TYPE_INT64))
             .setReturningStrategy(DeclarativeTypeProto.ReturningStrategy.RETURNING_DELEGATED)
             .build();
-    IllegalArgumentException exception =
-        Assert.assertThrows(
-            IllegalArgumentException.class, () -> factory.createDeclarativeType(descriptor));
-
-    assertThat(exception).hasMessageThat().contains("Returning is not supported");
+    DeclarativeType declarativeType = factory.createDeclarativeType(descriptor);
+    TypeProto.Builder typeProtoBuilder = TypeProto.newBuilder();
+    declarativeType.serialize(typeProtoBuilder, new FileDescriptorSetsBuilder());
+    assertThat(typeProtoBuilder.getDeclarativeType().getReturningStrategy())
+        .isEqualTo(DeclarativeTypeProto.ReturningStrategy.RETURNING_DELEGATED);
   }
 
   @Test

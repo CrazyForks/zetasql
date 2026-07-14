@@ -226,9 +226,7 @@ class ValueContentOrderedListRef final
 class ProtoRep final
     : public googlesql_base::refcount::CompactReferenceCounted<ProtoRep, int64_t> {
  public:
-  ProtoRep(const ProtoType* type, absl::Cord value) : value_(std::move(value)) {
-    ABSL_CHECK(type != nullptr);
-  }
+  explicit ProtoRep(absl::Cord value) : value_(std::move(value)) {}
 
   ProtoRep(const ProtoRep&) = delete;
   ProtoRep& operator=(const ProtoRep&) = delete;
@@ -347,6 +345,29 @@ class StringRef final
 
  private:
   const std::string value_;
+};
+
+// -------------------------------------------------------
+// ValueContentRef is a ref count wrapper around ValueContent. It is used
+// for cases where the ValueContent is stored externally on the heap, such as
+// for declarative values whose backing type uses extended inline storage
+// (TIME and DATETIME) that cannot fit within Value::Metadata.
+// -------------------------------------------------------
+class ValueContentRef final
+    : public googlesql_base::refcount::CompactReferenceCounted<ValueContentRef, int64_t> {
+ public:
+  ValueContentRef() = default;
+  explicit ValueContentRef(const ValueContent& value) : value_(value) {}
+
+  ValueContentRef(const ValueContentRef&) = delete;
+  ValueContentRef& operator=(const ValueContentRef&) = delete;
+
+  const ValueContent& value() const { return value_; }
+
+  uint64_t physical_byte_size() const { return sizeof(ValueContentRef); }
+
+ private:
+  const ValueContent value_;
 };
 
 // -------------------------------------------------------

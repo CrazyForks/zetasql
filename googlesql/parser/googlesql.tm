@@ -480,6 +480,11 @@ KW_TIMESTAMP_IN_WITH_TIMESTAMP_AS_ALIAS:
 KW_REPLACE_AFTER_INSERT:
 KW_UPDATE_AFTER_INSERT:
 KW_FUNCTION_IN_TABLE_FUNCTION:
+// Emitted by the lookahead transformer in place of KW_TYPE when it directly
+// follows the GRAPH keyword in a CREATE/DROP PROPERTY GRAPH statement. This
+// disambiguates `CREATE PROPERTY GRAPH TYPE <name> ...` from a property graph
+// whose name is the (non-reserved) identifier `type`.
+KW_TYPE_IN_PROPERTY_GRAPH_TYPE:
 // This is a different token because using KW_NOT for BETWEEN/IN/LIKE would
 // confuse the operator precedence parsing. Boolean NOT has a different
 // precedence than NOT BETWEEN/IN/LIKE.
@@ -607,6 +612,7 @@ KW_ALIGN_NONRESERVED {absl::string_view}: /align/
 "COLUMN" (KW_COLUMN) {absl::string_view}: /column/
 "COLUMNS" (KW_COLUMNS) {absl::string_view}: /columns/
 "COMMIT" (KW_COMMIT) {absl::string_view}: /commit/
+"CONDITION" (KW_CONDITION) {absl::string_view}: /condition/
 "CONFLICT" (KW_CONFLICT) {absl::string_view}: /conflict/
 "CONNECTION" (KW_CONNECTION) {absl::string_view}: /connection/
 "CONTINUE" (KW_CONTINUE) {absl::string_view}: /continue/
@@ -615,6 +621,7 @@ KW_ALIGN_NONRESERVED {absl::string_view}: /align/
 "COST" (KW_COST) {absl::string_view}: /cost/
 "CYCLE" (KW_CYCLE) {absl::string_view}: /cycle/
 "DATA" (KW_DATA) {absl::string_view}: /data/
+"DATA_POLICY" (KW_DATA_POLICY) {absl::string_view}: /data_policy/
 "DATABASE" (KW_DATABASE) {absl::string_view}: /database/
 "DATE" (KW_DATE) {absl::string_view}: /date/
 "DATETIME" (KW_DATETIME) {absl::string_view}: /datetime/
@@ -788,6 +795,7 @@ KW_QUALIFY_NONRESERVED {absl::string_view}: /qualify/
 "TRANSACTION" (KW_TRANSACTION) {absl::string_view}: /transaction/
 "TRUNCATE" (KW_TRUNCATE) {absl::string_view}: /truncate/
 "TYPE" (KW_TYPE) {absl::string_view}: /type/
+"TYPES" (KW_TYPES) {absl::string_view}: /types/
 "UNDROP" (KW_UNDROP) {absl::string_view}: /undrop/
 "UNIQUE" (KW_UNIQUE) {absl::string_view}: /unique/
 "UNKNOWN" (KW_UNKNOWN) {absl::string_view}: /unknown/
@@ -1207,6 +1215,18 @@ catch_all: /./ -100 {
 // * path_expression occurs because of 'CREATE TABLE FUNCTION my.namespace...'
 %generate FollowsTableFunction = set("IF" | first path_expression);
 
+// The set of tokens that can follow the optional TYPE keyword in
+// "CREATE [OR REPLACE] PROPERTY GRAPH [TYPE] ...". In the no-eoi
+// next_statement_kind rule we need one more token after the optional
+// KW_TYPE_IN_PROPERTY_GRAPH_TYPE to disambiguate PROPERTY GRAPH from
+// PROPERTY GRAPH TYPE. Only the leading token of the graph name matters here,
+// so this is the FIRST set of `identifier` plus "IF":
+// * "IF" occurs because of 'CREATE PROPERTY GRAPH [TYPE] IF NOT EXISTS ...';
+//   "IF" is reserved, so it is not part of `first identifier`.
+// * `identifier` occurs because of 'CREATE PROPERTY GRAPH [TYPE] my.name...';
+//   a path_expression begins with an identifier, so its first token is enough.
+%generate FollowsGraph = set("IF" | first identifier);
+
 // The set of tokens that can follow a column schema definition. The column
 // schema includes a list of attributes wihtout a separator, so this is both
 // the token that start each of those attributes and also the tokens that can
@@ -1460,9 +1480,11 @@ sql_statement_body_no_pipe_suffix {ASTNode*}:
   | create_index_statement
   | create_privilege_restriction_statement
   | create_row_access_policy_statement
+  | create_data_policy_statement
   | create_sequence_statement
   | create_locality_group_statement
   | create_property_graph_statement
+  | create_property_graph_type_statement
   | create_schema_statement
   | create_external_schema_statement
   | create_snapshot_statement
@@ -1886,9 +1908,13 @@ schema_object_kind {SchemaObjectKind}:
     {
       $$ = SchemaObjectKind::kView;
     }
-  | "PROPERTY" "GRAPH"
+  | "PROPERTY" "GRAPH" .PropertyGraphType
     {
       $$ = SchemaObjectKind::kPropertyGraph;
+    }
+  | "PROPERTY" "GRAPH" .PropertyGraphType KW_TYPE_IN_PROPERTY_GRAPH_TYPE
+    {
+      $$ = SchemaObjectKind::kPropertyGraphType;
     }
 ;
 
@@ -2010,6 +2036,7 @@ alter_statement {ASTNode*}:
     {
       $$ = MakeNode<ASTAlterAllRowAccessPoliciesStatement>(@$, $7, $8);
     }
+  | alter_data_policy_statement
 ;
 
 // Uses table_element_list to reduce redundancy.
@@ -2557,6 +2584,92 @@ create_row_access_policy_statement {ASTNode*}:
     }
 ;
 
+create_data_policy_statement {ASTNode*}:
+    "CREATE" opt_or_replace[or_replace] "DATA_POLICY" opt_if_not_exists[if_not_exists]
+    path_expression[name]
+    opt_options_list[options]
+    opt_generic_entity_body
+    with_condition_clause?
+    {
+      if (language_options.LanguageFeatureEnabled(FEATURE_TAG_DATA_POLICY_DDL)) {
+        if ($opt_generic_entity_body != nullptr) {
+          return MakeSyntaxError(@opt_generic_entity_body, "AS clause is not supported for CREATE DATA_POLICY");
+        }
+        auto* node = MakeNode<ASTCreateDataPolicyStatement>(@$, $name, $options, $with_condition_clause);
+        node->set_is_or_replace($or_replace);
+        node->set_is_if_not_exists($if_not_exists);
+        $$ = node;
+      } else {
+        if ($with_condition_clause.value_or(nullptr) != nullptr) {
+          return MakeSyntaxError(@with_condition_clause, "WITH CONDITION is not supported.");
+        }
+        auto* entity_type = node_factory.MakeIdentifier(@3, "DATA_POLICY");
+        auto* node = MakeNode<ASTCreateEntityStatement>(@$,
+              entity_type,
+              $name,
+              $options,
+              $opt_generic_entity_body
+            );
+        node->set_is_or_replace($or_replace);
+        node->set_is_if_not_exists($if_not_exists);
+        $$ = node;
+      }
+    }
+;
+
+with_condition_clause {ASTExpression*}:
+    "WITH" "CONDITION" "(" expression ")"
+    {
+      $$ = $expression;
+    }
+;
+
+alter_data_policy_statement {ASTNode*}:
+    "ALTER" "DATA_POLICY" opt_if_exists[if_exists] path_expression[name]
+    data_policy_alter_action_list[actions]
+    {
+      if (language_options.LanguageFeatureEnabled(FEATURE_TAG_DATA_POLICY_DDL)) {
+        auto* node = MakeNode<ASTAlterDataPolicyStatement>(@$, $name, $actions);
+        node->set_is_if_exists($if_exists);
+        $$ = node;
+      } else {
+        // Check if there is any SET CONDITION action in the list.
+        const ASTAlterActionList* action_list = $actions->GetAsOrDie<ASTAlterActionList>();
+        for (const ASTAlterAction* action : action_list->actions()) {
+          if (action->node_kind() == AST_SET_CONDITION_ACTION) {
+            return MakeSyntaxError(action->location(), "SET CONDITION is not supported.");
+          }
+        }
+        auto* entity_type = node_factory.MakeIdentifier(@2, "DATA_POLICY");
+        auto* node = MakeNode<ASTAlterEntityStatement>(@$, entity_type, $name, $actions);
+        node->set_is_if_exists($if_exists);
+        $$ = node;
+      }
+    }
+;
+
+data_policy_alter_action_list {ASTNode*}:
+    data_policy_alter_action
+    {
+      $$ = MakeNode<ASTAlterActionList>(@$, $1);
+    }
+  | data_policy_alter_action_list "," data_policy_alter_action
+    {
+      $$ = ExtendNodeRight($1, $3);
+    }
+;
+
+data_policy_alter_action {ASTNode*}:
+    "SET" "CONDITION" "(" expression ")"
+    {
+      $$ = MakeNode<ASTSetConditionAction>(@$, $expression);
+    }
+  | "SET" "OPTIONS" options_list
+    {
+      $$ = MakeNode<ASTSetOptionsAction>(@$, $options_list);
+    }
+;
+
 with_partition_columns_clause {ASTNode*}:
     "WITH" "PARTITION" "COLUMNS" opt_table_element_list
     {
@@ -2727,7 +2840,7 @@ exists_graph_subquery {ASTExpressionSubquery*}:
 ;
 
 create_property_graph_statement {ASTNode*}:
-    "CREATE" opt_or_replace opt_create_scope "PROPERTY" "GRAPH"
+    "CREATE" opt_or_replace opt_create_scope "PROPERTY" "GRAPH" .PropertyGraphType
     opt_if_not_exists path_expression
     "NODE" "TABLES" element_table_list edge_table_clause? opt_options_list
     {
@@ -2742,6 +2855,93 @@ create_property_graph_statement {ASTNode*}:
         create->set_is_if_not_exists($opt_if_not_exists);
         create->set_scope($opt_create_scope);
         $$ = create;
+    }
+;
+
+create_property_graph_type_statement {ASTNode*}:
+    "CREATE" opt_or_replace opt_create_scope "PROPERTY" "GRAPH" .PropertyGraphType
+    KW_TYPE_IN_PROPERTY_GRAPH_TYPE
+    opt_if_not_exists path_expression
+    "NODE" "TYPES" element_type_list edge_type_clause? opt_options_list
+    {
+      ASTCreateStatement* create =
+            MakeNode<ASTCreatePropertyGraphTypeStatement>(@$,
+              $path_expression,
+              $element_type_list,
+              $edge_type_clause,
+              $opt_options_list
+            );
+        create->set_is_or_replace($opt_or_replace);
+        create->set_is_if_not_exists($opt_if_not_exists);
+        create->set_scope($opt_create_scope);
+        $$ = create;
+    }
+;
+
+element_type_list {ASTNode*}:
+    "(" ")"
+    {
+      $$ = MakeNode<ASTGraphElementTypeList>(@$);
+    }
+  | "(" (element_type_definition separator ",")+[defs] ","? ")"
+    {
+      $$ = MakeNode<ASTGraphElementTypeList>(@$, $defs);
+    }
+;
+
+edge_type_clause {ASTNode*}:
+    "EDGE" "TYPES" element_type_list
+    {
+      $$ = WithEndLocation($element_type_list, @$);
+    }
+;
+
+element_type_definition {ASTNode*}:
+    identifier
+    node_type_source_clause? node_type_dest_clause?
+    opt_options_list[default_label_options]
+    element_type_properties_clause?
+    {
+      $$ = MakeNode<ASTGraphElementType>(@$,
+          $identifier,
+          $node_type_source_clause,
+          $node_type_dest_clause,
+          $element_type_properties_clause,
+          $default_label_options
+        );
+    }
+;
+
+node_type_source_clause {ASTNode*}:
+    "FROM" identifier
+    {
+      auto* node_ref = MakeNode<ASTGraphNodeTypeReference>(@$, $identifier);
+      node_ref->set_node_reference_type(ASTGraphNodeTypeReference::SOURCE);
+      $$ = node_ref;
+    }
+;
+
+node_type_dest_clause {ASTNode*}:
+    "TO" identifier
+    {
+      auto* node_ref = MakeNode<ASTGraphNodeTypeReference>(@$, $identifier);
+      node_ref->set_node_reference_type(ASTGraphNodeTypeReference::DESTINATION);
+      $$ = node_ref;
+    }
+;
+
+element_type_properties_clause {ASTNode*}:
+    "PROPERTIES" "(" (graph_property_declaration separator ",")+[decls] ")"
+    {
+      $$ = MakeNode<ASTGraphPropertyDeclarationList>(@$, $decls);
+    }
+;
+
+graph_property_declaration {ASTNode*}:
+    identifier type opt_options_list
+    {
+      $$ = MakeNode<ASTGraphPropertyDeclaration>(@$,
+          $identifier, $type, $opt_options_list);
     }
 ;
 
@@ -6849,6 +7049,13 @@ connection_clause {ASTNode*}:
     }
 ;
 
+graph_clause {ASTNode*}:
+    "GRAPH" path_expression
+    {
+      $$ = MakeNode<ASTGraphClause>(@$, $2);
+    }
+;
+
 descriptor_column {ASTNode*}:
     identifier
     {
@@ -6909,6 +7116,10 @@ tvf_argument {ASTNode*}:
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
   | connection_clause
+    {
+      $$ = MakeNode<ASTTVFArgument>(@$, $1);
+    }
+  | graph_clause
     {
       $$ = MakeNode<ASTTVFArgument>(@$, $1);
     }
@@ -11915,6 +12126,7 @@ system_variable_expression {ASTExpression*}:
   | "COLUMN"
   | "COLUMNS"
   | "COMMIT"
+  | "CONDITION"
   | "CONFLICT"
   | "CONNECTION"
   | "CONSTANT"
@@ -11923,6 +12135,7 @@ system_variable_expression {ASTExpression*}:
   | "CORRESPONDING"
   | "CYCLE"
   | "DATA"
+  | "DATA_POLICY"
   | "DATABASE"
   | "DATE"
   | "DATETIME"
@@ -12098,6 +12311,7 @@ system_variable_expression {ASTExpression*}:
   | "TRANSFORM"
   | "TRUNCATE"
   | "TYPE"
+  | "TYPES"
   | "UNDROP"
   | "UNIQUE"
   | "UNKNOWN"
@@ -12862,6 +13076,13 @@ drop_statement {ASTNode*}:
       drop->set_is_if_exists($4);
       $$ = drop;
     }
+  | "DROP" "DATA_POLICY" opt_if_exists path_expression
+    {
+      auto* type_ident = node_factory.MakeIdentifier(@2, "DATA_POLICY");
+      auto* drop = MakeNode<ASTDropEntityStatement>(@$, type_ident, $4);
+      drop->set_is_if_exists($3);
+      $$ = drop;
+    }
   | "DROP" generic_entity_type opt_if_exists path_expression
     {
       auto* drop = MakeNode<ASTDropEntityStatement>(@$, $2, $4);
@@ -13466,6 +13687,10 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTDropSnapshotTableStatement::kConcreteNodeKind;
     }
+  | "DROP" "DATA_POLICY"
+    {
+      $$ = ASTDropEntityStatement::kConcreteNodeKind;
+    }
   | "DROP" generic_entity_type
     {
       $$ = ASTDropEntityStatement::kConcreteNodeKind;
@@ -13626,6 +13851,14 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTAlterMaterializedViewStatement::kConcreteNodeKind;
     }
+  | "ALTER" "DATA_POLICY"
+    {
+      if (language_options.LanguageFeatureEnabled(FEATURE_TAG_DATA_POLICY_DDL)) {
+        $$ = ASTAlterDataPolicyStatement::kConcreteNodeKind;
+      } else {
+        $$ = ASTAlterEntityStatement::kConcreteNodeKind;
+      }
+    }
   | "ALTER" generic_entity_type
     {
       $$ = ASTAlterEntityStatement::kConcreteNodeKind;
@@ -13666,6 +13899,14 @@ next_statement_kind_without_hint {ASTNodeKind}:
   | "CREATE" opt_or_replace "SCHEMA"
     {
       $$ = ASTCreateSchemaStatement::kConcreteNodeKind;
+    }
+  | "CREATE" next_statement_kind_create_modifiers "DATA_POLICY"
+    {
+      if (language_options.LanguageFeatureEnabled(FEATURE_TAG_DATA_POLICY_DDL)) {
+        $$ = ASTCreateDataPolicyStatement::kConcreteNodeKind;
+      } else {
+        $$ = ASTCreateEntityStatement::kConcreteNodeKind;
+      }
     }
   | "CREATE" next_statement_kind_create_modifiers generic_entity_type
     {
@@ -13742,8 +13983,14 @@ next_statement_kind_without_hint {ASTNodeKind}:
       $$ = ASTCreateSnapshotTableStatement::kConcreteNodeKind;
     }
   | "CREATE" next_statement_kind_create_modifiers "PROPERTY" "GRAPH"
+    .PropertyGraphType KW_TYPE_IN_PROPERTY_GRAPH_TYPE[type_kw]?
+    set(FollowsGraph)
     {
-      $$ = ASTCreatePropertyGraphStatement::kConcreteNodeKind;
+      if (@type_kw.has_value()) {
+        $$ = ASTCreatePropertyGraphTypeStatement::kConcreteNodeKind;
+      } else {
+        $$ = ASTCreatePropertyGraphStatement::kConcreteNodeKind;
+      }
     }
   | "CALL"
     {

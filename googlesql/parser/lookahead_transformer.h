@@ -329,6 +329,12 @@ class LookaheadTransformer final : public TokenStream {
   // DDL statement that modifies either TABLE object or TABLE FUNCTION objects.
   bool IsInTableFunctionState() const;
 
+  // The parser is in a state immediately following the "GRAPH" keyword in a
+  // CREATE/DROP PROPERTY GRAPH statement. At this point a following "TYPE"
+  // keyword disambiguates a PROPERTY GRAPH TYPE object from a property graph
+  // named with the non-reserved identifier "type".
+  bool IsInPropertyGraphTypeState() const;
+
   // The parser is in a state after a column name in CREATE TABLE or similar.
   // At this point, we need to decide if the next token is the start of a column
   // type or a column attribute.

@@ -56,6 +56,7 @@
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/collation.h"
+#include "googlesql/public/types/declarative_type.h"
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/measure_type.h"
 #include "googlesql/public/value.h"
@@ -356,8 +357,8 @@ absl::Status Validator::ValidateResolvedCast(
       resolved_cast->type_modifiers().type_parameters();
   const Collation& collation = resolved_cast->type_modifiers().collation();
   if (!type_params.IsEmpty()) {
-    GOOGLESQL_RETURN_IF_ERROR(resolved_cast->type()->ValidateResolvedTypeParameters(
-        type_params, language_options_.product_mode()));
+    GOOGLESQL_RETURN_IF_ERROR(ValidateTypeParametersOfResolvedType(resolved_cast->type(),
+                                                         type_params));
   }
 
   if (language_options_.LanguageFeatureEnabled(FEATURE_COLLATION_SUPPORT)) {
@@ -772,7 +773,7 @@ absl::Status Validator::ValidateResolvedExpr(
 
   // This will fail if more child types are added. Add them to the switch below
   // before updating this.
-  static_assert(ResolvedExpr::NUM_DESCENDANT_LEAF_TYPES == 32,
+  static_assert(ResolvedExpr::NUM_DESCENDANT_LEAF_TYPES == 33,
                 "Missing case in switch on ResolvedExpr descendants");
 
   // Do not add new checks inline here because they increase stack space used in
@@ -843,6 +844,10 @@ absl::Status Validator::ValidateResolvedExpr(
     case RESOLVED_MAKE_STRUCT: {
       return ValidateResolvedMakeStruct(visible_columns, visible_parameters,
                                         expr->GetAs<ResolvedMakeStruct>());
+    }
+    case RESOLVED_MAKE_MAP: {
+      return ValidateResolvedMakeMap(visible_columns, visible_parameters,
+                                     expr->GetAs<ResolvedMakeMap>());
     }
     case RESOLVED_MAKE_PROTO: {
       for (const auto& resolved_make_proto_field :
@@ -1385,6 +1390,37 @@ absl::Status Validator::ValidateResolvedMakeStruct(
         << "Field type mismatch for index " << i
         << "; expected: " << struct_type->field(i).type->DebugString()
         << " but found " << expr->field_list(i)->type()->DebugString();
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Validator::ValidateResolvedMakeMap(
+    const std::set<ResolvedColumn>& visible_columns,
+    const std::set<ResolvedColumn>& visible_parameters,
+    const ResolvedMakeMap* expr) {
+  PushErrorContext push(this, expr);
+  VALIDATOR_RET_CHECK(expr->type()->IsMap());
+  if (expr->type_annotation_map() != nullptr) {
+    VALIDATOR_RET_CHECK(
+        !CollationAnnotation::ExistsIn(expr->type_annotation_map()))
+        << "MAP type cannot have collation annotations: "
+        << expr->type_annotation_map()->DebugString();
+  }
+  const MapType* map_type = expr->type()->AsMap();
+  for (const auto& entry : expr->entry_list()) {
+    VALIDATOR_RET_CHECK(nullptr != entry);
+    GOOGLESQL_RETURN_IF_ERROR(ValidateResolvedExpr(visible_columns, visible_parameters,
+                                         entry->key()));
+    GOOGLESQL_RETURN_IF_ERROR(ValidateResolvedExpr(visible_columns, visible_parameters,
+                                         entry->value()));
+    VALIDATOR_RET_CHECK(entry->key()->type()->Equals(map_type->key_type()))
+        << "Key type mismatch; expected: "
+        << map_type->key_type()->DebugString() << " but found "
+        << entry->key()->type()->DebugString();
+    VALIDATOR_RET_CHECK(entry->value()->type()->Equals(map_type->value_type()))
+        << "Value type mismatch; expected: "
+        << map_type->value_type()->DebugString() << " but found "
+        << entry->value()->type()->DebugString();
   }
   return absl::OkStatus();
 }
@@ -4999,8 +5035,8 @@ absl::Status Validator::ValidateColumnDefinitions(
           ValidateColumnAnnotations(column_definition->annotations()));
       GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters full_type_parameters,
                        column_definition->GetFullTypeParameters());
-      GOOGLESQL_RETURN_IF_ERROR(column_definition->type()->ValidateResolvedTypeParameters(
-          full_type_parameters, language_options_.product_mode()));
+      GOOGLESQL_RETURN_IF_ERROR(ValidateTypeParametersOfResolvedType(
+          column_definition->type(), full_type_parameters));
     }
     VALIDATOR_RET_CHECK(column_definition->type() != nullptr);
     if (column_definition->generated_column_info() != nullptr) {
@@ -8024,9 +8060,8 @@ absl::Status Validator::ValidateResolvedAlterAction(
             ValidateColumnAnnotations(column_definition->annotations()));
         GOOGLESQL_ASSIGN_OR_RETURN(TypeParameters full_type_parameters,
                          column_definition->GetFullTypeParameters());
-        GOOGLESQL_RETURN_IF_ERROR(
-            column_definition->type()->ValidateResolvedTypeParameters(
-                full_type_parameters, language_options_.product_mode()));
+        GOOGLESQL_RETURN_IF_ERROR(ValidateTypeParametersOfResolvedType(
+            column_definition->type(), full_type_parameters));
       }
       VALIDATOR_RET_CHECK(column_definition->type() != nullptr);
       VALIDATOR_RET_CHECK(!column_definition->name().empty());
@@ -8135,10 +8170,9 @@ absl::Status Validator::ValidateResolvedAlterAction(
           action->GetAs<ResolvedAlterColumnSetDataTypeAction>();
       VALIDATOR_RET_CHECK(!set_data_type->column().empty());
       VALIDATOR_RET_CHECK(set_data_type->updated_type() != nullptr);
-      GOOGLESQL_RETURN_IF_ERROR(
-          set_data_type->updated_type()->ValidateResolvedTypeParameters(
-              set_data_type->updated_type_parameters(),
-              language_options_.product_mode()));
+      GOOGLESQL_RETURN_IF_ERROR(ValidateTypeParametersOfResolvedType(
+          set_data_type->updated_type(),
+          set_data_type->updated_type_parameters()));
       if (set_data_type->updated_annotations() != nullptr) {
         VALIDATOR_RET_CHECK(set_data_type->updated_annotations());
         // Validate collation annotations if exist.
@@ -10641,6 +10675,26 @@ absl::Status Validator::ValidateResolvedCreateSequenceStmt(
   VALIDATOR_RET_CHECK(!stmt->name_path().empty());
   GOOGLESQL_RETURN_IF_ERROR(ValidateOptionsList(stmt->option_list()));
   return absl::OkStatus();
+}
+
+absl::Status Validator::ValidateTypeParametersOfResolvedType(
+    const Type* type, const TypeParameters& type_parameters) {
+  if (type_parameters.IsEmpty()) {
+    return absl::OkStatus();
+  }
+  // TODO: Design a sustainable way to delegate type parameter
+  // validation for declarative types.
+  // TODO: Use a TypeVisitor to delegate type parameter validation.
+  if (type->AsDeclarativeType() != nullptr &&
+      type->AsDeclarativeType()->IsGoogleSQLBuiltin("VECTOR")) {
+    const VectorTypeParametersProto* vector_params =
+        type_parameters.vector_type_parameters();
+    VALIDATOR_RET_CHECK(vector_params != nullptr);
+    VALIDATOR_RET_CHECK_GT(vector_params->length(), 0);
+    return absl::OkStatus();
+  }
+  return type->ValidateResolvedTypeParameters(type_parameters,
+                                              language_options_.product_mode());
 }
 
 }  // namespace googlesql

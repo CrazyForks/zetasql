@@ -400,6 +400,7 @@ class ResolvedColumnRef;
 class ResolvedFunctionCallBase;
 class ResolvedGetStructField;
 class ResolvedMakeStruct;
+class ResolvedMakeMap;
 class ResolvedSubqueryExpr;
 class ResolvedSetOperationScan;
 class ResolvedRecursiveScan;
@@ -447,6 +448,11 @@ class AnnotationSpec {
   // <result_annotation_map>.
   virtual absl::Status CheckAndPropagateForMakeStruct(
       const ResolvedMakeStruct& make_struct,
+      StructAnnotationMap* result_annotation_map) = 0;
+
+  // Propagates annotations from `MakeMap` to `result_annotation_map`.
+  virtual absl::Status CheckAndPropagateForMakeMap(
+      const ResolvedMakeMap& make_map,
       StructAnnotationMap* result_annotation_map) = 0;
 
   // Propagates annotation from the subquery to result_annotation_map>.

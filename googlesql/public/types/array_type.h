@@ -126,7 +126,7 @@ class ArrayType : public ListBackedType {
       const FormatValueContentOptions& options) const override;
 
  private:
-  ArrayType(const TypeFactoryBase* factory, const Type* element_type);
+  ArrayType(const TypeFactoryBase& factory, const Type* element_type);
   ~ArrayType() override;
 
   bool SupportsGroupingImpl(const LanguageOptions& language_options,

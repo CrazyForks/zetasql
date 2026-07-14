@@ -60,7 +60,7 @@ class ExtendedType : public Type {
 #endif  // SWIG
 
   explicit ExtendedType(const TypeFactoryBase* factory)
-      : Type(factory, TYPE_EXTENDED) {}
+      : Type(*factory, TYPE_EXTENDED) {}
 
   const ExtendedType* AsExtendedType() const override { return this; }
 

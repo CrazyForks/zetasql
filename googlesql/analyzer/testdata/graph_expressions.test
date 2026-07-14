@@ -4067,3 +4067,17 @@ ERROR: Syntax error: Unexpected braced constructor [at 2:36]
   MATCH (a IS Person WHERE a.id=20 {id: 10})
                                    ^
 ==
+
+==
+
+# UPDATE constructor with GraphElement input (analysis error)
+[language_features=NONE,+SQL_GRAPH,+BRACED_PROTO_CONSTRUCTORS,+UPDATE_CONSTRUCTOR]
+select * from graph_table(
+  aml
+  match (a IS Person)
+  columns(UPDATE(a) { id: 1 } as u)
+);
+--
+ERROR: UPDATE constructor expects an input type of proto type, but found type GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, ...> [at 4:11]
+  columns(UPDATE(a) { id: 1 } as u)
+          ^

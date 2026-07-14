@@ -3201,9 +3201,26 @@ void GetEncryptionFunctions(TypeFactory* type_factory,
       {{bytes_type, {string_type}, FN_KEYS_KEYSET_FROM_JSON}},
       encryption_required);
 
-  InsertSimpleNamespaceFunction(
+  std::vector<FunctionSignatureOnHeap> new_wrapped_keyset_signatures;
+  new_wrapped_keyset_signatures.reserve(2);
+  // Always support the legacy 2-parameter signature.
+  new_wrapped_keyset_signatures.push_back(
+      {bytes_type, {string_type, string_type}, FN_KEYS_NEW_WRAPPED_KEYSET});
+  // Add the 3-parameter overload explicitly gating its resolution.
+  new_wrapped_keyset_signatures.push_back(FunctionSignatureOnHeap(
+      bytes_type,
+      {string_type,
+       string_type,
+       /*metadata=*/
+       {string_type, FunctionArgumentTypeOptions()
+                         .set_cardinality(FunctionArgumentType::REQUIRED)
+                         .set_argument_name("metadata", kNamedOnly)}},
+      FN_KEYS_NEW_WRAPPED_KEYSET_WITH_METADATA,
+      FunctionSignatureOptions().AddRequiredLanguageFeature(
+          FEATURE_FPE_NEW_KEYSET)));
+  InsertNamespaceFunction(
       functions, options, "keys", "new_wrapped_keyset", SCALAR,
-      {{bytes_type, {string_type, string_type}, FN_KEYS_NEW_WRAPPED_KEYSET}},
+      new_wrapped_keyset_signatures,
       FunctionOptions(encryption_required)
           .set_volatility(FunctionEnums::VOLATILE)
           .set_pre_resolution_argument_constraint(absl::bind_front(
@@ -3334,21 +3351,43 @@ void GetEncryptionFunctions(TypeFactory* type_factory,
                          FN_DETERMINISTIC_DECRYPT_STRUCT_BYTES}},
                        encryption_required);
 
-  InsertSimpleFunction(functions, options, "fpe_encrypt", SCALAR,
-                       {{int64_array_type,
-                         {bytes_type,
-                          int64_array_type,
-                          {bytes_type, FunctionArgumentType::OPTIONAL}},
-                         FN_FPE_ENCRYPT}},
-                       encryption_required);
+  std::vector<FunctionSignatureOnHeap> fpe_encrypt_signatures;
+  fpe_encrypt_signatures.reserve(2);
+  fpe_encrypt_signatures.push_back(
+      {int64_array_type,
+       {bytes_type,
+        int64_array_type,
+        {bytes_type, FunctionArgumentType::OPTIONAL}},
+       FN_FPE_ENCRYPT});
+  fpe_encrypt_signatures.push_back(FunctionSignatureOnHeap(
+      int64_array_type,
+      {keyset_chain_struct_type,
+       int64_array_type,
+       {bytes_type, FunctionArgumentType::OPTIONAL}},
+      FN_FPE_ENCRYPT_STRUCT,
+      FunctionSignatureOptions().AddRequiredLanguageFeature(
+          FEATURE_FPE_NEW_KEYSET)));
+  InsertFunction(functions, options, "fpe_encrypt", SCALAR,
+                 fpe_encrypt_signatures, FunctionOptions(encryption_required));
 
-  InsertSimpleFunction(functions, options, "fpe_decrypt", SCALAR,
-                       {{int64_array_type,
-                         {bytes_type,
-                          int64_array_type,
-                          {bytes_type, FunctionArgumentType::OPTIONAL}},
-                         FN_FPE_DECRYPT}},
-                       encryption_required);
+  std::vector<FunctionSignatureOnHeap> fpe_decrypt_signatures;
+  fpe_decrypt_signatures.reserve(2);
+  fpe_decrypt_signatures.push_back(
+      {int64_array_type,
+       {bytes_type,
+        int64_array_type,
+        {bytes_type, FunctionArgumentType::OPTIONAL}},
+       FN_FPE_DECRYPT});
+  fpe_decrypt_signatures.push_back(FunctionSignatureOnHeap(
+      int64_array_type,
+      {keyset_chain_struct_type,
+       int64_array_type,
+       {bytes_type, FunctionArgumentType::OPTIONAL}},
+      FN_FPE_DECRYPT_STRUCT,
+      FunctionSignatureOptions().AddRequiredLanguageFeature(
+          FEATURE_FPE_NEW_KEYSET)));
+  InsertFunction(functions, options, "fpe_decrypt", SCALAR,
+                 fpe_decrypt_signatures, FunctionOptions(encryption_required));
 }
 
 void GetGeographyFunctions(TypeFactory* type_factory,

@@ -28,12 +28,15 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "googlesql/base/testing/status_matchers.h"
 
 namespace googlesql {
 namespace {
 
+using ::testing::HasSubstr;
 using ::testing::NotNull;
+using ::absl_testing::StatusIs;
 
 TEST(SQLProcedureTest, Create) {
   TypeFactory type_factory;
@@ -84,6 +87,27 @@ TEST(SQLProcedureTest, CreateWithModuleDetails) {
             module_details.default_resolution_scope());
   EXPECT_EQ(procedure->module_details().module_name_from_import(),
             module_details.module_name_from_import());
+}
+
+TEST(SQLProcedureTest, CreateWithInvalidFunctionSignature) {
+  TypeFactory type_factory;
+  AnalyzerOptions options;
+  options.mutable_language()->EnableMaximumLanguageFeatures();
+  options.mutable_language()->SetSupportsAllStatementKinds();
+  std::unique_ptr<const AnalyzerOutput> output;
+  SimpleCatalog catalog("test_catalog", &type_factory);
+  catalog.AddBuiltinFunctions(BuiltinFunctionOptions::AllReleasedFunctions());
+  GOOGLESQL_ASSERT_OK(AnalyzeStatement(
+      "CREATE PROCEDURE P(t TABLE<INT64>) BEGIN SELECT 1; END;", options,
+      &catalog, &type_factory, &output));
+  const auto* stmt =
+      output->resolved_statement()->GetAs<ResolvedCreateProcedureStmt>();
+
+  EXPECT_THAT(
+      SQLProcedure::Create(stmt),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Relation arguments are only allowed in table-valued "
+                         "functions")));
 }
 
 }  // namespace

@@ -94,9 +94,9 @@ class RegExp {
                bool use_legacy_position_behavior, absl::string_view* out,
                bool* is_null, absl::Status* error) const;
 
-  inline bool Extract(absl::string_view str, bool use_legacy_position_behavior,
-                      absl::string_view* out, bool* is_null,
-                      absl::Status* error) const {
+  bool Extract(absl::string_view str, bool use_legacy_position_behavior,
+               absl::string_view* out, bool* is_null,
+               absl::Status* error) const {
     // Position unit doesn't matter here since both the `position` and
     // `occurrence_index` are 1 so we set a no-op value.
     return Extract(str, /*position_unit=*/PositionUnit::kBytes, /*position=*/1,

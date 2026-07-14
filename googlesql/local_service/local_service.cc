@@ -1349,13 +1349,15 @@ absl::Status GoogleSqlLocalServiceImpl::BuildSql(const BuildSqlRequest& request,
 
   std::unique_ptr<ResolvedNode> ast;
   if (request.has_resolved_statement()) {
-    ast = std::move(ResolvedStatement::RestoreFrom(request.resolved_statement(),
-                                                   restore_params)
-                        .value());
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedStatement> statement,
+                     ResolvedStatement::RestoreFrom(
+                         request.resolved_statement(), restore_params));
+    ast = std::move(statement);
   } else if (request.has_resolved_expression()) {
-    ast = std::move(
-        ResolvedExpr::RestoreFrom(request.resolved_expression(), restore_params)
-            .value());
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> expression,
+                     ResolvedExpr::RestoreFrom(request.resolved_expression(),
+                                               restore_params));
+    ast = std::move(expression);
   } else {
     return absl::OkStatus();
   }

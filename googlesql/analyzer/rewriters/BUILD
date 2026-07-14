@@ -479,6 +479,8 @@ cc_library(
         "//googlesql/public/types",
         "//googlesql/resolved_ast",
         "//googlesql/resolved_ast:column_factory",
+        "//googlesql/resolved_ast:resolved_ast_builder",
+        "//googlesql/resolved_ast:resolved_ast_rewrite_visitor",
         "//googlesql/resolved_ast:rewrite_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

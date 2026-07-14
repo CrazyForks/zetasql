@@ -99,6 +99,12 @@ static absl::Status CheckAndPropagateAnnotationsImpl(
         GOOGLESQL_RETURN_IF_ERROR(annotation_spec->CheckAndPropagateForMakeStruct(
             *make_struct, annotation_map->AsStructMap()));
       } break;
+      case RESOLVED_MAKE_MAP: {
+        GOOGLESQL_RET_CHECK(annotation_map->IsStructMap());
+        auto* make_map = resolved_node->GetAs<ResolvedMakeMap>();
+        GOOGLESQL_RETURN_IF_ERROR(annotation_spec->CheckAndPropagateForMakeMap(
+            *make_map, annotation_map->AsStructMap()));
+      } break;
       case RESOLVED_FUNCTION_CALL: {
         auto* function_call = resolved_node->GetAs<ResolvedFunctionCall>();
         GOOGLESQL_RETURN_IF_ERROR(annotation_spec->CheckAndPropagateForFunctionCallBase(

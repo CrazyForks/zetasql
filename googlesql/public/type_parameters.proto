@@ -42,6 +42,7 @@ message TypeParametersProto {
     NumericTypeParametersProto numeric_type_parameters = 2;
     ExtendedTypeParametersProto extended_type_parameters = 3;
     TimestampTypeParametersProto timestamp_type_parameters = 4;
+    VectorTypeParametersProto vector_type_parameters = 5;
   }
   // Store type parameters for subfields for ARRAY/STRUCT types
   // For ARRAY:
@@ -115,4 +116,9 @@ message NumericTypeParametersProto {
 // Type parameters for engine-defined types.
 message ExtendedTypeParametersProto {
   repeated SimpleValueProto parameters = 1;
+}
+
+// Type parameters for VECTOR type.
+message VectorTypeParametersProto {
+  optional int64 length = 1;
 }

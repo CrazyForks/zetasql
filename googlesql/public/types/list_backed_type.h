@@ -35,7 +35,7 @@ class ListBackedType : public ContainerType {
 #endif  // SWIG
 
  protected:
-  ListBackedType(const TypeFactoryBase* factory, TypeKind kind)
+  ListBackedType(const TypeFactoryBase& factory, TypeKind kind)
       : ContainerType(factory, kind) {}
 
   uint64_t GetValueContentExternallyAllocatedByteSize(

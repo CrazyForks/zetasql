@@ -2110,6 +2110,40 @@ TEST_F(ValueTest, ArrayConstruction) {
   EXPECT_THAT(result.elements(), IsEmpty());
 }
 
+TEST_F(ValueTest, ElementsViewAndFieldsView) {
+  const ArrayType* array_type = MakeArrayType(Int64Type());
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value arr,
+      Value::MakeArray(array_type, {Value::Int64(10), Value::Int64(20)}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value::ListView view, arr.elements_view());
+  EXPECT_EQ(view.size(), 2);
+  EXPECT_FALSE(view.empty());
+  EXPECT_EQ(view[0], Value::Int64(10));
+  EXPECT_EQ(view.at(1), Value::Int64(20));
+  EXPECT_EQ(view.front(), Value::Int64(10));
+  EXPECT_EQ(view.back(), Value::Int64(20));
+
+  int sum = 0;
+  for (const Value& v : view) {
+    sum += v.int64_value();
+  }
+  EXPECT_EQ(sum, 30);
+
+  std::vector<Value> vec = view.ToVector();
+  EXPECT_EQ(vec.size(), 2);
+  EXPECT_EQ(vec, view);
+
+  const StructType* struct_type =
+      MakeStructType({{"a", Int64Type()}, {"b", StringType()}});
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      Value str, Value::MakeStruct(struct_type,
+                                   {Value::Int64(100), Value::String("foo")}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(Value::ListView fview, str.fields_view());
+  EXPECT_EQ(fview.size(), 2);
+  EXPECT_EQ(fview[0], Value::Int64(100));
+  EXPECT_EQ(fview[1], Value::String("foo"));
+}
+
 TEST_F(ValueTest, MakeArrayInvalidValue) {
   const ArrayType* array_type = MakeArrayType(Int64Type());
   Value invalid = Value();

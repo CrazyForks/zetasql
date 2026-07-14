@@ -36,6 +36,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "googlesql/base/source_location.h"
+#include "googlesql/base/ret_check.h"
 #include "googlesql/base/status.h"
 #include "googlesql/base/status_builder.h"
 #include "googlesql/base/clock.h"
@@ -54,7 +55,7 @@ class SimpleEvaluatorTableIterator : public EvaluatorTableIterator {
   // 'cancel_cb' is called when Cancel() is called.
   // 'set_deadline_cb' is called when SetDeadline() is called.
   // 'clock' is used to enforce deadlines.
-  SimpleEvaluatorTableIterator(
+  static absl::StatusOr<std::unique_ptr<SimpleEvaluatorTableIterator>> Create(
       absl::Span<const Column* const> columns,
       const std::vector<std::shared_ptr<const std::vector<Value>>>&
           column_major_values,
@@ -62,19 +63,15 @@ class SimpleEvaluatorTableIterator : public EvaluatorTableIterator {
       const absl::flat_hash_set<int>& filter_column_idxs,
       const std::function<void()>& cancel_cb,
       const std::function<void(absl::Time)>& set_deadline_cb,
-      googlesql_base::Clock* clock)
-      : columns_(columns.begin(), columns.end()),
-        end_status_(end_status),
-        filter_column_idxs_(filter_column_idxs),
-        cancel_cb_(cancel_cb),
-        set_deadline_cb_(set_deadline_cb),
-        column_major_values_(column_major_values),
-        num_rows_(num_rows),
-        clock_(clock) {
-    ABSL_CHECK_EQ(columns.size(), column_major_values_.size());
-    for (const auto& values_for_column : column_major_values_) {
-      ABSL_CHECK_EQ(num_rows_, values_for_column->size());
+      googlesql_base::Clock* clock) {
+    GOOGLESQL_RET_CHECK_EQ(columns.size(), column_major_values.size());
+    for (const auto& values_for_column : column_major_values) {
+      GOOGLESQL_RET_CHECK_EQ(num_rows, values_for_column->size());
     }
+    return std::unique_ptr<SimpleEvaluatorTableIterator>(
+        new SimpleEvaluatorTableIterator(columns, column_major_values, num_rows,
+                                         end_status, filter_column_idxs,
+                                         cancel_cb, set_deadline_cb, clock));
   }
 
   SimpleEvaluatorTableIterator(const SimpleEvaluatorTableIterator&) = delete;
@@ -130,6 +127,23 @@ class SimpleEvaluatorTableIterator : public EvaluatorTableIterator {
   }
 
  private:
+  SimpleEvaluatorTableIterator(
+      absl::Span<const Column* const> columns,
+      const std::vector<std::shared_ptr<const std::vector<Value>>>&
+          column_major_values,
+      int64_t num_rows, const absl::Status& end_status,
+      const absl::flat_hash_set<int>& filter_column_idxs,
+      const std::function<void()>& cancel_cb,
+      const std::function<void(absl::Time)>& set_deadline_cb,
+      googlesql_base::Clock* clock)
+      : columns_(columns.begin(), columns.end()),
+        end_status_(end_status),
+        filter_column_idxs_(filter_column_idxs),
+        cancel_cb_(cancel_cb),
+        set_deadline_cb_(set_deadline_cb),
+        column_major_values_(column_major_values),
+        num_rows_(num_rows),
+        clock_(clock) {}
   bool DoneLocked() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
     if (column_major_values_.empty()) return true;
     return row_idx_ >= num_rows_;

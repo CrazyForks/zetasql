@@ -776,6 +776,7 @@ absl::Status SampleCatalogImpl::LoadCatalogImpl(
   RETURN_IF_ERROR_UNLESS_DBG(LoadMultiSrcDstEdgePropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadCompositeKeyPropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadPropertyGraphWithDynamicLabelAndProperties());
+  RETURN_IF_ERROR_UNLESS_DBG(LoadPropertyGraphWithReadOnlyDynamicProperties());
   RETURN_IF_ERROR_UNLESS_DBG(
       LoadPropertyGraphWithDynamicMultiLabelsAndProperties());
   LoadRowTypeObjects();
@@ -916,6 +917,111 @@ absl::Status SampleCatalogImpl::LoadTypes() {
 
   // Add a simple type for testing alias type from engine catalog
   catalog_->AddType("INT64AliasType", types_->get_int64());
+
+  // Add mock declarative types for testing.
+  const Type* decl_int_type = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_int_type,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclInt"})
+              .set_display_name("DeclInt")
+              .set_backing_type(types_->get_int64())
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_coercion_to_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::
+                      kAllowAllCoercion)
+              .set_equality_strategy(
+                  DeclarativeTypeDescriptor::EqualityDelegated{})
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  catalog_->AddType("DeclInt", decl_int_type);
+
+  const Type* decl_explicit_coercion_type = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_explicit_coercion_type,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclExplicitCoercion"})
+              .set_display_name("DeclExplicitCoercion")
+              .set_backing_type(types_->get_int64())
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_coercion_to_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_equality_strategy(
+                  DeclarativeTypeDescriptor::EqualityDelegated{})
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  catalog_->AddType("DeclExplicitCoercion", decl_explicit_coercion_type);
+
+  const Type* decl_geog_type = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_geog_type,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclDelegatedButUnsupportedEquality"})
+              .set_display_name("DeclDelegatedButUnsupportedEquality")
+              .set_backing_type(types_->get_geography())
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_equality_strategy(
+                  DeclarativeTypeDescriptor::EqualityDelegated{})
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  catalog_->AddType("DeclDelegatedButUnsupportedEquality", decl_geog_type);
+
+  const Type* decl_array_type = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_array_type,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclArray"})
+              .set_display_name("DeclArray")
+              .set_backing_type(int64array_type_)
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_coercion_to_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  catalog_->AddType("DeclArray", decl_array_type);
+
+  const Type* decl_struct_type = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_struct_type,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclStruct"})
+              .set_display_name("DeclStruct")
+              .set_backing_type(struct_type_)
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_coercion_to_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kExplicitOnly)
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDelegated{})));
+  catalog_->AddType("DeclStruct", decl_struct_type);
+
+  const Type* decl_type_all_properties_disallowed = nullptr;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      decl_type_all_properties_disallowed,
+      types_->MakeDeclarativeType(
+          DeclarativeTypeDescriptor()
+              .set_type_id({"NS", "DeclTypeAllPropertiesDisallowed"})
+              .set_display_name("DeclTypeAllPropertiesDisallowed")
+              .set_backing_type(types_->get_int64())
+              .set_coercion_from_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kNoCoercion)
+              .set_coercion_to_backing_type(
+                  DeclarativeTypeDescriptor::AllowCoercionMode::kNoCoercion)
+              .set_equality_strategy(
+                  DeclarativeTypeDescriptor::EqualityDisallowed{})
+              .set_returning_strategy(
+                  DeclarativeTypeDescriptor::ReturningDisallowed{})));
+  catalog_->AddType("DeclTypeAllPropertiesDisallowed",
+                    decl_type_all_properties_disallowed);
 
   return absl::OkStatus();
 }
@@ -1062,12 +1168,11 @@ class LazySimpleTable : public SimpleTable {
                                    << " not found in table " << FullName();
       column_values.push_back(*values);
     }
-    return std::unique_ptr<EvaluatorTableIterator>(
-        new SimpleEvaluatorTableIterator(
-            columns, column_values, num_rows_,
-            /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/{},
-            /*cancel_cb=*/[]() {},
-            /*set_deadline_cb=*/[](absl::Time t) {}, googlesql_base::Clock::RealClock()));
+    return SimpleEvaluatorTableIterator::Create(
+        columns, column_values, num_rows_,
+        /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/{},
+        /*cancel_cb=*/[]() {},
+        /*set_deadline_cb=*/[](absl::Time t) {}, googlesql_base::Clock::RealClock());
   }
 
  private:
@@ -3829,8 +3934,9 @@ absl::Status SampleCatalogImpl::LoadFunctions() {
       {{types_->get_bytes()}, {bytesmap_type_}, /*context_id=*/-1});
   catalog_->AddOwnedFunction(function);
 
-  // Adds an scalar function that takes multiple repeated and optional
-  // arguments.
+  // Adds a scalar function that takes a positional required argument,
+  // multiple repeated positional arguments, a positional-or-named
+  // required argument, and multiple optional positional-or-named arguments.
   function = new Function(
       "fn_rep_opt", "sample_functions", Function::SCALAR,
       /*function_signatures=*/
@@ -3840,19 +3946,19 @@ absl::Status SampleCatalogImpl::LoadFunctions() {
            {
                {types_->get_string(),
                 FunctionArgumentTypeOptions()
-                    .set_argument_name("a0", kPositionalOrNamed)
+                    .set_argument_name("a0", kPositionalOnly)
                     .set_cardinality(FunctionArgumentType::REQUIRED)},
                {types_->get_string(),
                 FunctionArgumentTypeOptions()
-                    .set_argument_name("r0", kPositionalOrNamed)
+                    .set_argument_name("r0", kPositionalOnly)
                     .set_cardinality(FunctionArgumentType::REPEATED)},
                {types_->get_string(),
                 FunctionArgumentTypeOptions()
-                    .set_argument_name("r1", kPositionalOrNamed)
+                    .set_argument_name("r1", kPositionalOnly)
                     .set_cardinality(FunctionArgumentType::REPEATED)},
                {types_->get_string(),
                 FunctionArgumentTypeOptions()
-                    .set_argument_name("r2", kPositionalOrNamed)
+                    .set_argument_name("r2", kPositionalOnly)
                     .set_cardinality(FunctionArgumentType::REPEATED)},
                {types_->get_string(),
                 FunctionArgumentTypeOptions()
@@ -4338,7 +4444,7 @@ RegisterForSampleCatalog
           googlesql::TVFRelation input_relation({input_col});
 
           googlesql::FunctionArgumentType arg_type(
-              googlesql::ARG_TYPE_RELATION,
+              googlesql::ARG_KIND_RELATION,
               googlesql::FunctionArgumentTypeOptions(
                   input_relation,
                   /*extra_relation_input_columns_allowed=*/false)
@@ -4402,7 +4508,7 @@ RegisterForSampleCatalog fn_complex_concrete_and_templated_arg =
 
       // Define other_arg: ANY TYPE
       googlesql::FunctionArgumentType other_arg(
-          googlesql::ARG_TYPE_ARBITRARY,
+          googlesql::ARG_KIND_EXPR_ARBITRARY,
           googlesql::FunctionArgumentTypeOptions()
               .set_argument_name("other_arg", googlesql::kPositionalOrNamed)
               .set_argument_collation_mode(
@@ -4552,16 +4658,6 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
                           {named_required_format_arg_error_if_positional,
                            named_required_date_arg_error_if_positional},
                           /*context_id=*/-1});
-  catalog_->AddOwnedFunction(function);
-
-  // Add a function with two named arguments where the first may not be
-  // specified positionally.
-  function = new Function("fn_named_args_error_if_positional_first_arg",
-                          "sample_functions", mode);
-  function->AddSignature(
-      {types_->get_bool(),
-       {named_required_format_arg_error_if_positional, named_required_date_arg},
-       /*context_id=*/-1});
   catalog_->AddOwnedFunction(function);
 
   // Add a function with two named arguments where the second may not be
@@ -4796,8 +4892,9 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
   // lambda to ensure one doesn't break the other.
   function->AddSignature(
       {{types_->get_int64()},
-       {ARG_TYPE_ANY_1, FunctionArgumentType::AnyModel(),
-        FunctionArgumentType::Lambda({ARG_TYPE_ANY_1}, ARG_TYPE_ANY_2)},
+       {ARG_KIND_EXPR_ANY_1, FunctionArgumentType::AnyModel(),
+        FunctionArgumentType::Lambda({ARG_KIND_EXPR_ANY_1},
+                                     ARG_KIND_EXPR_ANY_2)},
        /*context_id=*/-1});
   catalog_->AddOwnedFunction(function);
 
@@ -4890,7 +4987,7 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
     catalog_->AddOwnedFunction(std::move(function));
   }
 
-  // ARG_KIND_EXPR_ANY_3 arguments + ARRAY_ARG_TYPE_ANY_3 result.
+  // ARG_KIND_EXPR_ANY_3 arguments + ARRAY_ARG_KIND_EXPR_ANY_3 result.
   {
     auto function = std::make_unique<Function>("fn_arg_type_any_3_array_result",
                                                "sample_functions", mode);
@@ -4947,7 +5044,7 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
     catalog_->AddOwnedFunction(std::move(function));
   }
 
-  // ARG_KIND_EXPR_ANY_4 arguments + ARRAY_ARG_TYPE_ANY_4 result.
+  // ARG_KIND_EXPR_ANY_4 arguments + ARRAY_ARG_KIND_EXPR_ANY_4 result.
   {
     auto function = std::make_unique<Function>("fn_arg_type_any_4_array_result",
                                                "sample_functions", mode);
@@ -5004,7 +5101,7 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
     catalog_->AddOwnedFunction(std::move(function));
   }
 
-  // ARG_KIND_EXPR_ANY_5 arguments + ARRAY_ARG_TYPE_ANY_5 result.
+  // ARG_KIND_EXPR_ANY_5 arguments + ARRAY_ARG_KIND_EXPR_ANY_5 result.
   {
     auto function = std::make_unique<Function>("fn_arg_type_any_5_array_result",
                                                "sample_functions", mode);
@@ -8422,6 +8519,114 @@ SampleCatalogImpl::LoadPropertyGraphWithDynamicLabelAndProperties() {
   return absl::OkStatus();
 }
 
+absl::Status
+SampleCatalogImpl::LoadPropertyGraphWithReadOnlyDynamicProperties() {
+  const std::vector<std::string> property_graph_name_path{
+      "aml_dynamic_read_only"};
+
+  auto* graph_dynamic_node_source_table = new SimpleTable(
+      "DynamicGraphNodeReadOnly",
+      {
+          new SimpleColumn("DynamicGraphNodeReadOnly", "id",
+                           types_->get_int64(), {.is_writable_column = true}),
+          new SimpleColumn("DynamicGraphNodeReadOnly", "nodeLabelCol",
+                           types_->get_string(), {.is_writable_column = false}),
+          new SimpleColumn("DynamicGraphNodeReadOnly", "nodeJsonProp",
+                           types_->get_json(), {.is_writable_column = false}),
+      },
+      /*take_ownership=*/true);
+  GOOGLESQL_RETURN_IF_ERROR(graph_dynamic_node_source_table->SetPrimaryKey({0}));
+  AddOwnedTable(graph_dynamic_node_source_table);
+
+  // Property declaration
+  auto id_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "id", property_graph_name_path, types_->get_int64());
+  auto node_json_prop_property_dcl =
+      std::make_unique<SimpleGraphPropertyDeclaration>(
+          "nodeJsonProp", property_graph_name_path, types_->get_json());
+
+  // Labels
+  auto entity_label_dcl = std::make_unique<SimpleGraphElementLabel>(
+      "Entity", property_graph_name_path,
+      absl::flat_hash_set<const GraphPropertyDeclaration*>{});
+
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>>
+      property_defs_node;
+
+  // Static property definitions.
+  auto graph_node_id_column_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      graph_dynamic_node_source_table->FindColumnByName("id"));
+  auto graph_node_id_prop_ref = std::make_unique<SimpleGraphPropertyDefinition>(
+      id_property_dcl.get(), "id");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      graph_node_id_prop_ref.get(), graph_node_id_column_ref.get());
+  property_defs_node.push_back(std::move(graph_node_id_prop_ref));
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(graph_node_id_column_ref));
+
+  auto graph_node_json_prop_column_ref = MakeResolvedCatalogColumnRef(
+      types_->get_json(),
+      graph_dynamic_node_source_table->FindColumnByName("nodeJsonProp"));
+  const ResolvedExpr* graph_node_json_prop_column_ref_ptr =
+      graph_node_json_prop_column_ref.get();
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(graph_node_json_prop_column_ref));
+
+  auto graph_node_json_prop_prop_ref =
+      std::make_unique<SimpleGraphPropertyDefinition>(
+          node_json_prop_property_dcl.get(), "nodeJsonProp");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      graph_node_json_prop_prop_ref.get(), graph_node_json_prop_column_ref_ptr);
+  property_defs_node.push_back(std::move(graph_node_json_prop_prop_ref));
+
+  auto graph_node_label_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_string(),
+      graph_dynamic_node_source_table->FindColumnByName("nodeLabelCol"));
+  const ResolvedExpr* graph_node_label_col_ref_ptr =
+      graph_node_label_col_ref.get();
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(graph_node_label_col_ref));
+
+  // Dynamic label.
+  auto graph_node_dynamic_label =
+      std::make_unique<SimpleGraphDynamicLabel>("nodeLabelCol");
+  InternalPropertyGraph::InternalSetResolvedExpr(graph_node_dynamic_label.get(),
+                                                 graph_node_label_col_ref_ptr);
+
+  // Dynamic properties.
+  auto graph_node_dynamic_properties =
+      std::make_unique<SimpleGraphDynamicProperties>("nodeJsonProp");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      graph_node_dynamic_properties.get(), graph_node_json_prop_column_ref_ptr);
+
+  auto dynamic_graph_node_table = std::make_unique<const SimpleGraphNodeTable>(
+      graph_dynamic_node_source_table->Name(), property_graph_name_path,
+      graph_dynamic_node_source_table, std::vector<int>{0},
+      absl::flat_hash_set<const GraphElementLabel*>{entity_label_dcl.get()},
+      std::move(property_defs_node), std::move(graph_node_dynamic_label),
+      std::move(graph_node_dynamic_properties));
+
+  // Add all entities to property graph
+  std::vector<std::unique_ptr<const GraphNodeTable>> node_tables;
+  node_tables.push_back(std::move(dynamic_graph_node_table));
+  std::vector<std::unique_ptr<const GraphEdgeTable>> edge_tables;
+
+  std::vector<std::unique_ptr<const GraphElementLabel>> labels;
+  labels.push_back(std::move(entity_label_dcl));
+
+  std::vector<std::unique_ptr<const GraphPropertyDeclaration>> properties;
+  properties.push_back(std::move(id_property_dcl));
+  properties.push_back(std::move(node_json_prop_property_dcl));
+
+  auto property_graph = std::make_unique<SimplePropertyGraph>(
+      property_graph_name_path, std::move(node_tables), std::move(edge_tables),
+      std::move(labels), std::move(properties));
+
+  catalog_->AddOwnedPropertyGraph(std::move(property_graph));
+  return absl::OkStatus();
+}
+
 absl::Status SampleCatalogImpl::LoadCompositeKeyPropertyGraphs() {
   std::vector<std::string> property_graph_name_path{"aml_composite_key"};
   typedef std::pair<std::string, const Type*> NameAndType;
@@ -10858,8 +11063,8 @@ void SampleCatalogImpl::LoadTableValuedFunctionsWithDeprecationWarnings() {
           context_id++)},
       output_schema_two_types));
 
-  // Add a TVF with a required table, a named optional table, a mandatory
-  // named table and a required mandatory named table.
+  // Add a TVF with a required table, a required positional-or-named table, a
+  // named optional table, and a mandatory named table.
   catalog_->AddOwnedTableValuedFunction(new FixedOutputSchemaTVF(
       {"tvf_required_named_optional_required_tables"},
       {FunctionSignature(
@@ -10871,7 +11076,7 @@ void SampleCatalogImpl::LoadTableValuedFunctionsWithDeprecationWarnings() {
            FunctionArgumentType(
                ARG_KIND_RELATION,
                FunctionArgumentTypeOptions()
-                   .set_argument_name("table2", kNamedOnly)
+                   .set_argument_name("table2", kPositionalOrNamed)
                    .set_cardinality(FunctionArgumentType::REQUIRED)),
            FunctionArgumentType(
                ARG_KIND_RELATION,
@@ -12818,12 +13023,14 @@ absl::Status SampleCatalogImpl::LoadContrivedLambdaArgFunctions() {
   // Signature with lambda and named argument before lambda.
   function = std::make_unique<Function>("fn_fp_named_then_lambda",
                                         "sample_functions", Function::SCALAR);
-  function->AddSignature(
-      {ARG_KIND_EXPR_ANY_1,
-       {named_required_format_arg,
-        FunctionArgumentType::Lambda({int64_type}, ARG_KIND_EXPR_ANY_1)},
-       /*context_id=*/-1});
-  GOOGLESQL_RET_CHECK("(STRING format_string, FUNCTION<INT64-><T1>>) -> <T1>" ==
+  const auto named_lambda_arg = FunctionArgumentType::Lambda(
+      {int64_type}, ARG_KIND_EXPR_ANY_1,
+      FunctionArgumentTypeOptions().set_argument_name("lambda",
+                                                      kPositionalOrNamed));
+  function->AddSignature({ARG_KIND_EXPR_ANY_1,
+                          {named_required_format_arg, named_lambda_arg},
+                          /*context_id=*/-1});
+  GOOGLESQL_RET_CHECK("(STRING format_string, FUNCTION<INT64-><T1>> lambda) -> <T1>" ==
             function->GetSignature(0)->DebugString());
   catalog_->AddOwnedFunction(function.release());
 

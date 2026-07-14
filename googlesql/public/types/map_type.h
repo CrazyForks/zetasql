@@ -107,7 +107,7 @@ class MapType : public ContainerType {
   }
 
  private:
-  MapType(const TypeFactoryBase* factory, const Type* key_type,
+  MapType(const TypeFactoryBase& factory, const Type* key_type,
           const Type* value_type);
   ~MapType() override;
 

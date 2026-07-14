@@ -2015,14 +2015,12 @@ void SimpleTable::SetContents(absl::Span<const std::vector<Value>> rows) {
       GOOGLESQL_RET_CHECK_LT(column_idx, column_major_contents_.size());
       column_values.push_back(column_major_contents_[column_idx]);
     }
-    std::unique_ptr<EvaluatorTableIterator> iter(
-        new SimpleEvaluatorTableIterator(
-            columns, column_values, num_rows_,
-            /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/
-            absl::flat_hash_set<int>(column_idxs.begin(), column_idxs.end()),
-            /*cancel_cb=*/[]() {},
-            /*set_deadline_cb=*/[](absl::Time t) {}, googlesql_base::Clock::RealClock()));
-    return iter;
+    return SimpleEvaluatorTableIterator::Create(
+        columns, column_values, num_rows_,
+        /*end_status=*/absl::OkStatus(), /*filter_column_idxs=*/
+        absl::flat_hash_set<int>(column_idxs.begin(), column_idxs.end()),
+        /*cancel_cb=*/[]() {},
+        /*set_deadline_cb=*/[](absl::Time t) {}, googlesql_base::Clock::RealClock());
   };
 
   SetEvaluatorTableIteratorFactory(factory);

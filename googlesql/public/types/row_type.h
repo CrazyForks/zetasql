@@ -102,7 +102,7 @@ class RowOrTableType : public Type {
   absl::StatusOr<std::any*> GetTableScanContext() const;
 
  protected:
-  RowOrTableType(const TypeFactoryBase* type_factory, const Table* table,
+  RowOrTableType(const TypeFactoryBase& type_factory, const Table* table,
                  const std::string& table_name);
 
   int64_t GetEstimatedOwnedMemoryBytesSize() const override {
@@ -172,7 +172,7 @@ class RowType : public RowOrTableType {
   std::any* GetTableScanContext() const { return &table_scan_context_; }
 
  private:
-  RowType(const TypeFactoryBase* type_factory, const Table* table,
+  RowType(const TypeFactoryBase& type_factory, const Table* table,
           const std::string& table_name);
   ~RowType() override;
 
@@ -237,7 +237,7 @@ class TableRefType : public RowOrTableType {
   }
 
  private:
-  TableRefType(const TypeFactoryBase* type_factory, const Table* table,
+  TableRefType(const TypeFactoryBase& type_factory, const Table* table,
                const std::string& table_name, bool multi_row,
                std::vector<const Column*> bound_columns,
                const Table* bound_source_table,

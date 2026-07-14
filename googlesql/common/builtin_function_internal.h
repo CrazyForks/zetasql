@@ -161,7 +161,7 @@ bool ArgumentsAreComparable(absl::Span<const InputArgumentType> arguments,
 
 // Checks whether all arguments are/are not arrays depending on the value of the
 // 'is_array' flag.
-bool ArgumentsArrayType(const std::vector<InputArgumentType>& arguments,
+bool ArgumentsArrayType(absl::Span<const InputArgumentType> arguments,
                         bool is_array, int* bad_argument_idx);
 
 // The argument <display_name> in the below ...FunctionSQL represents the
@@ -233,7 +233,7 @@ std::string CaseNoValueFunctionSQL(absl::Span<const std::string> inputs);
 
 std::string ArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs);
 
-std::string ArrayAtOrdinalFunctionSQL(const std::vector<std::string>& inputs);
+std::string ArrayAtOrdinalFunctionSQL(absl::Span<const std::string> inputs);
 
 std::string SafeArrayAtOffsetFunctionSQL(absl::Span<const std::string> inputs);
 
@@ -363,11 +363,11 @@ std::string NoMatchingSignatureForGenerateDateOrTimestampArrayFunction(
 
 std::string NoMatchingSignatureForSubscript(
     absl::string_view offset_or_ordinal, absl::string_view operator_name,
-    const std::vector<InputArgumentType>& arguments, ProductMode product_mode);
+    absl::Span<const InputArgumentType> arguments, ProductMode product_mode);
 
 absl::Status CheckArgumentsSupportEquality(
     absl::string_view comparison_name, const FunctionSignature& /*signature*/,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckArgumentsSupportGrouping(
@@ -377,25 +377,24 @@ absl::Status CheckArgumentsSupportGrouping(
 
 absl::Status CheckArgumentsSupportComparison(
     absl::string_view comparison_name, const FunctionSignature& /*signature*/,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
-absl::Status CheckMinMaxArguments(
-    const std::string& function_name,
-    const std::vector<InputArgumentType>& arguments,
-    const LanguageOptions& language_options);
+absl::Status CheckMinMaxArguments(absl::string_view function_name,
+                                  absl::Span<const InputArgumentType> arguments,
+                                  const LanguageOptions& language_options);
 
 absl::Status CheckGreatestLeastArguments(
     absl::string_view function_name,
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckArrayAggArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckArrayConcatArguments(
-    const std::vector<InputArgumentType>& arguments,
+    absl::Span<const InputArgumentType> arguments,
     const LanguageOptions& language_options);
 
 absl::Status CheckArrayIsDistinctArguments(

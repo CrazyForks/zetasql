@@ -26,6 +26,7 @@
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/resolved_ast/resolved_column.h"
+#include "absl/base/nullability.h"
 #include "googlesql/base/check.h"
 #include "absl/strings/string_view.h"
 
@@ -44,8 +45,9 @@ ColumnFactory::ColumnFactory(int max_seen_col_id, IdStringPool& id_string_pool,
   sequence_ = owned_column_id_sequence_.get();
 }
 
-ColumnFactory::ColumnFactory(int max_col_id, IdStringPool* id_string_pool,
-                             googlesql_base::SequenceNumber* sequence)
+ColumnFactory::ColumnFactory(int max_col_id,
+                             IdStringPool* /*absl_nonnull*/ id_string_pool,
+                             googlesql_base::SequenceNumber* /*absl_nullable*/ sequence)
     : max_seen_col_id_(max_col_id),
       id_string_pool_(id_string_pool),
       sequence_(sequence) {
@@ -59,10 +61,11 @@ ColumnFactory::ColumnFactory(int max_col_id, IdStringPool* id_string_pool,
   //
   // This check ensures that it is safe to remove this assumption, once the
   // legacy constructor is removed and all callers have been migrated.
-  ABSL_CHECK(id_string_pool != nullptr);
+  ABSL_DCHECK(id_string_pool != nullptr);
 }
 
-ColumnFactory::ColumnFactory(int max_col_id, googlesql_base::SequenceNumber* sequence)
+ColumnFactory::ColumnFactory(int max_col_id,
+                             googlesql_base::SequenceNumber* /*absl_nullable*/ sequence)
     : max_seen_col_id_(max_col_id),
       id_string_pool_(nullptr),
       sequence_(sequence) {

@@ -1082,5 +1082,14 @@ CreateFunctionStmt
 
 ==
 
+# ERROR: Lambda argument with NUMERIC type modifiers is not supported (standard syntax).
+[language_features=NONE,+INLINE_LAMBDA_ARGUMENT,+UDF_LAMBDA_ARGUMENTS,+PARAMETERIZED_TYPES,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+NUMERIC_TYPE]
+create function foo.fn_lambda_numeric_modifiers_std(x FUNCTION<numeric(10, 2)->NUMERIC(10,2)>, y NUMERIC) as (1);
+--
+ERROR: Parameterized types are not supported in function arguments [at 1:71]
+...fn_lambda_numeric_modifiers_std(x FUNCTION<numeric(10, 2)->NUMERIC(10,2)>,...
+                                                     ^
+==
+
 
 

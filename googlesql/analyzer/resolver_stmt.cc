@@ -2269,6 +2269,13 @@ absl::Status Resolver::ResolveColumnSchema(
       }
       return resolved_type_parameters_or_error.status();
     }
+    if (!language().LanguageFeatureEnabled(FEATURE_VECTOR_TYPE) &&
+        (*resolved_type)->AsDeclarativeType() != nullptr &&
+        (*resolved_type)->AsDeclarativeType()->IsGoogleSQLBuiltin("VECTOR") &&
+        !resolved_type_parameters_or_error->IsEmpty()) {
+      return MakeSqlErrorAt(ast_type_parameters)
+             << "Vector type parameters are not supported";
+    }
     resolved_type_parameters = *resolved_type_parameters_or_error;
   }
 

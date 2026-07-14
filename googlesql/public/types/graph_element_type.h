@@ -189,7 +189,7 @@ class GraphElementType : public ListBackedType {
 
  private:
   GraphElementType(const internal::GraphReference* graph_reference,
-                   ElementKind element_kind, const TypeFactory* factory,
+                   ElementKind element_kind, const TypeFactory& factory,
                    absl::flat_hash_set<PropertyType> property_types,
                    int nesting_depth, bool is_dynamic = false);
 

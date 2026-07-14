@@ -1603,6 +1603,31 @@ FROM
 
 ==
 
+# Valid "GRAPH path" syntax for table-valued function arguments.
+select * from tvf_one_relation_arg_with_fixed_output(graph graph_name)
+--
+QueryStatement [0-70] [select * from...graph_name)]
+  Query [0-70] [select * from...graph_name)]
+    Select [0-70] [select * from...graph_name)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-70] [from tvf_one_rela...raph_name)]
+        TVF [14-70] [tvf_one_relation_...raph_name)]
+          PathExpression [14-52] [tvf_one_relation_...xed_output]
+            Identifier(tvf_one_relation_arg_with_fixed_output) [14-52] [tvf_one_relation_...xed_output]
+          TVFArgument [53-69] [graph graph_name]
+            GraphClause [53-69] [graph graph_name]
+              PathExpression [59-69] [graph_name]
+                Identifier(graph_name) [59-69] [graph_name]
+--
+SELECT
+  *
+FROM
+  tvf_one_relation_arg_with_fixed_output(GRAPH graph_name)
+
+==
+
 # Valid "TABLE path" syntax for table-valued function arguments with multiple
 # elements in the path.
 select * from tvf_one_relation_arg_with_fixed_output(table a.b.c)
@@ -1682,6 +1707,73 @@ SELECT
   *
 FROM
   tvf_one_relation_arg_with_fixed_output(CONNECTION a.b.c)
+==
+
+# Valid "GRAPH path" syntax for table-valued function arguments with multiple
+# elements in the path.
+select * from tvf_one_relation_arg_with_fixed_output(graph a.b.c)
+--
+QueryStatement [0-65] [select * from...graph a.b.c)]
+  Query [0-65] [select * from...graph a.b.c)]
+    Select [0-65] [select * from...graph a.b.c)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-65] [from tvf_one_rela...aph a.b.c)]
+        TVF [14-65] [tvf_one_relation_...aph a.b.c)]
+          PathExpression [14-52] [tvf_one_relation_...xed_output]
+            Identifier(tvf_one_relation_arg_with_fixed_output) [14-52] [tvf_one_relation_...xed_output]
+          TVFArgument [53-64] [graph a.b.c]
+            GraphClause [53-64] [graph a.b.c]
+              PathExpression [59-64] [a.b.c]
+                Identifier(a) [59-60] [a]
+                Identifier(b) [61-62] [b]
+                Identifier(c) [63-64] [c]
+--
+SELECT
+  *
+FROM
+  tvf_one_relation_arg_with_fixed_output(GRAPH a.b.c)
+==
+
+# Valid TVF with multiple argument types.
+select * from tvf_one_relation_arg_with_fixed_output(graph graph, model model, graph a.b.c, table d.e.f)
+--
+QueryStatement [0-104] [select * from...table d.e.f)]
+  Query [0-104] [select * from...table d.e.f)]
+    Select [0-104] [select * from...table d.e.f)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-104] [from tvf_one_rela...ble d.e.f)]
+        TVF [14-104] [tvf_one_relation_...ble d.e.f)]
+          PathExpression [14-52] [tvf_one_relation_...xed_output]
+            Identifier(tvf_one_relation_arg_with_fixed_output) [14-52] [tvf_one_relation_...xed_output]
+          TVFArgument [53-64] [graph graph]
+            GraphClause [53-64] [graph graph]
+              PathExpression [59-64] [graph]
+                Identifier(graph) [59-64] [graph]
+          TVFArgument [66-77] [model model]
+            ModelClause [66-77] [model model]
+              PathExpression [72-77] [model]
+                Identifier(model) [72-77] [model]
+          TVFArgument [79-90] [graph a.b.c]
+            GraphClause [79-90] [graph a.b.c]
+              PathExpression [85-90] [a.b.c]
+                Identifier(a) [85-86] [a]
+                Identifier(b) [87-88] [b]
+                Identifier(c) [89-90] [c]
+          TVFArgument [92-103] [table d.e.f]
+            TableClause [92-103] [table d.e.f]
+              PathExpression [98-103] [d.e.f]
+                Identifier(d) [98-99] [d]
+                Identifier(e) [100-101] [e]
+                Identifier(f) [102-103] [f]
+--
+SELECT
+  *
+FROM
+  tvf_one_relation_arg_with_fixed_output(GRAPH graph, MODEL model, GRAPH a.b.c, TABLE d.e.f)
 ==
 
 # "TABLE path" is not currently supported as a stand-alone query.

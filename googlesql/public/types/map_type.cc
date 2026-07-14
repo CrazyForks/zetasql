@@ -137,7 +137,7 @@ absl::Status MapType::ValidateResolvedTypeParameters(
                                                      mode);
 }
 
-MapType::MapType(const TypeFactoryBase* factory, const Type* key_type,
+MapType::MapType(const TypeFactoryBase& factory, const Type* key_type,
                  const Type* value_type)
     : ContainerType(factory, TYPE_MAP),
       key_type_(key_type),

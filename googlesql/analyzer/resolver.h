@@ -102,6 +102,7 @@ class FunctionResolver;
 class QueryResolutionInfo;
 class SelectColumnStateList;
 class ExtendedCompositeCastEvaluator;
+class MapType;
 struct ColumnReplacements;
 struct OrderByItemInfo;
 struct SelectColumnState;
@@ -463,6 +464,34 @@ class Resolver {
   void Reset(absl::string_view sql);
 
  private:
+  // Helper method for ResolveMapBracedConstructor. Resolves and validates a
+  // single entry (key-value pair) in the braced constructor.
+  absl::Status ResolveMapBracedConstructorEntry(
+      const ASTBracedConstructorField* ast_field, const MapType* map_type,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_key_out,
+      std::unique_ptr<const ResolvedExpr>* resolved_value_out);
+
+  // Helper method for ResolveMapBracedConstructor. Resolves derived map key and
+  // value types from the key and value expressions in the braced constructor.
+  absl::StatusOr<std::pair<const Type*, const Type*>>
+  ResolveMapBracedConstructorDerivedTypes(
+      const ASTBracedConstructor* ast_braced_constructor,
+      absl::Span<const std::unique_ptr<const ResolvedExpr>> resolved_keys,
+      absl::Span<const std::unique_ptr<const ResolvedExpr>> resolved_values);
+
+  // Helper method for ResolveMapBracedConstructor. Coerces key and value
+  // expressions to the target key and value types and builds
+  // ResolvedMakeMapEntry nodes.
+  absl::StatusOr<std::vector<std::unique_ptr<const ResolvedMakeMapEntry>>>
+  ResolveMapBracedConstructorEntries(
+      const ASTBracedConstructor* ast_braced_constructor,
+      std::vector<std::unique_ptr<const ResolvedExpr>> resolved_keys,
+      std::vector<std::unique_ptr<const ResolvedExpr>> resolved_values,
+      const Type* key_type, const Type* value_type, const Type* expected_type,
+      const TypeModifiers& key_modifiers, const TypeModifiers& value_modifiers,
+      bool* all_literals);
+
   static constexpr char kCollationPropagatedToSqlFunctionFeatureLabel[] =
       "collation_propagated_to_sql_function";
   // Case-insensitive map of a column name to its position in a list of columns.
@@ -5203,6 +5232,13 @@ class Resolver {
       ExprResolutionInfo* expr_resolution_info,
       std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
 
+  absl::Status ResolveMapBracedConstructor(
+      const ASTNode* ast_location,
+      const ASTBracedConstructor* ast_braced_constructor,
+      const Type* expected_type, TypeModifiers expected_type_modifiers,
+      ExprResolutionInfo* expr_resolution_info,
+      std::unique_ptr<const ResolvedExpr>* resolved_expr_out);
+
   absl::Status ResolveBracedConstructorForStruct(
       const ASTBracedConstructor* ast_braced_constructor, bool is_bare_struct,
       const ASTNode* expression_location_node,
@@ -6110,6 +6146,10 @@ class Resolver {
   absl::StatusOr<TypeParameters> ResolveTypeParameters(
       const ASTTypeParameterList* type_parameters, const Type& resolved_type,
       const std::vector<TypeParameters>& child_parameter_list);
+
+  absl::StatusOr<TypeParameters> ResolveVectorTypeParameters(
+      const ASTTypeParameterList* type_parameters,
+      const std::vector<TypeParameterValue>& resolved_type_parameter_list);
 
   // Resolve the simple type literals for each input type parameter. Valid
   // literal types are BOOL, BYTES, FLOAT, INT, STRING, and MAX.

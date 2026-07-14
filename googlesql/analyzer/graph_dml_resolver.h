@@ -30,6 +30,7 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace googlesql {
@@ -87,9 +88,9 @@ class GraphDmlResolver {
                           const GraphElementTable* target_table,
                           const NameScope* input_scope);
 
-  // Builds the static GraphElementType based on the static properties of the
-  // target table.
-  absl::StatusOr<const GraphElementType*> BuildStaticGraphElementType(
+  // Builds the GraphElementType based on the properties of the target table.
+  // Supports both static and dynamic graph element types.
+  absl::StatusOr<const GraphElementType*> BuildGraphElementType(
       const GraphElementTable* target_table,
       GraphElementType::ElementKind element_kind);
 

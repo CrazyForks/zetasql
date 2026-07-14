@@ -979,7 +979,7 @@ absl::StatusOr<ElementTableSet> GetTablesSatisfyingLabelExpr(
     const ResolvedGraphLabelExpr* label_expr,
     const absl::flat_hash_set<const T*>& tables) {
   static_assert(
-      std::is_base_of<GraphElementTable, T>::value,
+      std::is_base_of_v<GraphElementTable, T>,
       "Type parameter must have base class of type GraphElementTable");
   ElementTableSet matching_element_tables;
   for (const GraphElementTable* table : tables) {

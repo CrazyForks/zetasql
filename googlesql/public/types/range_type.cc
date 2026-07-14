@@ -82,7 +82,7 @@ bool RangeType::IsSupportedType(const LanguageOptions& language_options) const {
          element_type_->IsSupportedType(language_options);
 }
 
-RangeType::RangeType(const TypeFactoryBase* factory, const Type* element_type)
+RangeType::RangeType(const TypeFactoryBase& factory, const Type* element_type)
     : ListBackedType(factory, TYPE_RANGE), element_type_(element_type) {
   // Also blocked in TypeFactory::MakeRangeType.
   ABSL_DCHECK(IsValidElementType(element_type_));

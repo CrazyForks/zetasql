@@ -44,6 +44,7 @@
 #include "googlesql/public/timestamp_picos_value.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
+#include "googlesql/public/types/declarative_type.h"
 #include "googlesql/public/types/graph_element_type.h"
 #include "googlesql/public/types/map_type.h"
 #include "googlesql/public/types/measure_type.h"
@@ -55,6 +56,7 @@
 #include "googlesql/public/value_content.h"
 #include "googlesql/base/case.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -230,15 +232,16 @@ void Value::SetMetadataForNonSimpleType(const Type* type, bool is_null,
 }
 
 // Null value constructor.
-Value::Value(const Type* type, bool is_null, OrderPreservationKind order_kind) {
-  ABSL_CHECK(type != nullptr);
+Value::Value(const Type* /*absl_nonnull*/ type, bool is_null,
+             OrderPreservationKind order_kind) {
+  ABSL_DCHECK(type != nullptr);
 
-  if (type->IsMap()) {
+  if (type != nullptr && type->IsMap()) {
     ABSL_DCHECK(order_kind == kIgnoresOrder);
     order_kind = kIgnoresOrder;
   }
 
-  if (type->IsSimpleType()) {
+  if (type != nullptr && type->IsSimpleType()) {
     metadata_ = Metadata(type->kind(), is_null, order_kind,
                          /*value_extended_content=*/0);
   } else {
@@ -353,7 +356,7 @@ Value::Value(const EnumType* enum_type, absl::string_view name) {
 }
 
 Value::Value(const ProtoType* proto_type, absl::Cord value)
-    : proto_ptr_(new internal::ProtoRep(proto_type, std::move(value))) {
+    : proto_ptr_(new internal::ProtoRep(std::move(value))) {
   SetMetadataForNonSimpleType(proto_type);
 }
 
@@ -374,6 +377,35 @@ static constexpr bool kDebugMode = false;
 #else
 static constexpr bool kDebugMode = true;
 #endif
+
+absl::StatusOr<Value> Value::Declarative(const DeclarativeType* decl_type,
+                                         const Value& backing_value) {
+  GOOGLESQL_RET_CHECK(decl_type != nullptr) << "decl_type cannot be null";
+  GOOGLESQL_RET_CHECK(backing_value.is_valid()) << "backing_value must be valid";
+  // For a NULL, do not use a NULL `backing_value`. Instead, simply use
+  // Value::Null(decl_type);
+  GOOGLESQL_RET_CHECK(!backing_value.is_null()) << "backing_value must not be null";
+  GOOGLESQL_RET_CHECK(backing_value.type()->Equals(decl_type->backing_type()))
+      << "backing_value type mismatch: expected "
+      << decl_type->backing_type()->DebugString() << ", got "
+      << backing_value.type()->DebugString();
+
+  const Type* backing_type = decl_type->backing_type();
+
+  ValueContent content;
+  if (backing_type->UsesExtendedInlineValueContent()) {
+    ValueContent backing_content = backing_value.GetContent();
+    content =
+        ValueContent::Create(new internal::ValueContentRef(backing_content));
+  } else {
+    backing_type->CopyValueContent(backing_value.GetContent(), &content);
+  }
+
+  Value result;
+  result.SetMetadataForNonSimpleType(decl_type, /*is_null=*/false);
+  result.SetContent(std::move(content));
+  return result;
+}
 
 absl::StatusOr<Value> Value::MakeArrayInternal(bool already_validated,
                                                const ArrayType* array_type,
@@ -870,6 +902,37 @@ const TimestampPicosValue& Value::ToUnixPicos() const {
 ValueContent Value::extended_value() const {
   ABSL_CHECK_EQ(type_kind(), TYPE_EXTENDED);
   return GetContent();
+}
+
+absl::StatusOr<Value> Value::backing_value() const {
+  GOOGLESQL_RET_CHECK(is_valid()) << "Value must be valid";
+  GOOGLESQL_RET_CHECK(!is_null()) << "Value must not be null";
+  GOOGLESQL_RET_CHECK_EQ(type_kind(), TYPE_DECLARATIVE)
+      << "Value must be of type DECLARATIVE";
+  const DeclarativeType* decl_type = type()->AsDeclarativeType();
+  GOOGLESQL_RET_CHECK(decl_type != nullptr);
+
+  ValueContent copied_content;
+  const Type* backing_type = decl_type->backing_type();
+  if (backing_type->UsesExtendedInlineValueContent()) {
+    GOOGLESQL_RET_CHECK(backing_type->IsSimpleType());
+    copied_content =
+        DeclarativeType::GetBackingContent(GetContent(), decl_type);
+  } else {
+    decl_type->CopyValueContent(GetContent(), &copied_content);
+  }
+
+  Value result;
+  if (backing_type->IsSimpleType()) {
+    result.metadata_ =
+        Metadata(backing_type->kind(), /*is_null=*/false, kPreservesOrder,
+                 copied_content.simple_type_extended_content_);
+  } else {
+    GOOGLESQL_RET_CHECK_EQ(copied_content.simple_type_extended_content_, 0);
+    result.SetMetadataForNonSimpleType(backing_type, /*is_null=*/false);
+  }
+  result.SetContent(std::move(copied_content));
+  return result;
 }
 
 google::protobuf::Message* Value::ToMessage(
@@ -1995,6 +2058,16 @@ absl::StatusOr<Value> Value::Deserialize(const ValueProto& value_proto,
                                              std::move(deserialized_value)));
       }
       return MakeMap(type, std::move(map_entries));
+    }
+    // TODO: b/365163099 - TYPE_DECLARATIVE is added here as tech debt because
+    // of the types that are not yet moved above. If they are backing types,
+    // DeclarativeType would need to call out to Value::Deserialize(), so we
+    // cannot yet delegate to the backing type.
+    case TYPE_DECLARATIVE: {
+      const DeclarativeType* decl_type = type->AsDeclarativeType();
+      GOOGLESQL_ASSIGN_OR_RETURN(Value backing_value,
+                       Deserialize(value_proto, decl_type->backing_type()));
+      return Declarative(decl_type, backing_value);
     }
     // TODO: b/365163099 - The cases above are tech debt, and should be moved
     // into their respective DeserializeValueContent implementations.

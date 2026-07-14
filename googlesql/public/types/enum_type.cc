@@ -29,9 +29,11 @@
 #include "googlesql/public/types/internal_utils.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/types/value_equality_check_options.h"
 #include "googlesql/public/value.pb.h"
 #include "googlesql/public/value_content.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/hash/hash.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
@@ -39,6 +41,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace googlesql {
 
@@ -47,14 +51,15 @@ static int32_t GetEnumValue(const ValueContent& value) {
   return value.GetAs<int32_t>();
 }
 
-EnumType::EnumType(const TypeFactory* factory,
-                   const google::protobuf::EnumDescriptor* enum_descr,
-                   const internal::CatalogName* catalog_name, bool is_opaque)
+EnumType::EnumType(const TypeFactory& factory,
+                   const google::protobuf::EnumDescriptor* /*absl_nonnull*/ enum_descr,
+                   const internal::CatalogName* /*absl_nullable*/ catalog_name,
+                   bool is_opaque)
     : Type(factory, TYPE_ENUM),
       enum_descriptor_(enum_descr),
       catalog_name_(catalog_name),
       is_opaque_(is_opaque) {
-  ABSL_CHECK(enum_descriptor_ != nullptr);
+  ABSL_DCHECK(enum_descriptor_ != nullptr);
 }
 
 EnumType::~EnumType() = default;

@@ -112,6 +112,7 @@
 #include "googlesql/public/timestamp_picos_value.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/type.pb.h"
+#include "googlesql/public/type_parameters.pb.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/array_type.h"
 #include "googlesql/public/types/collation.h"
@@ -190,6 +191,16 @@ STATIC_IDSTRING(kGraphTableId, "$graph_table");
 STATIC_IDSTRING(kHorizontalAggregateId, "$horizontal_aggregate");
 
 namespace {
+
+// Returns true if `path_expr` represents a single unquoted identifier
+// that matches `name` (case-insensitively).
+bool IsSingleUnquotedIdentifier(const ASTPathExpression* path_expr,
+                                absl::string_view name) {
+  return path_expr != nullptr && path_expr->num_names() == 1 &&
+         !path_expr->first_name()->is_quoted() &&
+         googlesql_base::CaseEqual(path_expr->first_name()->GetAsStringView(),
+                                name);
+}
 
 static absl::Status ValidateFormatStringToDate(absl::string_view format) {
   return functions::ValidateFormatStringForParsing(
@@ -1403,12 +1414,17 @@ absl::Status Resolver::ResolveExpr(
           expr_resolution_info.get(), resolved_expr_out));
       break;
     case AST_BRACED_CONSTRUCTOR_EXTENDED_EXPR: {
-      // This node is not used yet by anything that exceeds the parser. If the
-      // node gets here, it's because the user composed syntax in a way that
-      // doesn't make sense. The parser doesn't exclude this composition, but
-      // it is arguably a syntax error.
       const auto* extended_expr =
           ast_expr->GetAsOrDie<ASTBracedConstructorExtendedExpr>();
+      const auto* path_expr =
+          extended_expr->expr()->GetAsOrNull<ASTPathExpression>();
+      if (IsSingleUnquotedIdentifier(path_expr, "MAP")) {
+        GOOGLESQL_RETURN_IF_ERROR(ResolveMapBracedConstructor(
+            extended_expr, extended_expr->braced_constructor(),
+            /*expected_type=*/nullptr, TypeModifiers(),
+            expr_resolution_info.get(), resolved_expr_out));
+        break;
+      }
       return MakeSqlErrorAt(extended_expr->braced_constructor())
              << "Syntax error: Unexpected braced constructor";
     }
@@ -7272,7 +7288,7 @@ Resolver::CreateAnnotationMapFromTypeWithModifiers(
 
 absl::Status Resolver::CheckTypeModifiersFeaturesEnabled(
     const TypeModifiers& type_modifiers) const {
-  if (!type_modifiers.type_parameters().IsEmpty()) {
+  if (!type_modifiers.IsEmpty()) {
     GOOGLESQL_RET_CHECK(language().LanguageFeatureEnabled(
         FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF));
   }
@@ -7460,9 +7476,18 @@ absl::StatusOr<TypeParameters> Resolver::ResolveTypeParameters(
                    ResolveParameterLiterals(*type_parameters));
 
   // Validate type parameters and get the resolved TypeParameters class.
-  absl::StatusOr<TypeParameters> type_params_or_status =
-      resolved_type.ValidateAndResolveTypeParameters(
-          resolved_type_parameter_list, product_mode());
+  absl::StatusOr<TypeParameters> type_params_or_status;
+  if (resolved_type.AsDeclarativeType() != nullptr &&
+      resolved_type.AsDeclarativeType()->IsGoogleSQLBuiltin("VECTOR")) {
+    // TODO: Design a generalized and declarative approach to
+    // resolve type parameters on declarative types.
+    type_params_or_status = ResolveVectorTypeParameters(
+        type_parameters, resolved_type_parameter_list);
+  } else {
+    type_params_or_status = resolved_type.ValidateAndResolveTypeParameters(
+        resolved_type_parameter_list, product_mode());
+  }
+
   // TODO: Modify ValidateAndResolveTypeParameters to
   // handle the attachment of the error location. This can be done by taking an
   // argument that is a function: std::function<StatusBuilder(int)>.
@@ -8437,6 +8462,15 @@ Resolver::ResolveBracedConstructorField(
 
   const ASTBracedConstructorLhs* braced_constructor_lhs =
       ast_braced_constructor_field->braced_constructor_lhs();
+  // Non-colon operators (like '*:' or '?:') represent update semantics
+  // and are not allowed in standard initialization contexts (e.g., NEW).
+  if (update_constructor_expr_to_modify == nullptr) {
+    if (braced_constructor_lhs->operation() !=
+        ASTBracedConstructorLhs::UPDATE_SINGLE) {
+      return MakeSqlErrorAt(braced_constructor_lhs)
+             << "Only \':\' operator is allowed in braced constructors";
+    }
+  }
   GOOGLESQL_ASSIGN_OR_RETURN(
       BracedConstructorField field,
       ResolveBracedConstructorLhs(braced_constructor_lhs, parent_type));
@@ -8459,6 +8493,14 @@ Resolver::ResolveBracedConstructorField(
   GOOGLESQL_ASSIGN_OR_RETURN(const Type* lhs_type,
                    FindProtoFieldType(leaf_field_descriptor, field.location,
                                       parent_type->CatalogNamePath()));
+  // For repeated field updates (the `*:` operator), the update value
+  // expression evaluates against each element individually. Therefore, we
+  // resolve the left-hand side type as the repeated field's element type.
+  if (braced_constructor_lhs->operation() ==
+          ASTBracedConstructorLhs::UPDATE_MANY &&
+      lhs_type->IsArray()) {
+    lhs_type = lhs_type->AsArray()->element_type();
+  }
   // Resolve the field value.
   GOOGLESQL_RET_CHECK(ast_braced_constructor_field->value());
   GOOGLESQL_RET_CHECK(ast_braced_constructor_field->value()->expression());
@@ -8486,11 +8528,27 @@ Resolver::ResolveBracedConstructorField(
     auto path_expr = braced_constructor_lhs->key_expr()
                          ->GetAsOrNull<ASTGeneralizedPathExpression>();
     GOOGLESQL_RET_CHECK(path_expr != nullptr);
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<const ResolvedExpr> proto_expr,
-        ResolveProtoFieldAccess(*update_constructor_expr_to_modify,
-                                field_value->location(), *path_expr,
-                                &expr_resolution_info->flatten_state));
+    std::unique_ptr<const ResolvedExpr> proto_expr;
+    if (braced_constructor_lhs->operation() ==
+        ASTBracedConstructorLhs::UPDATE_MANY) {
+      // For repeated field updates (the `*:` operator), the update applies to
+      // each individual element of the repeated field. We use a placeholder
+      // (ResolvedFlattenedArg) representing the repeated field's element type
+      // so that nested path accesses check against the element type rather than
+      // the container type. E.g. in `arr *: { field: x }` where `arr`
+      // is a repeated field of protos, the nested `{ field: x }` resolves
+      // against the repeated field's element type.
+      proto_expr = MakeResolvedFlattenedArg(lhs_type);
+    } else {
+      // For standard updates (the `:` operator), which can apply to all
+      // field types (replacing the value as a whole), we resolve the field path
+      // directly. Since this operation does not traverse into elements of a
+      // repeated field, we can resolve it without flattening.
+      GOOGLESQL_ASSIGN_OR_RETURN(proto_expr, ResolveProtoFieldAccess(
+                                       *update_constructor_expr_to_modify,
+                                       field_value->location(), *path_expr,
+                                       &expr_resolution_info->flatten_state));
+    }
     GOOGLESQL_ASSIGN_OR_RETURN(expr, ResolveBracedConstructorInUpdateContext(
                                *field_value, std::move(proto_expr),
                                /*alias=*/"",
@@ -8618,8 +8676,12 @@ absl::Status Resolver::ResolveBracedConstructor(
     return ResolveBracedConstructorForProto(ast_braced_constructor,
                                             inferred_type, expr_resolution_info,
                                             resolved_expr_out);
+  } else if (inferred_type->IsMap()) {
+    return ResolveMapBracedConstructor(
+        ast_braced_constructor, ast_braced_constructor, inferred_type,
+        TypeModifiers(), expr_resolution_info, resolved_expr_out);
   }
-  // Neither Proto or Struct
+  // Neither Proto, Struct, nor Map
   return MakeSqlErrorAt(ast_braced_constructor)
          << "Braced constructors are not allowed for type "
          << inferred_type->ShortTypeName(product_mode());
@@ -8650,6 +8712,13 @@ absl::Status Resolver::ResolveBracedConstructorForStruct(
     }
     if (is_first_field) {
       is_first_field = false;
+    }
+    // STRUCT constructors are initialization-only and do not support
+    // update operators like '*:' or '?:'.
+    if (ast_field->braced_constructor_lhs()->operation() !=
+        ASTBracedConstructorLhs::UPDATE_SINGLE) {
+      return MakeSqlErrorAt(ast_field->braced_constructor_lhs())
+             << "Only \':\' operator is allowed in braced constructors";
     }
     auto path_expr = ast_field->braced_constructor_lhs()
                          ->key_expr()
@@ -8804,12 +8873,139 @@ absl::Status Resolver::ResolveTypedBracedConstructor(
     std::unique_ptr<const ResolvedExpr>* resolved_expr_out) {
   RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
   const Type* resolved_type;
+  TypeModifiers resolved_type_modifiers;
+  bool support_type_modifiers = language().LanguageFeatureEnabled(
+      FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF);
   GOOGLESQL_RETURN_IF_ERROR(ResolveType(ast_typed_braced_constructor->type_name(),
-                              {.context = "braced constructor"}, &resolved_type,
-                              /*resolved_type_modifiers=*/nullptr));
+                              {.allow_type_parameters = support_type_modifiers,
+                               .allow_collation = support_type_modifiers,
+                               .context = "braced constructor"},
+                              &resolved_type, &resolved_type_modifiers));
+  if (resolved_type->IsMap()) {
+    return ResolveMapBracedConstructor(
+        ast_typed_braced_constructor,
+        ast_typed_braced_constructor->braced_constructor(), resolved_type,
+        std::move(resolved_type_modifiers), expr_resolution_info,
+        resolved_expr_out);
+  }
   return MakeSqlErrorAt(ast_typed_braced_constructor)
          << "Braced constructors are not supported for type "
          << resolved_type->ShortTypeName(product_mode());
+}
+
+absl::Status Resolver::ResolveMapBracedConstructor(
+    const ASTNode* ast_location,
+    const ASTBracedConstructor* ast_braced_constructor,
+    const Type* expected_type, TypeModifiers expected_type_modifiers,
+    ExprResolutionInfo* expr_resolution_info,
+    std::unique_ptr<const ResolvedExpr>* resolved_expr_out) {
+  RETURN_ERROR_IF_OUT_OF_STACK_SPACE();
+  GOOGLESQL_RET_CHECK(ast_braced_constructor != nullptr);
+
+  // 1. Verify that the MAP_LITERAL feature gate is enabled.
+  if (!language().LanguageFeatureEnabled(FEATURE_MAP_LITERAL)) {
+    return MakeSqlErrorAt(ast_braced_constructor)
+           << "MAP braced constructors are not supported";
+  }
+
+  const MapType* map_type = nullptr;
+  TypeModifiers key_modifiers;
+  TypeModifiers value_modifiers;
+
+  // 2. If an expected type is present, validate that it is indeed a MAP type,
+  //    and extract the key and value type parameter/collation modifiers.
+  if (expected_type != nullptr) {
+    GOOGLESQL_RET_CHECK(expected_type->IsMap())
+        << "Expected MAP type, but got "
+        << expected_type->ShortTypeName(product_mode());
+    map_type = expected_type->AsMap();
+    if (!expected_type_modifiers.IsEmpty()) {
+      GOOGLESQL_ASSIGN_OR_RETURN(key_modifiers, expected_type_modifiers.GetChild(0));
+      GOOGLESQL_ASSIGN_OR_RETURN(value_modifiers, expected_type_modifiers.GetChild(1));
+    }
+  }
+
+  std::vector<std::unique_ptr<const ResolvedExpr>> resolved_keys;
+  std::vector<std::unique_ptr<const ResolvedExpr>> resolved_values;
+  resolved_keys.reserve(ast_braced_constructor->fields().size());
+  resolved_values.reserve(ast_braced_constructor->fields().size());
+
+  // 3. Resolve each entry's key and value expressions.
+  for (const ASTBracedConstructorField* ast_field :
+       ast_braced_constructor->fields()) {
+    std::unique_ptr<const ResolvedExpr> resolved_key;
+    std::unique_ptr<const ResolvedExpr> resolved_value;
+    GOOGLESQL_RETURN_IF_ERROR(ResolveMapBracedConstructorEntry(
+        ast_field, map_type, expr_resolution_info, &resolved_key,
+        &resolved_value));
+    resolved_keys.push_back(std::move(resolved_key));
+    resolved_values.push_back(std::move(resolved_value));
+  }
+
+  // 4. Determine component key and value types.
+  const Type* key_type = nullptr;
+  const Type* value_type = nullptr;
+
+  if (map_type != nullptr) {
+    // For the Typed Complete/Bare forms, use types defined by the expected MAP
+    // type.
+    key_type = map_type->key_type();
+    value_type = map_type->value_type();
+  } else {
+    // For the Derived form, infer types from the common supertype of all
+    // resolved elements.
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        auto derived_types,
+        ResolveMapBracedConstructorDerivedTypes(
+            ast_braced_constructor, resolved_keys, resolved_values));
+    key_type = derived_types.first;
+    value_type = derived_types.second;
+
+    GOOGLESQL_ASSIGN_OR_RETURN(const Type* temp_map_type,
+                     type_factory_->MakeMapType(key_type, value_type));
+    map_type = temp_map_type->AsMap();
+  }
+
+  // 5. Coerce elements to the target key and value types and build entry list.
+  bool all_literals = true;
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<const ResolvedMakeMapEntry>> entries,
+      ResolveMapBracedConstructorEntries(
+          ast_braced_constructor, std::move(resolved_keys),
+          std::move(resolved_values), key_type, value_type, expected_type,
+          key_modifiers, value_modifiers, &all_literals));
+
+  // 6. Build the MakeMap resolved AST node and propagate type annotations.
+  auto make_map = MakeResolvedMakeMap(map_type, std::move(entries));
+  GOOGLESQL_RETURN_IF_ERROR(CheckAndPropagateAnnotations(ast_location, make_map.get()));
+
+  // 7. Compile-time fold literal maps if all elements resolved as literals.
+  if (all_literals) {
+    std::vector<std::pair<Value, Value>> literal_entries;
+    literal_entries.reserve(make_map->entry_list_size());
+    for (const auto& entry : make_map->entry_list()) {
+      literal_entries.emplace_back(
+          entry->key()->GetAs<ResolvedLiteral>()->value(),
+          entry->value()->GetAs<ResolvedLiteral>()->value());
+    }
+    auto map_val_or_status =
+        Value::MakeMap(map_type, std::move(literal_entries));
+    if (map_val_or_status.ok()) {
+      *resolved_expr_out = MakeResolvedLiteral(
+          ast_location, {map_type, make_map->type_annotation_map()},
+          map_val_or_status.value(),
+          /*has_explicit_type=*/expected_type != nullptr);
+    } else {
+      // If Value::MakeMap fails (e.g., duplicate keys detected), fall back
+      // cleanly to ResolvedMakeMap, deferring the duplicate key check to
+      // runtime.
+      *resolved_expr_out = std::move(make_map);
+    }
+  } else {
+    *resolved_expr_out = std::move(make_map);
+  }
+
+  return absl::OkStatus();
 }
 
 // TODO: The noinline attribute is to prevent the stack usage
@@ -8944,6 +9140,51 @@ Resolver::ResolveBracedConstructorInUpdateContext(
         operation = ResolvedUpdateFieldItem::UPDATE_SINGLE_NO_CREATION;
         break;
     }
+
+    if (operation == ResolvedUpdateFieldItem::UPDATE_MANY) {
+      if (!absl::c_any_of(arg.field_descriptor_path,
+                          [](const google::protobuf::FieldDescriptor* field) {
+                            return field->is_repeated();
+                          })) {
+        return MakeSqlErrorAt(ast_field->braced_constructor_lhs())
+               << "*: operator requires a repeated field in the path";
+      }
+    } else if (!arg.field_descriptor_path.empty()) {
+      // We cannot have repeated fields in the middle of a field path for
+      // standard whole-value updates.
+      if (absl::c_any_of(absl::MakeSpan(arg.field_descriptor_path)
+                             .subspan(0, arg.field_descriptor_path.size() - 1),
+                         [](const google::protobuf::FieldDescriptor* field) {
+                           return field->is_repeated();
+                         })) {
+        return MakeSqlErrorAt(ast_field->braced_constructor_lhs())
+               << "Field path in UPDATE constructor without * operator "
+               << "cannot contain repeated fields except at the end of the "
+                  "path";
+      }
+    }
+
+    const Type* target_type = arg.leaf_field_type;
+    // For repeated field updates (the `*:` operator), the operation applies to
+    // each element individually. Therefore, we must target the repeated field's
+    // element type, not the container type itself.
+    // For example, if 'arr' is a repeated INT64 field
+    // and we have 'arr *: 1' as Update expression, '1' must be compatible with
+    // the INT64 element type.
+    if (operation == ResolvedUpdateFieldItem::UPDATE_MANY &&
+        target_type->IsArray()) {
+      target_type = target_type->AsArray()->element_type();
+    }
+
+    // Verify that the provided update value is compatible with the target type
+    // (the repeated field element type for repeated field updates, or the field
+    // type for standard updates). This handles implicit casting (e.g., int32 ->
+    // int64) or
+    // returns an error on mismatch.
+    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
+        ast_field->value()->expression(), target_type, TypeModifiers(),
+        kImplicitAssignment,
+        "Cannot update field of type $0 with value of type $1", &arg.expr));
     resolved_update_field_items.push_back(MakeResolvedUpdateFieldItem(
         std::move(arg.expr), arg.field_descriptor_path, operation));
   }
@@ -12884,6 +13125,176 @@ absl::Status Resolver::ValidateWithinBoundExpr(
              << "Expression must be of type TIMESTAMP, but has type "
              << node->expr()->type()->ShortTypeName(language().product_mode());
   }
+}
+
+absl::StatusOr<std::pair<const Type*, const Type*>>
+Resolver::ResolveMapBracedConstructorDerivedTypes(
+    const ASTBracedConstructor* ast_braced_constructor,
+    absl::Span<const std::unique_ptr<const ResolvedExpr>> resolved_keys,
+    absl::Span<const std::unique_ptr<const ResolvedExpr>> resolved_values) {
+  if (resolved_keys.empty()) {
+    return MakeSqlErrorAt(ast_braced_constructor)
+           << "Cannot construct an empty MAP without an expected type";
+  }
+
+  // 1. Determine derived Key Type from all resolved key expressions.
+  const Type* key_type = nullptr;
+  InputArgumentTypeSet key_arg_types;
+  for (const auto& key : resolved_keys) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        InputArgumentType key_arg_type,
+        GetInputArgumentTypeForExpr(
+            key.get(), /*pick_default_type_for_untyped_expr=*/false,
+            analyzer_options()));
+    key_arg_types.Insert(key_arg_type);
+  }
+  GOOGLESQL_RETURN_IF_ERROR(coercer_.GetCommonSuperType(key_arg_types, &key_type));
+  if (key_type == nullptr) {
+    return MakeSqlErrorAt(ast_braced_constructor)
+           << "No common supertype found for MAP keys in braced constructor: "
+           << key_arg_types.ToString();
+  }
+
+  // 2. Determine derived Value Type from all resolved value expressions.
+  const Type* value_type = nullptr;
+  InputArgumentTypeSet value_arg_types;
+  for (const auto& val : resolved_values) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        InputArgumentType value_arg_type,
+        GetInputArgumentTypeForExpr(
+            val.get(), /*pick_default_type_for_untyped_expr=*/false,
+            analyzer_options()));
+    value_arg_types.Insert(value_arg_type);
+  }
+  GOOGLESQL_RETURN_IF_ERROR(coercer_.GetCommonSuperType(value_arg_types, &value_type));
+  if (value_type == nullptr) {
+    return MakeSqlErrorAt(ast_braced_constructor)
+           << "No common supertype found for MAP values in braced constructor: "
+           << value_arg_types.ToString();
+  }
+
+  return std::make_pair(key_type, value_type);
+}
+
+absl::Status Resolver::ResolveMapBracedConstructorEntry(
+    const ASTBracedConstructorField* ast_field, const MapType* map_type,
+    ExprResolutionInfo* expr_resolution_info,
+    std::unique_ptr<const ResolvedExpr>* resolved_key_out,
+    std::unique_ptr<const ResolvedExpr>* resolved_value_out) {
+  const ASTBracedConstructorLhs* lhs = ast_field->braced_constructor_lhs();
+
+  // MAP braced constructors do not support modifiers like '*:' or '?:' (update
+  // operations).
+  if (lhs->operation() != ASTBracedConstructorLhs::UPDATE_SINGLE) {
+    return MakeSqlErrorAt(lhs)
+           << "Modifiers '*:' and '?:' are not supported in MAP constructors";
+  }
+  GOOGLESQL_RET_CHECK(ast_field->value() != nullptr);
+  if (!ast_field->value()->colon_prefixed()) {
+    return MakeSqlErrorAt(ast_field)
+           << "MAP braced constructor entries must use ':' separator";
+  }
+
+  const Type* expected_key_type =
+      map_type != nullptr ? map_type->key_type() : nullptr;
+  const Type* expected_value_type =
+      map_type != nullptr ? map_type->value_type() : nullptr;
+
+  GOOGLESQL_RETURN_IF_ERROR(ResolveExpr(lhs->key_expr(), expr_resolution_info,
+                              resolved_key_out, expected_key_type));
+
+  GOOGLESQL_RETURN_IF_ERROR(ResolveExpr(ast_field->value()->expression(),
+                              expr_resolution_info, resolved_value_out,
+                              expected_value_type));
+
+  if ((*resolved_key_out)->type_annotation_map() != nullptr &&
+      CollationAnnotation::ExistsIn(
+          (*resolved_key_out)->type_annotation_map())) {
+    return MakeSqlErrorAt(lhs->key_expr())
+           << "Collation is not supported on MAP or its key and value types";
+  }
+  if ((*resolved_value_out)->type_annotation_map() != nullptr &&
+      CollationAnnotation::ExistsIn(
+          (*resolved_value_out)->type_annotation_map())) {
+    return MakeSqlErrorAt(ast_field->value()->expression())
+           << "Collation is not supported on MAP or its key and value types";
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<std::unique_ptr<const ResolvedMakeMapEntry>>>
+Resolver::ResolveMapBracedConstructorEntries(
+    const ASTBracedConstructor* ast_braced_constructor,
+    std::vector<std::unique_ptr<const ResolvedExpr>> resolved_keys,
+    std::vector<std::unique_ptr<const ResolvedExpr>> resolved_values,
+    const Type* key_type, const Type* value_type, const Type* expected_type,
+    const TypeModifiers& key_modifiers, const TypeModifiers& value_modifiers,
+    bool* all_literals) {
+  std::vector<std::unique_ptr<const ResolvedMakeMapEntry>> entries;
+  entries.reserve(resolved_keys.size());
+
+  const int num_entries = static_cast<int>(resolved_keys.size());
+  for (int i = 0; i < num_entries; ++i) {
+    std::unique_ptr<const ResolvedExpr> coerced_key =
+        std::move(resolved_keys[i]);
+    TypeModifiers key_type_modifiers = key_modifiers;
+    if (expected_type == nullptr) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          key_type_modifiers,
+          TypeModifiers::MakeTypeModifiers(coerced_key->type_annotation_map()));
+    }
+    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
+        ast_braced_constructor->fields(i)->braced_constructor_lhs()->key_expr(),
+        key_type, std::move(key_type_modifiers), kImplicitCoercion,
+        "MAP key type $1 does not coerce to $0", &coerced_key));
+
+    std::unique_ptr<const ResolvedExpr> coerced_val =
+        std::move(resolved_values[i]);
+    TypeModifiers value_type_modifiers = value_modifiers;
+    if (expected_type == nullptr) {
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          value_type_modifiers,
+          TypeModifiers::MakeTypeModifiers(coerced_val->type_annotation_map()));
+    }
+    GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
+        ast_braced_constructor->fields(i)->value()->expression(), value_type,
+        std::move(value_type_modifiers), kImplicitCoercion,
+        "MAP value type $1 does not coerce to $0", &coerced_val));
+
+    if (coerced_key->node_kind() != RESOLVED_LITERAL ||
+        coerced_val->node_kind() != RESOLVED_LITERAL) {
+      *all_literals = false;
+    }
+
+    entries.push_back(MakeResolvedMakeMapEntry(std::move(coerced_key),
+                                               std::move(coerced_val)));
+  }
+
+  return entries;
+}
+
+absl::StatusOr<TypeParameters> Resolver::ResolveVectorTypeParameters(
+    const ASTTypeParameterList* type_parameters,
+    const std::vector<TypeParameterValue>& resolved_type_parameter_list) {
+  if (resolved_type_parameter_list.size() != 1) {
+    return MakeSqlErrorAt(type_parameters)
+           << "VECTOR type can only have one parameter. Found "
+           << resolved_type_parameter_list.size() << " parameters";
+  }
+  const TypeParameterValue& param = resolved_type_parameter_list[0];
+  if (param.IsSpecialLiteral() || !param.GetValue().has_int64_value()) {
+    return MakeSqlErrorAt(type_parameters)
+           << "VECTOR length parameter must be an integer literal";
+  }
+  int64_t length = param.GetValue().int64_value();
+  if (length <= 0) {
+    return MakeSqlErrorAt(type_parameters)
+           << "VECTOR length must be greater than 0";
+  }
+  VectorTypeParametersProto proto;
+  proto.set_length(length);
+  return TypeParameters::MakeVectorTypeParameters(proto);
 }
 
 }  // namespace googlesql

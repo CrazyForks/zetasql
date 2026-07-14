@@ -705,7 +705,7 @@ def Field(
 
 # You can use `tag_id=GetTempTagId()` until doing the final submit.
 # That will avoid merge conflicts when syncing in other changes.
-NEXT_NODE_TAG_ID = 323
+NEXT_NODE_TAG_ID = 325
 
 
 def GetTempTagId():
@@ -2274,6 +2274,33 @@ def main(unused_argv):
                       """,
           ),
           Field('expr', 'ResolvedExpr', tag_id=4),
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedMakeMap',
+      tag_id=323,
+      parent='ResolvedExpr',
+      comment="""
+      Construct a map value.  `type` is always a MapType.
+      `entry_list` contains the key-value pairs to populate the map.
+      Duplicate keys are rejected at evaluation time.
+      """,
+      fields=[
+          Field('entry_list', 'ResolvedMakeMapEntry', tag_id=2, vector=True)
+      ],
+  )
+
+  gen.AddNode(
+      name='ResolvedMakeMapEntry',
+      tag_id=324,
+      parent='ResolvedArgument',
+      comment="""
+      One key-value entry in a ResolvedMakeMap expression.
+      """,
+      fields=[
+          Field('key', 'ResolvedExpr', tag_id=2),
+          Field('value', 'ResolvedExpr', tag_id=3),
       ],
   )
 

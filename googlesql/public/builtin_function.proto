@@ -48,7 +48,7 @@ enum FunctionSignatureId {
   // 1600-1699 Misc functions                 (Fully used)
   // 1700-1799 Net functions                  (NextId: 1716)
   // 1800-1899 More time functions            (NextId: 1876)
-  // 1900-1999 Hashing/encryption functions   (NextId: 1956)
+  // 1900-1999 Hashing/encryption functions   (NextId: 1959)
   // 2000-2199 Geography functions            (NextId: 2096)
   // 2200-2299 Anonymization functions        (NextId: 2232)
   // 2300-2499 Numeric, more math & distances (NextId: 2394)
@@ -61,7 +61,7 @@ enum FunctionSignatureId {
   // 3100-3199 Measure functions              (NextId: 3101)
   // 3200-3299 MATCH_RECOGNIZE functions      (NextId: 3207)
   // 3300-3399 Aggregate functions III        (NextId: 3303)
-  // 3400-3499 Misc functions II              (NextId: 3415)
+  // 3400-3499 Misc functions II              (NextId: 3416)
   // 3500-3599 Vector functions               (NextId: 3502)
   // 4000-4099 Table valued functions         (NextId: 5031)
   // 5000-5099 AI functions                   (NextId: 5050)
@@ -1081,6 +1081,8 @@ enum FunctionSignatureId {
   FN_KEYS_KEYSET_CHAIN_STRING_BYTES = 1929;
   // keys.new_wrapped_keyset(string, string)
   FN_KEYS_NEW_WRAPPED_KEYSET = 1942;
+  // keys.new_wrapped_keyset(string, string, string)
+  FN_KEYS_NEW_WRAPPED_KEYSET_WITH_METADATA = 1956;
   // keys.rotate_wrapped_keyset(string, bytes, string)
   FN_KEYS_ROTATE_WRAPPED_KEYSET = 1943;
   // keys.rewrap_keyset(string, string, bytes)
@@ -1142,6 +1144,10 @@ enum FunctionSignatureId {
   FN_FPE_ENCRYPT = 1952;
   // fpe_decrypt(bytes, array<int64>[, bytes])
   FN_FPE_DECRYPT = 1953;
+  // fpe_encrypt(struct, array<int64>[, bytes])
+  FN_FPE_ENCRYPT_STRUCT = 1957;
+  // fpe_decrypt(struct, array<int64>[, bytes])
+  FN_FPE_DECRYPT_STRUCT = 1958;
 
   // ST_ family of functions (Geography related - (broken link))
   // Constructors

@@ -1,0 +1,24 @@
+[default language_features=NONE]
+
+# This CL adds only the PARSER for CREATE/DROP PROPERTY GRAPH TYPE; the resolver
+# is deferred to a later CL. These cases lock in the analyzer invariant that
+# everything the parser accepts is handled -- here, the resolver has no case for
+# AST_CREATE_PROPERTY_GRAPH_TYPE_STATEMENT, so it falls to the default and
+# returns a clean "Statement not supported" error rather than crashing or
+# silently ignoring the statement. The node/edge type names need not exist in
+# the catalog: the error fires at statement dispatch, before name resolution.
+create property graph type pgt
+node types(Person)
+--
+ERROR: Statement not supported: CreatePropertyGraphTypeStatement [at 8:1]
+create property graph type pgt
+^
+==
+
+create property graph type pgt
+node types(Person, Account)
+edge types(Knows from Person to Account)
+--
+ERROR: Statement not supported: CreatePropertyGraphTypeStatement [at 1:1]
+create property graph type pgt
+^

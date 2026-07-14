@@ -89,4 +89,26 @@ absl::Status SampleAnnotation::CheckAndPropagateForGetStructField(
   return absl::OkStatus();
 }
 
+absl::Status SampleAnnotation::CheckAndPropagateForMakeMap(
+    const ResolvedMakeMap& make_map,
+    StructAnnotationMap* result_annotation_map) {
+  if (result_annotation_map == nullptr) {
+    return absl::OkStatus();
+  }
+  GOOGLESQL_RET_CHECK_EQ(result_annotation_map->num_fields(), 2);
+  for (const auto& entry : make_map.entry_list()) {
+    if (entry->key()->type_annotation_map() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(CopyAnnotationRecursively(
+          GetId(), entry->key()->type_annotation_map(),
+          result_annotation_map->mutable_field(0)));
+    }
+    if (entry->value()->type_annotation_map() != nullptr) {
+      GOOGLESQL_RETURN_IF_ERROR(CopyAnnotationRecursively(
+          GetId(), entry->value()->type_annotation_map(),
+          result_annotation_map->mutable_field(1)));
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace googlesql

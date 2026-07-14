@@ -107,6 +107,10 @@ class ResolverTest : public ::testing::Test {
         FEATURE_RANGE_TYPE);
     analyzer_options_.mutable_language()->EnableLanguageFeature(
         FEATURE_UUID_TYPE);
+    analyzer_options_.mutable_language()->EnableLanguageFeature(
+        FEATURE_DECLARATIVE_TYPE_FRAMEWORK);
+    analyzer_options_.mutable_language()->EnableLanguageFeature(
+        FEATURE_VECTOR_TYPE);
     analyzer_options_.CreateDefaultArenasIfNotSet();
     sample_catalog_ = std::make_unique<SampleCatalog>(
         analyzer_options_.language(), &type_factory_);
@@ -608,6 +612,9 @@ TEST_F(ResolverTest, ResolveTypeInvalidTypeNameTests) {
   EXPECT_THAT(
       resolver_->ResolveTypeName("timestamp(1)", &type),
       StatusIs(_, HasSubstr("TIMESTAMP precision must be 0, 3, 6, 9, or 12")));
+
+  EXPECT_THAT(resolver_->ResolveTypeName("vector(0)", &type),
+              StatusIs(_, HasSubstr("VECTOR length must be greater than 0")));
 
   EXPECT_THAT(
       resolver_->ResolveTypeName("string collate 'abc'", &type),

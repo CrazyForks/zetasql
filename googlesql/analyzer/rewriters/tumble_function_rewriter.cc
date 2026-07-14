@@ -35,7 +35,8 @@
 #include "googlesql/public/value.h"
 #include "googlesql/resolved_ast/column_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
-#include "googlesql/resolved_ast/resolved_ast_deep_copy_visitor.h"
+#include "googlesql/resolved_ast/resolved_ast_builder.h"
+#include "googlesql/resolved_ast/resolved_ast_rewrite_visitor.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/resolved_ast/rewrite_utils.h"
@@ -50,14 +51,14 @@ namespace googlesql {
 namespace {
 
 struct TumbleFunctionArguments {
-  const ResolvedTVFScan* tvf_node = nullptr;
-  std::unique_ptr<ResolvedScan> input_relation;
+  std::vector<ResolvedColumn> tvf_column_list;
+  std::unique_ptr<const ResolvedScan> input_relation;
   const ResolvedColumn* timestamp_column = nullptr;
-  const ResolvedExpr* window_size_expr = nullptr;
-  const ResolvedExpr* origin_expr = nullptr;
+  std::unique_ptr<const ResolvedExpr> window_size_expr;
+  std::unique_ptr<const ResolvedExpr> origin_expr;
 };
 
-class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
+class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
  public:
   TumbleRewriteVisitor(const AnalyzerOptions& analyzer_options,
                        Catalog& catalog, TypeFactory& type_factory,
@@ -70,69 +71,61 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
         product_mode_(analyzer_options.language().product_mode()) {}
 
  private:
-  absl::Status VisitResolvedTVFScan(const ResolvedTVFScan* node) override {
+  absl::StatusOr<std::unique_ptr<const ResolvedNode>> PostVisitResolvedTVFScan(
+      std::unique_ptr<const ResolvedTVFScan> node) override {
     for (const auto& signature : node->tvf()->signatures()) {
       if (signature.context_id() == googlesql::FN_TUMBLE) {
-        return RewriteTumble(node);
+        return RewriteTumble(std::move(node));
       }
     }
-    return ResolvedASTDeepCopyVisitor::VisitResolvedTVFScan(node);
+    return std::move(node);
   }
 
   // ==========================================================================
   // TUMBLE HELPERS
   // ==========================================================================
 
-  absl::Status RewriteTumble(const ResolvedTVFScan* node) {
-    // Step 1: Validate that it's the specific function we're looking for.
-    GOOGLESQL_RETURN_IF_ERROR(
-        ValidateTvfIsBuiltinAndSignatureMatches(node, "TUMBLE", FN_TUMBLE));
+  absl::StatusOr<std::unique_ptr<const ResolvedNode>> RewriteTumble(
+      std::unique_ptr<const ResolvedTVFScan> node) {
+    // Step 1: Validate input.
+    GOOGLESQL_RETURN_IF_ERROR(ValidateTvfIsBuiltinAndSignatureMatches(
+        node.get(), "TUMBLE", FN_TUMBLE));
 
     // Step 2: Extract and validate arguments.
-    GOOGLESQL_ASSIGN_OR_RETURN(auto args, ExtractTumbleArguments(node));
+    GOOGLESQL_ASSIGN_OR_RETURN(auto args, ExtractTumbleArguments(std::move(node)));
 
     // Step 3: Build the parameters CTE.
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        auto params_cte,
-        BuildTumbleParametersCTE(args->window_size_expr, args->origin_expr));
+    GOOGLESQL_ASSIGN_OR_RETURN(auto params_cte,
+                     BuildTumbleParametersCTE(std::move(args->window_size_expr),
+                                              std::move(args->origin_expr)));
 
     // Step 4: Build the final projection.
     absl::string_view cte_name = params_cte->with_query_name();
     const ResolvedColumnList& cte_cols =
         params_cte->with_subquery()->column_list();
     GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ResolvedScan> main_scan,
+        std::unique_ptr<const ResolvedScan> main_scan,
         BuildTumbleFinalProjection(*args, cte_cols, cte_name,
                                    std::move(args->input_relation)));
 
-    GOOGLESQL_ASSIGN_OR_RETURN(auto final_plan,
-                     ResolvedWithScanBuilder()
-                         .set_column_list(node->column_list())
-                         .add_with_entry_list(std::move(params_cte))
-                         .set_query(std::move(main_scan))
-                         .set_recursive(false)
-                         .BuildMutable());
-
-    PushNodeToStack(std::move(final_plan));
-    return absl::OkStatus();
+    return ResolvedWithScanBuilder()
+        .set_column_list(args->tvf_column_list)
+        .add_with_entry_list(std::move(params_cte))
+        .set_query(std::move(main_scan))
+        .set_recursive(false)
+        .Build();
   }
 
   absl::StatusOr<std::unique_ptr<TumbleFunctionArguments>>
-  ExtractTumbleArguments(const ResolvedTVFScan* node) {
-    // Tumble requires exactly 4 arguments: input relation, timestamp column,
-    // window size, and origin (analyzer injects default origin if omitted).
+  ExtractTumbleArguments(std::unique_ptr<const ResolvedTVFScan> node) {
     const int arg_count = node->argument_list_size();
     GOOGLESQL_RET_CHECK_EQ(arg_count, 4);
-
-    auto args = std::make_unique<TumbleFunctionArguments>();
-    args->tvf_node = node;
 
     // Argument 0: Input relation.
     const ResolvedTVFArgument* input_arg = node->argument_list(0);
     GOOGLESQL_RET_CHECK(input_arg != nullptr);
-    GOOGLESQL_RET_CHECK(input_arg->scan() != nullptr);
-    GOOGLESQL_ASSIGN_OR_RETURN(args->input_relation,
-                     ProcessNode<ResolvedScan>(input_arg->scan()));
+    const ResolvedScan* input_scan = input_arg->scan();
+    GOOGLESQL_RET_CHECK(input_scan != nullptr);
 
     // Argument 1: Timestamp Column.
     const ResolvedTVFArgument* ts_arg = node->argument_list(1);
@@ -148,28 +141,43 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
     const std::string ts_col_name = ts_col_val.string_value();
 
     // FindAndValidateTimestampColumnInScan performs user-facing SQL validation.
-    GOOGLESQL_ASSIGN_OR_RETURN(args->timestamp_column,
-                     FindAndValidateTimestampColumnInScan(
-                         *ts_arg, ts_col_name, *args->input_relation, "TUMBLE",
-                         product_mode_));
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        const ResolvedColumn* timestamp_column,
+        FindAndValidateTimestampColumnInScan(*ts_arg, ts_col_name, *input_scan,
+                                             "TUMBLE", product_mode_));
 
     // Argument 2: Window size.
     const ResolvedTVFArgument* window_size_arg = node->argument_list(2);
     GOOGLESQL_RET_CHECK(window_size_arg != nullptr);
-    args->window_size_expr = window_size_arg->expr();
-    GOOGLESQL_RET_CHECK(args->window_size_expr != nullptr);
+    const ResolvedExpr* window_size_expr = window_size_arg->expr();
+    GOOGLESQL_RET_CHECK(window_size_expr != nullptr);
 
     // Argument 3: Origin.
     const ResolvedTVFArgument* origin_arg = node->argument_list(3);
     GOOGLESQL_RET_CHECK(origin_arg != nullptr);
-    args->origin_expr = origin_arg->expr();
-    GOOGLESQL_RET_CHECK(args->origin_expr != nullptr);
+    const ResolvedExpr* origin_expr = origin_arg->expr();
+    GOOGLESQL_RET_CHECK(origin_expr != nullptr);
 
     // Ensure arguments don't contain correlations to outer scopes. Parameters
     // like window_size logically must be fixed for the entire input relation,
     // they cannot change per-row of an outer query.
     GOOGLESQL_RETURN_IF_ERROR(ValidateArgumentsDoNotContainCorrelation(
-        node, "TUMBLE", {args->window_size_expr, args->origin_expr}));
+        node.get(), "TUMBLE", {window_size_expr, origin_expr}));
+
+    ResolvedTVFScanBuilder builder = ToBuilder(std::move(node));
+    auto args = std::make_unique<TumbleFunctionArguments>();
+    args->tvf_column_list = builder.release_column_list();
+    args->timestamp_column = timestamp_column;
+
+    std::vector<std::unique_ptr<const ResolvedTVFArgument>> argument_list =
+        builder.release_argument_list();
+    GOOGLESQL_RET_CHECK_EQ(argument_list.size(), 4);
+
+    args->input_relation =
+        ToBuilder(std::move(argument_list[0])).release_scan();
+    args->window_size_expr =
+        ToBuilder(std::move(argument_list[2])).release_expr();
+    args->origin_expr = ToBuilder(std::move(argument_list[3])).release_expr();
 
     return args;
   }
@@ -202,8 +210,8 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
   //
   // See (broken link) for more details.
   absl::StatusOr<std::unique_ptr<const ResolvedWithEntry>>
-  BuildTumbleParametersCTE(const ResolvedExpr* window_size_expr,
-                           const ResolvedExpr* origin_expr) {
+  BuildTumbleParametersCTE(std::unique_ptr<const ResolvedExpr> window_size_expr,
+                           std::unique_ptr<const ResolvedExpr> origin_expr) {
     // -- Part 1: Construct the raw parameters:
     // SELECT
     //   <window_size_expr> AS window_size,
@@ -212,21 +220,19 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
     std::vector<std::unique_ptr<const ResolvedComputedColumn>> compute_exprs;
     ResolvedColumnList compute_cols;
 
+    const Type* window_size_type = window_size_expr->type();
     ResolvedColumn raw_window_col = column_factory_.MakeCol(
-        "$precomputed_raw", "window_size", window_size_expr->type());
+        "$precomputed_raw", "window_size", window_size_type);
     compute_cols.push_back(raw_window_col);
-    GOOGLESQL_ASSIGN_OR_RETURN(auto window_expr_copy,
-                     ProcessNode<ResolvedExpr>(window_size_expr));
     compute_exprs.push_back(MakeResolvedComputedColumn(
-        raw_window_col, std::move(window_expr_copy)));
+        raw_window_col, std::move(window_size_expr)));
 
-    ResolvedColumn raw_origin_col = column_factory_.MakeCol(
-        "$precomputed_raw", "origin", origin_expr->type());
+    const Type* origin_type = origin_expr->type();
+    ResolvedColumn raw_origin_col =
+        column_factory_.MakeCol("$precomputed_raw", "origin", origin_type);
     compute_cols.push_back(raw_origin_col);
-    GOOGLESQL_ASSIGN_OR_RETURN(auto origin_expr_copy,
-                     ProcessNode<ResolvedExpr>(origin_expr));
-    compute_exprs.push_back(MakeResolvedComputedColumn(
-        raw_origin_col, std::move(origin_expr_copy)));
+    compute_exprs.push_back(
+        MakeResolvedComputedColumn(raw_origin_col, std::move(origin_expr)));
 
     // -- Part 2: Validate arguments and project final output.
     std::vector<std::unique_ptr<const ResolvedComputedColumn>> final_exprs;
@@ -326,10 +332,11 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
   // single-row _tumble_params CTE values as scalar expressions without
   // having to join the CTE.
   // See (broken link) for more details.
-  absl::StatusOr<std::unique_ptr<ResolvedScan>> BuildTumbleFinalProjection(
+  absl::StatusOr<std::unique_ptr<const ResolvedScan>>
+  BuildTumbleFinalProjection(
       const TumbleFunctionArguments& args, const ResolvedColumnList& cte_cols,
       absl::string_view cte_name,
-      std::unique_ptr<ResolvedScan> input_relation) {
+      std::unique_ptr<const ResolvedScan> input_relation) {
     // (SELECT window_size FROM _tumble_params) subquery.
     auto get_window_size_expr = [&]() {
       return CreateCteColumnSubquery(column_factory_, cte_name, cte_cols,
@@ -354,7 +361,7 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
       return fn_builder_.TimestampBucket(std::move(bucket_args));
     };
     std::vector<std::unique_ptr<const ResolvedComputedColumn>> output_expr_list;
-    const ResolvedColumnList& output_column_list = args.tvf_node->column_list();
+    const ResolvedColumnList& output_column_list = args.tvf_column_list;
     const ResolvedColumnList& input_columns = input_relation->column_list();
 
     GOOGLESQL_RET_CHECK_GE(output_column_list.size(), 2);
@@ -400,7 +407,7 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
         .set_column_list(output_column_list)
         .set_expr_list(std::move(output_expr_list))
         .set_input_scan(std::move(input_relation))
-        .BuildMutable();
+        .Build();
   }
 
   // ==========================================================================
@@ -420,7 +427,7 @@ class TumbleRewriteVisitor : public ResolvedASTDeepCopyVisitor {
 class TumbleFunctionRewriter : public Rewriter {
  public:
   absl::StatusOr<std::unique_ptr<const ResolvedNode>> Rewrite(
-      const AnalyzerOptions& options, const ResolvedNode& input,
+      const AnalyzerOptions& options, std::unique_ptr<const ResolvedNode> input,
       Catalog& catalog, TypeFactory& type_factory,
       AnalyzerOutputProperties& output_properties) const override {
     GOOGLESQL_RET_CHECK(options.id_string_pool() != nullptr);
@@ -430,8 +437,7 @@ class TumbleFunctionRewriter : public Rewriter {
 
     TumbleRewriteVisitor rewriter(options, catalog, type_factory,
                                   column_factory);
-    GOOGLESQL_RETURN_IF_ERROR(input.Accept(&rewriter));
-    return rewriter.ConsumeRootNode<ResolvedNode>();
+    return rewriter.VisitAll(std::move(input));
   }
 
   std::string Name() const override { return "TumbleFunctionRewriter"; }

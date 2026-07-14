@@ -1,0 +1,372 @@
+[default language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK]
+
+# It is always possible to create a value from an untyped NULL, even one that
+# disallows all coercion. There is no coercion here, because the input is
+# untyped.
+SELECT CAST(NULL AS DeclTypeAllPropertiesDisallowed) IS NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:$is_null(DeclTypeAllPropertiesDisallowed) -> BOOL)
+    |     +-Literal(type=DeclTypeAllPropertiesDisallowed, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# ==============================================================================
+# GROUPING AND EQUALITY TESTS
+# ==============================================================================
+
+# Verify that GROUP BY, PARTITION BY, =, IN(), and JOIN...ON correctly resolve together when equality strategy is delegated.
+SELECT
+  SUM(1) OVER(PARTITION BY val)
+FROM
+  (SELECT CAST(1 AS DeclInt) AS val)
+  INNER JOIN (SELECT CAST(1 AS DeclInt) AS v2)
+  ON val = v2
+WHERE
+  val IS NOT NULL
+GROUP BY val
+--
+QueryStmt
++-output_column_list=
+| +-$analytic.$analytic1#5 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$analytic.$analytic1#5]
+    +-input_scan=
+      +-AnalyticScan
+        +-column_list=[$groupby.val#4, $analytic.$analytic1#5]
+        +-input_scan=
+        | +-AggregateScan
+        |   +-column_list=[$groupby.val#4]
+        |   +-input_scan=
+        |   | +-FilterScan
+        |   |   +-column_list=[$subquery1.val#1, $subquery2.v2#2]
+        |   |   +-input_scan=
+        |   |   | +-JoinScan
+        |   |   |   +-column_list=[$subquery1.val#1, $subquery2.v2#2]
+        |   |   |   +-left_scan=
+        |   |   |   | +-ProjectScan
+        |   |   |   |   +-column_list=[$subquery1.val#1]
+        |   |   |   |   +-expr_list=
+        |   |   |   |   | +-val#1 :=
+        |   |   |   |   |   +-Cast(INT64 -> DeclInt)
+        |   |   |   |   |     +-Literal(type=INT64, value=1)
+        |   |   |   |   +-input_scan=
+        |   |   |   |     +-SingleRowScan
+        |   |   |   +-right_scan=
+        |   |   |   | +-ProjectScan
+        |   |   |   |   +-column_list=[$subquery2.v2#2]
+        |   |   |   |   +-expr_list=
+        |   |   |   |   | +-v2#2 :=
+        |   |   |   |   |   +-Cast(INT64 -> DeclInt)
+        |   |   |   |   |     +-Literal(type=INT64, value=1)
+        |   |   |   |   +-input_scan=
+        |   |   |   |     +-SingleRowScan
+        |   |   |   +-join_expr=
+        |   |   |     +-FunctionCall(GoogleSQL:$equal(DeclInt, DeclInt) -> BOOL)
+        |   |   |       +-ColumnRef(type=DeclInt, column=$subquery1.val#1)
+        |   |   |       +-ColumnRef(type=DeclInt, column=$subquery2.v2#2)
+        |   |   +-filter_expr=
+        |   |     +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+        |   |       +-FunctionCall(GoogleSQL:$is_null(DeclInt) -> BOOL)
+        |   |         +-ColumnRef(type=DeclInt, column=$subquery1.val#1)
+        |   +-group_by_list=
+        |     +-val#4 := ColumnRef(type=DeclInt, column=$subquery1.val#1)
+        +-function_group_list=
+          +-AnalyticFunctionGroup
+            +-partition_by=
+            | +-WindowPartitioning
+            |   +-partition_by_list=
+            |     +-ColumnRef(type=DeclInt, column=$groupby.val#4)
+            +-analytic_function_list=
+              +-$analytic1#5 :=
+                +-AnalyticFunctionCall(GoogleSQL:sum(INT64) -> INT64)
+                  +-Literal(type=INT64, value=1)
+                  +-window_frame=
+                    +-WindowFrame(frame_unit=ROWS)
+                      +-start_expr=
+                      | +-WindowFrameExpr(boundary_type=UNBOUNDED PRECEDING)
+                      +-end_expr=
+                        +-WindowFrameExpr(boundary_type=UNBOUNDED FOLLOWING)
+==
+
+# Ensure PARTITION BY fails when EqualityStrategy is explicitly Disallowed.
+SELECT
+  SUM(1) OVER(PARTITION BY val)
+FROM
+  UNNEST([CAST(NULL AS DeclTypeAllPropertiesDisallowed)]) AS val
+--
+ERROR: Partitioning by expressions of type DeclTypeAllPropertiesDisallowed is not allowed [at 2:28]
+  SUM(1) OVER(PARTITION BY val)
+                           ^
+==
+
+# Confirm that the equal operator fails completely on types that disallow equality.
+SELECT
+  CAST(NULL AS DeclTypeAllPropertiesDisallowed) = CAST(NULL AS DeclTypeAllPropertiesDisallowed)
+--
+ERROR: Equality is not defined for arguments of type DeclTypeAllPropertiesDisallowed [at 2:3]
+  CAST(NULL AS DeclTypeAllPropertiesDisallowed) = CAST(NULL AS DeclTypeAllPro...
+  ^
+==
+
+# Confirm that IN() lists fail when equality is disallowed.
+SELECT
+  CAST(NULL AS DeclTypeAllPropertiesDisallowed) IN (CAST(NULL AS DeclTypeAllPropertiesDisallowed))
+--
+ERROR: IN is not defined for arguments of type DeclTypeAllPropertiesDisallowed [at 2:49]
+  CAST(NULL AS DeclTypeAllPropertiesDisallowed) IN (CAST(NULL AS DeclTypeAllP...
+                                                ^
+==
+
+# Confirm that ARRAY_FIND() operations fail without equality strategy support.
+SELECT
+  ARRAY_FIND(ARRAY[CAST(NULL AS DeclTypeAllPropertiesDisallowed)], CAST(NULL AS DeclTypeAllPropertiesDisallowed))
+--
+ERROR: ARRAY_FIND cannot be used on argument of type ARRAY<DeclTypeAllPropertiesDisallowed> because the array's element type does not support equality [at 2:3]
+  ARRAY_FIND(ARRAY[CAST(NULL AS DeclTypeAllPropertiesDisallowed)], CAST(NULL ...
+  ^
+==
+
+# Verify that grouping fails if the backing type inherently lacks support, despite a delegated strategy (Geography).
+SELECT
+  val
+FROM
+  UNNEST([CAST(NULL AS DeclDelegatedButUnsupportedEquality)]) AS val
+GROUP BY
+  val
+--
+ERROR: Grouping by expressions of type DeclDelegatedButUnsupportedEquality is not allowed [at 6:3]
+  val
+  ^
+==
+
+# Confirm that delegated equality strategy properly respects backing type environment rules (GROUP_BY_ARRAY).
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK{{|,-GROUP_BY_ARRAY}}]
+SELECT
+  val
+FROM
+  UNNEST([CAST(NULL AS DeclArray)]) AS val
+GROUP BY
+  val
+--
+ERROR: Grouping by expressions of type DeclArray is not allowed [at 6:3]
+  val
+  ^
+==
+
+# ==============================================================================
+# ORDERING TESTS
+# ==============================================================================
+
+# Ensure ORDER BY AST building fails when OrderingStrategy is explicitly Disallowed.
+SELECT
+  val
+FROM
+  UNNEST([CAST(NULL AS DeclTypeAllPropertiesDisallowed)]) AS val
+ORDER BY
+  val
+--
+ERROR: ORDER BY does not support expressions of type DeclTypeAllPropertiesDisallowed [at 6:3]
+  val
+  ^
+==
+
+# ==============================================================================
+# COERCION TESTS
+# ==============================================================================
+
+# Ensure that operators lack matching signatures when implicit coercion is explicitly disallowed during AST building.
+SELECT
+  1 + CAST(NULL AS DeclExplicitCoercion)
+--
+ERROR: No matching signature for operator +
+  Argument types: INT64, DeclExplicitCoercion
+  Signature: INT64 + INT64
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type INT64
+  Signature: UINT64 + UINT64
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type UINT64
+  Signature: DOUBLE + DOUBLE
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type DOUBLE
+  Signature: NUMERIC + NUMERIC
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type NUMERIC
+  Signature: BIGNUMERIC + BIGNUMERIC
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type BIGNUMERIC
+  Signature: DATE + INT64
+    Argument 1: Unable to coerce type INT64 to expected type DATE
+  Signature: INT64 + DATE
+    Argument 2: Unable to coerce type DeclExplicitCoercion to expected type DATE
+  Signature: TIMESTAMP + INTERVAL
+    Argument 1: Unable to coerce type INT64 to expected type TIMESTAMP
+  Signature: INTERVAL + TIMESTAMP
+    Argument 1: Unable to coerce type INT64 to expected type INTERVAL
+  Signature: DATE + INTERVAL
+    Argument 1: Unable to coerce type INT64 to expected type DATE
+  Signature: INTERVAL + DATE
+    Argument 1: Unable to coerce type INT64 to expected type INTERVAL
+  Signature: DATETIME + INTERVAL
+    Argument 1: Unable to coerce type INT64 to expected type DATETIME
+  Signature: INTERVAL + DATETIME
+    Argument 1: Unable to coerce type INT64 to expected type INTERVAL
+  Signature: INTERVAL + INTERVAL
+    Argument 1: Unable to coerce type INT64 to expected type INTERVAL [at 2:3]
+  1 + CAST(NULL AS DeclExplicitCoercion)
+  ^
+==
+
+# Confirm that cast fails entirely on NoCoercion strategies
+SELECT
+  CAST(1 AS DeclTypeAllPropertiesDisallowed)
+--
+ERROR: Invalid cast from INT64 to DeclTypeAllPropertiesDisallowed [at 2:8]
+  CAST(1 AS DeclTypeAllPropertiesDisallowed)
+       ^
+==
+
+# Supertyping: DeclInt allows implicit coercion to its backing type, INT64.
+# So the supertype below is INT64.
+SELECT [1, NULL, CAST(NULL AS DeclInt)]
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=ARRAY<INT64>, value=[1, NULL, NULL], has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Coercion from untyped NULL
+SELECT
+  CAST(NULL AS DeclInt) IS NULL,
+  CAST(NULL AS DeclArray) IS NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$is_null(DeclInt) -> BOOL)
+    | |   +-Literal(type=DeclInt, value=NULL, has_explicit_type=TRUE)
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$is_null(DeclArray) -> BOOL)
+    |     +-Literal(type=DeclArray, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+# Coercion from untyped empty array is always an error
+SELECT
+  CAST([] AS {{DeclInt|DeclArray}}) IS NULL
+--
+ALTERNATION GROUP: DeclInt
+--
+ERROR: Invalid cast from ARRAY<INT64> to DeclInt [at 2:8]
+  CAST([] AS DeclInt) IS NULL
+       ^
+--
+ALTERNATION GROUP: DeclArray
+--
+ERROR: Invalid cast from ARRAY<INT64> to DeclArray [at 2:8]
+  CAST([] AS DeclArray) IS NULL
+       ^
+==
+
+# Undeclared parameter detected to have multiple possible types is an error.
+[allow_undeclared_parameters]
+SELECT
+  CAST(@param AS DeclInt) IS NOT NULL,
+  CAST(@param AS DeclArray) IS NOT NULL
+--
+
+ERROR: Undeclared parameter 'param' is used assuming different types (DeclInt vs DeclArray) [at 3:8]
+  CAST(@param AS DeclArray) IS NOT NULL
+       ^
+==
+
+[allow_undeclared_parameters]
+SELECT
+  CAST(@param AS DeclInt) IS NOT NULL,
+  CAST(@param2 AS DeclArray) IS NOT NULL
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
+| +-$query.$col2#2 AS `$col2` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    | |   +-FunctionCall(GoogleSQL:$is_null(DeclInt) -> BOOL)
+    | |     +-Parameter(parse_location=14-20, type=DeclInt, name="param")
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$not(BOOL) -> BOOL)
+    |     +-FunctionCall(GoogleSQL:$is_null(DeclArray) -> BOOL)
+    |       +-Parameter(parse_location=53-60, type=DeclArray, name="param2")
+    +-input_scan=
+      +-SingleRowScan
+[UNDECLARED_PARAMETERS]
+param: DeclInt
+param2: DeclArray
+==
+
+# This should fail. The type needs to be Equals(), not just Equivalent() to the
+# backing type, for the default coercion (when enabled).
+# Cast from a struct that is equivalent but not the same as the backing type.
+SELECT
+  CAST(
+    STRUCT(CAST(1 AS INT32) AS a_different_name, "s" AS b_different_name)
+    AS DeclStruct) IS NULL
+--
+ERROR: Invalid cast from STRUCT<a_different_name INT32, b_different_name STRING> to DeclStruct [at 3:5]
+    STRUCT(CAST(1 AS INT32) AS a_different_name, "s" AS b_different_name)
+    ^
+==
+
+# ==============================================================================
+# RETURN TESTS
+# ==============================================================================
+
+SELECT
+  CAST(NULL AS DeclInt)
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [DeclInt]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=DeclInt, value=NULL, has_explicit_type=TRUE)
+    +-input_scan=
+      +-SingleRowScan
+==
+
+SELECT
+  CAST(NULL AS DeclTypeAllPropertiesDisallowed)
+--
+ERROR: Returning expressions of type DeclTypeAllPropertiesDisallowed is not allowed [at 1:1]
+SELECT
+^
+==
+
+# ==============================================================================
+# FORMATTING TESTS
+# ==============================================================================

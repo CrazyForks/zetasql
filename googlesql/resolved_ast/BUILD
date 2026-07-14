@@ -860,6 +860,7 @@ cc_library(
         "//googlesql/public:id_string",
         "//googlesql/public/types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
     ],
 )

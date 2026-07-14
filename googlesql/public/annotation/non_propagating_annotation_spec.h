@@ -53,6 +53,12 @@ class NonPropagatingAnnotationSpec : public AnnotationSpec {
     return absl::OkStatus();
   }
 
+  absl::Status CheckAndPropagateForMakeMap(
+      const ResolvedMakeMap& make_map,
+      StructAnnotationMap* result_annotation_map) override {
+    return absl::OkStatus();
+  }
+
   absl::Status CheckAndPropagateForSubqueryExpr(
       const ResolvedSubqueryExpr& subquery_expr,
       AnnotationMap* result_annotation_map) override {

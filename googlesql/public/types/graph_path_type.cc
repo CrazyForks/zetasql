@@ -58,7 +58,7 @@ const internal::ValueContentOrderedList* GetContainer(
 }
 }  // namespace
 
-GraphPathType::GraphPathType(const TypeFactory* factory,
+GraphPathType::GraphPathType(const TypeFactory& factory,
                              const GraphElementType* node_type,
                              const GraphElementType* edge_type,
                              int nesting_depth)

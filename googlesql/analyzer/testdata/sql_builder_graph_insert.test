@@ -1,0 +1,1347 @@
+[default language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_RETURN_EXTENSIONS,+SQL_GRAPH_TERMINAL_INSERT]
+[default no_test_extract_table_names]
+[default run_sqlbuilder]
+[default show_sqlbuilder_output]
+
+# Labels: Label conjunction (&) works
+GRAPH aml
+INSERT (n:Person & HasId {name: "John", id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-n#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     | | +-property_name="name"
+                    |     | | +-property=name(STRING)
+                    |     | | +-property_value=
+                    |     | |   +-Literal(type=STRING, value="John")
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     | +-GraphLabel(label=aml.HasId)
+                    |     +-element_table=Person
+                    +-path_element_list=[$element_table.n#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person & HasId { name : "John", id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person & HasId { name : "John", id : 1 });
+==
+
+# Labels: Label conjunction (&) works
+GRAPH aml
+INSERT (n IS Person & HasId {name: "John", id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-n#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     | | +-property_name="name"
+                    |     | | +-property=name(STRING)
+                    |     | | +-property_value=
+                    |     | |   +-Literal(type=STRING, value="John")
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     | +-GraphLabel(label=aml.HasId)
+                    |     +-element_table=Person
+                    +-path_element_list=[$element_table.n#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person & HasId { name : "John", id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person & HasId { name : "John", id : 1 });
+==
+
+# Declaration: anonymous node variable in an INSERT pattern
+GRAPH aml
+INSERT (:Person {name: "John", id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-$insert_node#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     | | +-property_name="name"
+                    |     | | +-property=name(STRING)
+                    |     | | +-property_value=
+                    |     | |   +-Literal(type=STRING, value="John")
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     +-element_table=Person
+                    +-path_element_list=[$element_table.$insert_node#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (IS Person { name : "John", id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (IS Person { name : "John", id : 1 });
+==
+
+# Declaration: anonymous edge variables in an INSERT pattern
+GRAPH aml
+INSERT (p:Account {id: 1})-[:Transfer {amount: 50}]->(otherPerson:Account {id: 2})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[p#1, otherPerson#2]
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="id"
+                    | |   |   +-property=id(INT64)
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=INT64, value=1)
+                    | |   +-label_list=
+                    | |   | +-GraphLabel(label=aml.Account)
+                    | |   +-element_table=Account
+                    | +-otherPerson#2 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=2)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-$insert_edge#3 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="amount"
+                    |     |   +-property=amount(UINT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=UINT64, value=50)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.otherPerson#2)
+                    |     +-element_table=Transfer
+                    +-path_element_list=$element_table.[p#1, $insert_edge#3, otherPerson#2]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) -[IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_2 IS Account { id : 2 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) -[IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_2 IS Account { id : 2 });
+==
+
+# Reference: Declaring a node variable and referencing it in the same INSERT but
+# in different patterns is OK.
+GRAPH aml
+INSERT (p:Person {name: "A"}), (p)
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="name"
+                    |     |   +-property=name(STRING)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="A")
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     +-element_table=Person
+                    +-path_element_list=$element_table.[p#1, p#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "A" }), (a_1);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "A" }), (a_1);
+==
+
+# Reference: Declaring a node variable and referencing it in the same pattern in
+# the same INSERT is OK.
+GRAPH aml
+INSERT (p:Account {id: 1})-[:Transfer]->(p)
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=[$element_table.p#1]
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-$insert_edge#2 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    |     +-element_table=Transfer
+                    +-path_element_list=$element_table.[p#1, $insert_edge#2, p#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) <-[IS Transfer]- (a_1);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) <-[IS Transfer]- (a_1);
+==
+
+# Reference: Declaring a node variable and referencing it multiple times in the
+# same INSERT statement (across different patterns and inside patterns) is OK.
+GRAPH aml
+INSERT (p:Account {id: 1})-[e1:Transfer {amount: 50}]->(p), (p)-[e2:Transfer {amount: 100}]->(q:Account {id: 2})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[p#1, q#3]
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="id"
+                    | |   |   +-property=id(INT64)
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=INT64, value=1)
+                    | |   +-label_list=
+                    | |   | +-GraphLabel(label=aml.Account)
+                    | |   +-element_table=Account
+                    | +-q#3 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=2)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-e1#2 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="amount"
+                    | |   |   +-property=amount(UINT64)
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=UINT64, value=50)
+                    | |   +-label_list=
+                    | |   | +-GraphLabel(label=aml.Transfer)
+                    | |   +-source_node=
+                    | |   | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    | |   +-dest_node=
+                    | |   | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    | |   +-element_table=Transfer
+                    | +-e2#4 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="amount"
+                    |     |   +-property=amount(UINT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=UINT64, value=100)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.p#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.q#3)
+                    |     +-element_table=Transfer
+                    +-path_element_list=$element_table.[p#1, e1#2, p#1, p#1, e2#4, q#3]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) <-[a_2 IS Transfer { amount : CAST(50 AS UINT64) }]- (a_1), (a_1) -[a_3 IS Transfer { amount : CAST(100 AS UINT64) }]->
+  (a_4 IS Account { id : 2 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Account { id : 1 }) <-[a_2 IS Transfer { amount : CAST(50 AS UINT64) }]- (a_1), (a_1) -[a_3 IS Transfer { amount : CAST(100 AS UINT64) }]->
+  (a_4 IS Account { id : 2 });
+==
+
+# Success: Valid node insert
+GRAPH aml
+INSERT (n:Person {name: "John"})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-n#1 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="name"
+                    |     |   +-property=name(STRING)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="John")
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     +-element_table=Person
+                    +-path_element_list=[$element_table.n#1]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "John" });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "John" });
+==
+
+# RETURN after INSERT is supported.
+GRAPH aml
+INSERT (n:Person {name: "John"})
+RETURN n.name AS name
+--
+GeneralizedQueryStmt
++-output_schema=
+| +-OutputSchema
+|   +-output_column_list=
+|     +-$graph_table.name#2 AS name [STRING]
++-query=
+  +-GraphTableScan
+    +-column_list=[$graph_table.name#2]
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-column_list=[$graph_table.name#2]
+        +-scan_list=
+          +-GraphLinearScan
+            +-column_list=[$graph_table.name#2]
+            +-scan_list=
+              +-GraphInsertScan
+              | +-column_list=[$element_table.n#1]
+              | +-input_scan=
+              | | +-SingleRowScan
+              | +-insert_node_list=
+              | | +-n#1 :=
+              | |   +-GraphInsertElement
+              | |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+              | |     +-property_list=
+              | |     | +-GraphDMLPropertyItem
+              | |     |   +-property_name="name"
+              | |     |   +-property=name(STRING)
+              | |     |   +-property_value=
+              | |     |     +-Literal(type=STRING, value="John")
+              | |     +-label_list=
+              | |     | +-GraphLabel(label=aml.Person)
+              | |     +-element_table=Person
+              | +-path_element_list=[$element_table.n#1]
+              +-ProjectScan
+                +-column_list=[$graph_table.name#2]
+                +-expr_list=
+                | +-name#2 :=
+                |   +-GraphGetElementProperty
+                |     +-type=STRING
+                |     +-expr=
+                |     | +-ColumnRef(type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>, column=$element_table.n#1)
+                |     +-property=name(STRING)
+                +-input_scan=
+                  +-GraphRefScan(column_list=[$element_table.n#1])
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "John" })
+RETURN
+  a_1.name AS a_2;
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "John" })
+RETURN
+  a_1.name AS a_2;
+==
+
+# Set op before INSERT is allowed.
+GRAPH aml
+MATCH (n:Account)
+RETURN n
+UNION all
+MATCH (n:Account)
+RETURN n
+NEXT
+INSERT (n)-[e:Transfer]->(m:Account {id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-SetOperationScan
+          | +-column_list=[$graph_set_op.n#5]
+          | +-op_type=UNION_ALL
+          | +-input_item_list=
+          | | +-SetOperationItem
+          | | | +-scan=
+          | | | | +-GraphLinearScan
+          | | | |   +-column_list=[$graph_table.n#2]
+          | | | |   +-scan_list=
+          | | | |     +-GraphScan
+          | | | |     | +-column_list=[$element_table.n#1]
+          | | | |     | +-input_scan_list=
+          | | | |     | | +-GraphPathScan
+          | | | |     | |   +-column_list=[$element_table.n#1]
+          | | | |     | |   +-input_scan_list=
+          | | | |     | |   | +-GraphNodeScan
+          | | | |     | |   |   +-column_list=[$element_table.n#1]
+          | | | |     | |   |   +-label_expr=
+          | | | |     | |   |   | +-GraphLabel(parse_location=19-26, label=aml.Account)
+          | | | |     | |   |   +-target_element_table_list=[aml.Account]
+          | | | |     | |   +-head=$element_table.n#1
+          | | | |     | |   +-tail=$element_table.n#1
+          | | | |     | +-input_scan=
+          | | | |     |   +-SingleRowScan
+          | | | |     +-ProjectScan
+          | | | |       +-column_list=[$graph_table.n#2]
+          | | | |       +-expr_list=
+          | | | |       | +-n#2 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.n#1)
+          | | | |       +-input_scan=
+          | | | |         +-GraphRefScan(column_list=[$element_table.n#1])
+          | | | +-output_column_list=[$graph_table.n#2]
+          | | +-SetOperationItem
+          | |   +-scan=
+          | |   | +-GraphLinearScan
+          | |   |   +-column_list=[$graph_table.n#4]
+          | |   |   +-scan_list=
+          | |   |     +-GraphScan
+          | |   |     | +-column_list=[$element_table.n#3]
+          | |   |     | +-input_scan_list=
+          | |   |     | | +-GraphPathScan
+          | |   |     | |   +-column_list=[$element_table.n#3]
+          | |   |     | |   +-input_scan_list=
+          | |   |     | |   | +-GraphNodeScan
+          | |   |     | |   |   +-column_list=[$element_table.n#3]
+          | |   |     | |   |   +-label_expr=
+          | |   |     | |   |   | +-GraphLabel(parse_location=56-63, label=aml.Account)
+          | |   |     | |   |   +-target_element_table_list=[aml.Account]
+          | |   |     | |   +-head=$element_table.n#3
+          | |   |     | |   +-tail=$element_table.n#3
+          | |   |     | +-input_scan=
+          | |   |     |   +-SingleRowScan
+          | |   |     +-ProjectScan
+          | |   |       +-column_list=[$graph_table.n#4]
+          | |   |       +-expr_list=
+          | |   |       | +-n#4 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.n#3)
+          | |   |       +-input_scan=
+          | |   |         +-GraphRefScan(column_list=[$element_table.n#3])
+          | |   +-output_column_list=[$graph_table.n#4]
+          | +-column_match_mode=CORRESPONDING
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=[$graph_set_op.n#5, $element_table.m#6]
+                    +-input_scan=
+                    | +-GraphRefScan(column_list=[$graph_set_op.n#5])
+                    +-insert_node_list=
+                    | +-m#6 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-e#7 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_set_op.n#5)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.m#6)
+                    |     +-element_table=Transfer
+                    +-path_element_list=[$graph_set_op.n#5, $element_table.e#7, $element_table.m#6]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_2 IS Account)
+RETURN
+  a_2 AS a_1
+UNION ALL
+MATCH
+  (a_3 IS Account)
+RETURN
+  a_3 AS a_1
+NEXT
+INSERT
+  (a_1) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_2 IS Account)
+RETURN
+  a_2 AS a_1
+UNION ALL
+MATCH
+  (a_3 IS Account)
+RETURN
+  a_3 AS a_1
+NEXT
+INSERT
+  (a_1) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+==
+
+# Aggregation before INSERT is allowed.
+GRAPH aml
+MATCH (n:Account)
+WITH n, count(*) as cnt
+INSERT (n)-[e:Transfer]->(m:Account {id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-GraphScan
+              | +-column_list=[$element_table.n#1]
+              | +-input_scan_list=
+              | | +-GraphPathScan
+              | |   +-column_list=[$element_table.n#1]
+              | |   +-input_scan_list=
+              | |   | +-GraphNodeScan
+              | |   |   +-column_list=[$element_table.n#1]
+              | |   |   +-label_expr=
+              | |   |   | +-GraphLabel(parse_location=19-26, label=aml.Account)
+              | |   |   +-target_element_table_list=[aml.Account]
+              | |   +-head=$element_table.n#1
+              | |   +-tail=$element_table.n#1
+              | +-input_scan=
+              |   +-SingleRowScan
+              +-ProjectScan
+              | +-column_list=$graph_table.[n#3, cnt#2]
+              | +-input_scan=
+              |   +-AggregateScan
+              |     +-column_list=$graph_table.[n#3, cnt#2]
+              |     +-input_scan=
+              |     | +-GraphRefScan(column_list=[$element_table.n#1])
+              |     +-group_by_list=
+              |     | +-n#3 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.n#1)
+              |     +-aggregate_list=
+              |       +-cnt#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=[$graph_table.n#3, $graph_table.cnt#2, $element_table.m#4]
+                    +-input_scan=
+                    | +-GraphRefScan(column_list=$graph_table.[n#3, cnt#2])
+                    +-insert_node_list=
+                    | +-m#4 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-e#5 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_table.n#3)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.m#4)
+                    |     +-element_table=Transfer
+                    +-path_element_list=[$graph_table.n#3, $element_table.e#5, $element_table.m#4]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+WITH
+  a_1 AS a_3,
+  COUNT(*) AS a_2
+GROUP BY a_3
+WITH
+  a_3,
+  a_2
+INSERT
+  (a_3) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+WITH
+  a_1 AS a_3,
+  COUNT(*) AS a_2
+GROUP BY a_3
+WITH
+  a_3,
+  a_2
+INSERT
+  (a_3) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+==
+
+# Aggregation before INSERT is allowed.
+GRAPH aml
+MATCH (n:Account)
+RETURN n, count(*) as cnt
+NEXT
+INSERT (n)-[e:Transfer]->(m:Account {id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+          | +-column_list=$graph_table.[n#3, cnt#2]
+          | +-scan_list=
+          |   +-GraphScan
+          |   | +-column_list=[$element_table.n#1]
+          |   | +-input_scan_list=
+          |   | | +-GraphPathScan
+          |   | |   +-column_list=[$element_table.n#1]
+          |   | |   +-input_scan_list=
+          |   | |   | +-GraphNodeScan
+          |   | |   |   +-column_list=[$element_table.n#1]
+          |   | |   |   +-label_expr=
+          |   | |   |   | +-GraphLabel(parse_location=19-26, label=aml.Account)
+          |   | |   |   +-target_element_table_list=[aml.Account]
+          |   | |   +-head=$element_table.n#1
+          |   | |   +-tail=$element_table.n#1
+          |   | +-input_scan=
+          |   |   +-SingleRowScan
+          |   +-ProjectScan
+          |     +-column_list=$graph_table.[n#3, cnt#2]
+          |     +-input_scan=
+          |       +-AggregateScan
+          |         +-column_list=$graph_table.[n#3, cnt#2]
+          |         +-input_scan=
+          |         | +-GraphRefScan(column_list=[$element_table.n#1])
+          |         +-group_by_list=
+          |         | +-n#3 := ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.n#1)
+          |         +-aggregate_list=
+          |           +-cnt#2 := AggregateFunctionCall(GoogleSQL:$count_star() -> INT64)
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=[$graph_table.n#3, $graph_table.cnt#2, $element_table.m#4]
+                    +-input_scan=
+                    | +-GraphRefScan(column_list=$graph_table.[n#3, cnt#2])
+                    +-insert_node_list=
+                    | +-m#4 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-e#5 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$graph_table.n#3)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.m#4)
+                    |     +-element_table=Transfer
+                    +-path_element_list=[$graph_table.n#3, $element_table.e#5, $element_table.m#4]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+RETURN
+  a_1 AS a_2,
+  COUNT(*) AS a_3
+GROUP BY a_2
+NEXT
+INSERT
+  (a_2) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+RETURN
+  a_1 AS a_2,
+  COUNT(*) AS a_3
+GROUP BY a_2
+NEXT
+INSERT
+  (a_2) -[a_4 IS Transfer]-> (a_5 IS Account { id : 1 });
+==
+
+# Success: Valid edge insert
+GRAPH aml
+MATCH (a:Account {id: 1}), (b:Account {id: 2})
+INSERT (a)-[e:Transfer {amount: 50}]->(b)
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-GraphScan
+              | +-column_list=$element_table.[a#1, b#2]
+              | +-input_scan_list=
+              | | +-GraphPathScan
+              | | | +-column_list=[$element_table.a#1]
+              | | | +-input_scan_list=
+              | | | | +-GraphNodeScan
+              | | | |   +-column_list=[$element_table.a#1]
+              | | | |   +-filter_expr=
+              | | | |   | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+              | | | |   |   +-GraphGetElementProperty
+              | | | |   |   | +-type=INT64
+              | | | |   |   | +-expr=
+              | | | |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#1)
+              | | | |   |   | +-property=id(INT64)
+              | | | |   |   +-Literal(type=INT64, value=1)
+              | | | |   +-label_expr=
+              | | | |   | +-GraphLabel(parse_location=19-26, label=aml.Account)
+              | | | |   +-target_element_table_list=[aml.Account]
+              | | | +-head=$element_table.a#1
+              | | | +-tail=$element_table.a#1
+              | | +-GraphPathScan
+              | |   +-column_list=[$element_table.b#2]
+              | |   +-input_scan_list=
+              | |   | +-GraphNodeScan
+              | |   |   +-column_list=[$element_table.b#2]
+              | |   |   +-filter_expr=
+              | |   |   | +-FunctionCall(GoogleSQL:$equal(INT64, INT64) -> BOOL)
+              | |   |   |   +-GraphGetElementProperty
+              | |   |   |   | +-type=INT64
+              | |   |   |   | +-expr=
+              | |   |   |   | | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.b#2)
+              | |   |   |   | +-property=id(INT64)
+              | |   |   |   +-Literal(type=INT64, value=2)
+              | |   |   +-label_expr=
+              | |   |   | +-GraphLabel(parse_location=40-47, label=aml.Account)
+              | |   |   +-target_element_table_list=[aml.Account]
+              | |   +-head=$element_table.b#2
+              | |   +-tail=$element_table.b#2
+              | +-input_scan=
+              |   +-SingleRowScan
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[a#1, b#2]
+                    +-input_scan=
+                    | +-GraphRefScan(column_list=$element_table.[a#1, b#2])
+                    +-insert_edge_list=
+                    | +-e#3 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="amount"
+                    |     |   +-property=amount(UINT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=UINT64, value=50)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.b#2)
+                    |     +-element_table=Transfer
+                    +-path_element_list=$element_table.[a#1, e#3, b#2]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account
+  WHERE
+    (a_1.id) = 1),
+  (a_2 IS Account
+  WHERE
+    (a_2.id) = 2)
+INSERT
+  (a_1) -[a_3 IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_2);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account
+  WHERE
+    (a_1.id) = 1),
+  (a_2 IS Account
+  WHERE
+    (a_2.id) = 2)
+INSERT
+  (a_1) -[a_3 IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_2);
+==
+
+# Success: Valid edge and node insert
+GRAPH aml
+MATCH (a:Account)
+INSERT (a)-[e:Transfer {amount: 50}]->(b:Account {id: 1})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-GraphScan
+              | +-column_list=[$element_table.a#1]
+              | +-input_scan_list=
+              | | +-GraphPathScan
+              | |   +-column_list=[$element_table.a#1]
+              | |   +-input_scan_list=
+              | |   | +-GraphNodeScan
+              | |   |   +-column_list=[$element_table.a#1]
+              | |   |   +-label_expr=
+              | |   |   | +-GraphLabel(parse_location=19-26, label=aml.Account)
+              | |   |   +-target_element_table_list=[aml.Account]
+              | |   +-head=$element_table.a#1
+              | |   +-tail=$element_table.a#1
+              | +-input_scan=
+              |   +-SingleRowScan
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[a#1, b#2]
+                    +-input_scan=
+                    | +-GraphRefScan(column_list=[$element_table.a#1])
+                    +-insert_node_list=
+                    | +-b#2 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<balance UINT64, id INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="id"
+                    |     |   +-property=id(INT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=INT64, value=1)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Account)
+                    |     +-element_table=Account
+                    +-insert_edge_list=
+                    | +-e#3 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml)<accountId INT64, amount UINT64, targetAccountId INT64>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="amount"
+                    |     |   +-property=amount(UINT64)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=UINT64, value=50)
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Transfer)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.a#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml)<balance UINT64, id INT64>, column=$element_table.b#2)
+                    |     +-element_table=Transfer
+                    +-path_element_list=$element_table.[a#1, e#3, b#2]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+INSERT
+  (a_1) -[a_2 IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_3 IS Account { id : 1 });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+MATCH
+  (a_1 IS Account)
+INSERT
+  (a_1) -[a_2 IS Transfer { amount : CAST(50 AS UINT64) }]-> (a_3 IS Account { id : 1 });
+==
+
+# Multiple INSERT patterns
+GRAPH aml
+INSERT (a:Person {name: "A"}), (b:Person {name: "B"})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-a#1 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="name"
+                    | |   |   +-property=name(STRING)
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=STRING, value="A")
+                    | |   +-label_list=
+                    | |   | +-GraphLabel(label=aml.Person)
+                    | |   +-element_table=Person
+                    | +-b#2 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml)<age UINT32, birthday DATE, data BYTES, id INT64, name STRING>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="name"
+                    |     |   +-property=name(STRING)
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="B")
+                    |     +-label_list=
+                    |     | +-GraphLabel(label=aml.Person)
+                    |     +-element_table=Person
+                    +-path_element_list=$element_table.[a#1, b#2]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "A" }), (a_2 IS Person { name : "B" });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml
+INSERT
+  (a_1 IS Person { name : "A" }), (a_2 IS Person { name : "B" });
+==
+
+[language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_RETURN_EXTENSIONS,+SQL_GRAPH_TERMINAL_INSERT,+SQL_GRAPH_DYNAMIC_ELEMENT_TYPE,+SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL]
+
+# Dynamic graph: Insert nodes and edge with fully dynamic labels and dynamic properties
+GRAPH aml_dynamic
+INSERT (p:Person {name: "Alice"})-[e:Follow {detail: "close"}]->(q:Person {name: "Bob"})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml_dynamic
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[p#1, q#2]
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="name"
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=STRING, value="Alice")
+                    | |   +-label_list=
+                    | |   | +-GraphLabel
+                    | |   |   +-label_name=
+                    | |   |     +-Literal(type=STRING, value="Person", has_explicit_type=TRUE)
+                    | |   +-element_table=DynamicGraphNode
+                    | +-q#2 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="name"
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="Bob")
+                    |     +-label_list=
+                    |     | +-GraphLabel
+                    |     |   +-label_name=
+                    |     |     +-Literal(type=STRING, value="Person", has_explicit_type=TRUE)
+                    |     +-element_table=DynamicGraphNode
+                    +-insert_edge_list=
+                    | +-e#3 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml_dynamic)<category STRING, dst_id INT64, edgeJsonProp JSON, edgeLabelCol STRING, id INT64, DYNAMIC>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="detail"
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="close")
+                    |     +-label_list=
+                    |     | +-GraphLabel
+                    |     |   +-label_name=
+                    |     |     +-Literal(type=STRING, value="Follow", has_explicit_type=TRUE)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.p#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.q#2)
+                    |     +-element_table=DynamicGraphEdge
+                    +-path_element_list=$element_table.[p#1, e#3, q#2]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml_dynamic
+INSERT
+  (a_1 IS Person { name : "Alice" }) -[a_2 IS Follow { detail : "close" }]-> (a_3 IS Person { name : "Bob" });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml_dynamic
+INSERT
+  (a_1 IS Person { name : "Alice" }) -[a_2 IS Follow { detail : "close" }]-> (a_3 IS Person { name : "Bob" });
+==
+
+[language_features=NONE,+SQL_GRAPH,+SQL_GRAPH_ADVANCED_QUERY,+SQL_GRAPH_RETURN_EXTENSIONS,+SQL_GRAPH_TERMINAL_INSERT,+SQL_GRAPH_DYNAMIC_ELEMENT_TYPE,+SQL_GRAPH_DYNAMIC_LABEL_PROPERTIES_IN_DDL]
+
+# Dynamic graph: Insert nodes and edge with fully dynamic labels and dynamic properties
+# and have referenced node in different paths.
+GRAPH aml_dynamic
+INSERT (p:Person {name: "Alice"})-[e:Follow {detail: "close friend"}]->(x:Person {name: "Bob"}),
+       (p)-[:Follow {detail: "professional connection"}]->(y:Person {name: "Cindy"})
+--
+GeneralizedQueryStmt
++-query=
+  +-GraphTableScan
+    +-property_graph=aml_dynamic
+    +-input_scan=
+      +-GraphLinearScan
+        +-scan_list=
+          +-GraphLinearScan
+            +-scan_list=
+              +-FinishScan
+                +-input_scan=
+                  +-GraphInsertScan
+                    +-column_list=$element_table.[p#1, x#2, y#4]
+                    +-input_scan=
+                    | +-SingleRowScan
+                    +-insert_node_list=
+                    | +-p#1 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="name"
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=STRING, value="Alice")
+                    | |   +-label_list=
+                    | |   | +-GraphLabel
+                    | |   |   +-label_name=
+                    | |   |     +-Literal(type=STRING, value="Person", has_explicit_type=TRUE)
+                    | |   +-element_table=DynamicGraphNode
+                    | +-x#2 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="name"
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=STRING, value="Bob")
+                    | |   +-label_list=
+                    | |   | +-GraphLabel
+                    | |   |   +-label_name=
+                    | |   |     +-Literal(type=STRING, value="Person", has_explicit_type=TRUE)
+                    | |   +-element_table=DynamicGraphNode
+                    | +-y#4 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="name"
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="Cindy")
+                    |     +-label_list=
+                    |     | +-GraphLabel
+                    |     |   +-label_name=
+                    |     |     +-Literal(type=STRING, value="Person", has_explicit_type=TRUE)
+                    |     +-element_table=DynamicGraphNode
+                    +-insert_edge_list=
+                    | +-e#3 :=
+                    | | +-GraphInsertElement
+                    | |   +-type=GRAPH_EDGE(aml_dynamic)<category STRING, dst_id INT64, edgeJsonProp JSON, edgeLabelCol STRING, id INT64, DYNAMIC>
+                    | |   +-property_list=
+                    | |   | +-GraphDMLPropertyItem
+                    | |   |   +-property_name="detail"
+                    | |   |   +-property_value=
+                    | |   |     +-Literal(type=STRING, value="close friend")
+                    | |   +-label_list=
+                    | |   | +-GraphLabel
+                    | |   |   +-label_name=
+                    | |   |     +-Literal(type=STRING, value="Follow", has_explicit_type=TRUE)
+                    | |   +-source_node=
+                    | |   | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.p#1)
+                    | |   +-dest_node=
+                    | |   | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.x#2)
+                    | |   +-element_table=DynamicGraphEdge
+                    | +-$insert_edge#5 :=
+                    |   +-GraphInsertElement
+                    |     +-type=GRAPH_EDGE(aml_dynamic)<category STRING, dst_id INT64, edgeJsonProp JSON, edgeLabelCol STRING, id INT64, DYNAMIC>
+                    |     +-property_list=
+                    |     | +-GraphDMLPropertyItem
+                    |     |   +-property_name="detail"
+                    |     |   +-property_value=
+                    |     |     +-Literal(type=STRING, value="professional connection")
+                    |     +-label_list=
+                    |     | +-GraphLabel
+                    |     |   +-label_name=
+                    |     |     +-Literal(type=STRING, value="Follow", has_explicit_type=TRUE)
+                    |     +-source_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.p#1)
+                    |     +-dest_node=
+                    |     | +-ColumnRef(type=GRAPH_NODE(aml_dynamic)<code INT64, id INT64, nodeJsonProp JSON, nodeLabelCol STRING, DYNAMIC>, column=$element_table.y#4)
+                    |     +-element_table=DynamicGraphEdge
+                    +-path_element_list=$element_table.[p#1, e#3, x#2, p#1, $insert_edge#5, y#4]
+
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+GRAPH aml_dynamic
+INSERT
+  (a_1 IS Person { name : "Alice" }) -[a_2 IS Follow { detail : "close friend" }]-> (a_3 IS Person { name : "Bob" }), (a_1) -[IS Follow { detail : "professional connection" }]->
+  (a_4 IS Person { name : "Cindy" });
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+GRAPH aml_dynamic
+INSERT
+  (a_1 IS Person { name : "Alice" }) -[a_2 IS Follow { detail : "close friend" }]-> (a_3 IS Person { name : "Bob" }), (a_1) -[IS Follow { detail : "professional connection" }]->
+  (a_4 IS Person { name : "Cindy" });
+==
+

@@ -126,7 +126,6 @@ const char* const kTableForMeasureExprAnalysis =
     "table_for_measure_expr_analysis";
 const char* const kLogImpactOfLateralColumnReferences =
     "log_impact_of_lateral_column_references";
-const char* const kReproReanalyzeFailure = "repro_reanalyze_failure";
 
 void RegisterAnalyzerTestOptions(
     file_based_test_driver::TestCaseOptions* test_case_options) {
@@ -205,7 +204,6 @@ void RegisterAnalyzerTestOptions(
                                     kSqlBuilderTargetSyntaxModeBoth);
   test_case_options->RegisterBool(kUseConstantEvaluator, false);
   test_case_options->RegisterString(kTableForMeasureExprAnalysis, "");
-  test_case_options->RegisterBool(kReproReanalyzeFailure, false);
 
   // For analyzer tests, we turn this on to get the maximum coverage for the
   // blast radius of lateral column references.

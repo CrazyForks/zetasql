@@ -422,6 +422,9 @@ class Validator {
       const std::set<ResolvedColumn>& visible_parameters,
       const ResolvedExpr* expr);
 
+  absl::Status ValidateTypeParametersOfResolvedType(
+      const Type* type, const TypeParameters& type_parameters);
+
   absl::Status ValidateResolvedAggregateFunctionCall(
       const std::set<ResolvedColumn>& visible_columns,
       const std::set<ResolvedColumn>& visible_parameters,
@@ -436,6 +439,11 @@ class Validator {
       const std::set<ResolvedColumn>& visible_columns,
       const std::set<ResolvedColumn>& visible_parameters,
       const ResolvedMakeStruct* expr);
+
+  absl::Status ValidateResolvedMakeMap(
+      const std::set<ResolvedColumn>& visible_columns,
+      const std::set<ResolvedColumn>& visible_parameters,
+      const ResolvedMakeMap* expr);
 
   absl::Status ValidateResolvedGetProtoFieldExpr(
       const std::set<ResolvedColumn>& visible_columns,

@@ -1,0 +1,6 @@
+# Regular (non-TVF) function call with GRAPH arg is not supported.
+SELECT some_func(GRAPH g)
+--
+ERROR: Syntax error: Expected ")" but got identifier "g" [at 1:24]
+SELECT some_func(GRAPH g)
+                       ^

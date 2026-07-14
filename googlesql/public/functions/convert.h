@@ -97,8 +97,7 @@ static inline bool CheckFloatToIntRange(const FromType& value) {
 // not allowed. Baseline template simply does a static_cast(). It also covers
 // the case when FromType is the same as ToType.
 template <typename FromType, typename ToType> struct Converter {
-  static inline bool Convert(
-      const FromType& in, ToType* out, absl::Status* error) {
+  static bool Convert(const FromType& in, ToType* out, absl::Status* error) {
     *out = static_cast<ToType>(in);
     return true;
   }
@@ -106,8 +105,7 @@ template <typename FromType, typename ToType> struct Converter {
 
 // Partial specialization for all conversions to a Boolean value.
 template <typename FromType> struct Converter<FromType, bool> {
-  static inline bool Convert(
-      const FromType& in, bool* out, absl::Status* error) {
+  static bool Convert(const FromType& in, bool* out, absl::Status* error) {
     *out = (in != 0);
     return true;
   }

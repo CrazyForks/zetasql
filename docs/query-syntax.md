@@ -6807,6 +6807,14 @@ FROM Singers
 ORDER BY last;
 ```
 
+Invalid:
+
+```googlesql {.bad}
+SELECT LastName AS last, SingerID
+FROM Singers
+WHERE last = "Smith";  // INVALID.
+```
+
 #### Visibility in the `GROUP BY`, `ORDER BY`, and `HAVING` clauses 
 <a id="aliases_clauses"></a>
 

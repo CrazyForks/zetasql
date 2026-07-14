@@ -16,18 +16,21 @@
 
 #include "googlesql/common/simple_evaluator_table_iterator.h"
 
-#include <algorithm>
 #include <memory>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "googlesql/base/testing/status_matchers.h"
+#include "googlesql/public/catalog.h"
+#include "googlesql/public/evaluator_table_iterator.h"
 #include "googlesql/public/simple_catalog.h"
+#include "googlesql/public/types/type_factory.h"
+#include "googlesql/public/value.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -76,11 +79,12 @@ class ColumnFilterTest : public ::testing::Test {
           std::make_shared<const std::vector<Value>>(values));
     }
 
-    iter_ = std::make_unique<SimpleEvaluatorTableIterator>(
-        columns, column_major_values_for_iter, /*num_rows=*/4,
-        /*end_status=*/absl::OkStatus(), filter_column_idxs,
-        /*cancel_cb=*/[]() {}, /*set_deadline_cb=*/[](absl::Time) {},
-        googlesql_base::Clock::RealClock());
+    GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+        iter_, SimpleEvaluatorTableIterator::Create(
+                   columns, column_major_values_for_iter, /*num_rows=*/4,
+                   /*end_status=*/absl::OkStatus(), filter_column_idxs,
+                   /*cancel_cb=*/[]() {}, /*set_deadline_cb=*/[](absl::Time) {},
+                   googlesql_base::Clock::RealClock()));
   }
 
   absl::StatusOr<std::vector<std::vector<Value>>> Read(

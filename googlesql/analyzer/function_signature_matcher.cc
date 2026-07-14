@@ -680,8 +680,12 @@ FunctionSignatureMatcher::GetConcreteArguments(
                               templated_argument_map, &argument_type));
       if (!matches) {
         GOOGLESQL_RET_CHECK_EQ(0, num_occurrences);
+        FunctionArgumentTypeOptions options(signature_argument.options());
+        if (options.has_default()) {
+          options.clear_default();
+        }
         argument_type = std::make_unique<FunctionArgumentType>(
-            signature_argument.kind(), signature_argument.cardinality(), 0);
+            signature_argument.kind(), std::move(options), 0);
       }
       resolved_argument_list.push_back(std::move(*argument_type));
     }

@@ -574,3 +574,104 @@ SELECT KEYS.NEW_KEYSET('DETERMINISTIC_AEAD_AES_SIV_CMAC_256', metadata => '{"rad
 ERROR: Metadata argument is not supported for key type 'DETERMINISTIC_AEAD_AES_SIV_CMAC_256' [at 1:8]
 SELECT KEYS.NEW_KEYSET('DETERMINISTIC_AEAD_AES_SIV_CMAC_256', metadata => '{"...
        ^
+
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_WRAPPED_KEYSET('kms/key', 'FPE_FF1', metadata => '{"radix": 10, "input_length": 6}')
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BYTES]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:keys.new_wrapped_keyset(STRING, STRING, STRING metadata) -> BYTES)
+    |     +-Literal(type=STRING, value="kms/key")
+    |     +-Literal(type=STRING, value="FPE_FF1")
+    |     +-Literal(type=STRING, value='{"radix": 10, "input_length": 6}')
+    +-input_scan=
+      +-SingleRowScan
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_WRAPPED_KEYSET('kms/key', 'AEAD_AES_GCM_256', metadata => '{"radix": 10}')
+--
+ERROR: Metadata argument is not supported for key type 'AEAD_AES_GCM_256' [at 1:8]
+SELECT KEYS.NEW_WRAPPED_KEYSET('kms/key', 'AEAD_AES_GCM_256', metadata => '{"...
+       ^
+
+==
+
+[language_features=MAXIMUM,+FPE_NEW_KEYSET]
+SELECT KEYS.NEW_WRAPPED_KEYSET('kms/key', 'DETERMINISTIC_AEAD_AES_SIV_CMAC_256', metadata => '{"radix": 10}')
+--
+ERROR: Metadata argument is not supported for key type 'DETERMINISTIC_AEAD_AES_SIV_CMAC_256' [at 1:8]
+SELECT KEYS.NEW_WRAPPED_KEYSET('kms/key', 'DETERMINISTIC_AEAD_AES_SIV_CMAC_25...
+       ^
+==
+
+[language_features=MAXIMUM,{{+FPE_NEW_KEYSET|-FPE_NEW_KEYSET}}]
+SELECT fpe_encrypt(KEYS.KEYSET_CHAIN(@test_param_string, b'0123456789abcdef'), [1, 2, 3], b'tweak')
+--
+ALTERNATION GROUP: +FPE_NEW_KEYSET
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:fpe_encrypt(STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>, ARRAY<INT64>, optional(1) BYTES) -> ARRAY<INT64>)
+    |     +-FunctionCall(GoogleSQL:keys.keyset_chain(STRING, BYTES) -> STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>)
+    |     | +-Parameter(type=STRING, name="test_param_string")
+    |     | +-Literal(type=BYTES, value=b"0123456789abcdef")
+    |     +-Literal(type=ARRAY<INT64>, value=[1, 2, 3])
+    |     +-Literal(type=BYTES, value=b"tweak")
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -FPE_NEW_KEYSET
+--
+ERROR: No matching signature for function FPE_ENCRYPT
+  Argument types: STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>, ARRAY<INT64>, BYTES
+  Signature: FPE_ENCRYPT(BYTES, ARRAY<INT64>, [BYTES])
+    Argument 1: Unable to coerce type STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES> to expected type BYTES [at 1:8]
+SELECT fpe_encrypt(KEYS.KEYSET_CHAIN(@test_param_string, b'0123456789abcdef')...
+       ^
+==
+
+[language_features=MAXIMUM,{{+FPE_NEW_KEYSET|-FPE_NEW_KEYSET}}]
+SELECT fpe_decrypt(KEYS.KEYSET_CHAIN(@test_param_string, b'0123456789abcdef'), [1, 2, 3], b'tweak')
+--
+ALTERNATION GROUP: +FPE_NEW_KEYSET
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<INT64>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:fpe_decrypt(STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>, ARRAY<INT64>, optional(1) BYTES) -> ARRAY<INT64>)
+    |     +-FunctionCall(GoogleSQL:keys.keyset_chain(STRING, BYTES) -> STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>)
+    |     | +-Parameter(type=STRING, name="test_param_string")
+    |     | +-Literal(type=BYTES, value=b"0123456789abcdef")
+    |     +-Literal(type=ARRAY<INT64>, value=[1, 2, 3])
+    |     +-Literal(type=BYTES, value=b"tweak")
+    +-input_scan=
+      +-SingleRowScan
+--
+ALTERNATION GROUP: -FPE_NEW_KEYSET
+--
+ERROR: No matching signature for function FPE_DECRYPT
+  Argument types: STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES>, ARRAY<INT64>, BYTES
+  Signature: FPE_DECRYPT(BYTES, ARRAY<INT64>, [BYTES])
+    Argument 1: Unable to coerce type STRUCT<kms_resource_name STRING, first_level_keyset BYTES, second_level_keyset BYTES> to expected type BYTES [at 1:8]
+SELECT fpe_decrypt(KEYS.KEYSET_CHAIN(@test_param_string, b'0123456789abcdef')...
+       ^

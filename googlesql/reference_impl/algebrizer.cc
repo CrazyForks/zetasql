@@ -35,7 +35,6 @@
 
 #include "googlesql/base/arena.h"
 #include "googlesql/base/atomic_sequence_num.h"
-#include "googlesql/base/logging.h"
 #include "googlesql/analyzer/expr_resolver_helper.h"
 #include "googlesql/common/aggregate_null_handling.h"
 #include "googlesql/common/type_visitors.h"
@@ -8525,7 +8524,8 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
   output_columns.reserve(tvf_scan->column_list().size());
   std::vector<VariableId> variables;
   variables.reserve(tvf_scan->column_list().size());
-  std::vector<int> output_column_indices = tvf_scan->column_index_list();
+  std::vector<int> output_column_indices;
+  output_column_indices.reserve(tvf_scan->column_list_size());
   for (int i = 0; i < tvf_scan->column_list_size(); ++i) {
     const ResolvedColumn& column = tvf_scan->column_list(i);
     const TVFSchemaColumn& signature_column =
@@ -8590,21 +8590,31 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
 
     algebrize_body_callback =
         [resolved_body, is_value_table, language_options, algebrizer_options,
-         type_factory, output_columns, arg_infos = std::move(arg_infos)](
+         type_factory, output_columns,
+         tvf_column_index_list = tvf_scan->column_index_list(),
+         arg_infos = std::move(arg_infos)](
             std::vector<TableValuedFunction::TvfEvaluatorArg> args,
             int num_extra_slots,
             std::unique_ptr<EvaluationContext> eval_context)
         -> absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> {
       std::unique_ptr<RelationalOp> algebrized_body;
-      std::vector<int> output_column_indices;
+      std::vector<int> algebrized_column_indices;
       GOOGLESQL_RETURN_IF_ERROR(AlgebrizeTvfCall(
           *resolved_body, is_value_table, language_options, algebrizer_options,
           type_factory, std::move(arg_infos), std::move(args),
-          eval_context.get(), algebrized_body, output_column_indices));
+          eval_context.get(), algebrized_body, algebrized_column_indices));
+
+      std::vector<int> filtered_column_indices;
+      filtered_column_indices.reserve(tvf_column_index_list.size());
+      for (int idx : tvf_column_index_list) {
+        GOOGLESQL_RET_CHECK_GE(idx, 0);
+        GOOGLESQL_RET_CHECK_LT(idx, algebrized_column_indices.size());
+        filtered_column_indices.push_back(algebrized_column_indices[idx]);
+      }
 
       return CreateIterator(std::move(algebrized_body),
                             std::move(output_columns),
-                            std::move(output_column_indices), num_extra_slots,
+                            std::move(filtered_column_indices), num_extra_slots,
                             std::move(eval_context));
     };
   }

@@ -1,5 +1,3 @@
-# TODO: - Add Java support for VECTOR.
-[default no_java]
 [default language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
 
 # VECTOR disallows casting from its backing type, BYTES.
@@ -113,6 +111,30 @@ SELECT CAST([NULL] AS ARRAY<VECTOR>) AS cast_array_with_null_element
 ERROR: Casting between arrays with incompatible element types is not supported: Invalid cast from ARRAY<INT64> to ARRAY<VECTOR> [at 1:13]
 SELECT CAST([NULL] AS ARRAY<VECTOR>) AS cast_array_with_null_element
             ^
+==
+
+# VECTOR type is returnable.
+SELECT
+  ENCODE_VECTOR([1.0, 2.0]),
+  ARRAY<VECTOR>[ENCODE_VECTOR([1.0, 2.0])]
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [VECTOR]
+| +-$query.$col2#2 AS `$col2` [ARRAY<VECTOR>]
++-query=
+  +-ProjectScan
+    +-column_list=$query.[$col1#1, $col2#2]
+    +-expr_list=
+    | +-$col1#1 :=
+    | | +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    | |   +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    | +-$col2#2 :=
+    |   +-FunctionCall(GoogleSQL:$make_array(repeated(1) VECTOR) -> ARRAY<VECTOR>)
+    |     +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    |       +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    +-input_scan=
+      +-SingleRowScan
 ==
 
 # An ARRAY with an untyped NULL literal (e.g. `[NULL]`) is typed as `ARRAY<INT64>` by default.
@@ -415,22 +437,50 @@ SELECT FORMAT("%t", CAST(NULL AS VECTOR))
        ^
 ==
 
-# TODO: Support type parameters for VECTOR.
-# CAST to parameterized VECTOR(3) handles type parameter constraint check.
-SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(3))
+# TODO: - Add Java support for VECTOR TypeParams.
+# CAST to parameterized VECTOR(3) handles type parameter constraint check
+# will be an evaluation error instead of analysis error.
+[no_java]
+SELECT DECODE_VECTOR(CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(3)))
 --
-ERROR: Type VECTOR does not support type parameters [at 1:48]
-SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(3))
-                                               ^
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<FLOAT>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    |     +-Cast(VECTOR -> VECTOR)
+    |       +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    |       | +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    |       +-type_modifiers=type_parameters:(length=3)
+    +-input_scan=
+      +-SingleRowScan
 ==
 
-# TODO: Support type parameters for VECTOR.
-# CAST to parameterized VECTOR(2) handles type parameter constraint check.
-SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(2))
+# TODO: - Add Java support for VECTOR TypeParams.
+# CAST to parameterized VECTOR(2) handles type is valid.
+# will be an evaluation error instead of analysis error.
+[no_java]
+SELECT DECODE_VECTOR(CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(2)))
 --
-ERROR: Type VECTOR does not support type parameters [at 1:48]
-SELECT CAST(ENCODE_VECTOR([1.0, 2.0]) AS VECTOR(2))
-                                               ^
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [ARRAY<FLOAT>]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:decode_vector(VECTOR) -> ARRAY<FLOAT>)
+    |     +-Cast(VECTOR -> VECTOR)
+    |       +-FunctionCall(GoogleSQL:encode_vector(ARRAY<FLOAT>, optional(0) INT64, optional(0) STRING) -> VECTOR)
+    |       | +-Literal(type=ARRAY<FLOAT>, value=[1, 2])
+    |       +-type_modifiers=type_parameters:(length=2)
+    +-input_scan=
+      +-SingleRowScan
 ==
 
 # DECODE_VECTOR with NULL and untyped parameters
@@ -484,3 +534,50 @@ ERROR: No matching signature for function DECODE_VECTOR
 SELECT DECODE_VECTOR([])
        ^
 ==
+
+# TODO: Support parameterized declarative types (like VECTOR(3)) in
+# DDL column schemas.
+# CREATE TABLE with ARRAY of parameterized VECTOR currently fails.
+CREATE TABLE t (v ARRAY<VECTOR(3)>)
+--
+ERROR: Type VECTOR does not support type parameters [at 1:31]
+CREATE TABLE t (v ARRAY<VECTOR(3)>)
+                              ^
+==
+
+# TODO: Add returning support to Vector type.
+CREATE TABLE t (v VECTOR)
+--
+CreateTableStmt
++-name_path=t
++-column_definition_list=
+  +-ColumnDefinition(name="v", type=VECTOR, column=t.v#1)
+==
+
+# TODO: Support parameterized declarative types (like VECTOR) in DDL column schemas.
+# CREATE TABLE with parameterized VECTOR with invalid length fails.
+CREATE TABLE t(v VECTOR(0))
+--
+ERROR: Type VECTOR does not support type parameters [at 1:24]
+CREATE TABLE t(v VECTOR(0))
+                       ^
+==
+
+# TODO: Support parameterized declarative types (like VECTOR) in DDL column schemas.
+# CREATE TABLE with parameterized VECTOR with valid length.
+CREATE TABLE t(v VECTOR(128))
+--
+ERROR: Type VECTOR does not support type parameters [at 1:24]
+CREATE TABLE t(v VECTOR(128))
+                       ^
+==
+
+# TODO: Support parameterized declarative types (like VECTOR) in DDL column schemas.
+# CREATE TABLE with generated column of type VECTOR(3).
+CREATE TABLE t(arr ARRAY<FLOAT>, v VECTOR(3) AS (ENCODE_VECTOR(arr, 3)))
+--
+ERROR: Type VECTOR does not support type parameters [at 1:42]
+CREATE TABLE t(arr ARRAY<FLOAT>, v VECTOR(3) AS (ENCODE_VECTOR(arr, 3)))
+                                         ^
+==
+

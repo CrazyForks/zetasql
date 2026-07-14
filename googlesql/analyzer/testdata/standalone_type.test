@@ -1502,3 +1502,207 @@ MAP<STRUCT<a ARRAY<STRING collate 'und:ci'>>, STRING>
 ERROR: Collation is not supported on MAP or its key and value types [at 1:5]
 MAP<STRUCT<a ARRAY<STRING collate 'und:ci'>>, STRING>
     ^
+==
+
+# VECTOR is supported as a standalone type.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+VECTOR
+--
+VECTOR
+==
+
+# VECTOR with type parameter is supported.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+VECTOR(128)
+--
+VECTOR(128)
+==
+
+# TODO: Support analysis time constants as VECTOR type parameters (TestConstantInt64).
+# TODO: Support VECTOR(NULL) and VECTOR(length => 3) once named parameters and NULL as a type parameter are supported.
+# Parameterized VECTOR error cases.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+VECTOR({{?|(1)|0|1.5|'abc'|MAX|3, 4|[]|@p|rand()|CAST(2 AS UINT32)|length => 3|TestConstantInt64|true|b'abc'|NULL|1+2|"a"|[1,2]}})
+--
+ALTERNATION GROUP: ?
+--
+ERROR: Syntax error: Unexpected "?" [at 1:8]
+VECTOR(?)
+       ^
+--
+ALTERNATION GROUP: (1)
+--
+ERROR: Syntax error: Unexpected "(" [at 1:8]
+VECTOR((1))
+       ^
+--
+ALTERNATION GROUP: 0
+--
+ERROR: VECTOR length must be greater than 0 [at 1:7]
+VECTOR(0)
+      ^
+--
+ALTERNATION GROUP: 1.5
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR(1.5)
+      ^
+--
+ALTERNATION GROUP: 'abc'
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR('abc')
+      ^
+--
+ALTERNATION GROUP: MAX
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR(MAX)
+      ^
+--
+ALTERNATION GROUP: 3, 4
+--
+ERROR: VECTOR type can only have one parameter. Found 2 parameters [at 1:7]
+VECTOR(3, 4)
+      ^
+--
+ALTERNATION GROUP: []
+--
+ERROR: Syntax error: Unexpected "[" [at 1:8]
+VECTOR([])
+       ^
+--
+ALTERNATION GROUP: @p
+--
+ERROR: Syntax error: Unexpected "@" [at 1:8]
+VECTOR(@p)
+       ^
+--
+ALTERNATION GROUP: rand()
+--
+ERROR: Syntax error: Unexpected identifier "rand" [at 1:8]
+VECTOR(rand())
+       ^
+--
+ALTERNATION GROUP: CAST(2 AS UINT32)
+--
+ERROR: Syntax error: Unexpected keyword CAST [at 1:8]
+VECTOR(CAST(2 AS UINT32))
+       ^
+--
+ALTERNATION GROUP: length => 3
+--
+ERROR: Syntax error: Unexpected identifier "length" [at 1:8]
+VECTOR(length => 3)
+       ^
+--
+ALTERNATION GROUP: TestConstantInt64
+--
+ERROR: Syntax error: Unexpected identifier "TestConstantInt64" [at 1:8]
+VECTOR(TestConstantInt64)
+       ^
+--
+ALTERNATION GROUP: true
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR(true)
+      ^
+--
+ALTERNATION GROUP: b'abc'
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR(b'abc')
+      ^
+--
+ALTERNATION GROUP: NULL
+--
+ERROR: Syntax error: Unexpected keyword NULL [at 1:8]
+VECTOR(NULL)
+       ^
+--
+ALTERNATION GROUP: 1+2
+--
+ERROR: Syntax error: Expected ")" or "," but got "+" [at 1:9]
+VECTOR(1+2)
+        ^
+--
+ALTERNATION GROUP: "a"
+--
+ERROR: VECTOR length parameter must be an integer literal [at 1:7]
+VECTOR("a")
+      ^
+--
+ALTERNATION GROUP: [1,2]
+--
+ERROR: Syntax error: Unexpected "[" [at 1:8]
+VECTOR([1,2])
+       ^
+==
+
+# Parameterized VECTOR requires VECTOR_TYPE feature.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,-VECTOR_TYPE]
+VECTOR(128)
+--
+ERROR: Type not found: VECTOR [at 1:1]
+VECTOR(128)
+^
+==
+
+# Parameterized VECTOR requires PARAMETERIZED_TYPES feature.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE,-PARAMETERIZED_TYPES]
+VECTOR(128)
+--
+ERROR: Parameterized types are not supported [at 1:7]
+VECTOR(128)
+      ^
+==
+
+# VECTOR(3) with collation is invalid.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+VECTOR(3) collate 'und:ci'
+--
+ERROR: Type with collation name is not supported [at 1:11]
+VECTOR(3) collate 'und:ci'
+          ^
+==
+
+# ARRAY of parameterized VECTOR is valid.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+ARRAY<VECTOR(3)>
+--
+ARRAY<VECTOR(3)>
+==
+
+# STRUCT with parameterized VECTOR field is valid.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+STRUCT<v VECTOR(3)>
+--
+STRUCT<v VECTOR(3)>
+==
+
+# ARRAY of parameterized VECTOR with invalid length fails.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+ARRAY<VECTOR(0)>
+--
+ERROR: VECTOR length must be greater than 0 [at 1:13]
+ARRAY<VECTOR(0)>
+            ^
+==
+
+# STRUCT of parameterized VECTOR with invalid length fails.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+STRUCT<v VECTOR(0)>
+--
+ERROR: VECTOR length must be greater than 0 [at 1:16]
+STRUCT<v VECTOR(0)>
+               ^
+==
+
+
+# ARRAY of parameterized VECTOR with valid length is valid.
+[language_features=MAXIMUM,+DECLARATIVE_TYPE_FRAMEWORK,+VECTOR_TYPE]
+ARRAY<VECTOR(128)>
+--
+ARRAY<VECTOR(128)>
+==
+

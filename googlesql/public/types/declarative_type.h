@@ -269,7 +269,7 @@ class DeclarativeType final : public Type {
                              const Type** no_returning_type) const final;
 
  private:
-  DeclarativeType(const TypeFactoryBase* factory,
+  DeclarativeType(const TypeFactoryBase& factory,
                   DeclarativeTypeDescriptor data);
 
   const Type* backing_type() const { return data_.backing_type(); }
@@ -302,7 +302,32 @@ class DeclarativeType final : public Type {
 
   bool IsIdenticalTo(const DeclarativeType* other) const;
 
+  // Retrieves the ValueContent corresponding to the backing type.
+  // Values are 16 bytes, split as 8 bytes of content, plus 8 bytes for
+  // metadata, which could be a Type* or splits as a 4-byte TypeKind enum, with
+  // the 4 remaining bytes used for additional content for some kinds.
+  // So there are 4 cases:
+  // a) 8-byte content, plus a TypeKind
+  // b) 8-byte content, plus a Type*
+  // c) 8-byte pointer to variable width content, plus enum or pointer
+  // d) 12-byte content, plus a TypeKind (for DATETIME and TIME)
+  //
+  // For declarative types, we always need a Type* pointer, which points to the
+  // DeclarativeType, and whose descriptor fully describes the type, including
+  // what its backing type is.
+  //
+  // For a backing type stored as (a), (b), or (c), the value content can be
+  // stored inline the same way, with a Type* pointer pointing to the
+  // DeclarativeType.
+  //
+  // For a backing type stored as (d), this doesn't fit, so the
+  // backing type content is converted to be stored as a pointer to an
+  // out-of-line 12-byte value.
+  static const ValueContent& GetBackingContent(
+      const ValueContent& value_content, const DeclarativeType* decl_type);
+
   friend class TypeFactory;
+  friend class Value;
 
   DeclarativeTypeDescriptor data_;
 

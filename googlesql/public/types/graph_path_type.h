@@ -98,7 +98,7 @@ class GraphPathType : public ListBackedType {
       const FormatValueContentOptions& options) const override;
 
  private:
-  GraphPathType(const TypeFactory* factory, const GraphElementType* node_type,
+  GraphPathType(const TypeFactory& factory, const GraphElementType* node_type,
                 const GraphElementType* edge_type, int nesting_depth);
 
   static bool EqualsImpl(const GraphPathType* type1, const GraphPathType* type2,

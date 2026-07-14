@@ -96,7 +96,7 @@ class MeasureType : public ContainerType {
 
  private:
   // Types can only be created and destroyed by TypeFactory.
-  MeasureType(const TypeFactoryBase* factory, const Type* result_type)
+  MeasureType(const TypeFactoryBase& factory, const Type* result_type)
       : ContainerType(factory, TYPE_MEASURE), result_type_(result_type) {};
 
   absl::Status SerializeValueContent(const ValueContent& value,

@@ -45,6 +45,7 @@
 #include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "googlesql/base/ret_check.h"
 
@@ -165,49 +166,7 @@ struct MeasureSourceTraits<ResolvedTVFScan> {
   }
 };
 
-// Wraps the `referenced_columns_struct_expr` and `key_columns_struct_expr`
-// with a STRUCT<referenced_columns STRUCT<...>, key_columns STRUCT<...>.
-static absl::StatusOr<std::unique_ptr<ResolvedMakeStruct>> MakeWrappingStruct(
-    std::unique_ptr<ResolvedExpr> referenced_columns_struct_expr,
-    std::unique_ptr<ResolvedExpr> key_columns_struct_expr,
-    TypeFactory& type_factory) {
-  std::vector<StructField> final_struct_fields;
-  final_struct_fields.push_back(StructField(
-      kReferencedColumnsFieldName, referenced_columns_struct_expr->type()));
-  final_struct_fields.push_back(
-      StructField(kKeyColumnsFieldName, key_columns_struct_expr->type()));
-  const StructType* final_struct_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(type_factory.MakeStructTypeFromVector(final_struct_fields,
-                                                        &final_struct_type));
-  std::vector<std::unique_ptr<const ResolvedExpr>> final_struct_field_exprs;
-  final_struct_field_exprs.push_back(std::move(referenced_columns_struct_expr));
-  final_struct_field_exprs.push_back(std::move(key_columns_struct_expr));
-  return MakeResolvedMakeStruct(final_struct_type,
-                                std::move(final_struct_field_exprs));
-}
 
-
-// Used to build the `referenced_columns` and `key_columns` structs when
-// building the closure struct in BuildClosureColumn().
-static absl::StatusOr<std::unique_ptr<ResolvedMakeStruct>>
-MakeStructFromColumnListWithCustomNames(
-    absl::Span<const std::pair<std::string, ResolvedColumn>> named_columns,
-    TypeFactory& type_factory) {
-  std::vector<StructField> struct_fields;
-  std::vector<std::unique_ptr<const ResolvedExpr>> struct_field_exprs;
-  for (const auto& [name, column] : named_columns) {
-    struct_fields.push_back(StructField(name, column.type()));
-    struct_field_exprs.push_back(
-        MakeResolvedColumnRef(column.type(), column,
-                              // `is_correlated` is always false because these
-                              // columns are from the source scan.
-                              /*is_correlated=*/false));
-  }
-  const StructType* struct_type = nullptr;
-  GOOGLESQL_RETURN_IF_ERROR(
-      type_factory.MakeStructTypeFromVector(struct_fields, &struct_type));
-  return MakeResolvedMakeStruct(struct_type, std::move(struct_field_exprs));
-}
 
 // Holds information about a measure source column.
 struct MeasureSourceInfo {
@@ -223,6 +182,73 @@ struct MeasureSourceInfo {
   // The row identity column indices for this measure source column.
   std::vector<int> row_identity_column_indices;
 };
+
+static absl::StatusOr<int> FindColumnIndex(const Table* table,
+                                           absl::string_view name) {
+  const Column* target_col = table->FindColumnByName(std::string(name));
+  GOOGLESQL_RET_CHECK(target_col != nullptr) << "Cannot find column: " << name;
+  for (int i = 0; i < table->NumColumns(); ++i) {
+    if (table->GetColumn(i) == target_col) {
+      return i;
+    }
+  }
+  GOOGLESQL_RET_CHECK_FAIL() << "Column " << name << " not found in table columns";
+}
+
+// Builds the closure struct type for all measure columns on the scan.
+// The closure struct type has two fields:
+// 1. `referenced_columns`: A STRUCT containing all columns referenced by
+//    measure expressions on the scan.
+// 2. `key_columns`: A STRUCT containing row identity columns of the table.
+static absl::StatusOr<const StructType*> BuildSharedClosureType(
+    absl::Span<const MeasureSourceInfo> measure_infos, const Table* table,
+    TypeFactory& type_factory) {
+  absl::btree_set<std::string, googlesql_base::CaseLess>
+      all_referenced_column_names;
+  absl::btree_set<int> all_row_identity_column_indices;
+
+  for (const auto& info : measure_infos) {
+    all_referenced_column_names.insert(info.referenced_column_names.begin(),
+                                       info.referenced_column_names.end());
+    all_row_identity_column_indices.insert(
+        info.row_identity_column_indices.begin(),
+        info.row_identity_column_indices.end());
+  }
+
+  // Build referenced_columns struct type
+  std::vector<StructType::StructField> ref_fields;
+  for (int table_col_idx = 0; table_col_idx < table->NumColumns();
+       ++table_col_idx) {
+    const Column* column = table->GetColumn(table_col_idx);
+    if (all_referenced_column_names.contains(column->Name())) {
+      ref_fields.push_back(
+          StructType::StructField(column->Name(), column->GetType()));
+    }
+  }
+  const StructType* ref_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory.MakeStructType(ref_fields, &ref_struct_type));
+
+  // Build key_columns struct type
+  std::vector<StructType::StructField> key_fields;
+  key_fields.reserve(all_row_identity_column_indices.size());
+  for (int row_id_col_idx : all_row_identity_column_indices) {
+    const Column* column = table->GetColumn(row_id_col_idx);
+    key_fields.push_back(
+        StructType::StructField(column->Name(), column->GetType()));
+  }
+  const StructType* key_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(type_factory.MakeStructType(key_fields, &key_struct_type));
+
+  // Build wrapping struct type
+  std::vector<StructType::StructField> wrapping_fields = {
+      {kReferencedColumnsFieldName, ref_struct_type},
+      {kKeyColumnsFieldName, key_struct_type}};
+  const StructType* wrapping_struct_type = nullptr;
+  GOOGLESQL_RETURN_IF_ERROR(
+      type_factory.MakeStructType(wrapping_fields, &wrapping_struct_type));
+
+  return wrapping_struct_type;
+}
 
 // Rewrites a ResolvedTableScan or ResolvedTVFScan if it contains AGG'ed
 // measure source columns.
@@ -361,70 +387,69 @@ class MeasureSourceColumnReplacer {
       absl::Span<const MeasureSourceInfo> measure_infos,
       NameToResolvedColumn& missing_columns_from_scan,
       absl::flat_hash_set<ResolvedColumn>& measure_cols_with_expr_set) {
-    // Step 1: Aggregates all `referenced_column_names` and
-    // `row_identity_column_indices` across all measures so that we have one
-    // closure struct per scan instead of per measure column.
-
-    // Column names in ResolvedExpressionColumn are always lowercase, so we
-    // use case-insensitive comparison.
-    absl::btree_set<std::string, googlesql_base::CaseLess>
-        all_referenced_column_names;
-    absl::btree_set<int> all_row_identity_column_indices;
+    const Table* table = GetTable();
 
     for (const auto& info : measure_infos) {
       measure_cols_with_expr_set.insert(info.measure_col);
-      all_referenced_column_names.insert(info.referenced_column_names.begin(),
-                                         info.referenced_column_names.end());
-      all_row_identity_column_indices.insert(
-          info.row_identity_column_indices.begin(),
-          info.row_identity_column_indices.end());
-    }
-
-    // Step 2: Create a substruct that contains all referenced columns where
-    // the field names are column names.
-    std::vector<std::pair<std::string, ResolvedColumn>> referenced_columns;
-    const Table* table = GetTable();
-    for (int table_col_idx = 0; table_col_idx < table->NumColumns();
-         ++table_col_idx) {
-      const Column* column = table->GetColumn(table_col_idx);
-      if (all_referenced_column_names.contains(column->Name())) {
-        referenced_columns.push_back(
-            {column->Name(),
-             GetOrProjectColumn(table_col_idx, missing_columns_from_scan)});
-      }
     }
 
     GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ResolvedMakeStruct> referenced_columns_struct,
-        MakeStructFromColumnListWithCustomNames(referenced_columns,
-                                                type_factory_));
+        const StructType* closure_struct_type,
+        BuildSharedClosureType(measure_infos, table, type_factory_));
 
-    // Step 3: Create a substruct that contains all row identity columns where
-    // the field names are column names.
-    std::vector<std::pair<std::string, ResolvedColumn>> row_identity_columns;
-    row_identity_columns.reserve(all_row_identity_column_indices.size());
-    for (int row_id_col_idx : all_row_identity_column_indices) {
-      row_identity_columns.push_back(
-          {table->GetColumn(row_id_col_idx)->Name(),
-           GetOrProjectColumn(row_id_col_idx, missing_columns_from_scan)});
-    }
+    // Validation on the computed closure struct type.
+    GOOGLESQL_RET_CHECK(closure_struct_type->num_fields() == 2);
+    GOOGLESQL_RET_CHECK(closure_struct_type->field(0).name ==
+              kReferencedColumnsFieldName);
+    GOOGLESQL_RET_CHECK(closure_struct_type->field(0).type->IsStruct());
+    GOOGLESQL_RET_CHECK(closure_struct_type->field(1).name == kKeyColumnsFieldName);
+    GOOGLESQL_RET_CHECK(closure_struct_type->field(1).type->IsStruct());
 
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedMakeStruct> key_columns_struct,
-                     MakeStructFromColumnListWithCustomNames(
-                         row_identity_columns, type_factory_));
+    // 1. Build referenced_columns struct expression
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedMakeStruct> ref_struct_expr,
+                     BuildStructExprFromFields(
+                         closure_struct_type->field(0).type->AsStruct(),
+                         missing_columns_from_scan));
 
-    // Step 4: Create the final struct that wraps the referenced columns struct
-    // and the row identity columns struct.
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        std::unique_ptr<ResolvedExpr> closure_expr,
-        MakeWrappingStruct(std::move(referenced_columns_struct),
-                           std::move(key_columns_struct), type_factory_));
+    // 2. Build key_columns struct expression
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedMakeStruct> key_struct_expr,
+                     BuildStructExprFromFields(
+                         closure_struct_type->field(1).type->AsStruct(),
+                         missing_columns_from_scan));
+
+    // 3. Build wrapping struct expression
+    std::vector<std::unique_ptr<const ResolvedExpr>> wrapping_exprs;
+    wrapping_exprs.reserve(2);
+    wrapping_exprs.push_back(std::move(ref_struct_expr));
+    wrapping_exprs.push_back(std::move(key_struct_expr));
+    auto closure_expr =
+        MakeResolvedMakeStruct(closure_struct_type, std::move(wrapping_exprs));
 
     const std::string closure_column_name =
         absl::StrCat("struct_for_measures_from_table_", table->Name());
     ResolvedColumn closure_column = column_factory_.MakeCol(
         table->Name(), closure_column_name, closure_expr->type());
     return MakeResolvedComputedColumn(closure_column, std::move(closure_expr));
+  }
+
+  // Builds a struct expression that projects the columns specified by the
+  // fields of `target_struct_type`.
+  absl::StatusOr<std::unique_ptr<ResolvedMakeStruct>> BuildStructExprFromFields(
+      const StructType* target_struct_type,
+      NameToResolvedColumn& missing_columns_from_scan) {
+    const Table* table = GetTable();
+    std::vector<std::unique_ptr<const ResolvedExpr>> exprs;
+    exprs.reserve(target_struct_type->num_fields());
+    for (int i = 0; i < target_struct_type->num_fields(); ++i) {
+      const StructType::StructField& field = target_struct_type->field(i);
+      GOOGLESQL_ASSIGN_OR_RETURN(const int table_col_idx,
+                       FindColumnIndex(table, field.name));
+      ResolvedColumn col =
+          GetOrProjectColumn(table_col_idx, missing_columns_from_scan);
+      exprs.push_back(MakeResolvedColumnRef(field.type, col,
+                                            /*is_correlated=*/false));
+    }
+    return MakeResolvedMakeStruct(target_struct_type, std::move(exprs));
   }
 
   // Rebuilds `scan_` to remove measure columns and add columns in

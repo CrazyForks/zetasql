@@ -26,6 +26,7 @@
 #include "googlesql/public/types/type.h"
 #include "googlesql/resolved_ast/resolved_column.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 
 namespace googlesql {
@@ -73,8 +74,8 @@ class ColumnFactory {
   ABSL_DEPRECATED(
       "This constructor does not prevent passing in nullptr. Use overload that "
       "consumes a reference to IdStringPool instead")
-  ColumnFactory(int max_col_id, IdStringPool* id_string_pool,
-                googlesql_base::SequenceNumber* sequence = nullptr);
+  ColumnFactory(int max_col_id, IdStringPool* /*absl_nonnull*/ id_string_pool,
+                googlesql_base::SequenceNumber* /*absl_nullable*/ sequence = nullptr);
 
   // Similar to the above constructor, except allocates column ids on the global
   // string pool.
@@ -85,8 +86,8 @@ class ColumnFactory {
   ABSL_DEPRECATED(
       "This constructor will result in a ColumnFactory that leaks "
       "memory. Use overload that consumes an IdStringPool instead")
-  explicit ColumnFactory(int max_col_id,
-                         googlesql_base::SequenceNumber* sequence = nullptr);
+  explicit ColumnFactory(
+      int max_col_id, googlesql_base::SequenceNumber* /*absl_nullable*/ sequence = nullptr);
 
   ColumnFactory(const ColumnFactory&) = delete;
   ColumnFactory& operator=(const ColumnFactory&) = delete;

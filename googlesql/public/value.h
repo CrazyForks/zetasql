@@ -17,15 +17,17 @@
 #ifndef GOOGLESQL_PUBLIC_VALUE_H_
 #define GOOGLESQL_PUBLIC_VALUE_H_
 
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <iosfwd>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
-#include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -48,7 +50,7 @@
 #include "googlesql/public/value_content.h"
 #include "gtest/gtest_prod.h"
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
+#include "absl/base/nullability.h"
 #include "absl/base/port.h"
 #include "googlesql/base/check.h"
 #include "absl/status/status.h"
@@ -107,6 +109,12 @@ namespace googlesql {
 //
 class Value {
  public:
+  // A lightweight, non-owning view over the elements of an array or fields of a
+  // struct Value. This enables non-materializing iteration without copying or
+  // instantiating a full underlying C++ vector of Value objects.
+#ifndef SWIG
+  class ListView;
+#endif
   // Constructs an invalid value. Needed for using values with STL. All methods
   // other than is_valid() will crash if called on invalid values.
 #ifndef SWIG
@@ -263,6 +271,12 @@ class Value {
   // Requires (crashes otherwise): type_kind() == TYPE_EXTENDED
   ValueContent extended_value() const;
 
+  // Returns the Value of the backing type, which holds an equivalent content
+  // (and serializes the same way), but is typed with the backing type.
+  // RET_CHECKs that is_valid() && !is_null() && type_kind() ==
+  // TYPE_DECLARATIVE.
+  absl::StatusOr<Value> backing_value() const;
+
   // Generic accessor for numeric PODs.
   // Requires (crashes otherwise): !is_null() && T corresponds to type_kind():
   //   int32_t (TYPE_INT32), int64_t (TYPE_INT64), uint32_t (TYPE_UINT32),
@@ -323,7 +337,12 @@ class Value {
   // Requires (crashes otherwise): !is_null() && type_kind() == TYPE_STRUCT
   const Value& field(int i) const;
   // Requires (crashes otherwise): !is_null() && type_kind() == TYPE_STRUCT
+  ABSL_DEPRECATED("Use fields_view() or field(i) instead.")
   const std::vector<Value>& fields() const;
+#ifndef SWIG
+  // Requires: !is_null() && type_kind() == TYPE_STRUCT
+  absl::StatusOr<ListView> fields_view() const;
+#endif
   // Returns the value of the first field with the given 'name'. If one doesn't
   // exist, returns an invalid value.
   // Does not find anonymous fields (those with empty names).
@@ -341,7 +360,12 @@ class Value {
   // Requires (crashes otherwise): !is_null() && type_kind() == TYPE_ARRAY
   const Value& element(int i) const;
   // Requires (crashes otherwise): !is_null() && type_kind() == TYPE_ARRAY
+  ABSL_DEPRECATED("Use elements_view() or element(i) instead.")
   const std::vector<Value>& elements() const;
+#ifndef SWIG
+  // Requires: !is_null() && type_kind() == TYPE_ARRAY
+  absl::StatusOr<ListView> elements_view() const;
+#endif
 
   // Map-specific methods.
   // Returns the entries of the map. Note that a stable order is not guaranteed.
@@ -792,6 +816,13 @@ class Value {
   // Creates a protocol buffer value.
   static Value Proto(const ProtoType* type, absl::Cord value);
 
+  // Creates a declarative value of the specified 'decl_type' backed by
+  // 'backing_value'.
+  // REQUIRES: The type of `backing_value` must be the backing type of
+  // `decl_type`.
+  static absl::StatusOr<Value> Declarative(const DeclarativeType* decl_type,
+                                           const Value& backing_value);
+
   // Creates a struct of the specified 'type' and given 'values'. The size of
   // 'values' must agree with the number of fields in 'type', and the
   // types of those values must match the corresponding struct fields, otherwise
@@ -1087,6 +1118,7 @@ class Value {
   FRIEND_TEST(MapTest, FormatValueContentDebugModeEmptyMap);
   // For access to Metadata
   FRIEND_TEST(ValueTest, MetadataChecks);
+  FRIEND_TEST(ValueTest, DeclarativeTimeAndDatetimeRoundTrip);
 
   template <bool as_literal, bool maybe_add_simple_type_prefix>
   std::string GetSQLInternal(ProductMode mode, bool use_external_float32) const;
@@ -1125,10 +1157,11 @@ class Value {
   // given 'type'. Argument order_kind is currently used only for arrays.
   // kPreservesOrder should be set for all other types, except for Map which
   // always sets kIgnoresOrder regardless of the supplied order_kind.
-  Value(const Type* type, bool is_null, OrderPreservationKind order_kind);
+  Value(const Type* /*absl_nonnull*/ type, bool is_null,
+        OrderPreservationKind order_kind);
 
   // Constructs a typed NULL of the given 'type'.
-  explicit Value(const Type* type)
+  explicit Value(const Type* /*absl_nonnull*/ type)
       : Value(type, /*is_null=*/true,
               type->kind() == TYPE_MAP ? kIgnoresOrder : kPreservesOrder) {}
 #ifndef SWIG
@@ -1177,7 +1210,7 @@ class Value {
   explicit Value(const BigNumericValue& bignumeric);
 
   // Takes ownership of 'json_ptr' without increasing its ref count.
-  explicit Value(internal::JSONRef* json_ptr);
+  explicit Value(internal::JSONRef* /*absl_nonnull*/ json_ptr);
 
   // Constructs a TOKENLIST value.
   explicit Value(tokens::TokenList tokenlist);
@@ -1428,6 +1461,117 @@ class Value {
   };
   // Intentionally copyable.
 };
+
+// A lightweight, non-owning view over the ordered elements of an Array value or
+// fields of a Struct value in GoogleSQL. This provides STL-compatible container
+// duck-typing (begin(), end(), size(), empty(), [i], at(i), front(), back())
+// without instantiating or copying the full underlying C++ vector of Value
+// objects in heap memory.
+//
+// Constraints & Lifetime:
+// - Non-owning view: ListView holds a raw pointer to the parent Value. The
+//   parent Value must outlive the ListView and its iterators.
+// - By-value elements: Accessing elements via view[i] or iterator dereference
+//   (*it) constructs and returns C++ Value objects BY VALUE (as temporary
+//   prvalues on the stack) rather than by const reference (const Value&).
+//
+// What should NOT be used on it (Gotchas):
+// 1. Contiguous Spans (absl::Span): Because elements are generated dynamically
+//    on demand, there is no contiguous array of 16-byte C++ Value objects
+//    sitting in heap memory. Do not pass a ListView to functions expecting
+//    absl::Span<const Value>.
+// 2. Non-const reference loop bindings: In range-based for loops, bind
+//    variables using `const auto& elem` or `auto elem`. Do not use non-const
+//    references (`auto& elem`), which C++ language rules forbid binding to
+//    rvalue temporaries.
+//
+// Where possible, use element_view() and field_view() directly in a for-range
+// loop, rather than creating a local variable of the view. If you have to use a
+// local variable for the view, prefer using auto
+//
+// Interoperability:
+// When interfacing with legacy code or APIs that strictly require a
+// materialized C++ vector or span, use explicit conversion via
+// `view.ToVector()` or static_cast.
+//
+// Future Architecture:
+// In the future, underlying array and struct containers will be stored as a
+// list of raw 8-byte NullableValueContent structures. When iterating over this
+// view, the iterator will construct the C++ Value wrappers around each
+// NullableValueContent on the fly, entirely eliminating the need to allocate or
+// store a materialized std::vector<Value> in memory.
+#ifndef SWIG
+class Value::ListView {
+ public:
+  class Iterator;
+
+  explicit ListView(const Value* value);
+
+  Iterator begin() const;
+  Iterator end() const;
+  int size() const;
+  bool empty() const;
+  Value operator[](int i) const;
+  Value at(int i) const;
+  Value front() const;
+  Value back() const;
+
+  std::vector<Value> ToVector() const;
+  explicit operator std::vector<Value>() const;
+
+  friend bool operator==(const ListView& a, const ListView& b);
+  friend bool operator!=(const ListView& a, const ListView& b);
+  friend bool operator==(const ListView& a, const std::vector<Value>& b);
+  friend bool operator==(const std::vector<Value>& a, const ListView& b);
+  friend bool operator!=(const ListView& a, const std::vector<Value>& b);
+  friend bool operator!=(const std::vector<Value>& a, const ListView& b);
+
+ private:
+  const Value* value_;
+};
+// Ensure ListView never gives a view promising a contiguous list.
+static_assert(!std::is_convertible_v<Value::ListView, absl::Span<Value>>);
+static_assert(!std::is_convertible_v<Value::ListView, absl::Span<const Value>>);
+
+class Value::ListView::Iterator {
+ public:
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = Value;
+  using difference_type = std::ptrdiff_t;
+  using pointer = void;
+  using reference = Value;
+
+  Iterator() : value_(nullptr), index_(0) {}
+  Iterator(const Value* value, int index) : value_(value), index_(index) {}
+
+  Value operator*() const;
+  Value operator[](difference_type n) const;
+
+  Iterator& operator++();
+  Iterator operator++(int);
+  Iterator& operator--();
+  Iterator operator--(int);
+
+  Iterator& operator+=(difference_type n);
+  Iterator& operator-=(difference_type n);
+
+  friend Iterator operator+(Iterator it, difference_type n);
+  friend Iterator operator+(difference_type n, Iterator it);
+  friend Iterator operator-(Iterator it, difference_type n);
+  friend difference_type operator-(const Iterator& a, const Iterator& b);
+
+  friend bool operator==(const Iterator& a, const Iterator& b);
+  friend bool operator!=(const Iterator& a, const Iterator& b);
+  friend bool operator<(const Iterator& a, const Iterator& b);
+  friend bool operator>(const Iterator& a, const Iterator& b);
+  friend bool operator<=(const Iterator& a, const Iterator& b);
+  friend bool operator>=(const Iterator& a, const Iterator& b);
+
+ private:
+  const Value* value_;
+  int index_;
+};
+#endif  // SWIG
 
 #ifndef SWIG
 static_assert(sizeof(Value) == sizeof(int64_t) * 2, "Value size mismatch");

@@ -717,6 +717,243 @@ CREATE FUNCTION foo.fn(x STRUCT< a STRING, b INT32 >, y BOOL)
 RETURNS STRING LANGUAGE testlang AS "return 'hi';";
 ==
 
+# Create SQL function with type modifiers (feature enabled).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE]
+[no_java]
+create function foo.fn( x numeric(10, 2) )
+returns numeric(10, 3)
+as ( x );
+--
+[SQLBUILDER_TARGET_SYNTAX_MODE standard]
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn(x NUMERIC(10, 2))
+RETURNS NUMERIC(10, 3) AS (
+  CAST(x AS NUMERIC(10, 3))
+);
+
+[SQLBUILDER_TARGET_SYNTAX_MODE pipe]
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn(x NUMERIC(10, 2))
+RETURNS NUMERIC(10, 3) AS (
+  CAST(x AS NUMERIC(10, 3))
+);
+==
+
+# Create SQL function with struct containing type modifiers and collation (feature enabled, standard syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=standard]
+[no_java]
+create function foo.fn_struct_std( x struct<a string(10) collate 'und:ci', b numeric(10, 2)> )
+returns struct<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn_struct_std(x STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >)
+RETURNS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS (
+  CAST(x AS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) >)
+);
+==
+
+# Create SQL function with struct containing type modifiers and collation (feature enabled, pipe syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=pipe]
+[no_java]
+create function foo.fn_struct_pipe( x struct<a string(10) collate 'und:ci', b numeric(10, 2)> )
+returns struct<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn_struct_pipe(x STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >)
+RETURNS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS (
+  CAST(x AS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) >)
+);
+==
+
+# Create SQL function with struct containing type modifiers and collation (feature enabled, standard syntax, templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=standard]
+[no_java]
+create function foo.fn_struct_templated_std( x struct<a string(10) collate 'und:ci', b numeric(10, 2)>, y any type )
+returns struct<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn_struct_templated_std(x STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >
+, y ANY TYPE)
+RETURNS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS (
+  x
+);
+==
+
+# Create SQL function with struct containing type modifiers and collation (feature enabled, pipe syntax, templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=pipe]
+[no_java]
+create function foo.fn_struct_templated_pipe( x struct<a string(10) collate 'und:ci', b numeric(10, 2)>, y any type )
+returns struct<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE FUNCTION foo.fn_struct_templated_pipe(x STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >
+, y ANY TYPE)
+RETURNS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS (
+  x
+);
+==
+
+# Create SQL table function with table containing type modifiers and collation (feature enabled, standard syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=standard]
+[no_java]
+create table function foo.tvf_struct_std( x table<struct<a string(10) collate 'und:ci', b numeric(10, 2)>> )
+returns table<struct<a string(5) collate 'und:ci', b numeric(10, 3)>>
+as ( select as struct a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_struct_std(x TABLE< STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10,
+  2) > >)
+RETURNS TABLE< STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > > AS
+  SELECT
+    CAST(projectscan_7.a_6 AS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) >) AS a_8
+  FROM
+    (
+      SELECT
+        STRUCT< a STRING, b NUMERIC > (projectscan_5.a_3, projectscan_5.a_4) AS a_6
+      FROM
+        (
+          SELECT
+            relationargumentscan_2.a_1.a AS a_3,
+            relationargumentscan_2.a_1.b AS a_4
+          FROM
+            (
+              SELECT
+                x AS a_1
+              FROM
+                x
+            ) AS relationargumentscan_2
+        ) AS projectscan_5
+    ) AS projectscan_7;
+==
+
+# Create SQL table function with table containing type modifiers and collation (feature enabled, pipe syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=pipe]
+[no_java]
+create table function foo.tvf_struct_pipe( x table<struct<a string(10) collate 'und:ci', b numeric(10, 2)>> )
+returns table<struct<a string(5) collate 'und:ci', b numeric(10, 3)>>
+as ( select as struct a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_struct_pipe(x TABLE< STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10,
+  2) > >)
+RETURNS TABLE< STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > > AS
+  FROM
+    x
+  |> SELECT
+       x AS a_1
+  |> AS relationargumentscan_2
+  |> SELECT
+       relationargumentscan_2.a_1.a AS a_3,
+       relationargumentscan_2.a_1.b AS a_4
+  |> AS projectscan_5
+  |> SELECT
+       STRUCT< a STRING, b NUMERIC > (projectscan_5.a_3, projectscan_5.a_4) AS a_6
+  |> AS projectscan_7
+  |> SELECT
+       CAST(projectscan_7.a_6 AS STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) >) AS a_8;
+==
+
+# Create SQL table function with table containing type modifiers and collation (feature enabled, standard syntax, templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=standard]
+[no_java]
+create table function foo.tvf_struct_templated_std( x table<struct<a string(10) collate 'und:ci', b numeric(10, 2)>>, y any type )
+returns table<struct<a string(5) collate 'und:ci', b numeric(10, 3)>>
+as ( select as struct a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_struct_templated_std(x TABLE< STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10,
+  2) > >, y ANY TYPE)
+RETURNS TABLE< STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > > AS
+  (
+  SELECT AS STRUCT
+    a,
+    b
+  FROM
+    x
+  );
+==
+
+# Create SQL table function with table containing type modifiers and collation (feature enabled, pipe syntax, templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=pipe]
+[no_java]
+create table function foo.tvf_struct_templated_pipe( x table<struct<a string(10) collate 'und:ci', b numeric(10, 2)>>, y any type )
+returns table<struct<a string(5) collate 'und:ci', b numeric(10, 3)>>
+as ( select as struct a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_struct_templated_pipe(x TABLE< STRUCT< a STRING(10) COLLATE 'und:ci', b NUMERIC(10,
+  2) > >, y ANY TYPE)
+RETURNS TABLE< STRUCT< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > > AS
+  (
+  SELECT AS STRUCT
+    a,
+    b
+  FROM
+    x
+  );
+==
+
+# Create SQL table function with non-value table containing type modifiers and collation (feature enabled, standard syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=standard]
+[no_java]
+create table function foo.tvf_non_val_std( x table<a string(10) collate 'und:ci', b numeric(10, 2)> )
+returns table<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( select a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_non_val_std(x TABLE< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >
+)
+RETURNS TABLE< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS
+  SELECT
+    CAST(projectscan_3.a_1 AS STRING(5) COLLATE 'und:ci') AS a,
+    CAST(projectscan_3.a_2 AS NUMERIC(10, 3)) AS b
+  FROM
+    (
+      SELECT
+        x.a AS a_1,
+        x.b AS a_2
+      FROM
+        x
+    ) AS projectscan_3;
+==
+
+# Create SQL table function with non-value table containing type modifiers and collation (feature enabled, pipe syntax, non-templated).
+[language_features=MAXIMUM,+TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF,+PARAMETERIZED_TYPES,+NUMERIC_TYPE,+COLLATION_SUPPORT,+COLLATION_IN_EXPLICIT_CAST]
+[sql_builder_target_syntax_mode=pipe]
+[no_java]
+create table function foo.tvf_non_val_pipe( x table<a string(10) collate 'und:ci', b numeric(10, 2)> )
+returns table<a string(5) collate 'und:ci', b numeric(10, 3)>
+as ( select a, b from x );
+--
+[SQLBUILDER_OUTPUT]
+CREATE TABLE FUNCTION foo.tvf_non_val_pipe(x TABLE< a STRING(10) COLLATE 'und:ci', b NUMERIC(10, 2) >
+)
+RETURNS TABLE< a STRING(5) COLLATE 'und:ci', b NUMERIC(10, 3) > AS
+  FROM
+    x
+  |> SELECT
+       x.a AS a_1,
+       x.b AS a_2
+  |> AS projectscan_3
+  |> SELECT
+       CAST(projectscan_3.a_1 AS STRING(5) COLLATE 'und:ci') AS a,
+       CAST(projectscan_3.a_2 AS NUMERIC(10, 3)) AS b;
+==
+
+
 # Create multi-line external language function, with modifiers (if not exists).
 create temporary function if not exists
 fn( x struct<a string, b int32>, y boolean )

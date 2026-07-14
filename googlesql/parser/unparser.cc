@@ -365,6 +365,11 @@ void Unparser::visitASTConnectionClause(const ASTConnectionClause* node,
   node->connection_path()->Accept(this, data);
 }
 
+void Unparser::visitASTGraphClause(const ASTGraphClause* node, void* data) {
+  print("GRAPH ");
+  node->graph_path()->Accept(this, data);
+}
+
 void Unparser::visitASTTVF(const ASTTVF* node, void* data) {
   if (node->is_lateral()) {
     print("LATERAL ");
@@ -397,6 +402,9 @@ void Unparser::visitASTTVFArgument(const ASTTVFArgument* node, void* data) {
   }
   if (node->connection_clause() != nullptr) {
     node->connection_clause()->Accept(this, data);
+  }
+  if (node->graph_clause() != nullptr) {
+    node->graph_clause()->Accept(this, data);
   }
   if (node->descriptor() != nullptr) {
     node->descriptor()->Accept(this, data);
@@ -1116,6 +1124,21 @@ void Unparser::visitASTCreateRowAccessPolicyStatement(
     node->grant_to()->Accept(this, data);
   }
   node->filter_using()->Accept(this, data);
+}
+
+void Unparser::visitASTCreateDataPolicyStatement(
+    const ASTCreateDataPolicyStatement* node, void* data) {
+  print(GetCreateStatementPrefix(node, "DATA_POLICY"));
+  node->name()->Accept(this, data);
+  if (node->options_list() != nullptr) {
+    print("OPTIONS");
+    node->options_list()->Accept(this, data);
+  }
+  if (node->condition() != nullptr) {
+    print("WITH CONDITION (");
+    node->condition()->Accept(this, data);
+    print(")");
+  }
 }
 
 void Unparser::visitASTExportDataStatement(const ASTExportDataStatement* node,
@@ -4645,6 +4668,13 @@ void Unparser::visitASTSetOptionsAction(const ASTSetOptionsAction* node,
   node->options_list()->Accept(this, data);
 }
 
+void Unparser::visitASTSetConditionAction(const ASTSetConditionAction* node,
+                                          void* data) {
+  print("SET CONDITION (");
+  node->condition()->Accept(this, data);
+  print(")");
+}
+
 void Unparser::VisitCheckConstraintSpec(const ASTCheckConstraint* node,
                                         void* data) {
   print("CHECK");
@@ -4907,6 +4937,12 @@ void Unparser::visitASTAlterAllRowAccessPoliciesStatement(
   print("ALTER ALL ROW ACCESS POLICIES ON");
   node->table_name_path()->Accept(this, data);
   node->alter_action()->Accept(this, data);
+}
+
+void Unparser::visitASTAlterDataPolicyStatement(
+    const ASTAlterDataPolicyStatement* node, void* data) {
+  print("ALTER DATA_POLICY");
+  VisitAlterStatementBase(node, data);
 }
 
 void Unparser::visitASTCreateIndexStatement(const ASTCreateIndexStatement* node,
@@ -5588,6 +5624,102 @@ void Unparser::visitASTCreatePropertyGraphStatement(
     print("OPTIONS");
     node->options_list()->Accept(this, data);
     println();
+  }
+}
+
+void Unparser::visitASTCreatePropertyGraphTypeStatement(
+    const ASTCreatePropertyGraphTypeStatement* node, void* data) {
+  print(GetCreateStatementPrefix(node, "PROPERTY GRAPH TYPE"));
+  visitASTPathExpression(node->name(), data);
+  println();
+
+  {
+    Formatter::Indenter indenter(&formatter_);
+    println("NODE TYPES(");
+    {
+      Formatter::Indenter indenter(&formatter_);
+      node->node_type_list()->Accept(this, data);
+    }
+    println();
+    println(")");
+  }
+  if (node->edge_type_list() != nullptr) {
+    Formatter::Indenter indenter(&formatter_);
+    println("EDGE TYPES(");
+    {
+      Formatter::Indenter indenter(&formatter_);
+      node->edge_type_list()->Accept(this, data);
+    }
+    println();
+    println(")");
+  }
+  if (node->options_list() != nullptr) {
+    print("OPTIONS");
+    node->options_list()->Accept(this, data);
+    println();
+  }
+}
+
+void Unparser::visitASTGraphElementTypeList(const ASTGraphElementTypeList* node,
+                                            void* data) {
+  UnparseChildrenWithSeparator(node, data, ",\n", true);
+}
+
+void Unparser::visitASTGraphElementType(const ASTGraphElementType* node,
+                                        void* data) {
+  visitASTIdentifier(node->name(), data);
+  for (const ASTGraphNodeTypeReference* node_type_reference :
+       node->node_type_references()) {
+    println();
+    node_type_reference->Accept(this, data);
+  }
+  if (node->default_label_options_list() != nullptr) {
+    println();
+    Formatter::Indenter indenter(&formatter_);
+    print("OPTIONS");
+    visitASTOptionsList(node->default_label_options_list(), data);
+  }
+  if (node->property_list() != nullptr) {
+    println();
+    Formatter::Indenter indenter(&formatter_);
+    node->property_list()->Accept(this, data);
+  }
+}
+
+void Unparser::visitASTGraphNodeTypeReference(
+    const ASTGraphNodeTypeReference* node, void* data) {
+  Formatter::Indenter indenter(&formatter_);
+  switch (node->node_reference_type()) {
+    case ASTGraphNodeTypeReference::SOURCE:
+      print("FROM");
+      break;
+    case ASTGraphNodeTypeReference::DESTINATION:
+      print("TO");
+      break;
+    case ASTGraphNodeTypeReference::NODE_REFERENCE_TYPE_UNSPECIFIED:
+      ABSL_LOG(ERROR) << "Node reference type is not set";
+      break;
+  }
+  visitASTIdentifier(node->node_type_name(), data);
+}
+
+void Unparser::visitASTGraphPropertyDeclarationList(
+    const ASTGraphPropertyDeclarationList* node, void* data) {
+  print("PROPERTIES(");
+  {
+    Formatter::Indenter indenter(&formatter_);
+    UnparseChildrenWithSeparator(node, data, ",", /*break_line=*/true);
+  }
+  print(")");
+}
+
+void Unparser::visitASTGraphPropertyDeclaration(
+    const ASTGraphPropertyDeclaration* node, void* data) {
+  visitASTIdentifier(node->name(), data);
+  node->type()->Accept(this, data);
+  if (node->options_list() != nullptr) {
+    print("OPTIONS");
+    visitASTOptionsList(node->options_list(), data);
   }
 }
 

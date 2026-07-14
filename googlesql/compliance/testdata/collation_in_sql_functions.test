@@ -695,7 +695,7 @@ TypeKind:TYPE_STRING
 collation_propagated_to_sql_function
 ==
 
-[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT]
+[required_features=ANNOTATION_FRAMEWORK,COLLATION_SUPPORT,TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF]
 [name=collation_in_udf_return_type]
 SELECT
   udf_with_collated_return('A') = udf_with_collated_return('a') AS is_collated
@@ -704,6 +704,7 @@ ARRAY<STRUCT<is_collated BOOL>>[{true}]
 --
 LanguageFeature:VERSION_1_3:FEATURE_ANNOTATION_FRAMEWORK
 LanguageFeature:VERSION_1_5:FEATURE_COLLATION_SUPPORT
+LanguageFeature:VERSION_1_5:FEATURE_TYPE_MODIFIERS_IN_EXPLICIT_CONSTRUCTORS_AND_UDF
 OperatorName:=
 OperatorSignature:=:FN_EQUAL
 ProductMode:InternalAndExternal

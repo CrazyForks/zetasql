@@ -88,7 +88,7 @@ using StringViewHashMapCase =
 template <typename T1, typename T2>
 absl::Status AppendUniquePtr(absl::StatusOr<std::unique_ptr<const T1>> data,
                              std::vector<std::unique_ptr<const T2>>& to) {
-  static_assert(std::is_convertible<T1*, T2*>::value,
+  static_assert(std::is_convertible_v<T1*, T2*>,
                 "The type of `data` must be convertible to type of `to` in "
                 "order for `data` to be appended to `to`");
   GOOGLESQL_RETURN_IF_ERROR(data.status());

@@ -826,7 +826,7 @@ QueryStmt
     +-column_list=[$query.$col1#2]
     +-expr_list=
     | +-$col1#2 :=
-    |   +-FunctionCall(sample_functions:fn_fp_named_then_lambda(STRING format_string, FUNCTION<INT64->INT64>) -> INT64)
+    |   +-FunctionCall(sample_functions:fn_fp_named_then_lambda(STRING format_string, FUNCTION<INT64->INT64> lambda) -> INT64)
     |     +-FunctionArgument
     |     | +-expr=
     |     |   +-Literal(type=STRING, value="123")
@@ -851,7 +851,7 @@ SELECT fn_fp_named_then_lambda((e) -> e, format_string => "123");
 --
 ERROR: No matching signature for function SAMPLE_FUNCTIONS:FN_FP_NAMED_THEN_LAMBDA
   Argument types: LAMBDA, format_string => STRING
-  Signature: FN_FP_NAMED_THEN_LAMBDA([format_string=>]STRING, FUNCTION<INT64->T1>)
+  Signature: FN_FP_NAMED_THEN_LAMBDA([format_string=>]STRING, [lambda=>]FUNCTION<INT64->T1>)
     Named argument `format_string` duplicates positional argument 1, which also provides `format_string` [at 1:8]
 SELECT fn_fp_named_then_lambda((e) -> e, format_string => "123");
        ^

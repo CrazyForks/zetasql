@@ -41,7 +41,7 @@ class ContainerType : public Type {
 #endif  // SWIG
 
  protected:
-  ContainerType(const TypeFactoryBase* factory, TypeKind kind)
+  ContainerType(const TypeFactoryBase& factory, TypeKind kind)
       : Type(factory, kind) {}
 
   struct NullableValueContentEq {

@@ -26,7 +26,6 @@
 #include <string>
 #include <tuple>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "googlesql/base/logging.h"
@@ -232,7 +231,7 @@ const auto* TypeFactory::MakeTypeWithChildElementType(
     absl::flat_hash_map<const Type*, const TYPE*>& cache) {
   auto& cached_result = cache[element_type];
   if (cached_result == nullptr) {
-    cached_result = TakeOwnershipLocked(new TYPE(this, element_type));
+    cached_result = TakeOwnershipLocked(new TYPE(*this, element_type));
   }
   return cached_result;
 }
@@ -344,7 +343,7 @@ absl::Status TypeFactory::MakeStructTypeFromVector(
   // We calculate <max_nesting_depth> in the previous loop. We also need to
   // increment it to take into account the struct itself.
   *result = TakeOwnership(
-      new StructType(this, std::move(fields), max_nesting_depth + 1));
+      new StructType(*this, std::move(fields), max_nesting_depth + 1));
   return absl::OkStatus();
 }
 
@@ -375,9 +374,10 @@ const EnumType*& TypeFactory::FindOrCreateCachedType(
   }
 }
 
-const ProtoType* TypeFactory::MakeProtoTypeImpl(
+absl::StatusOr<const ProtoType*> TypeFactory::MakeProtoTypeImpl(
     const google::protobuf::Descriptor* descriptor,
     absl::Span<const std::string> catalog_name_path) {
+  GOOGLESQL_RET_CHECK_NE(descriptor, nullptr);
   absl::MutexLock lock(store_->mutex_);
 
   const internal::CatalogName* cached_catalog =
@@ -388,14 +388,15 @@ const ProtoType* TypeFactory::MakeProtoTypeImpl(
 
   if (cached_type == nullptr) {
     cached_type =
-        TakeOwnershipLocked(new ProtoType(this, descriptor, cached_catalog));
+        TakeOwnershipLocked(new ProtoType(*this, descriptor, cached_catalog));
   }
   return cached_type;
 }
 
-const EnumType* TypeFactory::MakeEnumTypeImpl(
+absl::StatusOr<const EnumType*> TypeFactory::MakeEnumTypeImpl(
     const google::protobuf::EnumDescriptor* descriptor,
     absl::Span<const std::string> catalog_name_path, bool is_opaque) {
+  GOOGLESQL_RET_CHECK_NE(descriptor, nullptr);
   absl::MutexLock lock(store_->mutex_);
 
   const internal::CatalogName* cached_catalog =
@@ -406,7 +407,7 @@ const EnumType* TypeFactory::MakeEnumTypeImpl(
 
   if (cached_type == nullptr) {
     cached_type = TakeOwnershipLocked(
-        new EnumType(this, descriptor, cached_catalog, is_opaque));
+        new EnumType(*this, descriptor, cached_catalog, is_opaque));
   }
   return cached_type;
 }
@@ -433,14 +434,14 @@ const internal::CatalogName* TypeFactory::FindOrCreateCatalogName(
 absl::Status TypeFactory::MakeProtoType(
     const google::protobuf::Descriptor* descriptor, const ProtoType** result,
     absl::Span<const std::string> catalog_name_path) {
-  *result = MakeProtoTypeImpl(descriptor, catalog_name_path);
+  GOOGLESQL_ASSIGN_OR_RETURN(*result, MakeProtoTypeImpl(descriptor, catalog_name_path));
   return absl::OkStatus();
 }
 
 absl::Status TypeFactory::MakeProtoType(
     const google::protobuf::Descriptor* descriptor, const Type** result,
     absl::Span<const std::string> catalog_name_path) {
-  *result = MakeProtoTypeImpl(descriptor, catalog_name_path);
+  GOOGLESQL_ASSIGN_OR_RETURN(*result, MakeProtoTypeImpl(descriptor, catalog_name_path));
   return absl::OkStatus();
 }
 
@@ -465,12 +466,6 @@ absl::StatusOr<const Type*> TypeFactory::MakeDeclarativeType(
     DeclarativeTypeDescriptor descriptor) {
   GOOGLESQL_RETURN_IF_ERROR(ValidateDeclarativeTypeDescriptor(descriptor));
 
-  // TODO: b/479854648 - Decide on supporting declarative types with returning.
-  if (!std::holds_alternative<DeclarativeTypeDescriptor::ReturningDisallowed>(
-          descriptor.returning_strategy())) {
-    return absl::InvalidArgumentError(
-        "Returning is not supported for declarative types");
-  }
 
   if (this != s_type_factory() && descriptor.type_id().IsGoogleSQLBuiltin() &&
       descriptor.backing_type()->type_store_ == s_type_factory()->store_) {
@@ -482,7 +477,7 @@ absl::StatusOr<const Type*> TypeFactory::MakeDeclarativeType(
   TypeId type_id = descriptor.type_id();
 
   auto declarative_type =
-      absl::WrapUnique(new DeclarativeType(this, std::move(descriptor)));
+      absl::WrapUnique(new DeclarativeType(*this, std::move(descriptor)));
 
   absl::MutexLock lock(store_->mutex_);
   auto it = cached_declarative_types_.find(type_id);
@@ -503,8 +498,8 @@ absl::Status TypeFactory::MakeEnumType(
     const google::protobuf::EnumDescriptor* enum_descriptor, const EnumType** result,
     absl::Span<const std::string> catalog_name_path) {
   GOOGLESQL_RET_CHECK_NE(enum_descriptor, nullptr);
-  *result =
-      MakeEnumTypeImpl(enum_descriptor, catalog_name_path, /*is_opaque=*/false);
+  GOOGLESQL_ASSIGN_OR_RETURN(*result, MakeEnumTypeImpl(enum_descriptor, catalog_name_path,
+                                             /*is_opaque=*/false));
   return absl::OkStatus();
 }
 
@@ -512,16 +507,16 @@ absl::Status TypeFactory::MakeEnumType(
     const google::protobuf::EnumDescriptor* enum_descriptor, const Type** result,
     absl::Span<const std::string> catalog_name_path) {
   GOOGLESQL_RET_CHECK_NE(enum_descriptor, nullptr);
-  *result =
-      MakeEnumTypeImpl(enum_descriptor, catalog_name_path, /*is_opaque=*/false);
+  GOOGLESQL_ASSIGN_OR_RETURN(*result, MakeEnumTypeImpl(enum_descriptor, catalog_name_path,
+                                             /*is_opaque=*/false));
   return absl::OkStatus();
 }
 
 absl::Status TypeFactory::MakeOpaqueEnumType(
     const google::protobuf::EnumDescriptor* enum_descriptor, const EnumType** result,
     absl::Span<const std::string> catalog_name_path) {
-  *result =
-      MakeEnumTypeImpl(enum_descriptor, catalog_name_path, /*is_opaque=*/true);
+  GOOGLESQL_ASSIGN_OR_RETURN(*result, MakeEnumTypeImpl(enum_descriptor, catalog_name_path,
+                                             /*is_opaque=*/true));
   return absl::OkStatus();
 }
 
@@ -593,7 +588,7 @@ absl::Status TypeFactory::MakeRowType(const Table* table,
   *result = nullptr;
   GOOGLESQL_RET_CHECK(table != nullptr);
 
-  *result = TakeOwnership(new RowType(this, table, table_name));
+  *result = TakeOwnership(new RowType(*this, table, table_name));
   return absl::OkStatus();
 }
 
@@ -615,10 +610,10 @@ absl::Status TypeFactory::MakeTableType(
   // corresponding RowType as its element_type.  This is owned
   // by the same TypeFactory.
   const RowType* element_type =
-      TakeOwnership(new RowType(this, table, table_name));
+      TakeOwnership(new RowType(*this, table, table_name));
 
   *result = TakeOwnership(new TableRefType(
-      this, table, table_name, multi_row, std::move(bound_columns),
+      *this, table, table_name, multi_row, std::move(bound_columns),
       bound_source_table, std::move(bound_source_columns), element_type));
   return absl::OkStatus();
 }
@@ -657,7 +652,7 @@ absl::StatusOr<const Type*> TypeFactory::MakeMapTypeImpl(
   if (it == cached_map_types_.end()) {
     auto [inserted_it, _] = cached_map_types_.insert(
         {type_pair,
-         TakeOwnershipLocked(new MapType(this, key_type, value_type))});
+         TakeOwnershipLocked(new MapType(*this, key_type, value_type))});
     it = inserted_it;
   }
   return it->second;
@@ -747,7 +742,7 @@ absl::Status TypeFactory::MakeGraphElementTypeFromVector(
   const internal::GraphReference* cached_graph_reference =
       FindOrCreateCatalogName(graph_reference);
   *result = TakeOwnershipLocked(new GraphElementType(
-      cached_graph_reference, element_kind, this, std::move(property_type_set),
+      cached_graph_reference, element_kind, *this, std::move(property_type_set),
       max_nesting_depth + 1, is_dynamic));
   return absl::OkStatus();
 }
@@ -797,7 +792,7 @@ absl::Status TypeFactory::MakeGraphPathType(const GraphElementType* node_type,
 
   absl::MutexLock lock(store_->mutex_);
   *result = TakeOwnershipLocked(
-      new GraphPathType(this, node_type, edge_type, max_nesting_depth + 1));
+      new GraphPathType(*this, node_type, edge_type, max_nesting_depth + 1));
   return absl::OkStatus();
 }
 
@@ -818,7 +813,7 @@ absl::StatusOr<const Type*> TypeFactory::MakeMeasureType(
 
   // Not cached as every MeasureType is unique for now.
   absl::MutexLock l(store_->mutex_);
-  return TakeOwnershipLocked(new MeasureType(this, result_type));
+  return TakeOwnershipLocked(new MeasureType(*this, result_type));
 }
 
 absl::StatusOr<const ExtendedType*> TypeFactory::InternalizeExtendedType(

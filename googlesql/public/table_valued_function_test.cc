@@ -55,7 +55,17 @@ void ExpectEqualTVFSchemaColumn(const TVFSchemaColumn& column1,
   EXPECT_EQ(column1.name, column2.name);
   EXPECT_EQ(column1.is_pseudo_column, column2.is_pseudo_column);
   EXPECT_TRUE(column1.type->Equals(column2.type));
-  AnnotationMap::Equals(column1.annotation_map, column2.annotation_map);
+  EXPECT_TRUE(
+      AnnotationMap::Equals(column1.annotation_map, column2.annotation_map));
+  EXPECT_EQ(column1.type_modifiers, column2.type_modifiers)
+      << "column1.type_modifiers: "
+      << (column1.type_modifiers.has_value()
+              ? column1.type_modifiers->DebugString()
+              : "nullopt")
+      << ", column2.type_modifiers: "
+      << (column2.type_modifiers.has_value()
+              ? column2.type_modifiers->DebugString()
+              : "nullopt");
   EXPECT_EQ(column1.name_parse_location_range,
             column2.name_parse_location_range);
   EXPECT_EQ(column1.type_parse_location_range,
@@ -162,7 +172,30 @@ TEST(TVFTest, TVFRelationSerializationAndDeserializationWithColumnLocations) {
       TVFRelation value_table_relation,
       TVFRelation::ValueTable({googlesql::types::DoubleType(), annotation_map},
                               {pseudo_column}));
-  SerializeDeserializeAndCompare(relation);
+  SerializeDeserializeAndCompare(value_table_relation);
+}
+
+TEST(TVFTest,
+     TVFRelationValueTableSerializationAndDeserializationWithTypeModifiers) {
+  StringTypeParametersProto string_params_proto;
+  string_params_proto.set_max_length(10);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      TypeParameters type_params,
+      TypeParameters::MakeStringTypeParameters(string_params_proto));
+  TypeModifiers type_modifiers = TypeModifiers::MakeTypeModifiers(
+      type_params, Collation::MakeScalar("und:ci"));
+
+  TVFSchemaColumn value_column("", googlesql::types::StringType(),
+                               /*is_pseudo_column_in=*/false,
+                               /*is_passthrough_column_in=*/false,
+                               type_modifiers);
+  TVFSchemaColumn pseudo_column("pseudo_column", googlesql::types::Int64Type(),
+                                /*is_pseudo_column_in=*/true);
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(TVFRelation value_table_relation,
+                       TVFRelation::ValueTable(value_column, {pseudo_column}));
+
+  SerializeDeserializeAndCompare(value_table_relation);
 }
 
 // Check serialization and deserialization of TVFSchemaColumn

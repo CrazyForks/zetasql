@@ -60,7 +60,7 @@
 
 namespace googlesql {
 
-StructType::StructType(const TypeFactoryBase* factory,
+StructType::StructType(const TypeFactoryBase& factory,
                        std::vector<StructField> fields, int nesting_depth)
     : ListBackedType(factory, TYPE_STRUCT),
       fields_(std::move(fields)),

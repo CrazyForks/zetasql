@@ -485,6 +485,56 @@ Token LookaheadTransformer::ApplyTokenDisambiguation(const Token token) {
     }
   }
 
+  if (IsInPropertyGraphTypeState()) {
+    // Enforce that the .PropertyGraphType state is marked in the expected
+    // place: directly after the `PROPERTY GRAPH` keyword pair.
+    ABSL_DCHECK_EQ(Lookback1(), Token::KW_GRAPH)
+        << ".PropertyGraphType must only be used directly after the GRAPH "
+           "keyword.";
+    ABSL_DCHECK_EQ(Lookback2(), Token::KW_PROPERTY)
+        << ".PropertyGraphType must only be used directly after the PROPERTY "
+           "GRAPH keyword pair.";
+    // `TYPE` right after `PROPERTY GRAPH` is ambiguous: it can be the TYPE
+    // keyword that introduces a CREATE/DROP PROPERTY GRAPH TYPE statement, or
+    // the (non-reserved) name of a property graph in the older CREATE/DROP
+    // PROPERTY GRAPH statement (e.g. `CREATE PROPERTY GRAPH type NODE
+    // TABLES(...)` or `DROP PROPERTY GRAPH type`). One or two extra tokens of
+    // lookahead tell them apart: `type` is the graph *name* (so we leave
+    // KW_TYPE unchanged) exactly when the following token can only continue or
+    // finish a property-graph name in the enclosing CREATE/DROP statement:
+    //   * end of statement: EOI / `;`  (`DROP PROPERTY GRAPH type`),
+    //   * path continuation: `.`       (`... PROPERTY GRAPH type.foo ...`),
+    //   * a CREATE PROPERTY GRAPH body: `NODE TABLES` (the graph-type syntax
+    //     never has `NODE TABLES`, it uses `NODE TYPES`), or
+    //   * a DROP statement tail that grammatically follows the object name:
+    //     `(` (function_parameters), `ON`, or a trailing drop_mode keyword
+    //     `CASCADE` / `RESTRICT`. These are rejected later with a
+    //     property-graph-specific error; converting `type` to the keyword here
+    //     would silently reparse e.g. `DROP PROPERTY GRAPH type CASCADE` as a
+    //     DROP PROPERTY GRAPH TYPE named `CASCADE`. `CASCADE`/`RESTRICT` are
+    //     non-reserved and so are also valid graph-type *names*, so they only
+    //     count as a drop tail when they END the statement (next token is EOI
+    //     or `;`); `... TYPE cascade NODE TYPES(...)` still names a graph type
+    //     `cascade`.
+    // In every other case `type` is the TYPE keyword. (This is the extra
+    // lookahead the table-named-"FUNCTION" case above still leaves as a TODO.)
+    if (token == Token::KW_TYPE) {
+      const Token after_type = Lookahead1();
+      const bool followed_by_trailing_drop_mode =
+          (after_type == Token::KW_CASCADE ||
+           after_type == Token::KW_RESTRICT) &&
+          (Lookahead2() == Token::EOI || Lookahead2() == Token::SEMICOLON);
+      const bool type_is_graph_name =
+          after_type == Token::EOI || after_type == Token::SEMICOLON ||
+          after_type == Token::DOT || after_type == Token::LPAREN ||
+          after_type == Token::KW_ON || followed_by_trailing_drop_mode ||
+          (after_type == Token::KW_NODE && Lookahead2() == Token::KW_TABLES);
+      if (!type_is_graph_name) {
+        return Token::KW_TYPE_IN_PROPERTY_GRAPH_TYPE;
+      }
+    }
+  }
+
   // Since `TIMESTAMP` is a non-reserved keyword, we need to look forward to the
   // token after the AS. This distinguishes between a standard `with_clause` (of
   // the form `WITH id AS (...)`) and the `WITH TIMESTAMP AS alias` clause.
@@ -1332,6 +1382,10 @@ bool LookaheadTransformer::IsInStartBracedConstructorFieldState() const {
 
 bool LookaheadTransformer::IsInTableFunctionState() const {
   return parser_ != nullptr && parser_->IsInTableFunctionState();
+}
+
+bool LookaheadTransformer::IsInPropertyGraphTypeState() const {
+  return parser_ != nullptr && parser_->IsInPropertyGraphTypeState();
 }
 
 bool LookaheadTransformer::IsInAfterColumnNameState() const {

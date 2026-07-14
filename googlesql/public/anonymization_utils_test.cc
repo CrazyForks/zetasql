@@ -617,7 +617,7 @@ class FunctionEpsilonAssignerTest : public ::testing::Test {
   MakeFakeAggregateFunctionWithEpsilon(Value epsilon_value) {
     FunctionArgumentTypeOptions epsilon_argument_options;
     epsilon_argument_options.set_argument_name(
-        "epsilon", FunctionEnums::NAMED_ARGUMENT_KIND_UNSPECIFIED);
+        "epsilon", FunctionEnums::POSITIONAL_OR_NAMED);
 
     std::vector<std::unique_ptr<const ResolvedExpr>> argument_list;
     argument_list.emplace_back(MakeResolvedLiteral(epsilon_value));

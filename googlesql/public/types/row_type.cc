@@ -37,7 +37,7 @@
 
 namespace googlesql {
 
-RowOrTableType::RowOrTableType(const TypeFactoryBase* type_factory,
+RowOrTableType::RowOrTableType(const TypeFactoryBase& type_factory,
                                const Table* table,
                                const std::string& table_name)
     : Type(type_factory, TYPE_ROW), table_(table), table_name_(table_name) {}
@@ -156,7 +156,7 @@ absl::StatusOr<Type::FindFieldResult> RowOrTableType::FindFieldImpl(
   return Type::FindFieldResult{.has_field = lookup_result, .field_id = -1};
 }
 
-RowType::RowType(const TypeFactoryBase* type_factory, const Table* table,
+RowType::RowType(const TypeFactoryBase& type_factory, const Table* table,
                  const std::string& table_name)
     : RowOrTableType(type_factory, table, table_name) {}
 
@@ -178,7 +178,7 @@ std::string RowType::TypeName(ProductMode mode) const {
   return absl::StrCat("ROW<", table_name(), ">");
 }
 
-TableRefType::TableRefType(const TypeFactoryBase* type_factory,
+TableRefType::TableRefType(const TypeFactoryBase& type_factory,
                            const Table* table, const std::string& table_name,
                            bool multi_row,
                            std::vector<const Column*> bound_columns,

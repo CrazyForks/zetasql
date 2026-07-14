@@ -28,11 +28,7 @@ elif [ "$MODE" = "release" ]; then
     echo "Version is required for release mode"
     exit 1
   fi
-  # Build C++ execute_query
-  bazel build ${BAZEL_ARGS} -c opt --dynamic_mode=off //googlesql/tools/execute_query:execute_query
-  cp /googlesql/bazel-bin/googlesql/tools/execute_query/execute_query $HOME/bin/execute_query
 
-  # Build Java artifacts
   ARTIFACTS=(client jni-channel jni-channel-darwin jni-channel-linux types)
   targets=()
   for artifact in "${ARTIFACTS[@]}"; do
@@ -42,7 +38,12 @@ elif [ "$MODE" = "release" ]; then
     targets+=("//java/com/google/googlesql:${target_name}_src")
     targets+=("//java/com/google/googlesql:${target_name}_javadoc")
   done
-  bazel build ${BAZEL_ARGS} -c opt --define=pom_version=${VERSION} "${targets[@]}"
+
+  # Build execute_query and Java artifacts
+  bazel build ${BAZEL_ARGS} -c opt --dynamic_mode=off --define=pom_version=${VERSION} \
+    //googlesql/tools/execute_query:execute_query \
+    "${targets[@]}"
+  cp /googlesql/bazel-bin/googlesql/tools/execute_query/execute_query $HOME/bin/execute_query
 
   # Stage Java artifacts for copying
   mkdir -p /googlesql/java_staging

@@ -58,16 +58,16 @@ template <typename Token>
 class JSONPathIterator {
  public:
   // Rewind the iterator.
-  inline void Rewind() {
+  void Rewind() {
     depth_ = 1;
     is_valid_ = true;
   }
 
-  inline size_t Depth() { return depth_; }
+  size_t Depth() { return depth_; }
 
-  inline bool End() { return !is_valid_; }
+  bool End() { return !is_valid_; }
 
-  inline bool operator--() {
+  bool operator--() {
     if (ABSL_PREDICT_TRUE(depth_ > 0)) {
       --depth_;
     }
@@ -76,20 +76,20 @@ class JSONPathIterator {
   }
 
   // Precondition: End() is false.
-  inline const Token& operator*() const {
+  const Token& operator*() const {
     ABSL_DCHECK(depth_ > 0 && depth_ <= tokens_.size());
     return tokens_[depth_ - 1];
   }
 
   // Undefined behavior if `i` is out of bounds.
-  inline const Token& GetToken(int i) const {
+  const Token& GetToken(int i) const {
     ABSL_DCHECK(i >= 0 && i < tokens_.size());
     return tokens_[i];
   }
 
-  inline bool NoSuffixToken() { return depth_ == tokens_.size(); }
+  bool NoSuffixToken() { return depth_ == tokens_.size(); }
 
-  inline size_t Size() { return tokens_.size(); }
+  size_t Size() { return tokens_.size(); }
 
   ABSL_DEPRECATED("JSON paths are scanned during initialization.")
   // This function simply moves the current token position to the end of the
@@ -101,7 +101,7 @@ class JSONPathIterator {
     is_valid_ = false;
   }
 
-  inline bool operator++() {
+  bool operator++() {
     if (depth_ <= tokens_.size()) {
       ++depth_;
       is_valid_ = depth_ <= tokens_.size();
@@ -446,7 +446,7 @@ class JSONPathExtractor : public JSONParser {
     return true;
   }
 
-  inline void MaintainInvariantMovingUp() {
+  void MaintainInvariantMovingUp() {
     if (extend_match_) {
       --path_iterator_;
       stop_on_first_match_ = accept_ && !path_iterator_.End();
@@ -458,8 +458,7 @@ class JSONPathExtractor : public JSONParser {
   }
 
   // This will be only called when extend_match_ is true.
-  inline void MatchAndMaintainInvariant(absl::string_view key,
-                                        bool is_array_index) {
+  void MatchAndMaintainInvariant(absl::string_view key, bool is_array_index) {
     matching_token_ = false;
     if (is_array_index) {
       // match array index token.
@@ -479,7 +478,7 @@ class JSONPathExtractor : public JSONParser {
   // 4) If escaping is disabled and any characters need escaping, use custom
   //    escaping callback if provided. Else appends unescaped `val`.
   template <bool is_key>
-  inline void JsonEscapeAndAppendString(absl::string_view val) {
+  void JsonEscapeAndAppendString(absl::string_view val) {
     if (JsonStringNeedsEscaping(val)) {
       bool enable_value_escaping = escape_special_characters_;
       bool enable_key_escaping =

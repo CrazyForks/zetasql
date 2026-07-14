@@ -1346,12 +1346,13 @@ class LikeAnyAllFunction : public SimpleBuiltinScalarFunction {
                      std::vector<std::unique_ptr<RE2>> regexp)
       : SimpleBuiltinScalarFunction(kind, output_type),
         regexp_(std::move(regexp)) {
-    ABSL_CHECK(kind == FunctionKind::kLikeAny || kind == FunctionKind::kNotLikeAny ||
-          kind == FunctionKind::kLikeAnyWithCollation ||
-          kind == FunctionKind::kNotLikeAnyWithCollation ||
-          kind == FunctionKind::kLikeAll || kind == FunctionKind::kNotLikeAll ||
-          kind == FunctionKind::kLikeAllWithCollation ||
-          kind == FunctionKind::kNotLikeAllWithCollation);
+    ABSL_DCHECK(
+        kind == FunctionKind::kLikeAny || kind == FunctionKind::kNotLikeAny ||
+        kind == FunctionKind::kLikeAnyWithCollation ||
+        kind == FunctionKind::kNotLikeAnyWithCollation ||
+        kind == FunctionKind::kLikeAll || kind == FunctionKind::kNotLikeAll ||
+        kind == FunctionKind::kLikeAllWithCollation ||
+        kind == FunctionKind::kNotLikeAllWithCollation);
     has_collation_ = kind == FunctionKind::kLikeAnyWithCollation ||
                      kind == FunctionKind::kNotLikeAnyWithCollation ||
                      kind == FunctionKind::kLikeAllWithCollation ||

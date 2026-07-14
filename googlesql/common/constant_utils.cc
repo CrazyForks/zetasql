@@ -157,6 +157,19 @@ absl::StatusOr<ConstnessLevel> GetConstnessLevel(const ResolvedNode* node) {
       }
       return max_constness_level;
     }
+    case RESOLVED_MAKE_MAP: {
+      const ResolvedMakeMap* make_map = node->GetAs<ResolvedMakeMap>();
+      ConstnessLevel max_constness_level = ConstnessLevel::kForeverConst;
+      for (const auto& entry : make_map->entry_list()) {
+        GOOGLESQL_ASSIGN_OR_RETURN(ConstnessLevel key_constness,
+                         GetConstnessLevel(entry->key()));
+        GOOGLESQL_ASSIGN_OR_RETURN(ConstnessLevel val_constness,
+                         GetConstnessLevel(entry->value()));
+        max_constness_level = std::max(max_constness_level,
+                                       std::max(key_constness, val_constness));
+      }
+      return max_constness_level;
+    }
 
     case RESOLVED_CAST:
       return GetConstnessLevel(node->GetAs<ResolvedCast>()->expr());

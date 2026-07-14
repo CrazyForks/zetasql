@@ -27,6 +27,7 @@
 #include "googlesql/public/types/type_modifiers.h"
 #include "googlesql/public/types/type_parameters.h"
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -166,8 +167,10 @@ class EnumType : public Type {
   // Does not take ownership of <factory> or <enum_descr>.  The
   // <enum_descriptor> must outlive the type.  The <enum_descr> must not be
   // NULL.
-  EnumType(const TypeFactory* factory, const google::protobuf::EnumDescriptor* enum_descr,
-           const internal::CatalogName* catalog_name, bool is_opaque);
+  EnumType(const TypeFactory& factory,
+           const google::protobuf::EnumDescriptor* /*absl_nonnull*/ enum_descr,
+           const internal::CatalogName* /*absl_nullable*/ catalog_name,
+           bool is_opaque);
   ~EnumType() override;
 
   bool SupportsGroupingImpl(const LanguageOptions& language_options,

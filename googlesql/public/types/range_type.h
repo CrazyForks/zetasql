@@ -100,7 +100,7 @@ class RangeType : public ListBackedType {
       const FormatValueContentOptions& options) const override;
 
  private:
-  RangeType(const TypeFactoryBase* factory, const Type* element_type);
+  RangeType(const TypeFactoryBase& factory, const Type* element_type);
   ~RangeType() override;
 
   // Helper function for determining if a type kind is a supported range element

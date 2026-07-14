@@ -146,6 +146,7 @@ class SampleCatalogImpl {
   absl::Status LoadMultiSrcDstEdgePropertyGraphs();
   absl::Status LoadCompositeKeyPropertyGraphs();
   absl::Status LoadPropertyGraphWithDynamicLabelAndProperties();
+  absl::Status LoadPropertyGraphWithReadOnlyDynamicProperties();
   absl::Status LoadPropertyGraphWithDynamicMultiLabelsAndProperties();
   absl::Status LoadDmlTestPropertyGraph();
 
