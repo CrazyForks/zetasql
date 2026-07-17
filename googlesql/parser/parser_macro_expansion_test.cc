@@ -147,6 +147,35 @@ TEST(ParserMacroExpansionTest,
                             "composed from other expansions")));
 }
 
+TEST(ParserMacroExpansionTest, PublicPrivateMacroAllowed) {
+  MacroCatalog macro_catalog;
+  ParserOptions parser_options(GetLanguageOptions(),
+                               MacroExpansionMode::kStrict, &macro_catalog);
+
+  bool at_end_of_input;
+  std::unique_ptr<ParserOutput> parser_output;
+
+  auto location1 =
+      ParseResumeLocation::FromStringView("DEFINE PUBLIC MACRO m1 1");
+  GOOGLESQL_EXPECT_OK(ParseNextStatement(&location1, parser_options, &parser_output,
+                               &at_end_of_input));
+  ASSERT_NE(parser_output->statement(), nullptr);
+  EXPECT_EQ(parser_output->statement()
+                ->GetAsOrNull<ASTDefineMacroStatement>()
+                ->visibility(),
+            ASTDefineMacroStatement::PUBLIC);
+
+  auto location2 =
+      ParseResumeLocation::FromStringView("DEFINE PRIVATE MACRO m1 1");
+  GOOGLESQL_EXPECT_OK(ParseNextStatement(&location2, parser_options, &parser_output,
+                               &at_end_of_input));
+  ASSERT_NE(parser_output->statement(), nullptr);
+  EXPECT_EQ(parser_output->statement()
+                ->GetAsOrNull<ASTDefineMacroStatement>()
+                ->visibility(),
+            ASTDefineMacroStatement::PRIVATE);
+}
+
 TEST(ParserMacroExpansionTest, DefineEmptyMacroNoSemiColon) {
   MacroCatalog macro_catalog;
   ParserOptions parser_options(GetLanguageOptions(),

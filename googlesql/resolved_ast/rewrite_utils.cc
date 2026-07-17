@@ -38,6 +38,7 @@
 #include "googlesql/public/interval_value.h"
 #include "googlesql/public/numeric_value.h"
 #include "googlesql/public/options.pb.h"
+#include "googlesql/public/time_series_tvf_util.h"
 #include "googlesql/public/type.pb.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/type.h"
@@ -2834,6 +2835,21 @@ absl::StatusOr<const ResolvedColumn*> FindAndValidateTimestampColumnInScan(
            << "' has type " << ts_column->type()->ShortTypeName(product_mode);
   }
   return ts_column;
+}
+
+absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
+BuildTimestampColumnExpression(const ResolvedTimestampColumnPath& path,
+                               const ResolvedColumn& root_column) {
+  std::unique_ptr<const ResolvedExpr> current_expr =
+      MakeResolvedColumnRef(root_column.type(), root_column,
+                            /*is_correlated=*/false);
+
+  for (const auto& step : path.steps) {
+    GOOGLESQL_RET_CHECK_EQ(step.kind, TypeFieldPathStep::STRUCT_FIELD);
+    current_expr = MakeResolvedGetStructField(
+        step.type, std::move(current_expr), step.struct_field_index);
+  }
+  return current_expr;
 }
 
 absl::StatusOr<std::unique_ptr<const ResolvedSubqueryExpr>>

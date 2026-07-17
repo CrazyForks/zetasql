@@ -772,7 +772,6 @@ absl::Status SampleCatalogImpl::LoadCatalogImpl(
   RETURN_IF_ERROR_UNLESS_DBG(
       LoadNonTemplatedSqlTableValuedFunctions(language_options));
   RETURN_IF_ERROR_UNLESS_DBG(LoadAmlBasedPropertyGraphs());
-  RETURN_IF_ERROR_UNLESS_DBG(LoadDmlTestPropertyGraph());
   RETURN_IF_ERROR_UNLESS_DBG(LoadMultiSrcDstEdgePropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadCompositeKeyPropertyGraphs());
   RETURN_IF_ERROR_UNLESS_DBG(LoadPropertyGraphWithDynamicLabelAndProperties());
@@ -4439,8 +4438,8 @@ RegisterForSampleCatalog
           // Define input relation schema: TABLE<col STRUCT<STRING,
           // NUMERIC(5,2)>>
           googlesql::TVFSchemaColumn input_col(
-              "col", struct_type, /*is_pseudo_column=*/false,
-              /*is_passthrough_column=*/false, type_modifiers);
+              "col", struct_type, /*is_pseudo_column_in=*/false,
+              /*is_passthrough_column_in=*/false, type_modifiers);
           googlesql::TVFRelation input_relation({input_col});
 
           googlesql::FunctionArgumentType arg_type(
@@ -4869,14 +4868,20 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
 
   function = new Function("fn_with_sequence_arg", "sample_functions", mode,
                           function_options);
-  function->AddSignature({{types_->get_int64()},
-                          {FunctionArgumentType::AnySequence()},
-                          /*context_id=*/-1});
+  function->AddSignature(
+      {{types_->get_int64()},
+       {FunctionArgumentType(ARG_KIND_SEQUENCE,
+                             FunctionArgumentTypeOptions().set_argument_name(
+                                 "sequence", kPositionalOrNamed))},
+       /*context_id=*/-1});
   // Adds a function signature for accepting both a Sequence argument and a
   // lambda to ensure one doesn't break the other.
   function->AddSignature(
       {{types_->get_int64()},
-       {ARG_KIND_EXPR_ANY_1, FunctionArgumentType::AnySequence(),
+       {ARG_KIND_EXPR_ANY_1,
+        FunctionArgumentType(ARG_KIND_SEQUENCE,
+                             FunctionArgumentTypeOptions().set_argument_name(
+                                 "sequence", kPositionalOrNamed)),
         FunctionArgumentType::Lambda({ARG_KIND_EXPR_ANY_1},
                                      ARG_KIND_EXPR_ANY_2)},
        /*context_id=*/-1});
@@ -4885,14 +4890,20 @@ absl::Status SampleCatalogImpl::LoadFunctions2() {
   // Adds a function accepting a Model argument.
   function = new Function("fn_with_model_arg", "sample_functions", mode,
                           function_options);
-  function->AddSignature({{types_->get_int64()},
-                          {FunctionArgumentType::AnyModel()},
-                          /*context_id=*/-1});
+  function->AddSignature(
+      {{types_->get_int64()},
+       {FunctionArgumentType(ARG_KIND_MODEL,
+                             FunctionArgumentTypeOptions().set_argument_name(
+                                 "model", kPositionalOrNamed))},
+       /*context_id=*/-1});
   // Adds a function signature for accepting both a Model argument and a
   // lambda to ensure one doesn't break the other.
   function->AddSignature(
       {{types_->get_int64()},
-       {ARG_KIND_EXPR_ANY_1, FunctionArgumentType::AnyModel(),
+       {ARG_KIND_EXPR_ANY_1,
+        FunctionArgumentType(ARG_KIND_MODEL,
+                             FunctionArgumentTypeOptions().set_argument_name(
+                                 "model", kPositionalOrNamed)),
         FunctionArgumentType::Lambda({ARG_KIND_EXPR_ANY_1},
                                      ARG_KIND_EXPR_ANY_2)},
        /*context_id=*/-1});
@@ -6865,21 +6876,30 @@ absl::Status SampleCatalogImpl::LoadAmlBasedPropertyGraphs() {
   GOOGLESQL_RETURN_IF_ERROR(LoadBasicAmlPropertyGraph());
   GOOGLESQL_RETURN_IF_ERROR(LoadBasicAmlWithTimestampsPropertyGraph());
   GOOGLESQL_RETURN_IF_ERROR(LoadEnhancedAmlPropertyGraph());
+  GOOGLESQL_RETURN_IF_ERROR(LoadAmlDmlPropertyGraph());
 
   return absl::OkStatus();
 }
 
 absl::Status SampleCatalogImpl::LoadBasicAmlPropertyGraph() {
-  return LoadBasicAmlPropertyGraphImpl("aml", /*with_timestamps=*/false);
+  return LoadBasicAmlPropertyGraphImpl("aml", /*with_timestamps=*/false,
+                                       /*includes_readonly_schema=*/false);
 }
 
 absl::Status SampleCatalogImpl::LoadBasicAmlWithTimestampsPropertyGraph() {
   return LoadBasicAmlPropertyGraphImpl("aml_with_timestamps",
-                                       /*with_timestamps=*/true);
+                                       /*with_timestamps=*/true,
+                                       /*includes_readonly_schema=*/false);
+}
+
+absl::Status SampleCatalogImpl::LoadAmlDmlPropertyGraph() {
+  return LoadBasicAmlPropertyGraphImpl("aml_dml", /*with_timestamps=*/false,
+                                       /*includes_readonly_schema=*/true);
 }
 
 absl::Status SampleCatalogImpl::LoadBasicAmlPropertyGraphImpl(
-    std::string property_graph_name_path_arg, bool with_timestamps) {
+    std::string property_graph_name_path_arg, bool with_timestamps,
+    bool includes_readonly_schema) {
   std::vector<std::string> property_graph_name_path{
       std::move(property_graph_name_path_arg)};
 
@@ -6897,6 +6917,8 @@ absl::Status SampleCatalogImpl::LoadBasicAmlPropertyGraphImpl(
   // Property Declaration
   auto id_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
       "id", property_graph_name_path, types_->get_int64());
+  const GraphPropertyDeclaration* id_prop_dcl_raw = id_property_dcl.get();
+
   auto personId_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
       "personId", property_graph_name_path, types_->get_int64());
   auto accountId_property_dcl =
@@ -7046,15 +7068,16 @@ absl::Status SampleCatalogImpl::LoadBasicAmlPropertyGraphImpl(
       std::move(property_defs_person));
 
   // Account node table
-  auto id_col_ref = MakeResolvedCatalogColumnRef(
+  auto account_id_col_ref = MakeResolvedCatalogColumnRef(
       types_->get_int64(), account->FindColumnByName("id"));
   auto account_id_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
       id_property_dcl.get(), "id");
   InternalPropertyGraph::InternalSetResolvedExpr(account_id_prop_def.get(),
-                                                 id_col_ref.get());
+                                                 account_id_col_ref.get());
 
   property_defs_account.push_back(std::move(account_id_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(std::move(id_col_ref));
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(account_id_col_ref));
 
   auto balance_col_ref = MakeResolvedCatalogColumnRef(
       types_->get_uint64(), account->FindColumnByName("balance"));
@@ -7251,10 +7274,347 @@ absl::Status SampleCatalogImpl::LoadBasicAmlPropertyGraphImpl(
     property_dcls.push_back(std::move(time_property_dcl));
   }
 
+  if (includes_readonly_schema) {
+    GOOGLESQL_RETURN_IF_ERROR(LoadReadonlyAmlSchema(property_graph_name_path,
+                                          id_prop_dcl_raw, node_tables,
+                                          edge_tables, labels, property_dcls));
+  }
+
   auto property_graph = std::make_unique<SimplePropertyGraph>(
       std::move(property_graph_name_path), std::move(node_tables),
       std::move(edge_tables), std::move(labels), std::move(property_dcls));
   catalog_->AddOwnedPropertyGraph(std::move(property_graph));
+
+  return absl::OkStatus();
+}
+
+absl::Status SampleCatalogImpl::LoadReadonlyAmlSchema(
+    const std::vector<std::string>& property_graph_name_path,
+    const GraphPropertyDeclaration* id_prop_dcl_raw,
+    std::vector<std::unique_ptr<const GraphNodeTable>>& node_tables,
+    std::vector<std::unique_ptr<const GraphEdgeTable>>& edge_tables,
+    std::vector<std::unique_ptr<const GraphElementLabel>>& labels,
+    std::vector<std::unique_ptr<const GraphPropertyDeclaration>>&
+        property_dcls) {
+  // Define the table with writable and non-writable columns.
+  auto* insert_test_table = new SimpleTable(
+      "InsertTestTable",
+      {
+          new SimpleColumn("InsertTestTable", "id", types_->get_int64(),
+                           {.is_writable_column = true}),
+          new SimpleColumn("InsertTestTable", "val", types_->get_string(),
+                           {.is_writable_column = true}),
+          new SimpleColumn("InsertTestTable", "readonly_col",
+                           types_->get_string(), {.is_writable_column = false}),
+      },
+      /*take_ownership=*/true);
+  GOOGLESQL_RET_CHECK_OK(insert_test_table->SetPrimaryKey({0}));
+  AddOwnedTable(insert_test_table);
+
+  auto* insert_test_table_no_writable_key = new SimpleTable(
+      "InsertTestTableNoWritableKey",
+      {
+          new SimpleColumn("InsertTestTableNoWritableKey", "id",
+                           types_->get_int64(), {.is_writable_column = false}),
+      },
+      /*take_ownership=*/true);
+  GOOGLESQL_RET_CHECK_OK(insert_test_table_no_writable_key->SetPrimaryKey({0}));
+  AddOwnedTable(insert_test_table_no_writable_key);
+
+  auto* edge_to_no_writable_key_table = new SimpleTable(
+      "EdgeToNoWritableKeyTable",
+      {
+          new SimpleColumn("EdgeToNoWritableKeyTable", "txnId",
+                           types_->get_int64(), {.is_writable_column = true}),
+          new SimpleColumn("EdgeToNoWritableKeyTable", "src_id",
+                           types_->get_int64(), {.is_writable_column = true}),
+          new SimpleColumn("EdgeToNoWritableKeyTable", "dst_id",
+                           types_->get_int64(), {.is_writable_column = true}),
+      },
+      /*take_ownership=*/true);
+  GOOGLESQL_RET_CHECK_OK(edge_to_no_writable_key_table->SetPrimaryKey({0}));
+  AddOwnedTable(edge_to_no_writable_key_table);
+
+  auto* edge_from_no_writable_key_table = new SimpleTable(
+      "EdgeFromNoWritableKeyTable",
+      {
+          new SimpleColumn("EdgeFromNoWritableKeyTable", "txnId",
+                           types_->get_int64(), {.is_writable_column = true}),
+          new SimpleColumn("EdgeFromNoWritableKeyTable", "src_id",
+                           types_->get_int64(), {.is_writable_column = true}),
+          new SimpleColumn("EdgeFromNoWritableKeyTable", "dst_id",
+                           types_->get_int64(), {.is_writable_column = true}),
+      },
+      /*take_ownership=*/true);
+  GOOGLESQL_RET_CHECK_OK(edge_from_no_writable_key_table->SetPrimaryKey({0}));
+  AddOwnedTable(edge_from_no_writable_key_table);
+
+  // Property Declaration
+  auto val_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "val", property_graph_name_path, types_->get_string());
+  auto readonly_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "readonly_prop", property_graph_name_path, types_->get_string());
+  auto derived_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "derived_prop", property_graph_name_path, types_->get_string());
+  auto derived_func_property_dcl =
+      std::make_unique<SimpleGraphPropertyDeclaration>(
+          "derived_func_prop", property_graph_name_path, types_->get_string());
+  auto measure_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "measure_prop", property_graph_name_path, types_->get_int64(),
+      /*type_annotation_map=*/nullptr,
+      GraphPropertyDeclaration::Kind::kMeasure);
+
+  auto edge_src_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "edge_src", property_graph_name_path, types_->get_int64());
+  auto edge_dst_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
+      "edge_dst", property_graph_name_path, types_->get_int64());
+  const GraphPropertyDeclaration* edge_src_dcl_raw =
+      edge_src_property_dcl.get();
+  const GraphPropertyDeclaration* edge_dst_dcl_raw =
+      edge_dst_property_dcl.get();
+
+  // Labels
+  auto property_dcls_set = absl::flat_hash_set<const GraphPropertyDeclaration*>{
+      id_prop_dcl_raw,
+      val_property_dcl.get(),
+      readonly_property_dcl.get(),
+      derived_property_dcl.get(),
+      derived_func_property_dcl.get(),
+      measure_property_dcl.get()};
+  auto label = std::make_unique<SimpleGraphElementLabel>(
+      "TestLabel", property_graph_name_path, property_dcls_set);
+
+  auto label_no_writable_key = std::make_unique<SimpleGraphElementLabel>(
+      "TestLabelNoWritableKey", property_graph_name_path,
+      absl::flat_hash_set<const GraphPropertyDeclaration*>{id_prop_dcl_raw});
+
+  auto label_edge_to_no_writable_key =
+      std::make_unique<SimpleGraphElementLabel>(
+          "EdgeToNoWritableKey", property_graph_name_path,
+          absl::flat_hash_set<const GraphPropertyDeclaration*>{
+              id_prop_dcl_raw, edge_src_dcl_raw, edge_dst_dcl_raw});
+
+  auto label_edge_from_no_writable_key =
+      std::make_unique<SimpleGraphElementLabel>(
+          "EdgeFromNoWritableKey", property_graph_name_path,
+          absl::flat_hash_set<const GraphPropertyDeclaration*>{
+              id_prop_dcl_raw, edge_src_dcl_raw, edge_dst_dcl_raw});
+
+  // Property definitions
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>> property_defs;
+
+  // 1. Simple column ref (writable)
+  auto id_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(), insert_test_table->FindColumnByName("id"));
+  auto id_prop_def =
+      std::make_unique<SimpleGraphPropertyDefinition>(id_prop_dcl_raw, "id");
+  InternalPropertyGraph::InternalSetResolvedExpr(id_prop_def.get(),
+                                                 id_col_ref.get());
+  property_defs.push_back(std::move(id_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(id_col_ref));
+
+  // 2. Simple column ref (writable)
+  auto val_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_string(), insert_test_table->FindColumnByName("val"));
+  auto val_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      val_property_dcl.get(), "val");
+  InternalPropertyGraph::InternalSetResolvedExpr(val_prop_def.get(),
+                                                 val_col_ref.get());
+  property_defs.push_back(std::move(val_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(val_col_ref));
+
+  // 3. Simple column ref (non-writable)
+  auto readonly_col_ref = MakeResolvedCatalogColumnRef(
+      types_->get_string(),
+      insert_test_table->FindColumnByName("readonly_col"));
+  auto readonly_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      readonly_property_dcl.get(), "readonly_col");
+  InternalPropertyGraph::InternalSetResolvedExpr(readonly_prop_def.get(),
+                                                 readonly_col_ref.get());
+  property_defs.push_back(std::move(readonly_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(readonly_col_ref));
+
+  // 4.1 Derived property (literal)
+  auto derived_expr = MakeResolvedLiteral(Value::String("!"));
+  auto derived_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      derived_property_dcl.get(), "'!'");
+  InternalPropertyGraph::InternalSetResolvedExpr(derived_prop_def.get(),
+                                                 derived_expr.get());
+  property_defs.push_back(std::move(derived_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(derived_expr));
+
+  // 4.2 Derived property (function call)
+  std::unique_ptr<const AnalyzerOutput> derived_func_out;
+  AnalyzerOptions options;
+  options.SetLookupCatalogColumnCallback(
+      [insert_test_table](
+          const std::string& column_name) -> absl::StatusOr<const Column*> {
+        const Column* column = insert_test_table->FindColumnByName(column_name);
+        if (column == nullptr) {
+          return absl::NotFoundError(
+              absl::StrCat("Cannot find column ", column_name));
+        }
+        return column;
+      });
+  GOOGLESQL_RET_CHECK_OK(AnalyzeExpression("CONCAT(val, '!')", options, catalog_.get(),
+                                 types_, &derived_func_out));
+
+  auto derived_func_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      derived_func_property_dcl.get(), "CONCAT(val, '!')");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      derived_func_prop_def.get(), derived_func_out->resolved_expr());
+  property_defs.push_back(std::move(derived_func_prop_def));
+  sql_object_artifacts_.push_back(std::move(derived_func_out));
+
+  // 5. Measure property
+  auto measure_expr = MakeResolvedLiteral(Value::Int64(0));
+  auto measure_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      measure_property_dcl.get(), "0");
+  InternalPropertyGraph::InternalSetResolvedExpr(measure_prop_def.get(),
+                                                 measure_expr.get());
+  property_defs.push_back(std::move(measure_prop_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(measure_expr));
+
+  // Property definitions for the table with a non-writable key.
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>>
+      property_defs_no_writable_key;
+  auto id_col_no_writable_key_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      insert_test_table_no_writable_key->FindColumnByName("id"));
+  auto id_prop_def_no_writable_key =
+      std::make_unique<SimpleGraphPropertyDefinition>(id_prop_dcl_raw, "id");
+  InternalPropertyGraph::InternalSetResolvedExpr(
+      id_prop_def_no_writable_key.get(), id_col_no_writable_key_ref.get());
+  property_defs_no_writable_key.push_back(
+      std::move(id_prop_def_no_writable_key));
+  owned_resolved_graph_property_definitions_.push_back(
+      std::move(id_col_no_writable_key_ref));
+
+  // Property definitions for edge_to_no_writable_key_table
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>> edge_to_props;
+  auto e2_txn_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_to_no_writable_key_table->FindColumnByName("txnId"));
+  auto e2_txn_def =
+      std::make_unique<SimpleGraphPropertyDefinition>(id_prop_dcl_raw, "txnId");
+  InternalPropertyGraph::InternalSetResolvedExpr(e2_txn_def.get(),
+                                                 e2_txn_ref.get());
+  edge_to_props.push_back(std::move(e2_txn_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e2_txn_ref));
+
+  auto e2_src_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_to_no_writable_key_table->FindColumnByName("src_id"));
+  auto e2_src_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      edge_src_dcl_raw, "src_id");
+  InternalPropertyGraph::InternalSetResolvedExpr(e2_src_def.get(),
+                                                 e2_src_ref.get());
+  edge_to_props.push_back(std::move(e2_src_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e2_src_ref));
+
+  auto e2_dst_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_to_no_writable_key_table->FindColumnByName("dst_id"));
+  auto e2_dst_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      edge_dst_dcl_raw, "dst_id");
+  InternalPropertyGraph::InternalSetResolvedExpr(e2_dst_def.get(),
+                                                 e2_dst_ref.get());
+  edge_to_props.push_back(std::move(e2_dst_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e2_dst_ref));
+
+  // Property definitions for edge_from_no_writable_key_table
+  std::vector<std::unique_ptr<const GraphPropertyDefinition>> edge_from_props;
+  auto e3_txn_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_from_no_writable_key_table->FindColumnByName("txnId"));
+  auto e3_txn_def =
+      std::make_unique<SimpleGraphPropertyDefinition>(id_prop_dcl_raw, "txnId");
+  InternalPropertyGraph::InternalSetResolvedExpr(e3_txn_def.get(),
+                                                 e3_txn_ref.get());
+  edge_from_props.push_back(std::move(e3_txn_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e3_txn_ref));
+
+  auto e3_src_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_from_no_writable_key_table->FindColumnByName("src_id"));
+  auto e3_src_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      edge_src_dcl_raw, "src_id");
+  InternalPropertyGraph::InternalSetResolvedExpr(e3_src_def.get(),
+                                                 e3_src_ref.get());
+  edge_from_props.push_back(std::move(e3_src_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e3_src_ref));
+
+  auto e3_dst_ref = MakeResolvedCatalogColumnRef(
+      types_->get_int64(),
+      edge_from_no_writable_key_table->FindColumnByName("dst_id"));
+  auto e3_dst_def = std::make_unique<SimpleGraphPropertyDefinition>(
+      edge_dst_dcl_raw, "dst_id");
+  InternalPropertyGraph::InternalSetResolvedExpr(e3_dst_def.get(),
+                                                 e3_dst_ref.get());
+  edge_from_props.push_back(std::move(e3_dst_def));
+  owned_resolved_graph_property_definitions_.push_back(std::move(e3_dst_ref));
+
+  // Node Table
+  auto node_table = std::make_unique<const SimpleGraphNodeTable>(
+      insert_test_table->Name(), property_graph_name_path, insert_test_table,
+      std::vector<int>{0},
+      absl::flat_hash_set<const GraphElementLabel*>{label.get()},
+      std::move(property_defs));
+
+  auto node_table_no_writable_key =
+      std::make_unique<const SimpleGraphNodeTable>(
+          insert_test_table_no_writable_key->Name(), property_graph_name_path,
+          insert_test_table_no_writable_key, std::vector<int>{0},
+          absl::flat_hash_set<const GraphElementLabel*>{
+              label_no_writable_key.get()},
+          std::move(property_defs_no_writable_key));
+
+  // Edge Table
+  auto edge_to_no_writable_key = std::make_unique<const SimpleGraphEdgeTable>(
+      edge_to_no_writable_key_table->Name(), property_graph_name_path,
+      edge_to_no_writable_key_table, std::vector<int>{0, 1, 2},
+      absl::flat_hash_set<const GraphElementLabel*>{
+          label_edge_to_no_writable_key.get()},
+      std::move(edge_to_props),
+      std::make_unique<const SimpleGraphNodeTableReference>(
+          node_table.get(), std::vector<int>{1}, std::vector<int>{0}),
+      std::make_unique<const SimpleGraphNodeTableReference>(
+          node_table_no_writable_key.get(), std::vector<int>{2},
+          std::vector<int>{0}));
+
+  auto edge_from_no_writable_key = std::make_unique<const SimpleGraphEdgeTable>(
+      edge_from_no_writable_key_table->Name(), property_graph_name_path,
+      edge_from_no_writable_key_table, std::vector<int>{0, 1, 2},
+      absl::flat_hash_set<const GraphElementLabel*>{
+          label_edge_from_no_writable_key.get()},
+      std::move(edge_from_props),
+      std::make_unique<const SimpleGraphNodeTableReference>(
+          node_table_no_writable_key.get(), std::vector<int>{1},
+          std::vector<int>{0}),
+      std::make_unique<const SimpleGraphNodeTableReference>(
+          node_table.get(), std::vector<int>{2}, std::vector<int>{0}));
+
+  // Graph
+  node_tables.push_back(std::move(node_table));
+  labels.push_back(std::move(label));
+
+  node_tables.push_back(std::move(node_table_no_writable_key));
+  edge_tables.push_back(std::move(edge_to_no_writable_key));
+  edge_tables.push_back(std::move(edge_from_no_writable_key));
+
+  labels.push_back(std::move(label_no_writable_key));
+  labels.push_back(std::move(label_edge_to_no_writable_key));
+  labels.push_back(std::move(label_edge_from_no_writable_key));
+
+  property_dcls.push_back(std::move(edge_src_property_dcl));
+  property_dcls.push_back(std::move(edge_dst_property_dcl));
+
+  property_dcls.push_back(std::move(val_property_dcl));
+  property_dcls.push_back(std::move(readonly_property_dcl));
+  property_dcls.push_back(std::move(derived_property_dcl));
+  property_dcls.push_back(std::move(derived_func_property_dcl));
+  property_dcls.push_back(std::move(measure_property_dcl));
 
   return absl::OkStatus();
 }
@@ -7629,159 +7989,6 @@ absl::Status SampleCatalogImpl::LoadEnhancedAmlPropertyGraph() {
   auto property_graph = std::make_unique<SimplePropertyGraph>(
       std::move(property_graph_name_path), std::move(node_tables),
       std::move(edge_tables), std::move(labels), std::move(property_dcls));
-
-  catalog_->AddOwnedPropertyGraph(std::move(property_graph));
-
-  return absl::OkStatus();
-}
-
-absl::Status SampleCatalogImpl::LoadDmlTestPropertyGraph() {
-  const std::vector<std::string> property_graph_name_path{"aml_dml"};
-
-  // Define the table with writable and non-writable columns.
-  auto* insert_test_table = new SimpleTable(
-      "InsertTestTable",
-      {
-          new SimpleColumn("InsertTestTable", "id", types_->get_int64(),
-                           {.is_writable_column = true}),
-          new SimpleColumn("InsertTestTable", "val", types_->get_string(),
-                           {.is_writable_column = true}),
-          new SimpleColumn("InsertTestTable", "readonly_col",
-                           types_->get_string(), {.is_writable_column = false}),
-      },
-      true /* take_ownership */);
-  GOOGLESQL_RET_CHECK_OK(insert_test_table->SetPrimaryKey({0}));
-  AddOwnedTable(insert_test_table);
-
-  // Property Declaration
-  auto id_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
-      "id", property_graph_name_path, types_->get_int64());
-  auto val_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
-      "val", property_graph_name_path, types_->get_string());
-  auto readonly_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
-      "readonly_col", property_graph_name_path, types_->get_string());
-  auto derived_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
-      "derived_col", property_graph_name_path, types_->get_string());
-  auto derived_func_property_dcl =
-      std::make_unique<SimpleGraphPropertyDeclaration>(
-          "derived_func_col", property_graph_name_path, types_->get_string());
-  auto measure_property_dcl = std::make_unique<SimpleGraphPropertyDeclaration>(
-      "measure_col", property_graph_name_path, types_->get_int64(),
-      /*type_annotation_map=*/nullptr,
-      GraphPropertyDeclaration::Kind::kMeasure);
-
-  // Labels
-  auto property_dcls = absl::flat_hash_set<const GraphPropertyDeclaration*>{
-      id_property_dcl.get(),           val_property_dcl.get(),
-      readonly_property_dcl.get(),     derived_property_dcl.get(),
-      derived_func_property_dcl.get(), measure_property_dcl.get()};
-  auto label = std::make_unique<SimpleGraphElementLabel>(
-      "TestLabel", property_graph_name_path, property_dcls);
-
-  std::vector<std::unique_ptr<const GraphPropertyDefinition>> property_defs;
-
-  // 1. Simple column ref (writable)
-  auto id_col_ref = MakeResolvedCatalogColumnRef(
-      types_->get_int64(), insert_test_table->FindColumnByName("id"));
-  auto id_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      id_property_dcl.get(), "id");
-  InternalPropertyGraph::InternalSetResolvedExpr(id_prop_def.get(),
-                                                 id_col_ref.get());
-  property_defs.push_back(std::move(id_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(std::move(id_col_ref));
-
-  // 2. Simple column ref (writable)
-  auto val_col_ref = MakeResolvedCatalogColumnRef(
-      types_->get_string(), insert_test_table->FindColumnByName("val"));
-  auto val_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      val_property_dcl.get(), "val");
-  InternalPropertyGraph::InternalSetResolvedExpr(val_prop_def.get(),
-                                                 val_col_ref.get());
-  property_defs.push_back(std::move(val_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(std::move(val_col_ref));
-
-  // 3. Simple column ref (non-writable)
-  auto readonly_col_ref = MakeResolvedCatalogColumnRef(
-      types_->get_string(),
-      insert_test_table->FindColumnByName("readonly_col"));
-  auto readonly_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      readonly_property_dcl.get(), "readonly_col");
-  InternalPropertyGraph::InternalSetResolvedExpr(readonly_prop_def.get(),
-                                                 readonly_col_ref.get());
-  property_defs.push_back(std::move(readonly_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(
-      std::move(readonly_col_ref));
-
-  // 4.1 Derived property (literal)
-  auto derived_expr = MakeResolvedLiteral(Value::String("!"));
-  auto derived_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      derived_property_dcl.get(), "'!'");
-  InternalPropertyGraph::InternalSetResolvedExpr(derived_prop_def.get(),
-                                                 derived_expr.get());
-  property_defs.push_back(std::move(derived_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(std::move(derived_expr));
-
-  // 4.2 Derived property (function call)
-  std::unique_ptr<const AnalyzerOutput> derived_func_out;
-  AnalyzerOptions options;
-  options.SetLookupCatalogColumnCallback(
-      [insert_test_table](
-          const std::string& column_name) -> absl::StatusOr<const Column*> {
-        const Column* column = insert_test_table->FindColumnByName(column_name);
-        if (column == nullptr) {
-          return absl::NotFoundError(
-              absl::StrCat("Cannot find column ", column_name));
-        }
-        return column;
-      });
-  GOOGLESQL_RET_CHECK_OK(AnalyzeExpression("CONCAT(val, '!')", options, catalog_.get(),
-                                 types_, &derived_func_out));
-
-  auto derived_func_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      derived_func_property_dcl.get(), "CONCAT(val, '!')");
-  InternalPropertyGraph::InternalSetResolvedExpr(
-      derived_func_prop_def.get(), derived_func_out->resolved_expr());
-  property_defs.push_back(std::move(derived_func_prop_def));
-  sql_object_artifacts_.push_back(std::move(derived_func_out));
-
-  // 5. Measure property
-  auto measure_expr = MakeResolvedLiteral(Value::Int64(0));
-  auto measure_prop_def = std::make_unique<SimpleGraphPropertyDefinition>(
-      measure_property_dcl.get(), "0");
-  InternalPropertyGraph::InternalSetResolvedExpr(measure_prop_def.get(),
-                                                 measure_expr.get());
-  property_defs.push_back(std::move(measure_prop_def));
-  owned_resolved_graph_property_definitions_.push_back(std::move(measure_expr));
-
-  // Node Table
-  auto node_table = std::make_unique<const SimpleGraphNodeTable>(
-      insert_test_table->Name(), property_graph_name_path, insert_test_table,
-      std::vector<int>{0},
-      absl::flat_hash_set<const GraphElementLabel*>{label.get()},
-      std::move(property_defs));
-
-  // Graph
-  std::vector<std::unique_ptr<const GraphNodeTable>> node_tables;
-  node_tables.push_back(std::move(node_table));
-
-  std::vector<std::unique_ptr<const GraphEdgeTable>> edge_tables;
-
-  std::vector<std::unique_ptr<const GraphElementLabel>> labels;
-  labels.push_back(std::move(label));
-
-  std::vector<std::unique_ptr<const GraphPropertyDeclaration>>
-      property_declarations;
-  property_declarations.push_back(std::move(id_property_dcl));
-  property_declarations.push_back(std::move(val_property_dcl));
-  property_declarations.push_back(std::move(readonly_property_dcl));
-  property_declarations.push_back(std::move(derived_property_dcl));
-  property_declarations.push_back(std::move(derived_func_property_dcl));
-  property_declarations.push_back(std::move(measure_property_dcl));
-
-  auto property_graph = std::make_unique<SimplePropertyGraph>(
-      std::move(property_graph_name_path), std::move(node_tables),
-      std::move(edge_tables), std::move(labels),
-      std::move(property_declarations));
 
   catalog_->AddOwnedPropertyGraph(std::move(property_graph));
 
@@ -9246,7 +9453,12 @@ absl::Status SampleCatalogImpl::LoadTableValuedFunctions2() {
           FunctionArgumentType::RelationWithSchema(
               TVFRelation({{"label", types::DoubleType()}}),
               /*extra_relation_input_columns_allowed=*/false),
-          {FunctionArgumentType::AnyModel(), FunctionArgumentType::AnyModel()},
+          {FunctionArgumentType(ARG_KIND_MODEL,
+                                FunctionArgumentTypeOptions().set_argument_name(
+                                    "model_1", kPositionalOrNamed)),
+           FunctionArgumentType(ARG_KIND_MODEL,
+                                FunctionArgumentTypeOptions().set_argument_name(
+                                    "model_2", kPositionalOrNamed))},
           context_id++)},
       TVFRelation({{"label", types::DoubleType()}})));
 
@@ -9258,11 +9470,17 @@ absl::Status SampleCatalogImpl::LoadTableValuedFunctions2() {
                            {kTypeString, types::StringType()}}),
               /*extra_relation_input_columns_allowed=*/false),
           {
-              FunctionArgumentType::RelationWithSchema(
-                  TVFRelation({{kColumnNameKey, types::Int64Type()},
-                               {kColumnNameValue, types::StringType()}}),
-                  /*extra_relation_input_columns_allowed=*/false),
-              FunctionArgumentType::AnyModel(),
+              FunctionArgumentType(
+                  ARG_KIND_RELATION,
+                  FunctionArgumentTypeOptions(
+                      TVFRelation({{kColumnNameKey, types::Int64Type()},
+                                   {kColumnNameValue, types::StringType()}}),
+                      /*extra_relation_input_columns_allowed=*/false)
+                      .set_argument_name("table_arg", kPositionalOrNamed)),
+              FunctionArgumentType(
+                  ARG_KIND_MODEL,
+                  FunctionArgumentTypeOptions().set_argument_name(
+                      "model_arg", kPositionalOrNamed)),
           },
           context_id++)},
       TVFRelation({{kTypeDouble, types::DoubleType()},

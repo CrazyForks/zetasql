@@ -73,7 +73,8 @@ public class TVFRelation implements Serializable {
           TVFRelationColumnProto.newBuilder()
               .setName(col.getName())
               .setType(col.getType().serialize(fileDescriptorSetsBuilder))
-              .setIsPseudoColumn(col.isPseudoColumn));
+              .setIsPseudoColumn(col.isPseudoColumn)
+              .setIsPassthroughColumn(col.isPassthroughColumn));
     }
     protoBuilder.setIsValueTable(isValueTable);
     return protoBuilder.build();
@@ -92,7 +93,13 @@ public class TVFRelation implements Serializable {
           !valueColumnProto.getIsPseudoColumn(),
           "The first column in a value table relation cannot be a pseudo-column");
       Type valueType = typeFactory.deserialize(valueColumnProto.getType(), pools);
-      columns.add(Column.create(/* name= */ "", valueType, /* isPseudoColumn= */ false));
+      columns.add(
+          Column.create(
+              /* name= */ "",
+              valueType,
+              /* isPseudoColumn= */ false,
+              valueColumnProto.hasIsPassthroughColumn()
+                  && valueColumnProto.getIsPassthroughColumn()));
 
       // Any additional columns must be pseudo-columns.
       for (int i = 1; i < proto.getColumnCount(); i++) {
@@ -101,7 +108,12 @@ public class TVFRelation implements Serializable {
             columnProto.getIsPseudoColumn(),
             "Additional columns in a value table relation must be pseudo-columns");
         Type type = typeFactory.deserialize(columnProto.getType(), pools);
-        columns.add(Column.create(columnProto.getName(), type, /* isPseudoColumn= */ true));
+        columns.add(
+            Column.create(
+                columnProto.getName(),
+                type,
+                /* isPseudoColumn= */ true,
+                columnProto.hasIsPassthroughColumn() && columnProto.getIsPassthroughColumn()));
       }
       return new TVFRelation(columns.build(), /* isValueTable= */ true);
     } else {
@@ -113,7 +125,8 @@ public class TVFRelation implements Serializable {
             Column.create(
                 columnProto.getName(),
                 type,
-                columnProto.hasIsPseudoColumn() && columnProto.getIsPseudoColumn()));
+                columnProto.hasIsPseudoColumn() && columnProto.getIsPseudoColumn(),
+                columnProto.hasIsPassthroughColumn() && columnProto.getIsPassthroughColumn()));
       }
       return createColumnBased(columns.build());
     }
@@ -123,7 +136,11 @@ public class TVFRelation implements Serializable {
   public String toString() {
     return "TABLE<"
         + columns.stream()
-            .map(c -> (!isValueTable || c.isPseudoColumn() ? c.getName() + " " : "") + c.getType())
+            .map(
+                c ->
+                    (!isValueTable || c.isPseudoColumn() ? c.getName() + " " : "")
+                        + c.getType()
+                        + (c.isPassthroughColumn() ? " (passthrough)" : ""))
             .collect(joining(", "))
         + ">";
   }
@@ -150,19 +167,26 @@ public class TVFRelation implements Serializable {
     private final String name;
     private final Type type;
     private final boolean isPseudoColumn;
+    private final boolean isPassthroughColumn;
 
-    private Column(String name, Type type, boolean isPseudoColumn) {
+    private Column(String name, Type type, boolean isPseudoColumn, boolean isPassthroughColumn) {
       this.name = name;
       this.type = type;
       this.isPseudoColumn = isPseudoColumn;
+      this.isPassthroughColumn = isPassthroughColumn;
+    }
+
+    public static Column create(
+        String name, Type type, boolean isPseudoColumn, boolean isPassthroughColumn) {
+      return new Column(name, type, isPseudoColumn, isPassthroughColumn);
     }
 
     public static Column create(String name, Type type, boolean isPseudoColumn) {
-      return new Column(name, type, isPseudoColumn);
+      return new Column(name, type, isPseudoColumn, false);
     }
 
     public static Column create(String name, Type type) {
-      return new Column(name, type, false);
+      return new Column(name, type, false, false);
     }
 
     public String getName() {
@@ -177,6 +201,10 @@ public class TVFRelation implements Serializable {
       return isPseudoColumn;
     }
 
+    public boolean isPassthroughColumn() {
+      return isPassthroughColumn;
+    }
+
     @Override
     public boolean equals(Object o) {
       if (this == o) {
@@ -188,12 +216,13 @@ public class TVFRelation implements Serializable {
       Column column = (Column) o;
       return name.equals(column.name)
           && type.equals(column.type)
-          && isPseudoColumn == column.isPseudoColumn;
+          && isPseudoColumn == column.isPseudoColumn
+          && isPassthroughColumn == column.isPassthroughColumn;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(name, type, isPseudoColumn);
+      return Objects.hash(name, type, isPseudoColumn, isPassthroughColumn);
     }
   }
 }

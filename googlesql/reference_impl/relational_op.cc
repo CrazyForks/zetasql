@@ -903,12 +903,13 @@ TableValuedFunctionCallExpr::Create(
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     std::vector<int> output_column_indices) {
   GOOGLESQL_RET_CHECK(function != nullptr);
   return absl::WrapUnique(new TableValuedFunctionCallExpr(
       std::move(function), std::move(arguments), std::move(output_columns),
       std::move(variables), std::move(function_call_signature),
-      std::move(output_column_indices)));
+      std::move(tvf_signature), std::move(output_column_indices)));
 }
 
 TableValuedFunctionCallExpr::TableValuedFunctionCallExpr(
@@ -917,12 +918,14 @@ TableValuedFunctionCallExpr::TableValuedFunctionCallExpr(
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     std::vector<int> output_column_indices)
     : function_(std::move(function)),
       arguments_(std::move(arguments)),
       output_columns_(std::move(output_columns)),
       variables_(std::move(variables)),
       function_call_signature_(std::move(function_call_signature)),
+      tvf_signature_(std::move(tvf_signature)),
       output_column_indices_(std::move(output_column_indices)) {};
 
 absl::Status TableValuedFunctionCallExpr::SetSchemasForEvaluation(
@@ -984,7 +987,7 @@ TableValuedFunctionCallExpr::CreateIterator(
   GOOGLESQL_ASSIGN_OR_RETURN(
       std::unique_ptr<EvaluatorTableIterator> evaluator_table_iterator,
       function_->CreateEvaluator(std::move(input_arguments),
-                                 std::move(function_call_signature_),
+                                 function_call_signature_, tvf_signature_,
                                  child_context.get()));
 
   // Validate the output column indices before passing them to the

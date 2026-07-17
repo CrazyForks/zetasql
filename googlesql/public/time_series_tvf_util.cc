@@ -110,7 +110,7 @@ absl::StatusOr<ResolvedFieldPath> ResolveAndValidateFieldPath(
         return FieldPathError("Field not found in struct", component, i);
       }
       result.steps.push_back(
-          {TypeFieldPathStep::STRUCT_FIELD, found_idx, nullptr});
+          {TypeFieldPathStep::STRUCT_FIELD, found_idx, nullptr, field->type});
       current_type = field->type;
     } else if (current_type->IsProto()) {
       const google::protobuf::Descriptor* descriptor =
@@ -132,7 +132,8 @@ absl::StatusOr<ResolvedFieldPath> ResolveAndValidateFieldPath(
       const Type* field_type = nullptr;
       GOOGLESQL_RETURN_IF_ERROR(type_factory->GetProtoFieldType(
           field_desc, absl::Span<const std::string>(), &field_type));
-      result.steps.push_back({TypeFieldPathStep::PROTO_FIELD, -1, field_desc});
+      result.steps.push_back(
+          {TypeFieldPathStep::PROTO_FIELD, -1, field_desc, field_type});
       current_type = field_type;
     } else {
       return FieldPathError("Cannot traverse non-struct/proto field", component,

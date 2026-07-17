@@ -397,16 +397,23 @@ absl::Status MacroExpander::LoadPotentiallySplicingTokens() {
   if (at_statement_start_ && call_arguments_.empty()) {
     GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation token, token_provider_->PeekNextToken());
     if (token.kind == Token::KW_DEFINE) {
-      GOOGLESQL_ASSIGN_OR_RETURN(token, ConsumeInputToken());
-      splicing_buffer_.push(token);
+      GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation next_token,
+                       token_provider_->PeekLookahead2());
+      bool has_visibility = (next_token.kind == Token::KW_PUBLIC ||
+                             next_token.kind == Token::KW_PRIVATE);
 
-      GOOGLESQL_ASSIGN_OR_RETURN(token, token_provider_->PeekNextToken());
-      if (token.kind == Token::KW_MACRO) {
+      GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation macro_token,
+                       has_visibility ? token_provider_->PeekLookahead3()
+                                      : token_provider_->PeekLookahead2());
+
+      if (macro_token.kind == Token::KW_MACRO) {
+        GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation define_token, ConsumeInputToken());
         // Mark the leading DEFINE keyword as the special one marking a DEFINE
         // MACRO statement.
-        splicing_buffer_.back().kind = Token::KW_DEFINE_FOR_MACROS;
+        define_token.kind = Token::KW_DEFINE_FOR_MACROS;
         inside_macro_definition_ = true;
         at_statement_start_ = false;
+        splicing_buffer_.push(define_token);
         return absl::OkStatus();
       }
     }

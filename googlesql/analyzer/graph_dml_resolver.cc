@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -37,7 +38,9 @@
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "googlesql/resolved_ast/resolved_ast_builder.h"
 #include "googlesql/resolved_ast/resolved_column.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
@@ -112,7 +115,9 @@ absl::Status ValidatePropertyIsWritable(const GraphPropertyDefinition* prop_def,
 
   GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* val_expr,
                    prop_def->GetValueExpression());
-  GOOGLESQL_RET_CHECK_NE(val_expr, nullptr);
+  GOOGLESQL_RET_CHECK_NE(val_expr, nullptr)
+      << "Property definition must have a value expression for DML to "
+         "validate writability";
 
   if (!val_expr->Is<ResolvedCatalogColumnRef>()) {
     return MakeSqlErrorAt(error_location)
@@ -346,6 +351,128 @@ const GraphNodeTable* GetInsertedNodeTable(
     }
   }
   return nullptr;
+}
+
+using GraphElementTableNameErrorFunction = absl::FunctionRef<std::string()>;
+
+// Validates that the given key column is exposed as a writable property in the
+// target element table. Otherwise, returns an error, as this means the element
+// table is not updatable.
+// `key_column_idx` is the index of the key column in the base table of the
+// `target_table`.
+absl::Status ValidateKeyColumnIsWritableProperty(
+    const GraphElementTable* target_table, int key_column_idx,
+    const ASTNode* error_location,
+    GraphElementTableNameErrorFunction table_name_error_fn) {
+  const Table* base_table = target_table->GetTable();
+  GOOGLESQL_RET_CHECK(base_table != nullptr)
+      << "Graph element table '" << target_table->Name()
+      << "' has no underlying base table";
+
+  const Column* key_col = base_table->GetColumn(key_column_idx);
+  absl::flat_hash_set<const GraphPropertyDefinition*> prop_defs;
+  GOOGLESQL_RETURN_IF_ERROR(target_table->GetPropertyDefinitions(prop_defs));
+
+  for (const auto* prop_def : prop_defs) {
+    // Skip measure properties.
+    if (prop_def->GetDeclaration().kind() ==
+        GraphPropertyDeclaration::Kind::kMeasure) {
+      continue;
+    }
+    GOOGLESQL_ASSIGN_OR_RETURN(const ResolvedExpr* val_expr,
+                     prop_def->GetValueExpression());
+    GOOGLESQL_RET_CHECK_NE(val_expr, nullptr)
+        << "Property definition must have a value expression for DML to "
+           "validate writability";
+
+    // Skip properties that are not catalog column references.
+    if (!val_expr->Is<ResolvedCatalogColumnRef>()) {
+      continue;
+    }
+    const auto* col_ref = val_expr->GetAs<ResolvedCatalogColumnRef>();
+    if (col_ref->column() == key_col && col_ref->column()->IsWritableColumn()) {
+      return absl::OkStatus();
+    }
+  }
+  return MakeSqlErrorAt(error_location)
+         << table_name_error_fn()
+         << " is not updatable because the element key column '"
+         << key_col->Name() << "' is not exposed as a writable property";
+}
+
+// Validates that all element key columns of the target graph element table are
+// exposed as writable properties in its property definition list.
+// If `target_table` is an edge table, the referenced source/destination element
+// keys must also be exposed as properties of its source/destination node
+// tables.
+absl::Status ValidateTargetTableIsUpdatable(
+    const GraphElementTable* target_table, const ASTNode* error_location) {
+  // Element key columns include:
+  // - columns in the KEY clause; and
+  // - SOURCE KEY and DESTINATION KEY columns for edge tables.
+  absl::btree_set<int> key_column_indices(target_table->GetKeyColumns().begin(),
+                                          target_table->GetKeyColumns().end());
+  GOOGLESQL_RET_CHECK(!key_column_indices.empty())
+      << "Graph element table '" << target_table->Name()
+      << "' has no key columns";
+
+  if (target_table->kind() == GraphElementTable::Kind::kEdge) {
+    GOOGLESQL_RET_CHECK_NE(target_table->AsEdgeTable(), nullptr);
+    const GraphEdgeTable* edge_table = target_table->AsEdgeTable();
+    key_column_indices.insert(
+        edge_table->GetSourceNodeTable()->GetEdgeTableColumns().begin(),
+        edge_table->GetSourceNodeTable()->GetEdgeTableColumns().end());
+    key_column_indices.insert(
+        edge_table->GetDestNodeTable()->GetEdgeTableColumns().begin(),
+        edge_table->GetDestNodeTable()->GetEdgeTableColumns().end());
+  }
+
+  for (int key_idx : key_column_indices) {
+    // An element table key column must be exposed as a property whose value
+    // expression is a direct catalog column reference (not a derived property
+    // or a measure property).
+    GOOGLESQL_RETURN_IF_ERROR(ValidateKeyColumnIsWritableProperty(
+        target_table, key_idx, error_location, [&target_table]() {
+          return absl::StrCat("Graph element table '", target_table->Name(),
+                              "'");
+        }));
+  }
+
+  // For edge tables, also validate that the referenced source/destination node
+  // tables are updatable.
+  if (target_table->kind() == GraphElementTable::Kind::kEdge) {
+    const GraphEdgeTable* edge_table = target_table->AsEdgeTable();
+    const GraphNodeTable* source_node_table =
+        edge_table->GetSourceNodeTable()->GetReferencedNodeTable();
+    absl::btree_set<int> source_node_key_col_indices(
+        edge_table->GetSourceNodeTable()->GetNodeTableColumns().begin(),
+        edge_table->GetSourceNodeTable()->GetNodeTableColumns().end());
+    for (int key_idx : source_node_key_col_indices) {
+      GOOGLESQL_RETURN_IF_ERROR(ValidateKeyColumnIsWritableProperty(
+          edge_table->GetSourceNodeTable()->GetReferencedNodeTable(), key_idx,
+          error_location, [&source_node_table, &edge_table]() {
+            return absl::StrCat(
+                "The source node table '", source_node_table->Name(),
+                "' of the edge table '", edge_table->Name(), "'");
+          }));
+    }
+
+    const GraphNodeTable* dest_node_table =
+        edge_table->GetDestNodeTable()->GetReferencedNodeTable();
+    absl::btree_set<int> dest_node_key_col_indices(
+        edge_table->GetDestNodeTable()->GetNodeTableColumns().begin(),
+        edge_table->GetDestNodeTable()->GetNodeTableColumns().end());
+    for (int key_idx : dest_node_key_col_indices) {
+      GOOGLESQL_RETURN_IF_ERROR(ValidateKeyColumnIsWritableProperty(
+          edge_table->GetDestNodeTable()->GetReferencedNodeTable(), key_idx,
+          error_location, [&dest_node_table, &edge_table]() {
+            return absl::StrCat(
+                "The destination node table '", dest_node_table->Name(),
+                "' of the edge table '", edge_table->Name(), "'");
+          }));
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -585,6 +712,8 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertNodePattern(
                            FEATURE_SQL_GRAPH_DYNAMIC_ELEMENT_TYPE)));
   const GraphNodeTable* target_table = result.table;
 
+  GOOGLESQL_RETURN_IF_ERROR(ValidateTargetTableIsUpdatable(target_table, filler));
+
   // Resolve the property specification.
   GOOGLESQL_ASSIGN_OR_RETURN(auto property_items,
                    ResolveInsertProperties(filler->property_specification(),
@@ -675,6 +804,8 @@ absl::StatusOr<ResolvedColumn> GraphDmlResolver::ResolveInsertEdgePattern(
                                        actual_dest_node_table,
                                        *expected_dest_node_table, dest_col,
                                        /*is_source=*/false));
+
+  GOOGLESQL_RETURN_IF_ERROR(ValidateTargetTableIsUpdatable(target_table, filler));
 
   // Resolve the property specification.
   GOOGLESQL_ASSIGN_OR_RETURN(auto property_items,

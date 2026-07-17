@@ -2493,6 +2493,12 @@ enum ResolvedASTRewrite {
     (rewrite_options).in_development = true
   ];
 
+  // Rewrites the HOP time window TVF.
+  REWRITE_HOP_FUNCTION = 44 [
+    (rewrite_options).default_enabled = true,
+    (rewrite_options).in_development = true
+  ];
+
   // These are not real rewriters. They are just for unit testing.
   REWRITE_TEST_DEFAULT_DISABLED = 999991
       [(rewrite_options).default_enabled = false];

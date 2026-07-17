@@ -1387,6 +1387,7 @@ class TableValuedFunctionBody {
   virtual absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>
   CreateEvaluator(std::vector<TableValuedFunction::TvfEvaluatorArg> args,
                   std::shared_ptr<FunctionSignature> function_call_signature,
+                  std::shared_ptr<const TVFSignature> tvf_signature,
                   EvaluationContext* context) = 0;
 };
 
@@ -3781,6 +3782,7 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
       std::vector<TVFSchemaColumn> output_columns,
       std::vector<VariableId> variables,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       std::vector<int> output_column_indices);
 
   absl::Status SetSchemasForEvaluation(
@@ -3804,6 +3806,7 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
       std::vector<TVFSchemaColumn> output_columns,
       std::vector<VariableId> variables,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       std::vector<int> output_column_indices);
 
   TableValuedFunctionCallExpr(const TableValuedFunctionCallExpr&) = delete;
@@ -3820,6 +3823,8 @@ class TableValuedFunctionCallExpr final : public RelationalOp {
   const std::vector<VariableId> variables_;
   // Signature of the invocation
   const std::shared_ptr<FunctionSignature> function_call_signature_;
+  // Signatures for TVF call, includes relational inputs
+  const std::shared_ptr<const TVFSignature> tvf_signature_;
   // Positional indices of the TVF output column list.
   const std::vector<int> output_column_indices_;
 };

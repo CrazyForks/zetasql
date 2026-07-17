@@ -10981,6 +10981,26 @@ static const ASTFunctionRefArg* GetFunctionRefArgument(
   return nullptr;
 }
 
+static const ASTSequenceArg* GetSequenceArgument(const ASTExpression* arg) {
+  if (arg->Is<ASTSequenceArg>()) {
+    return arg->GetAsOrDie<ASTSequenceArg>();
+  }
+  if (arg->Is<ASTNamedArgument>()) {
+    return GetSequenceArgument(arg->GetAsOrDie<ASTNamedArgument>()->expr());
+  }
+  return nullptr;
+}
+
+static const ASTModelArg* GetModelArgument(const ASTExpression* arg) {
+  if (arg->Is<ASTModelArg>()) {
+    return arg->GetAsOrDie<ASTModelArg>();
+  }
+  if (arg->Is<ASTNamedArgument>()) {
+    return GetModelArgument(arg->GetAsOrDie<ASTNamedArgument>()->expr());
+  }
+  return nullptr;
+}
+
 ABSL_ATTRIBUTE_NOINLINE
 absl::Status Resolver::ResolveExpressionArguments(
     ExprResolutionInfo* expr_resolution_info,
@@ -11032,9 +11052,10 @@ absl::Status Resolver::ResolveExpressionArguments(
           break;
         }
       }
-    } else if (arg->Is<ASTSequenceArg>()) {
+    } else if (const ASTSequenceArg* seq_arg = GetSequenceArgument(arg);
+               seq_arg != nullptr) {
       if (!language().LanguageFeatureEnabled(FEATURE_SEQUENCE_ARG)) {
-        return MakeSqlErrorAt(arg) << "Sequence args are not supported";
+        return MakeSqlErrorAt(seq_arg) << "Sequence args are not supported";
       }
       resolved_arguments_out->push_back(nullptr);
       ast_arguments_out->push_back(arg);
@@ -11050,9 +11071,10 @@ absl::Status Resolver::ResolveExpressionArguments(
       // is known.
       resolved_arguments_out->push_back(nullptr);
       ast_arguments_out->push_back(arg);
-    } else if (arg->Is<ASTModelArg>()) {
+    } else if (const ASTModelArg* model_arg = GetModelArgument(arg);
+               model_arg != nullptr) {
       if (!language().LanguageFeatureEnabled(FEATURE_MODEL_ARG)) {
-        return MakeSqlErrorAt(arg) << "Model args are not supported";
+        return MakeSqlErrorAt(model_arg) << "Model args are not supported";
       }
       resolved_arguments_out->push_back(nullptr);
       ast_arguments_out->push_back(arg);

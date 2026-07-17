@@ -88,6 +88,8 @@ extern template std::string BinaryOverflowMessage<float>(
     float in1, float in2, absl::string_view operator_symbol);
 extern template std::string BinaryOverflowMessage<double>(
     double in1, double in2, absl::string_view operator_symbol);
+extern template std::string BinaryOverflowMessage<absl::int128>(
+    absl::int128 in1, absl::int128 in2, absl::string_view operator_symbol);
 
 template <>
 std::string BinaryOverflowMessage<long double>(

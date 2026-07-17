@@ -22,6 +22,7 @@
 #include "googlesql/analyzer/rewriters/flatten_rewriter.h"
 #include "googlesql/analyzer/rewriters/generalized_query_stmt_rewriter.h"
 #include "googlesql/analyzer/rewriters/grouping_set_rewriter.h"
+#include "googlesql/analyzer/rewriters/hop_function_rewriter.h"
 #include "googlesql/analyzer/rewriters/insert_dml_values_rewriter.h"
 #include "googlesql/analyzer/rewriters/is_first_is_last_function_rewriter.h"
 #include "googlesql/analyzer/rewriters/like_any_all_rewriter.h"
@@ -110,6 +111,8 @@ void RegisterBuiltinRewriters() {
                GetTumbleFunctionRewriter());
     r.Register(ResolvedASTRewrite::REWRITE_QUANTIFIED_COMPARISONS,
                GetQuantifiedComparisonRewriter());
+    r.Register(ResolvedASTRewrite::REWRITE_HOP_FUNCTION,
+               GetHopFunctionRewriter());
     r.Register(ResolvedASTRewrite::REWRITE_IS_FIRST_IS_LAST_FUNCTION,
                GetIsFirstIsLastFunctionRewriter());
     r.Register(ResolvedASTRewrite::REWRITE_MATCH_RECOGNIZE_FUNCTION,

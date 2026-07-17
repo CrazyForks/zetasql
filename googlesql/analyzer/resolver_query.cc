@@ -17378,12 +17378,23 @@ absl::StatusOr<ResolvedTVFArg> Resolver::ResolveTVFArg(
         return MakeSqlErrorAt(ast_expr)
                << "Table-valued function " << tvf_catalog_entry->SQLName()
                << " argument " << gen_arg_id(sig_idx) << " must be a GRAPH";
+      } else if (function_argument->IsModel()) {
+        // Named arguments are passed as Expressions and not ASTModelClause.
+        if (!ast_expr->Is<ASTModelArg>()) {
+          return MakeSqlErrorAt(ast_expr)
+                 << "Table-valued function " << tvf_catalog_entry->SQLName()
+                 << " argument " << gen_arg_id(sig_idx)
+                 << " must be a model specified with the MODEL keyword";
+        }
+
+        std::unique_ptr<const ResolvedModel> resolved_model;
+        GOOGLESQL_RETURN_IF_ERROR(
+            ResolveModel(ast_expr->GetAsOrDie<ASTModelArg>()->model_path(),
+                         &resolved_model));
+        resolved_tvf_arg.SetModel(std::move(resolved_model));
       } else {
-        GOOGLESQL_RET_CHECK(function_argument->IsModel());
-        return MakeSqlErrorAt(ast_expr)
-               << "Table-valued function " << tvf_catalog_entry->SQLName()
-               << " argument " << gen_arg_id(sig_idx)
-               << " must be a model specified with the MODEL keyword";
+        GOOGLESQL_RET_CHECK_FAIL() << "Unexpected function argument type: "
+                         << function_argument->DebugString();
       }
     } else {
       // Resolve the TVF argument as a scalar expression.

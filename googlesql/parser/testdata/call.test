@@ -164,7 +164,7 @@ call myprocedure
 # CALL arguments are expressions, not parameters.
 CALL fn(x NOT AGGREGATE)
 --
-ERROR: Syntax error: Expected ")" or "," but got keyword NOT [at 1:11]
+ERROR: Syntax error: Expected ")" but got keyword NOT [at 1:11]
 CALL fn(x NOT AGGREGATE)
           ^
 

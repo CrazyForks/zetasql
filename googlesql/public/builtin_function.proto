@@ -63,8 +63,10 @@ enum FunctionSignatureId {
   // 3300-3399 Aggregate functions III        (NextId: 3303)
   // 3400-3499 Misc functions II              (NextId: 3416)
   // 3500-3599 Vector functions               (NextId: 3502)
-  // 4000-4099 Table valued functions         (NextId: 5031)
-  // 5000-5099 AI functions                   (NextId: 5050)
+  // 4000-4099 Table valued functions         (NextId: 4006)
+  // 5000-5023 AI functions                   (Fully used)
+  // 5024-5049 Table valued functions II      (NextId: 5031)
+  // 5050-5099 AI functions II                (NextId: 5062)
 
   // enum value                       // Related function name
   // ----------                       // ---------------------
@@ -1832,8 +1834,6 @@ enum FunctionSignatureId {
              // int64, string, double, json) -> ANY TABLE
 
   // AI functions
-  // TODO: Add function overloads for `model` to be a MODEL
-  // reference once this argument type is available.
   // Signature ids for AI.IF(prompt). This must be the minimal signature for
   // AI.IF and can't have any fewer arguments.
   FN_AI_IF_WITH_STRING_PROMPT = 5000;  // AI.IF(string) -> bool
@@ -1847,6 +1847,8 @@ enum FunctionSignatureId {
       5003;  // AI.IF(string, string) -> bool
   FN_AI_IF_WITH_STRUCT_PROMPT_STRING_MODEL =
       5004;  // AI.IF(struct, string) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_MODEL_REF = 5050;  // AI.IF(string, model) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_MODEL_REF = 5051;  // AI.IF(struct, model) -> bool
 
   // Signature ids for AI.IF(prompt, options)
   FN_AI_IF_WITH_STRING_PROMPT_JSON_OPTIONS =
@@ -1875,10 +1877,24 @@ enum FunctionSignatureId {
       5015;  // AI.IF(string, string, struct) -> bool
   FN_AI_IF_WITH_STRING_PROMPT_STRING_MODEL_STRING_OPTIONS =
       5016;  // AI.IF(string, string, string) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_MODEL_REF_JSON_OPTIONS =
+      5052;  // AI.IF(struct, model, json) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_MODEL_REF_STRUCT_OPTIONS =
+      5053;  // AI.IF(struct, model, struct) -> bool
+  FN_AI_IF_WITH_STRUCT_PROMPT_MODEL_REF_STRING_OPTIONS =
+      5054;  // AI.IF(struct, model, string) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_MODEL_REF_JSON_OPTIONS =
+      5055;  // AI.IF(string, model, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_MODEL_REF_STRUCT_OPTIONS =
+      5056;  // AI.IF(string, model, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_MODEL_REF_STRING_OPTIONS =
+      5057;  // AI.IF(string, model, string) -> bool
 
   // Signature id for AI.IF(prompt, payload, model)
   FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL =
       5017;  // AI.IF(string, any, string) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_MODEL_REF =
+      5058;  // AI.IF(string, any, model) -> bool
 
   // Signature ids for AI.IF(prompt, payload, options)
   FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_JSON_OPTIONS =
@@ -1895,4 +1911,10 @@ enum FunctionSignatureId {
       5022;  // AI.IF(string, any, string, struct) -> bool
   FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_STRING_MODEL_STRING_OPTIONS =
       5023;  // AI.IF(string, any, string, string) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_MODEL_REF_JSON_OPTIONS =
+      5059;  // AI.IF(string, any, model, json) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_MODEL_REF_STRUCT_OPTIONS =
+      5060;  // AI.IF(string, any, model, struct) -> bool
+  FN_AI_IF_WITH_STRING_PROMPT_ANY_PAYLOAD_MODEL_REF_STRING_OPTIONS =
+      5061;  // AI.IF(string, any, model, string) -> bool
 }

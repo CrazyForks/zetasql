@@ -42,6 +42,7 @@
 #include "googlesql/public/pico_time.h"
 #include "googlesql/public/proto/type_annotation.pb.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/time_series_tvf_util.h"
 #include "googlesql/public/type.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
@@ -783,6 +784,7 @@ class BuiltinTableValuedFunction : public TableValuedFunctionBody {
              std::vector<TVFSchemaColumn> output_columns,
              std::vector<VariableId> variables,
              std::shared_ptr<FunctionSignature> function_call_signature,
+             std::shared_ptr<const TVFSignature> tvf_signature,
              std::vector<int> output_column_indices);
 
   static absl::StatusOr<std::unique_ptr<BuiltinTableValuedFunction>> Create(
@@ -2554,6 +2556,7 @@ class TumbleTVF : public BuiltinTableValuedFunction {
   absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> CreateEvaluator(
       std::vector<TableValuedFunction::TvfEvaluatorArg> args,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       EvaluationContext* context) override;
 
   std::string debug_name() const override { return "TumbleTVF"; }
@@ -2564,12 +2567,13 @@ class TumbleTVF : public BuiltinTableValuedFunction {
     explicit TumbleResultIterator(
         std::unique_ptr<EvaluatorTableIterator> input_iterator,
         std::vector<TVFSchemaColumn> output_columns,
-        std::vector<bool> included_columns, int timestamp_column_index,
+        std::vector<bool> included_columns,
+        ResolvedTimestampColumnPath timestamp_column_path,
         googlesql::IntervalValue window_size, googlesql::PicoTime origin)
         : input_(std::move(input_iterator)),
           output_columns_(std::move(output_columns)),
           included_columns_(std::move(included_columns)),
-          timestamp_column_index_(timestamp_column_index),
+          timestamp_column_path_(std::move(timestamp_column_path)),
           window_size_(std::move(window_size)),
           origin_(origin),
           current_output_values_(output_columns_.size()) {}
@@ -2602,7 +2606,7 @@ class TumbleTVF : public BuiltinTableValuedFunction {
     std::unique_ptr<EvaluatorTableIterator> input_;
     std::vector<TVFSchemaColumn> output_columns_;
     std::vector<bool> included_columns_;
-    int timestamp_column_index_;
+    ResolvedTimestampColumnPath timestamp_column_path_;
     googlesql::IntervalValue window_size_;
     googlesql::PicoTime origin_;
     std::vector<Value> current_output_values_;
@@ -2617,6 +2621,7 @@ class HopTVF : public BuiltinTableValuedFunction {
   absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> CreateEvaluator(
       std::vector<TableValuedFunction::TvfEvaluatorArg> args,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       EvaluationContext* context) override;
 
   std::string debug_name() const override { return "HopTVF"; }
@@ -2689,6 +2694,7 @@ class BatchVectorSearchTVFWithProtoOptions : public BuiltinTableValuedFunction {
   absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> CreateEvaluator(
       std::vector<TableValuedFunction::TvfEvaluatorArg> args,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       EvaluationContext* context) override;
 
   std::string debug_name() const override { return "vector_search"; }

@@ -1342,7 +1342,7 @@ unterminated_sql_statement {ASTNode*}:
     {
       $$ = MakeNode<ASTHintedStatement>(@$, $hint, $sql_statement_body);
     }
-  | "DEFINE"[kw_define] "MACRO"
+  | "DEFINE"[kw_define] macro_visibility? "MACRO"
     {
       // If macros are disabled and the system is accepting macro definitions
       // it typically indicates a misconfiguration in the way parser is setup.
@@ -1354,7 +1354,7 @@ unterminated_sql_statement {ASTNode*}:
         "Syntax error: DEFINE MACRO statements cannot be composed from other "
         "expansions");
     }
-  | statement_level_hint[hint] "DEFINE"[kw_define] "MACRO"
+  | statement_level_hint[hint] "DEFINE"[kw_define] macro_visibility? "MACRO"
     {
       // If macros are disabled and the system is accepting macro definitions
       // it typically indicates a misconfiguration in the way parser is setup.
@@ -1362,7 +1362,7 @@ unterminated_sql_statement {ASTNode*}:
       return MakeSyntaxError(
         @hint, "Hints are not allowed on DEFINE MACRO statements.");
     }
-  | statement_level_hint[hint] KW_DEFINE_FOR_MACROS "MACRO"
+  | statement_level_hint[hint] KW_DEFINE_FOR_MACROS macro_visibility? "MACRO"
     {
       // This is here for extra future-proofing. We should never hit this
       // codepath, because the expander should only generate
@@ -1559,11 +1559,26 @@ define_macro_statement {ASTNode*}:
     // Use a special version of KW_DEFINE which indicates that this macro
     // definition was "original" (i.e., not expanded from other macros), and
     // is top-level (i.e., not nested under other statements or blocks like IF).
-    KW_DEFINE_FOR_MACROS "MACRO" identifier[name]
+    KW_DEFINE_FOR_MACROS macro_visibility[visibility]? "MACRO" identifier[name]
     set(~(";" | eoi | invalid_token))*[body]
     {
       auto* body = MakeNode<ASTMacroBody>(@body);
-      $$ = MakeNode<ASTDefineMacroStatement>(@$, $name, body);
+      auto* node = MakeNode<ASTDefineMacroStatement>(@$, $name, body);
+      if ($visibility.has_value()) {
+        node->set_visibility(*$visibility);
+      }
+      $$ = node;
+    }
+;
+
+macro_visibility {ASTDefineMacroStatement::MacroVisibility}:
+    "PUBLIC"
+    {
+      $$ = ASTDefineMacroStatement::PUBLIC;
+    }
+  | "PRIVATE"
+    {
+      $$ = ASTDefineMacroStatement::PRIVATE;
     }
 ;
 
@@ -3618,9 +3633,9 @@ opt_table_element_list {ASTNode*}:
 ;
 
 table_element_list {ASTNode*}:
-    table_element_list_prefix ")"
+    "(" (table_element separator ",")+[elements] ","? ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTTableElementList>(@$, $elements);
     }
   | "(" ")"
     {
@@ -3629,21 +3644,6 @@ table_element_list {ASTNode*}:
         return MakeSyntaxError(@2, "A table must define at least one column.");
       }
       $$ = MakeNode<ASTTableElementList>(@$);
-    }
-;
-
-table_element_list_prefix {ASTNode*}:
-    "(" table_element
-    {
-      $$ = MakeNode<ASTTableElementList>(@$, $2);
-    }
-  | table_element_list_prefix "," table_element
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-  | table_element_list_prefix ","
-    {
-      $$ = WithEndLocation($1, @$);
     }
 ;
 
@@ -3777,26 +3777,11 @@ struct_column_field {ASTNode*}:
       $$ = MakeNode<ASTStructColumnField>(@$, $1, $2);
     }
 ;
-
-struct_column_schema_prefix {ASTNode*}:
-    "STRUCT" "<" .OpenTypeTemplate  struct_column_field
-    {
-      $$ = MakeNode<ASTStructColumnSchema>(@$, $3);
-    }
-  | struct_column_schema_prefix "," struct_column_field
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
-// This node does not apply WithEndLocation. column_schema and
-// field_schema do.
 struct_column_schema_inner {ASTNode*}:
-    "STRUCT" "<" .OpenTypeTemplate template_type_close
+    "STRUCT" "<" .OpenTypeTemplate (struct_column_field separator ",")*[fields] template_type_close
     {
-      $$ = MakeNode<ASTStructColumnSchema>(@$);
+      $$ = MakeNode<ASTStructColumnSchema>(@$, $fields);
     }
-  | struct_column_schema_prefix template_type_close
 ;
 
 raw_column_schema_inner {ASTNode*}:
@@ -4397,22 +4382,10 @@ tvf_schema_column {ASTNode*}:
     }
 ;
 
-tvf_schema_prefix {ASTNode*}:
-    "TABLE" "<" .OpenTypeTemplate tvf_schema_column
-    {
-      auto* create = MakeNode<ASTTVFSchema>(@$, $3);
-      $$ = create;
-    }
-  | tvf_schema_prefix "," tvf_schema_column
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 tvf_schema {ASTNode*}:
-    tvf_schema_prefix template_type_close
+    "TABLE" "<" .OpenTypeTemplate (tvf_schema_column separator ",")+[columns] template_type_close
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTTVFSchema>(@$, $columns);
     }
 ;
 
@@ -6145,25 +6118,10 @@ opt_all_or_distinct {AllOrDistinctKeyword}:
     }
 ;
 
-select_list_prefix {ASTNode*}:
-    select_column
-    {
-      $$ = MakeNode<ASTSelectList>(@$, $1);
-    }
-  | select_list_prefix "," select_column
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 select_list {ASTNode*}:
-    select_list_prefix
+    (select_column separator ",")+[columns] ","?
     {
-      $$ = WithEndLocation($1, @$);
-    }
-  | select_list_prefix ","
-    {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTSelectList>(@$, $columns);
     }
 ;
 
@@ -6181,29 +6139,14 @@ star_replace_item {ASTNode*}:
     }
 ;
 
-star_modifiers_with_replace_prefix {ASTNode*}:
-    star_except_list "REPLACE" "(" star_replace_item
-    {
-      $$ = MakeNode<ASTStarModifiers>(@$, $1, $4);
-    }
-  | "REPLACE" "(" star_replace_item
-    {
-      $$ = MakeNode<ASTStarModifiers>(@$, $3);
-    }
-  | star_modifiers_with_replace_prefix "," star_replace_item
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 star_modifiers {ASTNode*}:
-    star_except_list
+    star_except_list ("REPLACE" "(" (star_replace_item separator ",")+[items] ")")?
     {
-      $$ = MakeNode<ASTStarModifiers>(@$, $1);
+      $$ = MakeNode<ASTStarModifiers>(@$, $star_except_list, $items);
     }
-  | star_modifiers_with_replace_prefix ")"
+  | "REPLACE" "(" (star_replace_item separator ",")+[items] ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTStarModifiers>(@$, $items);
     }
 ;
 
@@ -6232,17 +6175,6 @@ select_column_expr {ASTNode*}:
       // between the literal and the alias.
       return MakeSyntaxError(
           @token, "Syntax error: Missing whitespace between literal and alias");
-    }
-;
-
-select_list_prefix_with_as_aliases {ASTNode*}:
-    select_column_expr_with_as_alias[c]
-    {
-      $$ = MakeNode<ASTSelectList>(@$, $c);
-    }
-  | select_list_prefix_with_as_aliases[list] "," select_column_expr_with_as_alias[c]
-    {
-      $$ = ExtendNodeRight($list, $c);
     }
 ;
 
@@ -6541,21 +6473,10 @@ unpivot_in_columm_list_with_opt_parens {ASTExpressionList*}:
     }
 ;
 
-path_expression_list_prefix {ASTNode*}:
-    "(" path_expression
-    {
-      $$ = MakeNode<ASTPathExpressionList>(@$, $2);
-    }
-  | path_expression_list_prefix "," path_expression
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 path_expression_list_with_parens {ASTNode*}:
-    path_expression_list_prefix ")"
+    "(" (path_expression separator ",")+[paths] ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTPathExpressionList>(@$, $paths);
     }
 ;
 
@@ -6826,9 +6747,9 @@ align_operator {ASTPostfixTableOperator*}:
 ;
 
 measures_clause {ASTNode*}:
-    "MEASURES" select_list_prefix_with_as_aliases[measures]
+    "MEASURES" (select_column_expr_with_as_alias separator ",")+[measures]
     {
-      $$ = $measures;
+      $$ = MakeNode<ASTSelectList>(@measures, $measures);
     }
 ;
 
@@ -7423,22 +7344,10 @@ graph_ordering_expression {ASTNode*}:
     }
 ;
 
-graph_order_by_clause_prefix {ASTNode*}:
-    "ORDER" hint? "BY" graph_ordering_expression[ordering_expr]
-    {
-      $$ = MakeNode<ASTOrderBy>(@$, $hint, $ordering_expr);
-    }
-  | graph_order_by_clause_prefix[order_by] ","
-    graph_ordering_expression[ordering_expr]
-    {
-      $$ = ExtendNodeRight($order_by, $ordering_expr);
-    }
-;
-
 graph_order_by_clause {ASTNode*}:
-    graph_order_by_clause_prefix[prefix]
+    "ORDER" hint? "BY" (graph_ordering_expression separator ",")+[exprs]
     {
-      $$ = WithEndLocation($prefix, @$);
+      $$ = MakeNode<ASTOrderBy>(@$, $hint, $exprs);
     }
 ;
 
@@ -8136,13 +8045,9 @@ opt_graph_property_specification {ASTNode*}:
 ;
 
 graph_property_specification_prefix {ASTNode*}:
-    "{" graph_property_name_and_value[name_and_value]
+    "{" (graph_property_name_and_value separator ",")+[properties]
     {
-      $$ = MakeNode<ASTGraphPropertySpecification>(@$, $name_and_value);
-    }
-  | graph_property_specification_prefix[prefix] "," graph_property_name_and_value[name_and_value]
-    {
-      $$ = ExtendNodeRight($prefix, $name_and_value);
+      $$ = MakeNode<ASTGraphPropertySpecification>(@$, $properties);
     }
 ;
 
@@ -8388,21 +8293,10 @@ on_clause {ASTNode*}:
     }
 ;
 
-using_clause_prefix {ASTNode*}:
-    "USING" "(" identifier
-    {
-      $$ = MakeNode<ASTUsingClause>(@$, $3);
-    }
-  | using_clause_prefix "," identifier
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 using_clause {ASTNode*}:
-    using_clause_prefix ")"
+    "USING" "(" (identifier separator ",")+[ids] ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTUsingClause>(@$, $ids);
     }
 ;
 
@@ -8808,13 +8702,9 @@ group_by_preamble_in_pipe {GroupByPreamble}:
 ;
 
 group_by_clause_prefix {ASTNode*}:
-    group_by_preamble[preamble] grouping_item[item]
+    group_by_preamble[preamble] (grouping_item separator ",")+[items]
     {
-      $$ = MakeNode<ASTGroupBy>(@$, $preamble.hint, $item);
-    }
-  | group_by_clause_prefix[prefix] "," grouping_item[item]
-    {
-      $$ = ExtendNodeRight($prefix, $item);
+      $$ = MakeNode<ASTGroupBy>(@$, $preamble.hint, $items);
     }
 ;
 
@@ -9400,21 +9290,10 @@ expression_with_alias {ASTExpressionWithAlias*}:
    }
 ;
 
-unnest_expression_prefix {ASTNode*}:
-    "UNNEST" "(" expression_with_opt_alias[expression]
-    {
-      $$ = MakeNode<ASTUnnestExpression>(@$, $expression);
-    }
-  | unnest_expression_prefix[prefix] "," expression_with_opt_alias[expression]
-    {
-      $$ = ExtendNodeRight($prefix, $expression);
-    }
-;
-
 unnest_expression {ASTNode*}:
-    unnest_expression_prefix[prefix] ("," named_argument[array_zip_mode])? ")"
+    "UNNEST" "(" (expression_with_opt_alias separator ",")+[exprs] ("," named_argument[array_zip_mode])? ")"
     {
-      $$ = ExtendNodeRight($prefix, @$.end(), $array_zip_mode);
+      $$ = MakeNode<ASTUnnestExpression>(@$, $exprs, $array_zip_mode);
     }
   | "UNNEST" "(" "SELECT"
     {
@@ -10589,40 +10468,10 @@ slashed_path_expression {ASTExpression*}:
     }
 ;
 
-array_constructor_prefix_no_expressions {ASTExpression*}:
-    "ARRAY" "["
-    {
-      $$ = MakeNode<ASTArrayConstructor>(@$);
-    }
-  | "["
-    {
-      $$ = MakeNode<ASTArrayConstructor>(@$);
-    }
-  | array_type "["
-    {
-      $$ = MakeNode<ASTArrayConstructor>(@$, $1);
-    }
-;
-
-array_constructor_prefix {ASTExpression*}:
-    array_constructor_prefix_no_expressions expression
-    {
-      $$ = ExtendNodeRight($1, $2);
-    }
-  | array_constructor_prefix "," expression
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 array_constructor {ASTExpression*}:
-    array_constructor_prefix_no_expressions "]"
+    ("ARRAY" | array_type)? "[" (expression separator ",")*[exprs] "]"
     {
-      $$ = WithEndLocation($1, @$);
-    }
-  | array_constructor_prefix "]"
-    {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTArrayConstructor>(@$, $array_type, $exprs);
     }
 ;
 
@@ -10730,25 +10579,10 @@ struct_field {ASTNode*}:
     }
 ;
 
-struct_type_prefix {ASTNode*}:
-    "STRUCT" "<" .OpenTypeTemplate struct_field
-    {
-      $$ = MakeNode<ASTStructType>(@$, $3);
-    }
-  | struct_type_prefix "," struct_field
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 struct_type {ASTNode*}:
-    "STRUCT" "<" .OpenTypeTemplate template_type_close
+    "STRUCT" "<" .OpenTypeTemplate (struct_field separator ",")*[fields] template_type_close
     {
-      $$ = MakeNode<ASTStructType>(@$);
-    }
-  | struct_type_prefix template_type_close
-    {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTStructType>(@$, $fields);
     }
 ;
 
@@ -10756,17 +10590,6 @@ range_type {ASTNode*}:
     "RANGE" "<" .OpenTypeTemplate type template_type_close
     {
       $$ = MakeNode<ASTRangeType>(@$, $3);
-    }
-;
-
-function_type_prefix {ASTNode*}:
-    "FUNCTION" "<" .OpenTypeTemplate "(" type
-    {
-      $$ = MakeNode<ASTFunctionTypeArgList>(@$, $type);
-    }
-  | function_type_prefix[prev] "," type
-    {
-      $$ = ExtendNodeRight($prev, $type);
     }
 ;
 
@@ -10781,9 +10604,12 @@ function_type {ASTNode*}:
       auto arg_list = MakeNode<ASTFunctionTypeArgList>(@arg_type, $arg_type);
       $$ = MakeNode<ASTFunctionType>(@$, arg_list, $return_type);
     }
-  | function_type_prefix[arg_list] ")" "->" type[return_type] template_type_close
+  | "FUNCTION" "<" .OpenTypeTemplate "(" (type separator ",")+[types] ")" "->" type[return_type] template_type_close
     {
-      $$ = MakeNode<ASTFunctionType>(@$, $arg_list, $return_type);
+      // The parse location range for the ArgList is currently too wide. It
+      // should not include anything outside the parentheses.
+      auto* arg_list = MakeNode<ASTFunctionTypeArgList>(MakeLocationRange(@1, @types), $types);
+      $$ = MakeNode<ASTFunctionType>(@$, arg_list, $return_type);
     }
 ;
 
@@ -10923,21 +10749,10 @@ new_constructor_arg {ASTNode*}:
     }
 ;
 
-new_constructor_prefix {ASTExpression*}:
-    new_constructor_prefix_no_arg new_constructor_arg
-    {
-      $$ = ExtendNodeRight($1, $2);
-    }
-  | new_constructor_prefix "," new_constructor_arg
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 new_constructor {ASTExpression*}:
-    new_constructor_prefix ")"
+    "NEW" type_name "(" (new_constructor_arg separator ",")+[args] ")"
     {
-      $$ = WithEndLocation($1, @2);
+      $$ = MakeNode<ASTNewConstructor>(@$, $2, $args);
     }
   | new_constructor_prefix_no_arg ")"
     {
@@ -11191,21 +11006,10 @@ replace_fields_arg {ASTNode*}:
     }
 ;
 
-replace_fields_prefix {ASTExpression*}:
-    "REPLACE_FIELDS" "(" expression "," replace_fields_arg
-    {
-      $$ = MakeNode<ASTReplaceFieldsExpression>(@$, $3, $5);
-    }
-  | replace_fields_prefix "," replace_fields_arg
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 replace_fields_expression {ASTExpression*}:
-    replace_fields_prefix ")"
+    "REPLACE_FIELDS" "(" expression "," (replace_fields_arg separator ",")+[args] ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = MakeNode<ASTReplaceFieldsExpression>(@$, $expression, $args);
     }
 ;
 
@@ -11416,6 +11220,14 @@ named_argument {ASTExpression*}:
     {
       $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $column_list_spec);
     }
+  | identifier "=>" model_arg
+    {
+      $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $model_arg);
+    }
+  | identifier "=>" sequence_arg
+    {
+      $$ = MakeNode<ASTNamedArgument>(@$, $identifier, $sequence_arg);
+    }
 ;
 
 lambda_argument {ASTExpression*}:
@@ -11534,32 +11346,24 @@ opt_identifier {ASTIdentifier*}:
     }
 ;
 
-partition_by_clause_prefix {ASTPartitionBy*}:
-    "PARTITION" hint? "BY" expression
+partition_by_clause {ASTPartitionBy*}:
+    "PARTITION" hint? "BY" (expression separator ",")+[exprs]
     {
-      $$ = MakeNode<ASTPartitionBy>(@$, $hint, $4);
-    }
-  | partition_by_clause_prefix "," expression
-    {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = MakeNode<ASTPartitionBy>(@$, $hint, $exprs);
     }
 ;
 
 opt_partition_by_clause {ASTPartitionBy*}:
-    partition_by_clause_prefix[partition_by_clause]?
+    partition_by_clause?
     {
       $$ = $partition_by_clause.value_or(nullptr);
     }
 ;
 
 partition_by_clause_prefix_no_hint {ASTPartitionBy*}:
-    "PARTITION" "BY" expression
+    "PARTITION" "BY" (expression separator ",")+[exprs]
     {
-      $$ = MakeNode<ASTPartitionBy>(@$, $3);
-    }
-  | partition_by_clause_prefix_no_hint "," expression
-    {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = MakeNode<ASTPartitionBy>(@$, $exprs);
     }
 ;
 
@@ -11577,14 +11381,10 @@ partition_by_clause_with_opt_alias {ASTNode*}:
     }
 ;
 
-cluster_by_clause_prefix_no_hint {ASTNode*}:
-    "CLUSTER" "BY" expression
+cluster_by_clause_no_hint {ASTNode*}:
+    "CLUSTER" "BY" (expression separator ",")+[exprs]
     {
-      $$ = MakeNode<ASTClusterBy>(@$, $3);
-    }
-  | cluster_by_clause_prefix_no_hint "," expression
-    {
-      $$ = ExtendNodeRight($1, $3);
+      $$ = MakeNode<ASTClusterBy>(@$, $exprs);
     }
 ;
 
@@ -11592,13 +11392,6 @@ opt_cluster_by_clause_no_hint {ASTNode*}:
     cluster_by_clause_no_hint?
     {
       $$ = $cluster_by_clause_no_hint.value_or(nullptr);
-    }
-;
-
-cluster_by_clause_no_hint {ASTNode*}:
-    cluster_by_clause_prefix_no_hint
-    {
-      $$ = WithEndLocation($1, @$);
     }
 ;
 
@@ -11732,17 +11525,6 @@ struct_constructor_prefix_with_keyword_no_arg {ASTExpression*}:
     }
 ;
 
-struct_constructor_prefix_with_keyword {ASTExpression*}:
-    struct_constructor_prefix_with_keyword_no_arg struct_constructor_arg
-    {
-      $$ = ExtendNodeRight($1, $2);
-    }
-  | struct_constructor_prefix_with_keyword "," struct_constructor_arg
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 struct_constructor_arg {ASTNode*}:
     expression as_alias_with_required_as?
     {
@@ -11764,9 +11546,9 @@ struct_constructor_prefix_without_keyword {ASTExpression*}:
 ;
 
 struct_constructor {ASTExpression*}:
-    struct_constructor_prefix_with_keyword ")"
+    struct_constructor_prefix_with_keyword_no_arg[prefix] (struct_constructor_arg separator ",")+[args] ")"
     {
-      $$ = WithEndLocation($1, @$);
+      $$ = ExtendNodeRight($prefix, @$.end(), $args);
     }
   | struct_constructor_prefix_with_keyword_no_arg ")"
     {
@@ -12940,25 +12722,10 @@ merge_statement {ASTNode*}:
     }
 ;
 
-call_statement_with_args_prefix {ASTNode*}:
-    "CALL" path_expression "(" tvf_argument
-    {
-      $$ = MakeNode<ASTCallStatement>(@$, $2, $4);
-    }
-  | call_statement_with_args_prefix "," tvf_argument
-    {
-      $$ = ExtendNodeRight($1, $3);
-    }
-;
-
 call_statement {ASTNode*}:
-    call_statement_with_args_prefix ")"
+    "CALL" path_expression "(" (tvf_argument separator ",")*[args] ")"
     {
-      $$ = WithEndLocation($1, @$);
-    }
-  | "CALL" path_expression "(" ")"
-    {
-      $$ = MakeNode<ASTCallStatement>(@$, $2);
+      $$ = MakeNode<ASTCallStatement>(@$, $2, $args);
     }
 ;
 
@@ -13610,7 +13377,7 @@ next_statement_kind_without_hint {ASTNodeKind}:
     {
       $$ = ASTDefineTableStatement::kConcreteNodeKind;
     }
-  | KW_DEFINE_FOR_MACROS "MACRO"
+  | KW_DEFINE_FOR_MACROS macro_visibility? "MACRO"
     {
       $$ = ASTDefineMacroStatement::kConcreteNodeKind;
     }

@@ -342,7 +342,7 @@ public class Function implements Serializable {
       Preconditions.checkArgument(proto.getGroup().equals(TEMPLATED_SQL_FUNCTION_GROUP), proto);
       ImmutableList<String> namePath = ImmutableList.copyOf(proto.getNamePathList());
       FunctionSignature signature = FunctionSignature.deserialize(proto.getSignature(0), pools);
-      ImmutableList.Builder<String> builder = new ImmutableList.Builder<String>();
+      ImmutableList.Builder<String> builder = new ImmutableList.Builder<>();
       builder.addAll(proto.getTemplatedSqlFunctionArgumentNameList());
       return new TemplatedSQLFunction(
           namePath,

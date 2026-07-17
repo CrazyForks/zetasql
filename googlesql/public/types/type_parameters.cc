@@ -262,8 +262,7 @@ absl::Status TypeParameters::ValidateNumericTypeParameters(
 absl::Status TypeParameters::ValidateVectorTypeParameters(
     const VectorTypeParametersProto& vector_type_parameters) {
   if (vector_type_parameters.has_length()) {
-    GOOGLESQL_RET_CHECK_GT(vector_type_parameters.length(), 0)
-        << "VECTOR length must be greater than 0";
+    GOOGLESQL_RET_CHECK_GT(vector_type_parameters.length(), 0);
   }
   return absl::OkStatus();
 }

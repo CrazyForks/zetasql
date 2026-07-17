@@ -18,8 +18,10 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "googlesql/parser/macros/token_provider_base.h"
+#include "googlesql/parser/tm_token.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/parser/tokenizer.h"
 #include "googlesql/public/parse_location.h"
@@ -39,7 +41,11 @@ TokenProvider::TokenProvider(absl::string_view filename,
     : TokenProviderBase(filename, input, start_offset, end_offset,
                         offset_in_original_input),
       tokenizer_(std::make_unique<GoogleSqlTokenizer>(
-          filename, input.substr(0, this->end_offset()), start_offset)) {}
+          filename, input.substr(0, this->end_offset()), start_offset)) {
+  lookahead_1_ = GetToken();
+  lookahead_2_ = FetchNextLookahead(lookahead_1_);
+  lookahead_3_ = FetchNextLookahead(lookahead_2_);
+}
 
 std::unique_ptr<TokenProviderBase> TokenProvider::CreateNewInstance(
     absl::string_view filename, absl::string_view input, int start_offset,
@@ -48,15 +54,48 @@ std::unique_ptr<TokenProviderBase> TokenProvider::CreateNewInstance(
                                          end_offset, offset_in_original_input);
 }
 
-absl::StatusOr<TokenWithLocation> TokenProvider::ConsumeNextTokenImpl() {
-  if (!input_token_buffer_.empty()) {
-    // Check for any unused tokens first, before we pull any more
-    const TokenWithLocation front_token = input_token_buffer_.front();
-    input_token_buffer_.pop();
-    return front_token;
+// Derives the next lookahead token from `prev`:
+// - If `prev` is an error, propagates the exact same error.
+// - If `prev` is Token::EOI, propagates EOI with empty preceding whitespace.
+// - Otherwise, fetches the next token from the underlying lexer.
+absl::StatusOr<TokenWithLocation> TokenProvider::FetchNextLookahead(
+    const absl::StatusOr<TokenWithLocation>& prev) {
+  if (!prev.ok()) return prev;
+  if (prev->kind == Token::EOI) {
+    TokenWithLocation eoi = *prev;
+    eoi.preceding_whitespaces = "";
+    return absl::StatusOr<TokenWithLocation>(eoi);
   }
-
   return GetToken();
+}
+
+// Peeks Lookahead 1 (token N+1). Does not call GetToken().
+absl::StatusOr<TokenWithLocation> TokenProvider::PeekNextToken() {
+  return lookahead_1_;
+}
+
+// Peeks Lookahead 2 (token N+2). Does not call GetToken().
+absl::StatusOr<TokenWithLocation> TokenProvider::PeekLookahead2() {
+  return lookahead_2_;
+}
+
+// Peeks Lookahead 3 (token N+3). Does not call GetToken().
+absl::StatusOr<TokenWithLocation> TokenProvider::PeekLookahead3() {
+  return lookahead_3_;
+}
+
+// Consumes Lookahead 1, shifts lookahead buffers left, and refills the buffers.
+absl::StatusOr<TokenWithLocation> TokenProvider::ConsumeNextTokenImpl() {
+  absl::StatusOr<TokenWithLocation> token = lookahead_1_;
+  // If the current token is an error, the lookahead buffers are intentionally
+  // not shifted, meaning subsequent calls will continually return the exact
+  // same error without fetching more tokens from the underlying token stream.
+  if (lookahead_1_.ok()) {
+    lookahead_1_ = std::move(lookahead_2_);
+    lookahead_2_ = std::move(lookahead_3_);
+    lookahead_3_ = FetchNextLookahead(lookahead_2_);
+  }
+  return token;
 }
 
 absl::StatusOr<TokenWithLocation> TokenProvider::GetToken() {

@@ -18,11 +18,13 @@
 package com.google.googlesql;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import com.google.googlesql.GoogleSQLTypeParameters.NumericTypeParametersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.StringTypeParametersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.TypeParametersProto;
+import com.google.googlesql.GoogleSQLTypeParameters.VectorTypeParametersProto;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +54,15 @@ public final class TypeParametersTest {
     assertThat(typeParameters.isStringTypeParameters()).isTrue();
     assertThat(typeParameters.getStringTypeParameters().getMaxLength()).isEqualTo(1000);
     assertThat(typeParameters.debugString()).isEqualTo("(max_length=1000)");
+  }
+
+  @Test
+  public void createVectorTypeParametersWithLength() {
+    VectorTypeParametersProto proto = VectorTypeParametersProto.newBuilder().setLength(10).build();
+    TypeParameters typeParameters = new TypeParameters(proto);
+    assertThat(typeParameters.isVectorTypeParameters()).isTrue();
+    assertThat(typeParameters.getVectorTypeParameters().getLength()).isEqualTo(10);
+    assertThat(typeParameters.debugString()).isEqualTo("(length=10)");
   }
 
   @Test
@@ -121,6 +132,12 @@ public final class TypeParametersTest {
   }
 
   @Test
+  public void serializeAndDeserializeVectorTypeParameters() {
+    checkSerializeAndDeserialize(
+        new TypeParameters(VectorTypeParametersProto.newBuilder().setLength(10).build()));
+  }
+
+  @Test
   public void serializeAndDeserializeNumericTypeParameters() {
     checkSerializeAndDeserialize(
         new TypeParameters(
@@ -167,6 +184,18 @@ public final class TypeParametersTest {
     } catch (IllegalArgumentException expected) {
       assertThat(expected).hasMessageThat().contains("max_length must be larger than 0");
     }
+  }
+
+  @Test
+  public void deserializeVectorTypeParametersFailed() {
+    // length <= 0.
+    TypeParametersProto proto =
+        TypeParametersProto.newBuilder()
+            .setVectorTypeParameters(VectorTypeParametersProto.newBuilder().setLength(-10))
+            .build();
+    var expected =
+        assertThrows(IllegalArgumentException.class, () -> TypeParameters.deserialize(proto));
+    assertThat(expected).hasMessageThat().contains("length must be larger than 0");
   }
 
   @Test
@@ -249,11 +278,20 @@ public final class TypeParametersTest {
     assertThat(stringParam1.equals(stringParam2)).isTrue();
     assertThat(stringParam1.equals(stringParam3)).isFalse();
 
+    TypeParameters vectorParam1 =
+        new TypeParameters(VectorTypeParametersProto.newBuilder().setLength(10).build());
+    TypeParameters vectorParam2 =
+        new TypeParameters(VectorTypeParametersProto.newBuilder().setLength(10).build());
+    TypeParameters vectorParam3 =
+        new TypeParameters(VectorTypeParametersProto.newBuilder().setLength(100).build());
+    assertThat(vectorParam1.equals(vectorParam2)).isTrue();
+    assertThat(vectorParam1.equals(vectorParam3)).isFalse();
+
     List<TypeParameters> childList1 =
-        Arrays.asList(stringParam1, new TypeParameters(), numericParam1);
+        Arrays.asList(stringParam1, new TypeParameters(), numericParam1, vectorParam1);
     List<TypeParameters> childList2 =
-        Arrays.asList(stringParam2, new TypeParameters(), numericParam2);
-    List<TypeParameters> childList3 = Arrays.asList(stringParam3, numericParam2);
+        Arrays.asList(stringParam2, new TypeParameters(), numericParam2, vectorParam2);
+    List<TypeParameters> childList3 = Arrays.asList(stringParam3, numericParam2, vectorParam3);
     assertThat(new TypeParameters(childList1).equals(new TypeParameters(childList2))).isTrue();
     assertThat(new TypeParameters(childList1).equals(new TypeParameters(childList3))).isFalse();
   }

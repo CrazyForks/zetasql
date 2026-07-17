@@ -2169,8 +2169,13 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
     const InputArgumentType& input_arg_type = input_argument_types[i];
     if (input_arg_type.type() == nullptr && !input_arg_type.is_lambda()) {
       if (input_arg_type.is_sequence()) {
+        const ASTNode* sequence_arg_node = arg_locations[i];
+        if (sequence_arg_node->Is<ASTNamedArgument>()) {
+          sequence_arg_node =
+              sequence_arg_node->GetAsOrDie<ASTNamedArgument>()->expr();
+        }
         const ASTSequenceArg* sequence_arg =
-            arg_locations[i]->GetAs<ASTSequenceArg>();
+            sequence_arg_node->GetAsOrDie<ASTSequenceArg>();
         std::unique_ptr<const ResolvedSequence> resolved_sequence;
         GOOGLESQL_RETURN_IF_ERROR(resolver_->ResolveSequence(
             sequence_arg->sequence_path(), &resolved_sequence));
@@ -2179,7 +2184,13 @@ absl::Status FunctionResolver::ResolveGeneralFunctionCall(
         arg->set_sequence(std::move(resolved_sequence));
         arg_overrides.push_back(FunctionArgumentOverride{i, std::move(arg)});
       } else if (input_arg_type.is_model()) {
-        const ASTModelArg* model_arg = arg_locations[i]->GetAs<ASTModelArg>();
+        const ASTNode* model_arg_node = arg_locations[i];
+        if (model_arg_node->Is<ASTNamedArgument>()) {
+          model_arg_node =
+              model_arg_node->GetAsOrDie<ASTNamedArgument>()->expr();
+        }
+        const ASTModelArg* model_arg =
+            model_arg_node->GetAsOrDie<ASTModelArg>();
         std::unique_ptr<const ResolvedModel> resolved_model;
         GOOGLESQL_RETURN_IF_ERROR(
             resolver_->ResolveModel(model_arg->model_path(), &resolved_model));

@@ -721,6 +721,7 @@ cc_library(
         "//googlesql/public:interval_value",
         "//googlesql/public:numeric_value",
         "//googlesql/public:options_cc_proto",
+        "//googlesql/public:time_series_tvf_util",
         "//googlesql/public:type_cc_proto",
         "//googlesql/public/annotation:collation",
         "//googlesql/public/functions:differential_privacy_cc_proto",

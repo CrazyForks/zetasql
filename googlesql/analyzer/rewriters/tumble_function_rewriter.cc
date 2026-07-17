@@ -16,12 +16,14 @@
 
 #include "googlesql/analyzer/rewriters/tumble_function_rewriter.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "googlesql/analyzer/substitute.h"
+#include "googlesql/common/errors.h"
 #include "googlesql/public/analyzer_options.h"
 #include "googlesql/public/analyzer_output_properties.h"
 #include "googlesql/public/builtin_function.pb.h"
@@ -30,6 +32,7 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/rewriter_interface.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/time_series_tvf_util.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/public/value.h"
@@ -52,8 +55,10 @@ namespace {
 
 struct TumbleFunctionArguments {
   std::vector<ResolvedColumn> tvf_column_list;
+  std::vector<int> column_index_list;
+  std::vector<ResolvedColumn> argument_column_list;
   std::unique_ptr<const ResolvedScan> input_relation;
-  const ResolvedColumn* timestamp_column = nullptr;
+  ResolvedTimestampColumnPath timestamp_column;
   std::unique_ptr<const ResolvedExpr> window_size_expr;
   std::unique_ptr<const ResolvedExpr> origin_expr;
 };
@@ -132,19 +137,26 @@ class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
     GOOGLESQL_RET_CHECK(ts_arg != nullptr);
     const ResolvedExpr* ts_col_expr = ts_arg->expr();
     GOOGLESQL_RET_CHECK(ts_col_expr != nullptr);
+    GOOGLESQL_RET_CHECK(ts_col_expr->node_kind() == RESOLVED_LITERAL);
     const ResolvedLiteral* ts_col_literal =
         ts_col_expr->GetAs<ResolvedLiteral>();
-    GOOGLESQL_RET_CHECK(ts_col_literal != nullptr);
     const Value& ts_col_val = ts_col_literal->value();
     GOOGLESQL_RET_CHECK(!ts_col_val.is_null());
     GOOGLESQL_RET_CHECK(ts_col_val.type()->IsString());
     const std::string ts_col_name = ts_col_val.string_value();
 
-    // FindAndValidateTimestampColumnInScan performs user-facing SQL validation.
-    GOOGLESQL_ASSIGN_OR_RETURN(
-        const ResolvedColumn* timestamp_column,
-        FindAndValidateTimestampColumnInScan(*ts_arg, ts_col_name, *input_scan,
-                                             "TUMBLE", product_mode_));
+    // Resolve and validate the timestamp column path.
+    const TVFRelation& input_relation =
+        node->signature()->argument(0).relation();
+    absl::StatusOr<ResolvedTimestampColumnPath> timestamp_column =
+        ResolveTimestampColumnPath(input_relation, ts_col_name, &type_factory_);
+    if (!timestamp_column.ok()) {
+      GOOGLESQL_RET_CHECK_EQ(timestamp_column.status().code(),
+                   absl::StatusCode::kInvalidArgument)
+          << timestamp_column.status();
+      return MakeSqlErrorAtStart(ts_arg->GetParseLocationRangeOrNULL())
+             << timestamp_column.status().message();
+    }
 
     // Argument 2: Window size.
     const ResolvedTVFArgument* window_size_arg = node->argument_list(2);
@@ -158,16 +170,22 @@ class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
     const ResolvedExpr* origin_expr = origin_arg->expr();
     GOOGLESQL_RET_CHECK(origin_expr != nullptr);
 
-    // Ensure arguments don't contain correlations to outer scopes. Parameters
-    // like window_size logically must be fixed for the entire input relation,
-    // they cannot change per-row of an outer query.
+    // Ensure arguments don't contain correlations to outer scopes. The rewriter
+    // puts the argument expressions into a CTE, and GoogleSQL currently does
+    // not support correlated references in a CTE. See b/244184304 and
+    // (broken link).
     GOOGLESQL_RETURN_IF_ERROR(ValidateArgumentsDoNotContainCorrelation(
         node.get(), "TUMBLE", {window_size_expr, origin_expr}));
 
+    std::vector<ResolvedColumn> argument_column_list =
+        input_arg->argument_column_list();
+    std::vector<int> column_index_list = node->column_index_list();
     ResolvedTVFScanBuilder builder = ToBuilder(std::move(node));
     auto args = std::make_unique<TumbleFunctionArguments>();
     args->tvf_column_list = builder.release_column_list();
-    args->timestamp_column = timestamp_column;
+    args->column_index_list = std::move(column_index_list);
+    args->argument_column_list = std::move(argument_column_list);
+    args->timestamp_column = std::move(*timestamp_column);
 
     std::vector<std::unique_ptr<const ResolvedTVFArgument>> argument_list =
         builder.release_argument_list();
@@ -288,6 +306,9 @@ class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
     }
 
     return ResolvedWithEntryBuilder()
+        // TODO: b/535152130 - The injected CTE name "_tumble_params" can
+        // collide with user-defined CTEs. CTE names in a ResolvedAST must be
+        // globally unique.
         .set_with_query_name("_tumble_params")
         .set_with_subquery(
             ResolvedProjectScanBuilder()
@@ -350,8 +371,13 @@ class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
     // Creates a TIMESTAMP_BUCKET(ts_col, window_size, origin) expression.
     auto make_window_start_expr =
         [&]() -> absl::StatusOr<std::unique_ptr<const ResolvedExpr>> {
-      auto ts_col_ref = MakeResolvedColumnRef(args.timestamp_column->type(),
-                                              *args.timestamp_column, false);
+      // BuildTimestampColumnExpression assumes that the path is valid (which is
+      // true since we resolved and validated it in ExtractTumbleArguments).
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          auto ts_col_ref,
+          BuildTimestampColumnExpression(
+              args.timestamp_column,
+              args.argument_column_list[args.timestamp_column.column_index]));
       std::vector<std::unique_ptr<const ResolvedExpr>> bucket_args;
       bucket_args.push_back(std::move(ts_col_ref));
       GOOGLESQL_ASSIGN_OR_RETURN(auto window_size_expr, get_window_size_expr());
@@ -362,47 +388,52 @@ class TumbleRewriteVisitor : public ResolvedASTRewriteVisitor {
     };
     std::vector<std::unique_ptr<const ResolvedComputedColumn>> output_expr_list;
     const ResolvedColumnList& output_column_list = args.tvf_column_list;
-    const ResolvedColumnList& input_columns = input_relation->column_list();
+    const std::vector<ResolvedColumn>& argument_column_list =
+        args.argument_column_list;
+    const size_t num_input_columns = argument_column_list.size();
 
-    GOOGLESQL_RET_CHECK_GE(output_column_list.size(), 2);
+    GOOGLESQL_RET_CHECK_EQ(output_column_list.size(), args.column_index_list.size());
 
-    // 1. Copy all input columns, excluding any existing "window_start" or
-    // "window_end" because TUMBLE overwrites them. TUMBLE adds its computed
-    // WINDOW_START and WINDOW_END at the end of the output_column_list.
-    // TODO: b/525546845 - Delete this logic. Matching on ResolvedColumn::name()
-    // is fragile as it is primarily an alias/hint. This filtering will become
-    // obsolete once TUMBLE is implemented as a passthrough TVF (where columns
-    // are not dropped).
-    int out_index = 0;
-    for (int i = 0; i < input_columns.size(); ++i) {
-      if (googlesql_base::CaseEqual(input_columns[i].name(), "WINDOW_START") ||
-          googlesql_base::CaseEqual(input_columns[i].name(), "WINDOW_END")) {
-        continue;
+    // Map each output column by looking up its index in the TVF's
+    // argument_column_list. Since we are looping over output_column_list,
+    // columns pruned due to column pruning (i.e., not referenced in the
+    // query) are already excluded from the output_column_list and will be
+    // excluded from the rewritten output.
+    // Indices greater than num_input_columns correspond to new columns created
+    // by the TVF - WINDOW_START and WINDOW_END.
+    for (int i = 0; i < output_column_list.size(); ++i) {
+      const int idx = args.column_index_list[i];
+      if (idx < num_input_columns) {
+        // Passing input columns through to the output.
+        const ResolvedColumn& input_col = argument_column_list[idx];
+        output_expr_list.push_back(MakeResolvedComputedColumn(
+            output_column_list[i],
+            MakeResolvedColumnRef(input_col.type(), input_col,
+                                  /*is_correlated=*/false)));
+      } else if (idx == num_input_columns) {
+        // WINDOW_START column.
+        const ResolvedColumn& window_start_col = output_column_list[i];
+        GOOGLESQL_RET_CHECK(
+            googlesql_base::CaseEqual(window_start_col.name(), "WINDOW_START"));
+        GOOGLESQL_ASSIGN_OR_RETURN(auto window_start_expr, make_window_start_expr());
+        output_expr_list.push_back(MakeResolvedComputedColumn(
+            window_start_col, std::move(window_start_expr)));
+      } else if (idx == num_input_columns + 1) {
+        // WINDOW_END column.
+        const ResolvedColumn& window_end_col = output_column_list[i];
+        GOOGLESQL_RET_CHECK(googlesql_base::CaseEqual(window_end_col.name(), "WINDOW_END"));
+        GOOGLESQL_ASSIGN_OR_RETURN(auto window_start_expr_for_end,
+                         make_window_start_expr());
+        GOOGLESQL_ASSIGN_OR_RETURN(auto window_size_expr, get_window_size_expr());
+        GOOGLESQL_ASSIGN_OR_RETURN(auto window_end_expr,
+                         fn_builder_.Add(std::move(window_start_expr_for_end),
+                                         std::move(window_size_expr)));
+        output_expr_list.push_back(MakeResolvedComputedColumn(
+            window_end_col, std::move(window_end_expr)));
+      } else {
+        GOOGLESQL_RET_CHECK_FAIL() << "Invalid column index: " << idx;
       }
-      output_expr_list.push_back(MakeResolvedComputedColumn(
-          output_column_list[out_index++],
-          MakeResolvedColumnRef(input_columns[i].type(), input_columns[i],
-                                false)));
     }
-
-    // 2. Compute the inserted time window columns (appended at the end).
-    const ResolvedColumn& window_start_col = output_column_list[out_index++];
-    GOOGLESQL_RET_CHECK(googlesql_base::CaseEqual(window_start_col.name(), "WINDOW_START"));
-    GOOGLESQL_ASSIGN_OR_RETURN(auto window_start_expr, make_window_start_expr());
-    output_expr_list.push_back(MakeResolvedComputedColumn(
-        window_start_col, std::move(window_start_expr)));
-
-    const ResolvedColumn& window_end_col = output_column_list[out_index++];
-    GOOGLESQL_RET_CHECK(googlesql_base::CaseEqual(window_end_col.name(), "WINDOW_END"));
-    GOOGLESQL_ASSIGN_OR_RETURN(auto window_start_expr_for_end, make_window_start_expr());
-    GOOGLESQL_ASSIGN_OR_RETURN(auto window_size_expr, get_window_size_expr());
-    GOOGLESQL_ASSIGN_OR_RETURN(auto window_end_expr,
-                     fn_builder_.Add(std::move(window_start_expr_for_end),
-                                     std::move(window_size_expr)));
-    output_expr_list.push_back(
-        MakeResolvedComputedColumn(window_end_col, std::move(window_end_expr)));
-
-    GOOGLESQL_RET_CHECK_EQ(out_index, output_column_list.size());
     return ResolvedProjectScanBuilder()
         .set_column_list(output_column_list)
         .set_expr_list(std::move(output_expr_list))

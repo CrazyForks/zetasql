@@ -510,7 +510,8 @@ size_t FieldPathHash(const ResolvedExpr* expr) {
   }
 }
 
-static bool IsProtoOrStructFieldAccess(const ResolvedNode* node) {
+// Returns true if `node` represents a field path access via a container type.
+static bool IsContainerFieldAccess(const ResolvedNode* node) {
   return node->node_kind() == RESOLVED_GET_PROTO_FIELD ||
          node->node_kind() == RESOLVED_GET_STRUCT_FIELD ||
          node->node_kind() == RESOLVED_GET_JSON_FIELD ||
@@ -570,7 +571,7 @@ static bool IsInParameterListOfParent(
 //     to its parent node collected from the same resolved ast.
 // `name_path`: The longest name path that can be restored.
 // `id_string_pool`: It is used to allocate IdStrings that is used internally.
-static absl::StatusOr<bool> GetLongestProtoOrStructNamePathForPrefixMatching(
+static absl::StatusOr<bool> GetLongestContainerFieldNamePathForPrefixMatching(
     const ResolvedColumnRef* column_ref,
     const ParentPointerMap& parent_pointer_map, ValidNamePath* name_path,
     IdStringPool* id_string_pool) {
@@ -595,7 +596,7 @@ static absl::StatusOr<bool> GetLongestProtoOrStructNamePathForPrefixMatching(
 
   // If the parent node of the column ref does not belong to a groupable path
   // expression, the path is the column ref itself.
-  if (!IsProtoOrStructFieldAccess(parent)) {
+  if (!IsContainerFieldAccess(parent)) {
     name_path->set_name_path({});
     name_path->set_target_column(column_ref->column());
     return true;
@@ -607,7 +608,7 @@ static absl::StatusOr<bool> GetLongestProtoOrStructNamePathForPrefixMatching(
   while (true) {
     auto it = parent_pointer_map.find(path_start);
     if (it != parent_pointer_map.end() && it->second != nullptr &&
-        IsProtoOrStructFieldAccess(it->second)) {
+        IsContainerFieldAccess(it->second)) {
       path_start = it->second->GetAs<ResolvedExpr>();
       continue;
     }
@@ -672,7 +673,7 @@ absl::StatusOr<bool> AllPathsInExprHaveExpectedPrefixes(
     ValidNamePath name_path;
     GOOGLESQL_ASSIGN_OR_RETURN(
         bool found_name_path,
-        GetLongestProtoOrStructNamePathForPrefixMatching(
+        GetLongestContainerFieldNamePathForPrefixMatching(
             column_ref, parent_pointer_map, &name_path, id_string_pool));
     if (!found_name_path) {
       continue;

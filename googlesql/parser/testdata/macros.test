@@ -160,6 +160,26 @@ DefineMacroStatement [0-18] [DEFINE MACRO m1 */]
 DEFINE MACRO m1 */
 ==
 
+[macro_expansion_mode=strict]
+DEFINE PUBLIC MACRO m1 3m
+--
+DefineMacroStatement [0-25] [DEFINE PUBLIC MACRO m1 3m]
+  Identifier(m1) [20-22] [m1]
+  MacroBody(3m) [23-25] [3m]
+--
+DEFINE PUBLIC MACRO m1 3m
+==
+
+[macro_expansion_mode=strict]
+DEFINE PRIVATE MACRO m1 3m
+--
+DefineMacroStatement [0-26] [DEFINE PRIVATE MACRO m1 3m]
+  Identifier(m1) [21-23] [m1]
+  MacroBody(3m) [24-26] [3m]
+--
+DEFINE PRIVATE MACRO m1 3m
+==
+
 # Disabling the flag disallows '$'
 # Would it be nicer to say "Macros are not supported."?  It would be an easy fix
 [language_features=NONE]

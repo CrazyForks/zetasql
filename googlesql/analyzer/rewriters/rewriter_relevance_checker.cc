@@ -332,6 +332,10 @@ class RewriteApplicabilityChecker : public ResolvedASTVisitor {
               googlesql::FN_TUMBLE) {
         applicable_rewrites_->insert(REWRITE_TUMBLE_FUNCTION);
       }
+      if (node->function_call_signature() != nullptr &&
+          node->function_call_signature()->context_id() == googlesql::FN_HOP) {
+        applicable_rewrites_->insert(REWRITE_HOP_FUNCTION);
+      }
     }
     if (node->tvf()->Is<SQLTableValuedFunction>() ||
         node->tvf()->Is<TemplatedSQLTVF>()) {

@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 
+#include "googlesql/parser/ast_enums.pb.h"
 #include "googlesql/public/parse_location.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/node_hash_map.h"
@@ -61,6 +62,10 @@ struct MacroInfo {
   int definition_start_line = 1;
   int definition_start_column = 1;
 
+  // Whether this macro is PUBLIC or PRIVATE.
+  ASTDefineMacroStatementEnums::MacroVisibility visibility =
+      ASTDefineMacroStatementEnums::MACRO_VISIBILITY_UNSPECIFIED;
+
   // Returns the name of this macro.
   absl::string_view name() const {
     return name_location.GetTextFrom(source_text);
@@ -79,7 +84,8 @@ struct MacroInfo {
            lhs.body_location == rhs.body_location &&
            lhs.definition_start_offset == rhs.definition_start_offset &&
            lhs.definition_start_line == rhs.definition_start_line &&
-           lhs.definition_start_column == rhs.definition_start_column;
+           lhs.definition_start_column == rhs.definition_start_column &&
+           lhs.visibility == rhs.visibility;
   }
 };
 

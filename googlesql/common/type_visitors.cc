@@ -184,9 +184,20 @@ absl::StatusOr<AnnotatedType> TypeRewriter::Visit(
     rewritten_components.push_back(std::move(rewritten_component));
   }
 
+  GOOGLESQL_ASSIGN_OR_RETURN(
+      const Type* output_type,
+      ReconstructFromComponents(type, rewritten_components, type_factory_));
+
   std::unique_ptr<AnnotationMap> output_annotation_map =
-      annotation_map == nullptr ? AnnotationMap::Create(type)
-                                : annotation_map->Clone();
+      AnnotationMap::Create(output_type);
+  if (annotation_map != nullptr) {
+    // Copy the top-level annotations. This is correct because the top-level
+    // structure of `output_type` is the same as `type`, so the annotations
+    // are compatible.
+    //
+    // The child annotations are handled in the for loop below.
+    output_annotation_map->annotations_ = annotation_map->annotations_;
+  }
   if (output_annotation_map != nullptr && !rewritten_components.empty()) {
     GOOGLESQL_RET_CHECK(output_annotation_map->IsStructMap());
     StructAnnotationMap* composite_map = output_annotation_map->AsStructMap();
@@ -197,7 +208,9 @@ absl::StatusOr<AnnotatedType> TypeRewriter::Visit(
     }
   }
 
-  output_annotation_map->Normalize();
+  if (output_annotation_map != nullptr) {
+    output_annotation_map->Normalize();
+  }
 
   const AnnotationMap* output_annotations = nullptr;
   if (output_annotation_map == nullptr || output_annotation_map->Empty()) {
@@ -207,10 +220,6 @@ absl::StatusOr<AnnotatedType> TypeRewriter::Visit(
     GOOGLESQL_ASSIGN_OR_RETURN(output_annotations, type_factory_.TakeOwnership(
                                              std::move(output_annotation_map)));
   }
-
-  GOOGLESQL_ASSIGN_OR_RETURN(
-      const Type* output_type,
-      ReconstructFromComponents(type, rewritten_components, type_factory_));
 
   return PostVisit(AnnotatedType(output_type, output_annotations));
 }

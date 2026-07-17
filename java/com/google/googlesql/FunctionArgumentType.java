@@ -254,67 +254,67 @@ public final class FunctionArgumentType implements Serializable {
 
   private static String signatureArgumentKindToString(SignatureArgumentKind kind) {
     switch (kind) {
-      case ARG_TYPE_FIXED:
+      case ARG_KIND_EXPR_FIXED:
         return "FIXED";
-      case ARG_TYPE_ANY_1:
+      case ARG_KIND_EXPR_ANY_1:
         return "<T1>";
-      case ARG_TYPE_ANY_2:
+      case ARG_KIND_EXPR_ANY_2:
         return "<T2>";
-      case ARG_TYPE_ANY_3:
+      case ARG_KIND_EXPR_ANY_3:
         return "<T3>";
-      case ARG_TYPE_ANY_4:
+      case ARG_KIND_EXPR_ANY_4:
         return "<T4>";
-      case ARG_TYPE_ANY_5:
+      case ARG_KIND_EXPR_ANY_5:
         return "<T5>";
-      case ARG_ARRAY_TYPE_ANY_1:
+      case ARG_KIND_EXPR_ARRAY_ANY_1:
         return "<array<T1>>";
-      case ARG_ARRAY_TYPE_ANY_2:
+      case ARG_KIND_EXPR_ARRAY_ANY_2:
         return "<array<T2>>";
-      case ARG_ARRAY_TYPE_ANY_3:
+      case ARG_KIND_EXPR_ARRAY_ANY_3:
         return "<array<T3>>";
-      case ARG_ARRAY_TYPE_ANY_4:
+      case ARG_KIND_EXPR_ARRAY_ANY_4:
         return "<array<T4>>";
-      case ARG_ARRAY_TYPE_ANY_5:
+      case ARG_KIND_EXPR_ARRAY_ANY_5:
         return "<array<T5>>";
-      case ARG_ENUM_ANY:
+      case ARG_KIND_EXPR_ENUM_ANY:
         return "<enum>";
-      case ARG_PROTO_MAP_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_ANY:
         return "<map<K, V>>";
-      case ARG_PROTO_MAP_KEY_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_KEY_ANY:
         return "<K>";
-      case ARG_PROTO_MAP_VALUE_ANY:
+      case ARG_KIND_EXPR_PROTO_MAP_VALUE_ANY:
         return "<V>";
-      case ARG_PROTO_ANY:
+      case ARG_KIND_EXPR_PROTO_ANY:
         return "<proto>";
-      case ARG_STRUCT_ANY:
+      case ARG_KIND_EXPR_STRUCT_ANY:
         return "<struct>";
-      case ARG_TYPE_RELATION:
+      case ARG_KIND_RELATION:
         return "ANY TABLE";
-      case ARG_TYPE_CONNECTION:
+      case ARG_KIND_CONNECTION:
         return "ANY CONNECTION";
-      case ARG_TYPE_DESCRIPTOR:
+      case ARG_KIND_DESCRIPTOR:
         return "ANY DESCRIPTOR";
-      case ARG_TYPE_MODEL:
+      case ARG_KIND_MODEL:
         return "ANY MODEL";
-      case ARG_TYPE_ARBITRARY:
+      case ARG_KIND_EXPR_ARBITRARY:
         return "<arbitrary>";
-      case ARG_TYPE_VOID:
+      case ARG_KIND_VOID:
         return "<void>";
-      case ARG_TYPE_LAMBDA:
+      case ARG_KIND_LAMBDA:
         return "<function<T->T>>";
-      case ARG_TYPE_GRAPH_NODE:
+      case ARG_KIND_EXPR_GRAPH_NODE:
         return "<graph_node>";
-      case ARG_TYPE_GRAPH_EDGE:
+      case ARG_KIND_EXPR_GRAPH_EDGE:
         return "<graph_edge>";
-      case ARG_TYPE_GRAPH_ELEMENT:
+      case ARG_KIND_EXPR_GRAPH_ELEMENT:
         return "<graph_element>";
-      case ARG_TYPE_GRAPH:
+      case ARG_KIND_GRAPH:
         return "ANY GRAPH";
-      case ARG_TYPE_GRAPH_PATH:
+      case ARG_KIND_EXPR_GRAPH_PATH:
         return "<graph_path>";
-      case ARG_TYPE_SEQUENCE:
+      case ARG_KIND_SEQUENCE:
         return "ANY SEQUENCE";
-      case ARG_TYPE_STRING_ANY:
+      case ARG_KIND_EXPR_STRING_ANY:
         return "ANY STRING";
       case __SignatureArgumentKind__switch_must_have_a_default__:
       default:

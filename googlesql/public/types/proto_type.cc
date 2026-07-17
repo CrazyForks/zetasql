@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "googlesql/common/errors.h"
 #include "googlesql/common/float_margin.h"
 #include "googlesql/common/proto_format_utils.h"
@@ -60,6 +59,7 @@
 #include "google/protobuf/message.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "google/protobuf/util/field_comparator.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace googlesql {
 

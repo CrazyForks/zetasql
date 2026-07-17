@@ -54,6 +54,7 @@ class AnnotationSpec;
 class StructAnnotationMap;
 class ArrayType;
 class StructType;
+class TypeRewriter;
 
 ABSL_DEPRECATED("Inline me!")
 typedef StructAnnotationMap ArrayAnnotationMap;
@@ -251,6 +252,7 @@ class AnnotationMap {
   friend class AnnotationTest;
   friend class StructAnnotationMap;
   friend class TypeFactory;
+  friend class TypeRewriter;
 
   // Returns estimated size of memory owned by this AnnotationMap. The estimated
   // size includes size of the fields if this instance is a StructAnnotationMap.

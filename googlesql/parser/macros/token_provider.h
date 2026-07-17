@@ -19,12 +19,10 @@
 
 #include <memory>
 #include <optional>
-#include <queue>
 
 #include "googlesql/parser/macros/token_provider_base.h"
 #include "googlesql/parser/token_with_location.h"
 #include "googlesql/parser/tokenizer.h"
-#include "googlesql/base/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
@@ -49,15 +47,39 @@ class TokenProvider : public TokenProviderBase {
       std::optional<int> end_offset,
       int offset_in_original_input) const override;
 
-  // Peeks the next token, but does not consume it.
-  absl::StatusOr<TokenWithLocation> PeekNextToken() override {
-    if (input_token_buffer_.empty()) {
-      GOOGLESQL_ASSIGN_OR_RETURN(TokenWithLocation next_token, GetToken());
-      input_token_buffer_.push(next_token);
-      return next_token;
-    }
-    return input_token_buffer_.front();
+  // Returns Lookahead 1 (token N+1) without consuming from the input.
+  //
+  // Token output rules:
+  // - If a previous call to `GetNextToken()` or `PeekNextToken()` returned an
+  //   error status or an End-of-Input (EOI) token, which can be because:
+  //   - The underlying token stream produced an error.
+  //   - The stream reached the real end of input.
+  //
+  //   all future calls to `PeekNextToken()` and `GetNextToken()` return the
+  //   exact same error status, or an EOI token with empty preceding
+  //   whitespaces.
+  absl::StatusOr<TokenWithLocation> PeekNextToken() override;
+
+  // Same as `PeekNextToken()`.
+  absl::StatusOr<TokenWithLocation> PeekLookahead1() override {
+    return PeekNextToken();
   }
+
+  // Returns Lookahead 2 (token N+2) without consuming from the input.
+  //
+  // Lookahead invariants:
+  // - If `PeekNextToken()` or a lookahead is an error status or Token::EOI, all
+  //   further lookaheads return the exact same error status or Token::EOI with
+  //   empty preceding whitespaces.
+  absl::StatusOr<TokenWithLocation> PeekLookahead2() override;
+
+  // Returns Lookahead 3 (token N+3) without consuming from the input.
+  //
+  // Lookahead invariants:
+  // - If `PeekLookahead2()` or a lookahead is an error status or Token::EOI,
+  //   all further lookaheads return the exact same error status or Token::EOI
+  //   with empty preceding whitespaces.
+  absl::StatusOr<TokenWithLocation> PeekLookahead3() override;
 
  protected:
   // Consumes the next token from the buffer, or pull one from Flex if the
@@ -65,15 +87,21 @@ class TokenProvider : public TokenProviderBase {
   absl::StatusOr<TokenWithLocation> ConsumeNextTokenImpl() override;
 
  private:
+  // Helper method to fetch the next lookahead token or propagate EOI / errors.
+  absl::StatusOr<TokenWithLocation> FetchNextLookahead(
+      const absl::StatusOr<TokenWithLocation>& prev);
+
   // Pulls the next token from the lexer.
   absl::StatusOr<TokenWithLocation> GetToken();
 
   // The GoogleSQL tokenizer which gives us all the tokens.
   std::unique_ptr<GoogleSqlTokenizer> tokenizer_;
 
-  // Used as a buffer when we need a lookahead from the tokenizer.
+  // Fixed lookahead buffers storing up to three lookahead tokens (1, 2, 3).
   // Any tokens here are still unprocessed by the expander.
-  std::queue<TokenWithLocation> input_token_buffer_;
+  absl::StatusOr<TokenWithLocation> lookahead_1_;
+  absl::StatusOr<TokenWithLocation> lookahead_2_;
+  absl::StatusOr<TokenWithLocation> lookahead_3_;
 };
 
 }  // namespace macros

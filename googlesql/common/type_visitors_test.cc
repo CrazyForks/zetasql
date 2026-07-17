@@ -259,4 +259,64 @@ TEST(TypeRewriterTest, UnchangedRewriteReturnsOriginalTypeInstance) {
   EXPECT_THAT(rewritten_type.type, Eq(rich_type.type));
 }
 
+class SelectiveCollatedStringReplacer : public TypeRewriter {
+ public:
+  explicit SelectiveCollatedStringReplacer(TypeFactory& type_factory)
+      : TypeRewriter(type_factory) {}
+
+  absl::StatusOr<AnnotatedType> PostVisit(
+      AnnotatedType annotated_type) override {
+    const auto& [type, annotation_map] = annotated_type;
+    if (!type->IsString() || annotation_map == nullptr) {
+      return annotated_type;
+    }
+    const SimpleValue* collation =
+        annotation_map->GetAnnotation(CollationAnnotation::GetId());
+    if (collation != nullptr && collation->string_value() == "und:ci") {
+      auto owned_annotation_map = annotation_map->Clone();
+      owned_annotation_map->UnsetAnnotation(CollationAnnotation::GetId());
+      GOOGLESQL_ASSIGN_OR_RETURN(
+          const AnnotationMap* new_annotation_map,
+          type_factory().TakeOwnership(std::move(owned_annotation_map)));
+      return AnnotatedType(types::BytesType(), new_annotation_map);
+    }
+    return annotated_type;
+  }
+};
+
+TEST(TypeRewriterTest, NormalizationTest) {
+  auto type_factory = std::make_unique<TypeFactory>();
+  // STRUCT<f1 STRING{und:ci}, f2 STRING{de:ci}>
+  const StructType* struct_type;
+  std::vector<StructField> fields;
+  fields.emplace_back("f1", types::StringType());
+  fields.emplace_back("f2", types::StringType());
+  GOOGLESQL_ASSERT_OK(type_factory->MakeStructType(fields, &struct_type));
+
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(const AnnotationMap* und_ci,
+                       MakeCollationAnnotation("und:ci", *type_factory));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(const AnnotationMap* de_ci,
+                       MakeCollationAnnotation("de:ci", *type_factory));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(StructAnnotationMap * struct_annotation,
+                       MakeCompositeAnnotation(struct_type, *type_factory));
+  GOOGLESQL_ASSERT_OK(struct_annotation->CloneIntoField(0, und_ci));
+  GOOGLESQL_ASSERT_OK(struct_annotation->CloneIntoField(1, de_ci));
+
+  AnnotatedType rich_type(struct_type, struct_annotation);
+
+  SelectiveCollatedStringReplacer rewriter(*type_factory);
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(AnnotatedType rewritten_type, rewriter.Visit(rich_type));
+
+  // Check that the output type is STRUCT<BYTES, STRING>
+  EXPECT_THAT(rewritten_type.type,
+              TypeIs(TYPE_STRUCT, ElementsAre(IsBytes(), IsString())));
+
+  // Check that the annotation map for f1 (which became empty) is normalized to
+  // nullptr
+  ASSERT_THAT(rewritten_type.annotation_map, ::testing::NotNull());
+  EXPECT_THAT(rewritten_type.annotation_map->AsStructMap()->field(0), IsNull());
+  EXPECT_THAT(rewritten_type.annotation_map->AsStructMap()->field(1),
+              ::testing::NotNull());
+}
+
 }  // namespace googlesql

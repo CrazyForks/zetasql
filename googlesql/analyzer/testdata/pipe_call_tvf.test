@@ -1930,7 +1930,7 @@ QueryStmt
 +-query=
   +-TVFScan
     +-column_list=tvf_one_relation_one_model_arg_with_fixed_output.[double#3, string#4]
-    +-tvf=tvf_one_relation_one_model_arg_with_fixed_output((TABLE<key INT64, value STRING>, ANY MODEL) -> TABLE<double DOUBLE, string STRING>)
+    +-tvf=tvf_one_relation_one_model_arg_with_fixed_output((TABLE<key INT64, value STRING> table_arg, ANY MODEL model_arg) -> TABLE<double DOUBLE, string STRING>)
     +-signature=(TABLE<Key INT64, Value STRING>, ANY MODEL) -> TABLE<double DOUBLE, string STRING>
     +-argument_list=
     | +-FunctionArgument
@@ -1941,7 +1941,7 @@ QueryStmt
     |   +-model=
     |     +-Model(model=OneDoubleModel)
     +-column_index_list=[0, 1]
-    +-function_call_signature=(TABLE<key INT64, value STRING>, ANY MODEL) -> TABLE<double DOUBLE, string STRING>
+    +-function_call_signature=(TABLE<key INT64, value STRING> table_arg, ANY MODEL model_arg) -> TABLE<double DOUBLE, string STRING>
 ==
 
 # MODEL argument with missing columns.

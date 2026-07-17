@@ -39,6 +39,8 @@ struct TypeFieldPathStep {
   int struct_field_index = -1;
   // Descriptor of the field if it is a PROTO_FIELD.
   const google::protobuf::FieldDescriptor* proto_field_descriptor = nullptr;
+  // The type of the field.
+  const Type* type = nullptr;
 };
 
 struct ResolvedTimestampColumnPath {

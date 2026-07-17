@@ -21,7 +21,6 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "googlesql/common/measure_analysis_utils.h"
@@ -31,12 +30,12 @@
 #include "googlesql/public/function.h"
 #include "googlesql/public/function_signature.h"
 #include "googlesql/public/language_options.h"
+#include "googlesql/public/property_graph.h"
 #include "googlesql/public/simple_catalog.h"
 #include "googlesql/public/type.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
 #include "absl/base/nullability.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -138,8 +137,23 @@ class SampleCatalogImpl {
   // right cases.
   absl::Status LoadBasicAmlPropertyGraph();
   absl::Status LoadBasicAmlWithTimestampsPropertyGraph();
+  absl::Status LoadAmlDmlPropertyGraph();
+  // `with_timestamps` is used to determine whether to include timestamps
+  // columns and properties in the property graph.
+  // `includes_readonly_schema` is used to determine whether to include the
+  // read-only columns and properties in the property graph. This is needed by
+  // GQL DML analyzer tests to reject updating read-only schema.
   absl::Status LoadBasicAmlPropertyGraphImpl(
-      std::string property_graph_name_path, bool with_timestamps);
+      std::string property_graph_name_path, bool with_timestamps,
+      bool includes_readonly_schema);
+  absl::Status LoadReadonlyAmlSchema(
+      const std::vector<std::string>& property_graph_name_path,
+      const GraphPropertyDeclaration* id_prop_dcl_raw,
+      std::vector<std::unique_ptr<const GraphNodeTable>>& node_tables,
+      std::vector<std::unique_ptr<const GraphEdgeTable>>& edge_tables,
+      std::vector<std::unique_ptr<const GraphElementLabel>>& labels,
+      std::vector<std::unique_ptr<const GraphPropertyDeclaration>>&
+          property_dcls);
 
   absl::Status LoadEnhancedAmlPropertyGraph();
 
@@ -148,7 +162,6 @@ class SampleCatalogImpl {
   absl::Status LoadPropertyGraphWithDynamicLabelAndProperties();
   absl::Status LoadPropertyGraphWithReadOnlyDynamicProperties();
   absl::Status LoadPropertyGraphWithDynamicMultiLabelsAndProperties();
-  absl::Status LoadDmlTestPropertyGraph();
 
   // Loads several table-valued functions into the sample catalog. For a full
   // list of the signatures added, please see the beginning of the method

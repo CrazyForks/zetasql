@@ -238,23 +238,11 @@ static absl::Status CheckEqualRowIdentityColumnNames(
   return absl::OkStatus();
 }
 
-// `MultiLevelAggregateRewriter` rewrites a measure expression to use
-// multi-level aggregation to grain-lock and avoid overcounting. A measure
-// expression is a scalar expression over one or more constituent aggregate
-// functions (e.g. SUM(X) / SUM(Y) + (<scalar_subquery>)), and so the resulting
-// rewritten expression has 2 components to it:
+// `MultiLevelAggregateRewriter` is a visitor that rewrites aggregate function
+// calls to use multi-level aggregation to grain-lock and avoid overcounting.
 //
-// 1. A list of constituent aggregate functions that are rewritten to use
-//    multi-level aggregation to grain-lock. These aggregate functions need to
-//    be computed by the AggregateScan.
-//
-// 2. A scalar expression over the constituent aggregate functions. This
-//    expression needs to be computed by a ProjectScan over the AggregateScan.
-//
-// The scalar expression is rewritten to use column references to the
-// constituent aggregate functions. The constituent aggregate functions are
-// themselves rewritten to use multi-level aggregation to grain-lock and avoid
-// overcounting.
+// For example, it rewrites SUM(x) to SUM(ANY_VALUE(x) GROUP BY grain_lock_key),
+// where `grain_lock_key` is a constructed from the input `closure_struct_ref`.
 class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
  public:
   MultiLevelAggregateRewriter(
@@ -273,41 +261,6 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   MultiLevelAggregateRewriter(const MultiLevelAggregateRewriter&) = delete;
   MultiLevelAggregateRewriter& operator=(const MultiLevelAggregateRewriter&) =
       delete;
-
-  absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
-  RewriteMultiLevelAggregate(std::unique_ptr<const ResolvedExpr> measure_expr) {
-    constituent_aggregate_count_ = 0;
-    constituent_aggregate_list_.clear();
-
-    // Extract constituent aggregates from the measure expression and rewrite
-    // the measure expression to reference the constituent aggregates.
-    std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
-        temp_constituent_aggregates;
-    GOOGLESQL_ASSIGN_OR_RETURN(measure_expr,
-                     ExtractTopLevelAggregates(std::move(measure_expr),
-                                               temp_constituent_aggregates,
-                                               column_factory_));
-
-    // Rewrite the constituent aggregates.
-    for (std::unique_ptr<const ResolvedComputedColumnBase>&
-             constituent_aggregate : temp_constituent_aggregates) {
-      GOOGLESQL_ASSIGN_OR_RETURN(
-          std::unique_ptr<const ResolvedNode> rewritten_constituent_aggregate,
-          VisitAll(std::move(constituent_aggregate)));
-      GOOGLESQL_RET_CHECK(
-          rewritten_constituent_aggregate->Is<ResolvedComputedColumnBase>());
-      constituent_aggregate_list_.push_back(
-          absl::WrapUnique(rewritten_constituent_aggregate.release()
-                               ->GetAs<ResolvedComputedColumnBase>()));
-    }
-    // Return the measure expression.
-    return measure_expr;
-  }
-
-  std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
-  release_constituent_aggregate_list() {
-    return std::move(constituent_aggregate_list_);
-  }
 
  protected:
   absl::Status PreVisitResolvedAggregateFunctionCall(
@@ -591,12 +544,6 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
   const absl::btree_set<std::string, googlesql_base::CaseLess>&
       row_identity_column_names_;
 
-  // A list of (rewritten) constituent aggregates that compose a measure
-  // expression.
-  std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
-      constituent_aggregate_list_;
-  // Used purely for naming constituent aggregate columns.
-  uint64_t constituent_aggregate_count_ = 0;
   // If `subquery_depth_` > 0, then we are currently within a subquery and
   // any aggregate functions should not be rewritten to grain-lock.
   uint64_t subquery_depth_ = 0;
@@ -610,20 +557,13 @@ class MultiLevelAggregateRewriter : public ResolvedASTRewriteVisitor {
 // columns from the STRUCT-typed column used to replace the measure column.
 class StructColumnReferenceRewriter : public ResolvedASTDeepCopyVisitor {
  public:
-  static absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
-  RewriteMeasureExpression(const ResolvedExpr* measure_expr,
-                           ResolvedColumn struct_column,
-                           bool struct_column_refs_are_correlated) {
-    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> measure_expr_copy,
-                     ResolvedASTDeepCopyVisitor::Copy(measure_expr));
-    StructColumnReferenceRewriter rewriter(struct_column,
-                                           struct_column_refs_are_correlated);
-
-    // Rewrite the measure expression to reference columns from
-    // `struct_column`.
-    GOOGLESQL_RETURN_IF_ERROR(measure_expr_copy->Accept(&rewriter));
-    return rewriter.ConsumeRootNode<ResolvedExpr>();
-  }
+  StructColumnReferenceRewriter(ResolvedColumn struct_column,
+                                bool struct_column_refs_are_correlated)
+      : struct_column_(struct_column),
+        struct_column_refs_are_correlated_(struct_column_refs_are_correlated) {}
+  StructColumnReferenceRewriter(const StructColumnReferenceRewriter&) = delete;
+  StructColumnReferenceRewriter& operator=(
+      const StructColumnReferenceRewriter&) = delete;
 
  protected:
   absl::Status VisitResolvedSubqueryExpr(
@@ -762,14 +702,6 @@ class StructColumnReferenceRewriter : public ResolvedASTDeepCopyVisitor {
   }
 
  private:
-  explicit StructColumnReferenceRewriter(ResolvedColumn struct_column,
-                                         bool struct_column_refs_are_correlated)
-      : struct_column_(struct_column),
-        struct_column_refs_are_correlated_(struct_column_refs_are_correlated) {}
-  StructColumnReferenceRewriter(const StructColumnReferenceRewriter&) = delete;
-  StructColumnReferenceRewriter& operator=(
-      const StructColumnReferenceRewriter&) = delete;
-
   // `CorrelatedParameterInfo` is used to track information about correlated
   // parameters for both subqueries and lambdas.
   struct CorrelatedParameterInfo {
@@ -785,6 +717,45 @@ class StructColumnReferenceRewriter : public ResolvedASTDeepCopyVisitor {
   bool struct_column_refs_are_correlated_;
   std::vector<CorrelatedParameterInfo> correlated_parameter_info_list_;
 };
+
+// Rewrites column references in the expression `expr` to
+// reference field accesses on the closure struct column `closure_struct_ref`.
+//
+// Returns the rewritten expression.
+static absl::StatusOr<std::unique_ptr<const ResolvedExpr>> RewriteReferences(
+    std::unique_ptr<const ResolvedExpr> expr,
+    const ResolvedColumnRef* closure_struct_ref) {
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<ResolvedExpr> copy,
+                   ResolvedASTDeepCopyVisitor::Copy(expr.get()));
+
+  StructColumnReferenceRewriter rewriter(closure_struct_ref->column(),
+                                         closure_struct_ref->is_correlated());
+  GOOGLESQL_RETURN_IF_ERROR(copy->Accept(&rewriter));
+
+  return rewriter.ConsumeRootNode<ResolvedExpr>();
+}
+
+// Rewrites the expression `expr` to use multi-level aggregation to grain-lock
+// and avoid overcounting.
+//
+// Returns the grain-locked expression.
+static absl::StatusOr<std::unique_ptr<const ResolvedExpr>> GrainLock(
+    std::unique_ptr<const ResolvedExpr> expr,
+    const ResolvedColumnRef* closure_struct_ref,
+    const absl::btree_set<std::string, googlesql_base::CaseLess>&
+        row_identity_column_names,
+    const Function* any_value_fn, FunctionCallBuilder& function_call_builder,
+    const LanguageOptions& language_options, ColumnFactory& column_factory,
+    TypeFactory& type_factory) {
+  MultiLevelAggregateRewriter rewriter(
+      any_value_fn, function_call_builder, language_options, column_factory,
+      type_factory, closure_struct_ref, row_identity_column_names);
+
+  GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<const ResolvedNode> rewritten,
+                   rewriter.VisitAll(std::move(expr)));
+  GOOGLESQL_RET_CHECK(rewritten->Is<ResolvedExpr>());
+  return absl::WrapUnique(rewritten.release()->GetAs<ResolvedExpr>());
+}
 
 absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
     const ResolvedExpr* measure_expr,
@@ -803,26 +774,37 @@ absl::StatusOr<RewriteMeasureExprResult> RewriteMeasureExpr(
                    CopyResolvedASTAndRemapColumns(*measure_expr, column_factory,
                                                   column_replacement_map));
 
-  // Rewrite the measure expression to reference columns from
-  // `struct_column`.
+  // Extract constituent aggregates from the measure expression.
+  std::vector<std::unique_ptr<const ResolvedComputedColumnBase>>
+      temp_constituent_aggregates;
   GOOGLESQL_ASSIGN_OR_RETURN(
       rewritten_measure_expr,
-      StructColumnReferenceRewriter::RewriteMeasureExpression(
-          rewritten_measure_expr.get(), closure_struct_ref->column(),
-          closure_struct_ref->is_correlated()));
+      ExtractTopLevelAggregates(std::move(rewritten_measure_expr),
+                                temp_constituent_aggregates, column_factory));
 
-  // Rewrite the measure expression to use multi-level aggregation to
-  // grain-lock and avoid overcounting.
-  MultiLevelAggregateRewriter multi_level_aggregate_rewriter(
-      any_value_fn, function_call_builder, language_options, column_factory,
-      type_factory, closure_struct_ref, row_identity_column_names);
-  GOOGLESQL_ASSIGN_OR_RETURN(rewritten_measure_expr,
-                   multi_level_aggregate_rewriter.RewriteMultiLevelAggregate(
-                       std::move(rewritten_measure_expr)));
+  // Replace the ResolvedExpressionColumn placeholders with field accesses on
+  // the closure struct column, and apply grain-locking to avoid overcounting.
+  for (std::unique_ptr<const ResolvedComputedColumnBase>& aggregate_col :
+       temp_constituent_aggregates) {
+    GOOGLESQL_RET_CHECK(aggregate_col->Is<ResolvedComputedColumn>());
+    ResolvedComputedColumnBuilder builder = ToBuilder(absl::WrapUnique(
+        aggregate_col.release()->GetAs<ResolvedComputedColumn>()));
+
+    std::unique_ptr<const ResolvedExpr> expr = builder.release_expr();
+
+    GOOGLESQL_ASSIGN_OR_RETURN(expr,
+                     RewriteReferences(std::move(expr), closure_struct_ref));
+    GOOGLESQL_ASSIGN_OR_RETURN(expr, GrainLock(std::move(expr), closure_struct_ref,
+                                     row_identity_column_names, any_value_fn,
+                                     function_call_builder, language_options,
+                                     column_factory, type_factory));
+    builder.set_expr(std::move(expr));
+    GOOGLESQL_ASSIGN_OR_RETURN(aggregate_col, std::move(builder).Build());
+  }
+
   return RewriteMeasureExprResult{
       .rewritten_measure_expr = std::move(rewritten_measure_expr),
-      .constituent_aggregate_list =
-          multi_level_aggregate_rewriter.release_constituent_aggregate_list()};
+      .constituent_aggregate_list = std::move(temp_constituent_aggregates)};
 }
 
 }  // namespace googlesql

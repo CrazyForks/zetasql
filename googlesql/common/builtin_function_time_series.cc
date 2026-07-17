@@ -58,12 +58,14 @@ absl::StatusOr<std::shared_ptr<TVFSignature>> TimeSeriesComputeResultType(
 
   const TVFRelation& input_relation = actual_arguments[0].relation();
 
+  bool is_passthrough = signature.context_id() == FN_TUMBLE;
+
   // Construct the output schema: all input columns, excluding any existing
   // "window_start" or "window_end", plus new "WINDOW_START", "WINDOW_END".
   TVFRelation::ColumnList output_columns;
   for (const TVFRelation::Column& col : input_relation.columns()) {
-    if (googlesql_base::CaseEqual(col.name, "window_start") ||
-        googlesql_base::CaseEqual(col.name, "window_end")) {
+    if (!is_passthrough && (googlesql_base::CaseEqual(col.name, "window_start") ||
+                            googlesql_base::CaseEqual(col.name, "window_end"))) {
       continue;
     }
     output_columns.push_back(col);
@@ -74,6 +76,12 @@ absl::StatusOr<std::shared_ptr<TVFSignature>> TimeSeriesComputeResultType(
 
   TVFRelation result_schema(output_columns);
   TVFSignatureOptions tvf_signature_options;
+  if (is_passthrough) {
+    tvf_signature_options.passthrough_info.columns_to_drop.push_back(
+        "window_start");
+    tvf_signature_options.passthrough_info.columns_to_drop.push_back(
+        "window_end");
+  }
   tvf_signature_options.additional_deprecation_warnings =
       signature.AdditionalDeprecationWarnings();
 
@@ -139,7 +147,15 @@ absl::Status GetTimeSeriesTableValuedFunctions(
   const FunctionArgumentType::ArgumentCardinality OPTIONAL =
       FunctionArgumentType::OPTIONAL;
 
-  TableValuedFunctionOptions options_time_series_tvf =
+  TableValuedFunctionOptions options_tumble_tvf =
+      TableValuedFunctionOptions()
+          .AddRequiredLanguageFeature(FEATURE_TUMBLE_HOP_TVFS)
+          .set_compute_result_type_callback(&TimeSeriesComputeResultType)
+          .set_is_passthrough(true)
+          .set_post_resolution_argument_constraint(
+              absl::bind_front(&ValidateTimeSeriesTVFArguments, type_factory));
+
+  TableValuedFunctionOptions options_hop_tvf =
       TableValuedFunctionOptions()
           .AddRequiredLanguageFeature(FEATURE_TUMBLE_HOP_TVFS)
           .set_compute_result_type_callback(&TimeSeriesComputeResultType)
@@ -191,9 +207,9 @@ absl::Status GetTimeSeriesTableValuedFunctions(
       options_time_series_tvf_no_timestamp_col,
   });
 
-  GOOGLESQL_RETURN_IF_ERROR(InsertSimpleTableValuedFunction(
-      table_valued_functions, options, "tumble", tumble_signatures,
-      options_time_series_tvf));
+  GOOGLESQL_RETURN_IF_ERROR(
+      InsertSimpleTableValuedFunction(table_valued_functions, options, "tumble",
+                                      tumble_signatures, options_tumble_tvf));
 
   std::vector<FunctionSignatureOnHeap> hop_signatures;
   // Note: 'timestamp_column' is not made an optional argument because
@@ -248,9 +264,8 @@ absl::Status GetTimeSeriesTableValuedFunctions(
       options_time_series_tvf_no_timestamp_col,
   });
 
-  GOOGLESQL_RETURN_IF_ERROR(
-      InsertSimpleTableValuedFunction(table_valued_functions, options, "hop",
-                                      hop_signatures, options_time_series_tvf));
+  GOOGLESQL_RETURN_IF_ERROR(InsertSimpleTableValuedFunction(
+      table_valued_functions, options, "hop", hop_signatures, options_hop_tvf));
 
   return absl::OkStatus();
 }

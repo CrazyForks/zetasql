@@ -442,3 +442,27 @@ ERROR: generic::out_of_range: Window size must be greater than or equal to step 
 SELECT * FROM hop(TABLE TableWithTimestampColumn, "ts_col", INTERVAL 1 DAY, INTERVAL 1 DAY, origin => NULL);
 --
 ERROR: generic::out_of_range: Origin cannot be null.
+==
+# Run-once semantics:
+# This test tries to ensure that expressions provided as TVF arguments are
+# evaluated exactly once. In particular, this is intended to check that the
+# **HOP function rewriter** preserves run-once semantics.
+#
+# If window_size is evaluated once, we will get 30 distinct WINDOW_END values.
+# If it's evaluated per row, some rows might get 60m and others 61m. Since the
+# window step is 2m (even) and sizes are 60m (even) vs 61m (odd), the two sets
+# of WINDOW_END values will be disjoint, yielding 30 + 30 = 60 distinct values.
+[required_features=INTERVAL_TYPE,TABLE_VALUED_FUNCTIONS,TUMBLE_HOP_TVFS]
+[name=hop_run_once_window_size]
+WITH Events AS (
+  SELECT TIMESTAMP '2025-09-01 05:05:00' AS ts
+  FROM UNNEST(GENERATE_ARRAY(1, 20)) AS n
+)
+SELECT
+  IF(windows_count = 30, 'Correct', 'Incorrect!')
+FROM (
+  SELECT count(distinct WINDOW_END) as windows_count
+  FROM HOP(TABLE Events, 'ts', IF(RAND() > 0.5, INTERVAL '60' MINUTE, INTERVAL '61' MINUTE), INTERVAL '2' MINUTE)
+)
+--
+ARRAY<STRUCT<STRING>>[{"Correct"}]

@@ -88,6 +88,8 @@ static absl::StatusOr<std::string> GetSignatureIdFromArgs(
       absl::StrAppend(&id, "_STRUCT_", arg_name_upper);
     } else if (arg.kind() == ARG_KIND_EXPR_ANY_1) {
       absl::StrAppend(&id, "_ANY_", arg_name_upper);
+    } else if (arg.kind() == ARG_KIND_MODEL) {
+      absl::StrAppend(&id, "_MODEL_REF");
     } else {
       GOOGLESQL_RET_CHECK_NE(arg.type(), nullptr) << "Unsupported argument type.";
       absl::StrAppend(&id, "_", arg.type()->DebugString(), "_", arg_name_upper);
@@ -159,7 +161,8 @@ std::vector<FunctionArgumentTypeList> GenerateAiIfSignatureArgs() {
       std::nullopt,
       FunctionArgumentType(ARG_KIND_EXPR_ANY_1, payload_arg_type_options)};
   std::vector<std::optional<FunctionArgumentType>> model_arg_types = {
-      std::nullopt, FunctionArgumentType(string_type, model_arg_type_options)};
+      std::nullopt, FunctionArgumentType(string_type, model_arg_type_options),
+      FunctionArgumentType(ARG_KIND_MODEL, model_arg_type_options)};
   std::vector<std::optional<FunctionArgumentType>> options_arg_types = {
       std::nullopt, FunctionArgumentType(json_type, options_arg_type_options),
       FunctionArgumentType(ARG_KIND_EXPR_STRUCT_ANY, options_arg_type_options),

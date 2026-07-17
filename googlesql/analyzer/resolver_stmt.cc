@@ -6108,8 +6108,17 @@ absl::Status Resolver::CheckSQLBodyReturnTypesAndCoerceIfNeeded(
         GOOGLESQL_RETURN_IF_ERROR(CoerceExprToType(
             statement_location, required_annotated_col_type.type,
             *type_modifiers, CoercionMode::kImplicitCoercion, &resolved_expr));
+        // When the TVF is not a value table, we must use the column name
+        // specified in the TVF signature's return schema (required_col_name)
+        // rather than the column name from the SQL body
+        // (provided_col.name_id()) to ensure the output relation has the
+        // correct column names.
+        IdString column_name_id = provided_col.name_id();
+        if (!return_tvf_relation.is_value_table()) {
+          column_name_id = MakeIdString(required_col_name);
+        }
         new_column_list.emplace_back(AllocateColumnId(), new_project_alias,
-                                     provided_col.name_id(),
+                                     column_name_id,
                                      resolved_expr->annotated_type());
         new_project_columns.push_back(MakeResolvedComputedColumn(
             new_column_list.back(), std::move(resolved_expr)));

@@ -1071,8 +1071,6 @@ static absl::StatusOr<bool> RegisterMacro(absl::string_view sql,
     config.mutable_macro_sources().push_back(std::string(sql));
     auto define_macro_statement =
         parser_output->statement()->GetAsOrNull<ASTDefineMacroStatement>();
-    // TODO: b/450496548 - Add tests to disallow defining macros with
-    // visibility once parser supports visibility.
     if (define_macro_statement->visibility() !=
         ASTDefineMacroStatement::MACRO_VISIBILITY_UNSPECIFIED) {
       return absl::InvalidArgumentError(

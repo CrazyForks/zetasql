@@ -116,7 +116,7 @@ ERROR: Syntax error: Expected ")" but got keyword AS [at 3:27]
 # The grammar does not allow procedure calls to have argument aliases.
 call nested_catalog.nested_procedure(1 AS alias)
 --
-ERROR: Syntax error: Expected ")" or "," but got keyword AS [at 1:40]
+ERROR: Syntax error: Expected ")" but got keyword AS [at 1:40]
 call nested_catalog.nested_procedure(1 AS alias)
                                        ^
 ==

@@ -45,8 +45,39 @@ class TokenProviderBase : public TokenStream {
 
   ~TokenProviderBase() override = default;
 
-  // Peeks the next token, but does not consume it.
+  // Returns Lookahead 1 (token N+1) without consuming from the input.
+  //
+  // Token output rules:
+  // - If a previous call to `GetNextToken()` or `PeekNextToken()` returned an
+  //   error status or an End-of-Input (EOI) token, which can be because:
+  //   - The underlying token stream produced an error.
+  //   - The stream reached the real end of input.
+  //
+  //   all future calls to `PeekNextToken()` and `GetNextToken()` return the
+  //   exact same error status, or an EOI token with empty preceding
+  //   whitespaces.
   virtual absl::StatusOr<TokenWithLocation> PeekNextToken() = 0;
+
+  // Convenience wrapper for PeekNextToken() returning Lookahead 1.
+  virtual absl::StatusOr<TokenWithLocation> PeekLookahead1() {
+    return PeekNextToken();
+  }
+
+  // Returns Lookahead 2 (token N+2) without consuming from the input.
+  //
+  // Lookahead invariants:
+  // - If `PeekNextToken()` or a lookahead is an error status or Token::EOI, all
+  //   further lookaheads return the exact same error status or Token::EOI with
+  //   empty preceding whitespaces.
+  virtual absl::StatusOr<TokenWithLocation> PeekLookahead2() = 0;
+
+  // Returns Lookahead 3 (token N+3) without consuming from the input.
+  //
+  // Lookahead invariants:
+  // - If `PeekLookahead2()` or a lookahead is an error status or Token::EOI,
+  //   all further lookaheads return the exact same error status or Token::EOI
+  //   with empty preceding whitespaces.
+  virtual absl::StatusOr<TokenWithLocation> PeekLookahead3() = 0;
 
   // Consumes the next token, and increments num_consumed_tokens.
   absl::StatusOr<TokenWithLocation> GetNextToken() override {

@@ -337,6 +337,7 @@ class BasicTestTVF : public BuiltinTableValuedFunction {
   absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> CreateEvaluator(
       std::vector<TableValuedFunction::TvfEvaluatorArg> args,
       std::shared_ptr<FunctionSignature> function_call_signature,
+      std::shared_ptr<const TVFSignature> tvf_signature,
       EvaluationContext* context) override {
     GOOGLESQL_RET_CHECK_EQ(args.size(), 1);
     if (args[0].value.has_value()) {
@@ -372,7 +373,7 @@ TEST(BuiltinTableValuedFunction, RelationalOpEvalTestWithValue) {
       std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
       BuiltinTableValuedFunction::CreateCall(
           FunctionKind::kInvalid, std::move(arguments),
-          std::move(output_columns), std::move(variables), nullptr,
+          std::move(output_columns), std::move(variables), nullptr, nullptr,
           /*output_column_indices=*/{0}));
 
   GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));
@@ -455,12 +456,12 @@ TEST(BuiltinTableValuedFunction, RelationalOpEvalTestWithRelation) {
   std::vector<VariableId> output_variables;
   output_variables.push_back(var1);
 
-  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
-      BuiltinTableValuedFunction::CreateCall(
-          FunctionKind::kInvalid, std::move(arguments),
-          std::move(output_columns), std::move(output_variables), nullptr,
-          /*output_column_indices=*/{0}));
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(std::unique_ptr<TableValuedFunctionCallExpr> call_expr,
+                       BuiltinTableValuedFunction::CreateCall(
+                           FunctionKind::kInvalid, std::move(arguments),
+                           std::move(output_columns),
+                           std::move(output_variables), nullptr, nullptr,
+                           /*output_column_indices=*/{0}));
 
   GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));
 
@@ -550,6 +551,7 @@ TEST(BuiltinTableValuedFunction,
       BuiltinTableValuedFunction::CreateCall(
           FunctionKind::kInvalid, std::move(arguments),
           std::move(output_columns), std::move(output_variables), nullptr,
+          nullptr,
           /*output_column_indices=*/{1}));  // the second col1 (var2).
 
   GOOGLESQL_ASSERT_OK(call_expr->SetSchemasForEvaluation({}));

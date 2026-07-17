@@ -30,6 +30,8 @@
 #include "googlesql/public/coercer.h"
 #include "googlesql/public/function.h"
 #include "googlesql/public/functions/differential_privacy.pb.h"
+#include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/time_series_tvf_util.h"
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/type.h"
 #include "googlesql/public/types/type_factory.h"
@@ -1113,6 +1115,13 @@ absl::StatusOr<const ResolvedColumn*> FindAndValidateTimestampColumnInScan(
     const ResolvedNode& error_location, absl::string_view ts_col_name,
     const ResolvedScan& input_scan, absl::string_view function_name,
     ProductMode product_mode);
+
+// Constructs a ResolvedExpr representing the timestamp column or field in the
+// given path. Assumes that the path is valid (i.e. already resolved and
+// validated).
+absl::StatusOr<std::unique_ptr<const ResolvedExpr>>
+BuildTimestampColumnExpression(const ResolvedTimestampColumnPath& path,
+                               const ResolvedColumn& root_column);
 
 // Dynamically constructs the AST for a scalar subquery that
 // selects a single column from a CTE. This is useful for run-once semantics.

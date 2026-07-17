@@ -8557,7 +8557,7 @@ absl::StatusOr<std::unique_ptr<RelationalOp>> Algebrizer::AlgebrizeTVFScan(
     return BuiltinTableValuedFunction::CreateCall(
         kind, std::move(arguments), std::move(output_columns),
         std::move(variables), tvf_scan->function_call_signature(),
-        std::move(output_column_indices));
+        tvf_scan->signature(), std::move(output_column_indices));
   }
 
   TVFOp::SqlTvfEvaluator algebrize_body_callback = nullptr;

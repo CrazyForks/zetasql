@@ -2326,37 +2326,37 @@ SELECT { foo ] ], foo
 --
 ALTERNATION GROUP: [,),)
 --
-ERROR: Syntax error: Expected "," or "]" but got ")" [at 1:14]
+ERROR: Syntax error: Expected "]" but got ")" [at 1:14]
 SELECT [ foo ) ), foo
              ^
 --
 ALTERNATION GROUP: [,),}
 --
-ERROR: Syntax error: Expected "," or "]" but got ")" [at 1:14]
+ERROR: Syntax error: Expected "]" but got ")" [at 1:14]
 SELECT [ foo ) }, foo
              ^
 --
 ALTERNATION GROUP: [,),]
 --
-ERROR: Syntax error: Expected "," or "]" but got ")" [at 1:14]
+ERROR: Syntax error: Expected "]" but got ")" [at 1:14]
 SELECT [ foo ) ], foo
              ^
 --
 ALTERNATION GROUP: [,},)
 --
-ERROR: Syntax error: Expected "," or "]" but got "}" [at 1:14]
+ERROR: Syntax error: Expected "]" but got "}" [at 1:14]
 SELECT [ foo } ), foo
              ^
 --
 ALTERNATION GROUP: [,},}
 --
-ERROR: Syntax error: Expected "," or "]" but got "}" [at 1:14]
+ERROR: Syntax error: Expected "]" but got "}" [at 1:14]
 SELECT [ foo } }, foo
              ^
 --
 ALTERNATION GROUP: [,},]
 --
-ERROR: Syntax error: Expected "," or "]" but got "}" [at 1:14]
+ERROR: Syntax error: Expected "]" but got "}" [at 1:14]
 SELECT [ foo } ], foo
              ^
 --

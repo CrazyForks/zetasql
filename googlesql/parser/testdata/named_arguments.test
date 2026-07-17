@@ -412,12 +412,98 @@ FROM
   mytvf(table_arg  => (TABLE another_tvf(TABLE keyvalue)))
 ==
 
-# Invalid TVF call with a named argument with the MODEL keyword.
-select * from mytvf(date_string => model keyvalue);
+# TVF call with a named argument with the MODEL keyword.
+select * from mytvf(model => MODEL my_model);
 --
-ERROR: Syntax error: Expected ")" but got identifier "keyvalue" [at 1:42]
-select * from mytvf(date_string => model keyvalue);
-                                         ^
+QueryStatement [0-44] [select * from...my_model)]
+  Query [0-44] [select * from...my_model)]
+    Select [0-44] [select * from...my_model)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-44] [from mytvf...my_model)]
+        TVF [14-44] [mytvf(model => MODEL my_model)]
+          PathExpression [14-19] [mytvf]
+            Identifier(mytvf) [14-19] [mytvf]
+          TVFArgument [20-43] [model => MODEL my_model]
+            NamedArgument [20-43] [model => MODEL my_model]
+              Identifier(model) [20-25] [model]
+              ModelArg [29-43] [MODEL my_model]
+                PathExpression [35-43] [my_model]
+                  Identifier(my_model) [35-43] [my_model]
+--
+SELECT
+  *
+FROM
+  mytvf(model  => MODEL my_model)
+==
+
+# Function call with a named argument with the MODEL keyword.
+select myfunc(model => MODEL my_model);
+--
+QueryStatement [0-38] [select myfunc...my_model)]
+  Query [0-38] [select myfunc...my_model)]
+    Select [0-38] [select myfunc...my_model)]
+      SelectList [7-38] [myfunc(model...my_model)]
+        SelectColumn [7-38] [myfunc(model...my_model)]
+          FunctionCall [7-38] [myfunc(model...my_model)]
+            PathExpression [7-13] [myfunc]
+              Identifier(myfunc) [7-13] [myfunc]
+            NamedArgument [14-37] [model => MODEL my_model]
+              Identifier(model) [14-19] [model]
+              ModelArg [23-37] [MODEL my_model]
+                PathExpression [29-37] [my_model]
+                  Identifier(my_model) [29-37] [my_model]
+--
+SELECT
+  myfunc(model  => MODEL my_model)
+==
+
+# TVF call with a named argument with the SEQUENCE keyword.
+select * from mytvf(seq => SEQUENCE my_sequence);
+--
+QueryStatement [0-48] [select * from...my_sequence)]
+  Query [0-48] [select * from...my_sequence)]
+    Select [0-48] [select * from...my_sequence)]
+      SelectList [7-8] [*]
+        SelectColumn [7-8] [*]
+          Star(*) [7-8] [*]
+      FromClause [9-48] [from mytvf...my_sequence)]
+        TVF [14-48] [mytvf(seq...my_sequence)]
+          PathExpression [14-19] [mytvf]
+            Identifier(mytvf) [14-19] [mytvf]
+          TVFArgument [20-47] [seq => SEQUENCE my_sequence]
+            NamedArgument [20-47] [seq => SEQUENCE my_sequence]
+              Identifier(seq) [20-23] [seq]
+              SequenceArg [27-47] [SEQUENCE my_sequence]
+                PathExpression [36-47] [my_sequence]
+                  Identifier(my_sequence) [36-47] [my_sequence]
+--
+SELECT
+  *
+FROM
+  mytvf(seq  => SEQUENCE my_sequence)
+==
+
+# Function call with a named argument with the SEQUENCE keyword.
+select myfunc(seq => SEQUENCE my_sequence);
+--
+QueryStatement [0-42] [select myfunc...my_sequence)]
+  Query [0-42] [select myfunc...my_sequence)]
+    Select [0-42] [select myfunc...my_sequence)]
+      SelectList [7-42] [myfunc(seq...my_sequence)]
+        SelectColumn [7-42] [myfunc(seq...my_sequence)]
+          FunctionCall [7-42] [myfunc(seq...my_sequence)]
+            PathExpression [7-13] [myfunc]
+              Identifier(myfunc) [7-13] [myfunc]
+            NamedArgument [14-41] [seq => SEQUENCE my_sequence]
+              Identifier(seq) [14-17] [seq]
+              SequenceArg [21-41] [SEQUENCE my_sequence]
+                PathExpression [30-41] [my_sequence]
+                  Identifier(my_sequence) [30-41] [my_sequence]
+--
+SELECT
+  myfunc(seq  => SEQUENCE my_sequence)
 ==
 
 # The parser allows named lambdas for filter fields.

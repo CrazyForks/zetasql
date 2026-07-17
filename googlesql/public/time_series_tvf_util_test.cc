@@ -177,6 +177,7 @@ struct ResolveTimestampColumnPathTestCase {
     TypeFieldPathStep::Kind kind;
     int struct_field_index = -1;
     std::string proto_field_name;
+    std::string expected_type_name;
   };
   std::vector<ExpectedStep> expected_steps;
   std::string expected_leaf_type_name;
@@ -196,47 +197,62 @@ struct ResolveTimestampColumnPathTestCase {
 class ResolveTimestampColumnPathTest
     : public ::testing::TestWithParam<ResolveTimestampColumnPathTestCase> {
  protected:
-  void SetUp() override {
-    const Type* ts_type = type_factory_.get_timestamp();
+  // Parameterized tests are initialized at startup before the TypeFactory is
+  // constructed, preventing test cases from referencing `const Type*` directly.
+  // To work around this, we map type names to Type objects that are
+  // initialized during SetUp().
+  const Type* GetExpectedType(absl::string_view type_name) const {
+    if (type_name == "ts_type") {
+      return ts_type_;
+    }
+    if (type_name == "struct_type") {
+      return nested_struct_type_;
+    }
+    if (type_name == "proto_ts_type") {
+      return proto_ts_type_;
+    }
+    ADD_FAILURE() << "Test '" << GetParam().name
+                  << "' has unknown expected type name: " << type_name;
+    return nullptr;
+  }
 
-    const ProtoType* proto3_kitchen_sink_type = nullptr;
+  void SetUp() override {
+    ts_type_ = type_factory_.get_timestamp();
+
     GOOGLESQL_ASSERT_OK(type_factory_.MakeProtoType(
         googlesql_test::Proto3KitchenSink::descriptor(),
-        &proto3_kitchen_sink_type));
+        &proto3_kitchen_sink_type_));
 
-    const ProtoType* proto_ts_type = nullptr;
     GOOGLESQL_ASSERT_OK(type_factory_.MakeProtoType(
-        google::protobuf::Timestamp::descriptor(), &proto_ts_type));
+        google::protobuf::Timestamp::descriptor(), &proto_ts_type_));
 
-    const StructType* nested_struct_type = nullptr;
     GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
-        {{"timestamp_field", ts_type},
+        {{"timestamp_field", ts_type_},
          {"int64_field", type_factory_.get_int64()}},
-        &nested_struct_type));
+        &nested_struct_type_));
 
-    const StructType* struct_col_type = nullptr;
     GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
         {{"int64_field", type_factory_.get_int64()},
-         {"timestamp_field", ts_type},
-         {"struct_field", nested_struct_type},
+         {"timestamp_field", ts_type_},
+         {"struct_field", nested_struct_type_},
          {"ambiguous_field", type_factory_.get_int64()},
-         {"Ambiguous_Field", ts_type}},
-        &struct_col_type));
+         {"Ambiguous_Field", ts_type_}},
+        &struct_col_type_));
 
     relations_[ResolveTimestampColumnPathTestCase::SQL_TABLE] =
         std::make_unique<TVFRelation>(TVFRelation::ColumnList{
-            {"timestamp_col", ts_type},
-            {"proto_timestamp_col", proto_ts_type},
-            {"struct_col", struct_col_type},
-            {"proto_col", proto3_kitchen_sink_type},
+            {"timestamp_col", ts_type_},
+            {"proto_ts_type_col", proto_ts_type_},
+            {"struct_col", struct_col_type_},
+            {"proto_col", proto3_kitchen_sink_type_},
             {"ambiguous_col", type_factory_.get_int64()},
-            {"Ambiguous_Col", ts_type}});
+            {"Ambiguous_Col", ts_type_}});
 
     // Value Table Relation (Type is STRUCT<timestamp_field TIMESTAMP,
     // int64_field INT64>)
     const StructType* val_row_type = nullptr;
     GOOGLESQL_ASSERT_OK(type_factory_.MakeStructType(
-        {{"timestamp_field", ts_type},
+        {{"timestamp_field", ts_type_},
          {"int64_field", type_factory_.get_int64()}},
         &val_row_type));
 
@@ -245,16 +261,17 @@ class ResolveTimestampColumnPathTest
 
     // Value Table Scalar Relation (Type is TIMESTAMP)
     relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_SCALAR] =
-        std::make_unique<TVFRelation>(TVFRelation::ValueTable(ts_type));
+        std::make_unique<TVFRelation>(TVFRelation::ValueTable(ts_type_));
 
     // Value Table Proto Relation (Type is Proto3KitchenSink)
     relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_PROTO] =
         std::make_unique<TVFRelation>(
-            TVFRelation::ValueTable(proto3_kitchen_sink_type));
+            TVFRelation::ValueTable(proto3_kitchen_sink_type_));
 
     // Value Table Nested Struct Relation (Type is struct_col_type)
     relations_[ResolveTimestampColumnPathTestCase::VALUE_TABLE_NESTED_STRUCT] =
-        std::make_unique<TVFRelation>(TVFRelation::ValueTable(struct_col_type));
+        std::make_unique<TVFRelation>(
+            TVFRelation::ValueTable(struct_col_type_));
   }
 
   const TVFRelation* GetRelation(
@@ -270,6 +287,11 @@ class ResolveTimestampColumnPathTest
   std::map<ResolveTimestampColumnPathTestCase::RelationKind,
            std::unique_ptr<TVFRelation>>
       relations_;
+  const Type* ts_type_ = nullptr;
+  const ProtoType* proto3_kitchen_sink_type_ = nullptr;
+  const ProtoType* proto_ts_type_ = nullptr;
+  const StructType* nested_struct_type_ = nullptr;
+  const StructType* struct_col_type_ = nullptr;
 };
 
 TEST_P(ResolveTimestampColumnPathTest, ResolveTimestampColumnPath) {
@@ -302,6 +324,11 @@ TEST_P(ResolveTimestampColumnPathTest, ResolveTimestampColumnPath) {
         EXPECT_EQ(actual_step.proto_field_descriptor->name(),
                   expected_step.proto_field_name);
       }
+      ASSERT_NE(actual_step.type, nullptr);
+      const Type* expected_type =
+          GetExpectedType(expected_step.expected_type_name);
+      ASSERT_NE(expected_type, nullptr);
+      EXPECT_TRUE(actual_step.type->Equals(expected_type));
     }
 
     // Verify the leaf type.
@@ -319,7 +346,7 @@ TEST_P(ResolveTimestampColumnPathTest, ResolveTimestampColumnPath) {
 // 1. SQL_TABLE:
 //    Columns:
 //      - {"timestamp_col", ts_type}
-//      - {"proto_timestamp_col", proto_ts_type}
+//      - {"proto_ts_type_col", proto_ts_type}
 //      - {"struct_col", struct_col_type}  // STRUCT<int64_field INT64,
 //                                         //        timestamp_field TIMESTAMP,
 //                                         //        struct_field STRUCT<
@@ -366,7 +393,7 @@ INSTANTIATE_TEST_SUITE_P(
 
         // Standard proto timestamp column.
         {.name = "SqlSimpleProtoTs",
-         .path = "proto_timestamp_col",
+         .path = "proto_ts_type_col",
          .expected_column_index = 1,
          .expected_steps = {},
          .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
@@ -378,7 +405,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "struct_col.timestamp_field",
          .expected_column_index = 2,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 1}},
+                             .struct_field_index = 1,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
@@ -388,9 +416,11 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "struct_col.struct_field.timestamp_field",
          .expected_column_index = 2,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 2},
+                             .struct_field_index = 2,
+                             .expected_type_name = "struct_type"},
                             {.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 0}},
+                             .struct_field_index = 0,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
@@ -400,7 +430,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "proto_col.timestamp_wkt",
          .expected_column_index = 3,
          .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
-                             .proto_field_name = "timestamp_wkt"}},
+                             .proto_field_name = "timestamp_wkt",
+                             .expected_type_name = "proto_ts_type"}},
          .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
@@ -410,7 +441,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "proto_col.timestamp_millis_format",
          .expected_column_index = 3,
          .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
-                             .proto_field_name = "timestamp_millis_format"}},
+                             .proto_field_name = "timestamp_millis_format",
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
@@ -420,9 +452,11 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "`struct_col`.`struct_field`.`timestamp_field`",
          .expected_column_index = 2,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 2},
+                             .struct_field_index = 2,
+                             .expected_type_name = "struct_type"},
                             {.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 0}},
+                             .struct_field_index = 0,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::SQL_TABLE},
@@ -553,7 +587,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "timestamp_field",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 0}},
+                             .struct_field_index = 0,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
@@ -563,7 +598,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "Timestamp_Field",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 0}},
+                             .struct_field_index = 0,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind = ResolveTimestampColumnPathTestCase::VALUE_TABLE},
@@ -573,7 +609,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "timestamp_field",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 1}},
+                             .struct_field_index = 1,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind =
@@ -584,9 +621,11 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "struct_field.timestamp_field",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 2},
+                             .struct_field_index = 2,
+                             .expected_type_name = "struct_type"},
                             {.kind = TypeFieldPathStep::STRUCT_FIELD,
-                             .struct_field_index = 0}},
+                             .struct_field_index = 0,
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind =
@@ -597,7 +636,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "timestamp_wkt",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
-                             .proto_field_name = "timestamp_wkt"}},
+                             .proto_field_name = "timestamp_wkt",
+                             .expected_type_name = "proto_ts_type"}},
          .expected_leaf_type_name = "PROTO<google.protobuf.Timestamp>",
          .expected_error = "",
          .relation_kind =
@@ -608,7 +648,8 @@ INSTANTIATE_TEST_SUITE_P(
          .path = "timestamp_millis_format",
          .expected_column_index = 0,
          .expected_steps = {{.kind = TypeFieldPathStep::PROTO_FIELD,
-                             .proto_field_name = "timestamp_millis_format"}},
+                             .proto_field_name = "timestamp_millis_format",
+                             .expected_type_name = "ts_type"}},
          .expected_leaf_type_name = "TIMESTAMP",
          .expected_error = "",
          .relation_kind =

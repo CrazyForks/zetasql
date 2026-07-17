@@ -57,8 +57,9 @@ ERROR: JSON literals are not supported [at 7:5]
     ^
 ==
 
-# The following tests run with AI.IF, JSON_TYPE, and NAMED_ARGUMENTS enabled.
-[default language_features=NONE,+AI_IF,+JSON_TYPE,+NAMED_ARGUMENTS]
+# The following tests run with AI.IF, JSON_TYPE, NAMED_ARGUMENTS, and MODEL_ARG
+# enabled.
+[default language_features=NONE,+AI_IF,+JSON_TYPE,+NAMED_ARGUMENTS,+MODEL_ARG]
 # Basic test that a ResolvedAST is produced with all arguments specified.
 SELECT *
 FROM
@@ -286,11 +287,23 @@ ERROR: No matching signature for function AI.IF
     Signature requires at least 4 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => STRING, options => STRING)
     Signature requires at least 4 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => JSON)
+    Signature requires at least 4 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => STRUCT)
+    Signature requires at least 4 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => STRING)
+    Signature requires at least 4 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => JSON)
     Signature requires at least 3 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => STRUCT)
     Signature requires at least 3 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => STRING)
+    Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => JSON)
+    Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => STRUCT)
+    Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => STRING)
     Signature requires at least 3 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, options => JSON)
     Named argument `model` does not exist in signature
@@ -306,7 +319,11 @@ ERROR: No matching signature for function AI.IF
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => STRING)
     Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL)
+    Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, model => STRING)
+    Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRING, model => MODEL)
     Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1)
     Named argument `model` does not exist in signature
@@ -318,6 +335,12 @@ ERROR: No matching signature for function AI.IF
     Signature requires at least 3 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRUCT, model => STRING, options => STRING)
     Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => JSON)
+    Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => STRUCT)
+    Signature requires at least 3 arguments, found 2 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => STRING)
+    Signature requires at least 3 arguments, found 2 arguments
   Signature: AI.IF([prompt=>]STRUCT, options => JSON)
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT, options => STRUCT)
@@ -325,6 +348,8 @@ ERROR: No matching signature for function AI.IF
   Signature: AI.IF([prompt=>]STRUCT, options => STRING)
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT, model => STRING)
+    Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL)
     Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT)
     Named argument `model` does not exist in signature [at 5:5]
@@ -349,11 +374,23 @@ ERROR: No matching signature for function AI.IF
     Argument 1: Unable to coerce type STRUCT<prompt STRING, product_description STRING, product_material STRING> to expected type STRING
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => STRING, options => STRING)
     Argument 1: Unable to coerce type STRUCT<prompt STRING, product_description STRING, product_material STRING> to expected type STRING
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => JSON)
+    Argument 1: Unable to coerce type STRUCT<prompt STRING, product_description STRING, product_material STRING> to expected type STRING
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => STRUCT)
+    Argument 1: Unable to coerce type STRUCT<prompt STRING, product_description STRING, product_material STRING> to expected type STRING
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL, options => STRING)
+    Argument 1: Unable to coerce type STRUCT<prompt STRING, product_description STRING, product_material STRING> to expected type STRING
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => JSON)
     Signature accepts at most 3 arguments, found 4 arguments
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => STRUCT)
     Signature accepts at most 3 arguments, found 4 arguments
   Signature: AI.IF([prompt=>]STRING, model => STRING, options => STRING)
+    Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => JSON)
+    Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => STRUCT)
+    Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRING, model => MODEL, options => STRING)
     Signature accepts at most 3 arguments, found 4 arguments
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, options => JSON)
     Named argument `model` does not exist in signature
@@ -369,7 +406,11 @@ ERROR: No matching signature for function AI.IF
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => STRING)
     Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRING, [payload=>]T1, model => MODEL)
+    Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, model => STRING)
+    Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRING, model => MODEL)
     Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRING, [payload=>]T1)
     Named argument `model` does not exist in signature
@@ -381,6 +422,12 @@ ERROR: No matching signature for function AI.IF
     Signature accepts at most 3 arguments, found 4 arguments
   Signature: AI.IF([prompt=>]STRUCT, model => STRING, options => STRING)
     Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => JSON)
+    Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => STRUCT)
+    Signature accepts at most 3 arguments, found 4 arguments
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL, options => STRING)
+    Signature accepts at most 3 arguments, found 4 arguments
   Signature: AI.IF([prompt=>]STRUCT, options => JSON)
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT, options => STRUCT)
@@ -388,6 +435,8 @@ ERROR: No matching signature for function AI.IF
   Signature: AI.IF([prompt=>]STRUCT, options => STRING)
     Named argument `model` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT, model => STRING)
+    Named argument `options` does not exist in signature
+  Signature: AI.IF([prompt=>]STRUCT, model => MODEL)
     Named argument `options` does not exist in signature
   Signature: AI.IF([prompt=>]STRUCT)
     Named argument `model` does not exist in signature [at 5:5]
@@ -409,11 +458,23 @@ ERROR: No matching signature for function AI.IF
     Signature requires at least 4 arguments, found 3 arguments
   Signature: AI.IF(STRING, T1, model => STRING, options => STRING)
     Signature requires at least 4 arguments, found 3 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => JSON)
+    Signature requires at least 4 arguments, found 3 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => STRUCT)
+    Signature requires at least 4 arguments, found 3 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => STRING)
+    Signature requires at least 4 arguments, found 3 arguments
   Signature: AI.IF(STRING, model => STRING, options => JSON)
     Positional argument at 2 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRING, model => STRING, options => STRUCT)
     Positional argument at 2 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRING, model => STRING, options => STRING)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRING, model => MODEL, options => JSON)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRING, model => MODEL, options => STRUCT)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRING, model => MODEL, options => STRING)
     Positional argument at 2 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRING, T1, options => JSON)
     Positional argument at 3 is invalid because argument `options` can only be referred to by name
@@ -429,7 +490,11 @@ ERROR: No matching signature for function AI.IF
     Signature accepts at most 2 arguments, found 3 arguments
   Signature: AI.IF(STRING, T1, model => STRING)
     Positional argument at 3 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRING, T1, model => MODEL)
+    Positional argument at 3 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRING, model => STRING)
+    Signature accepts at most 2 arguments, found 3 arguments
+  Signature: AI.IF(STRING, model => MODEL)
     Signature accepts at most 2 arguments, found 3 arguments
   Signature: AI.IF(STRING, T1)
     Signature accepts at most 2 arguments, found 3 arguments
@@ -441,6 +506,12 @@ ERROR: No matching signature for function AI.IF
     Positional argument at 2 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRUCT, model => STRING, options => STRING)
     Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRUCT, model => MODEL, options => JSON)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRUCT, model => MODEL, options => STRUCT)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
+  Signature: AI.IF(STRUCT, model => MODEL, options => STRING)
+    Positional argument at 2 is invalid because argument `model` can only be referred to by name
   Signature: AI.IF(STRUCT, options => JSON)
     Signature accepts at most 2 arguments, found 3 arguments
   Signature: AI.IF(STRUCT, options => STRUCT)
@@ -448,6 +519,8 @@ ERROR: No matching signature for function AI.IF
   Signature: AI.IF(STRUCT, options => STRING)
     Signature accepts at most 2 arguments, found 3 arguments
   Signature: AI.IF(STRUCT, model => STRING)
+    Signature accepts at most 2 arguments, found 3 arguments
+  Signature: AI.IF(STRUCT, model => MODEL)
     Signature accepts at most 2 arguments, found 3 arguments
   Signature: AI.IF(STRUCT)
     Signature accepts at most 1 argument, found 3 arguments [at 4:7]
@@ -469,11 +542,23 @@ ERROR: No matching signature for function AI.IF with no arguments
     Signature requires at least 4 arguments, found 0 arguments
   Signature: AI.IF(STRING, T1, model => STRING, options => STRING)
     Signature requires at least 4 arguments, found 0 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => JSON)
+    Signature requires at least 4 arguments, found 0 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => STRUCT)
+    Signature requires at least 4 arguments, found 0 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL, options => STRING)
+    Signature requires at least 4 arguments, found 0 arguments
   Signature: AI.IF(STRING, model => STRING, options => JSON)
     Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRING, model => STRING, options => STRUCT)
     Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRING, model => STRING, options => STRING)
+    Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRING, model => MODEL, options => JSON)
+    Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRING, model => MODEL, options => STRUCT)
+    Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRING, model => MODEL, options => STRING)
     Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRING, T1, options => JSON)
     Signature requires at least 3 arguments, found 0 arguments
@@ -489,7 +574,11 @@ ERROR: No matching signature for function AI.IF with no arguments
     Signature requires at least 2 arguments, found 0 arguments
   Signature: AI.IF(STRING, T1, model => STRING)
     Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRING, T1, model => MODEL)
+    Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRING, model => STRING)
+    Signature requires at least 2 arguments, found 0 arguments
+  Signature: AI.IF(STRING, model => MODEL)
     Signature requires at least 2 arguments, found 0 arguments
   Signature: AI.IF(STRING, T1)
     Signature requires at least 2 arguments, found 0 arguments
@@ -501,6 +590,12 @@ ERROR: No matching signature for function AI.IF with no arguments
     Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRUCT, model => STRING, options => STRING)
     Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRUCT, model => MODEL, options => JSON)
+    Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRUCT, model => MODEL, options => STRUCT)
+    Signature requires at least 3 arguments, found 0 arguments
+  Signature: AI.IF(STRUCT, model => MODEL, options => STRING)
+    Signature requires at least 3 arguments, found 0 arguments
   Signature: AI.IF(STRUCT, options => JSON)
     Signature requires at least 2 arguments, found 0 arguments
   Signature: AI.IF(STRUCT, options => STRUCT)
@@ -508,6 +603,8 @@ ERROR: No matching signature for function AI.IF with no arguments
   Signature: AI.IF(STRUCT, options => STRING)
     Signature requires at least 2 arguments, found 0 arguments
   Signature: AI.IF(STRUCT, model => STRING)
+    Signature requires at least 2 arguments, found 0 arguments
+  Signature: AI.IF(STRUCT, model => MODEL)
     Signature requires at least 2 arguments, found 0 arguments
   Signature: AI.IF(STRUCT)
     Signature requires at least 1 argument, found 0 arguments [at 5:5]
@@ -636,3 +733,28 @@ SELECT AI.IF("prompt", options => "option1" || CAST(rand() AS STRING));
 ERROR: Argument 'options' to AI.IF must be a query-level constant [at 1:24]
 SELECT AI.IF("prompt", options => "option1" || CAST(rand() AS STRING));
                        ^
+==
+
+# `model` can be a reference to a MODEL.
+SELECT AI.IF("prompt", "payload", model => MODEL OneDoubleModel);
+--
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [BOOL]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 :=
+    |   +-FunctionCall(GoogleSQL:ai.if(STRING prompt, STRING payload, ANY MODEL model) -> BOOL)
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-Literal(type=STRING, value="prompt")
+    |     +-FunctionArgument
+    |     | +-expr=
+    |     |   +-Literal(type=STRING, value="payload")
+    |     +-FunctionArgument
+    |       +-model=
+    |         +-Model(model=OneDoubleModel)
+    +-input_scan=
+      +-SingleRowScan

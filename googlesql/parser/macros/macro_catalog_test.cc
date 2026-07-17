@@ -59,7 +59,17 @@ absl::StatusOr<MacroInfo> CreateMacroInfo(absl::string_view macro_definition) {
       .location = define_macro_ast->location(),
       .name_location = define_macro_ast->name()->location(),
       .body_location = define_macro_ast->body()->location(),
+      .visibility = static_cast<ASTDefineMacroStatementEnums::MacroVisibility>(
+          define_macro_ast->visibility()),
   };
+}
+
+absl::StatusOr<std::unique_ptr<MacroCatalog>> CreateCatalogWithMacro(
+    absl::string_view macro_definition) {
+  auto catalog = std::make_unique<MacroCatalog>();
+  GOOGLESQL_ASSIGN_OR_RETURN(const MacroInfo& macro, CreateMacroInfo(macro_definition));
+  GOOGLESQL_RETURN_IF_ERROR(catalog->RegisterMacro(macro));
+  return catalog;
 }
 
 TEST(MacroCatalogTest, MacroInfoNameAndBody) {
@@ -68,6 +78,26 @@ TEST(MacroCatalogTest, MacroInfoNameAndBody) {
 
   EXPECT_EQ(macro.name(), "macro_name");
   EXPECT_EQ(macro.body(), "macro_body");
+  EXPECT_EQ(macro.visibility,
+            ASTDefineMacroStatementEnums::MACRO_VISIBILITY_UNSPECIFIED);
+}
+
+TEST(MacroCatalogTest, MacroInfoVisibilityPublic) {
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const MacroInfo& macro,
+      CreateMacroInfo("DEFINE PUBLIC MACRO macro_name macro_body;"));
+
+  EXPECT_EQ(macro.name(), "macro_name");
+  EXPECT_EQ(macro.visibility, ASTDefineMacroStatementEnums::PUBLIC);
+}
+
+TEST(MacroCatalogTest, MacroInfoVisibilityPrivate) {
+  GOOGLESQL_ASSERT_OK_AND_ASSIGN(
+      const MacroInfo& macro,
+      CreateMacroInfo("DEFINE PRIVATE MACRO macro_name macro_body;"));
+
+  EXPECT_EQ(macro.name(), "macro_name");
+  EXPECT_EQ(macro.visibility, ASTDefineMacroStatementEnums::PRIVATE);
 }
 
 TEST(MacroCatalogTest, RegisterMacroWithOverwritesDisabled) {

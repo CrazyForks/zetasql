@@ -72,6 +72,7 @@
 #include "googlesql/public/pico_time.h"
 #include "googlesql/public/proto/type_annotation.pb.h"
 #include "googlesql/public/table_valued_function.h"
+#include "googlesql/public/time_series_tvf_util.h"
 #include "googlesql/public/timestamp_picos_value.h"
 #include "googlesql/public/types/timestamp_util.h"
 #include "googlesql/public/types/type.h"
@@ -2317,13 +2318,14 @@ BuiltinTableValuedFunction::CreateCall(
     std::vector<TVFSchemaColumn> output_columns,
     std::vector<VariableId> variables,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     std::vector<int> output_column_indices) {
   GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<BuiltinTableValuedFunction> function,
                    Create(kind));
   return TableValuedFunctionCallExpr::Create(
       std::move(function), std::move(arguments), std::move(output_columns),
       std::move(variables), std::move(function_call_signature),
-      std::move(output_column_indices));
+      std::move(tvf_signature), std::move(output_column_indices));
 }
 
 absl::StatusOr<std::unique_ptr<BuiltinTableValuedFunction>>
@@ -13654,6 +13656,24 @@ std::vector<std::unique_ptr<AlgebraArg>> ConvertValueExprsToAlgebraArgs(
   return converted_arguments;
 }
 
+absl::StatusOr<Value> ExtractTimestampFromValue(
+    EvaluatorTableIterator* input, const ResolvedTimestampColumnPath& path) {
+  Value current_value = input->GetValue(path.column_index);
+
+  for (const TypeFieldPathStep& step : path.steps) {
+    if (current_value.is_null()) {
+      return current_value;
+    }
+    if (step.kind == TypeFieldPathStep::STRUCT_FIELD) {
+      current_value = current_value.field(step.struct_field_index);
+    } else {
+      return absl::InternalError("Unknown TypeFieldPathStep kind");
+    }
+  }
+
+  return current_value;
+}
+
 bool TumbleTVF::TumbleResultIterator::NextRow() {
   if (!input_->NextRow()) {
     status_ = input_->Status();
@@ -13668,9 +13688,14 @@ bool TumbleTVF::TumbleResultIterator::NextRow() {
     }
   }
 
-  const Value& event_time = input_->GetValue(timestamp_column_index_);
+  absl::StatusOr<Value> event_time =
+      ExtractTimestampFromValue(input_.get(), timestamp_column_path_);
+  if (!event_time.ok()) {
+    status_ = event_time.status();
+    return false;
+  }
 
-  if (event_time.is_null()) {
+  if (event_time->is_null()) {
     // Set WINDOW_START and WINDOW_END to NULL. This relies on the assumption
     // that TumbleTVF::CreateEvaluator ensures the last two indexes in
     // output_columns_ are WINDOW_START and WINDOW_END.
@@ -13681,7 +13706,7 @@ bool TumbleTVF::TumbleResultIterator::NextRow() {
     return true;
   }
 
-  googlesql::PicoTime event_pico_time = event_time.ToUnixPicos().ToPicoTime();
+  googlesql::PicoTime event_pico_time = event_time->ToUnixPicos().ToPicoTime();
 
   absl::StatusOr<googlesql::PicoTime> window_start =
       googlesql::functions::TimestampPicosBucket(
@@ -13718,6 +13743,7 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>
 TumbleTVF::CreateEvaluator(
     std::vector<TableValuedFunction::TvfEvaluatorArg> args,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     EvaluationContext* context) {
   GOOGLESQL_RET_CHECK(args.size() == 4);
   GOOGLESQL_RET_CHECK(args[0].relation);
@@ -13728,33 +13754,17 @@ TumbleTVF::CreateEvaluator(
   GOOGLESQL_RET_CHECK(args[1].value->type()->IsString());
   std::string timestamp_column_name = args[1].value->string_value();
 
-  int timestamp_column_index = -1;
-  int found_count = 0;
-  for (int i = 0; i < input_iterator->NumColumns(); ++i) {
-    if (googlesql_base::CaseEqual(input_iterator->GetColumnName(i),
-                               timestamp_column_name)) {
-      if (input_iterator->GetColumnType(i)->IsTimestamp()) {
-        timestamp_column_index = i;
-      }
-      found_count++;
+  const TVFRelation input_relation = tvf_signature->argument(0).relation();
+
+  absl::StatusOr<ResolvedTimestampColumnPath> timestamp_column_path =
+      ResolveTimestampColumnPath(input_relation, timestamp_column_name,
+                                 /*type_factory=*/nullptr);
+  if (!timestamp_column_path.ok()) {
+    if (timestamp_column_path.status().code() ==
+        absl::StatusCode::kInvalidArgument) {
+      return absl::OutOfRangeError(timestamp_column_path.status().message());
     }
-  }
-
-  if (timestamp_column_index == -1 && found_count > 0) {
-    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
-                                              timestamp_column_name,
-                                              "' is not of TIMESTAMP type."));
-  }
-
-  if (timestamp_column_index == -1 && found_count == 0) {
-    return absl::OutOfRangeError(absl::StrCat("Timestamp column '",
-                                              timestamp_column_name,
-                                              "' not found in input table."));
-  }
-  if (found_count > 1) {
-    return absl::OutOfRangeError(
-        absl::StrCat("Timestamp_column '", timestamp_column_name,
-                     "' is ambiguous in the input table."));
+    return timestamp_column_path.status();
   }
 
   GOOGLESQL_RET_CHECK(args[2].value);
@@ -13776,22 +13786,16 @@ TumbleTVF::CreateEvaluator(
   std::vector<bool> included_columns;
   included_columns.reserve(input_iterator->NumColumns());
   for (int i = 0; i < input_iterator->NumColumns(); ++i) {
-    std::string column_name = input_iterator->GetColumnName(i);
-    if (absl::AsciiStrToUpper(column_name) != "WINDOW_START" &&
-        absl::AsciiStrToUpper(column_name) != "WINDOW_END") {
-      output_columns.emplace_back(column_name,
-                                  input_iterator->GetColumnType(i));
-      included_columns.push_back(true);
-    } else {
-      included_columns.push_back(false);
-    }
+    output_columns.emplace_back(input_iterator->GetColumnName(i),
+                                input_iterator->GetColumnType(i));
+    included_columns.push_back(true);
   }
   output_columns.emplace_back("WINDOW_START", types::TimestampType());
   output_columns.emplace_back("WINDOW_END", types::TimestampType());
 
   return std::make_unique<TumbleTVF::TumbleResultIterator>(
       std::move(input_iterator), std::move(output_columns),
-      std::move(included_columns), timestamp_column_index,
+      std::move(included_columns), std::move(*timestamp_column_path),
       std::move(window_size), origin);
 }
 
@@ -13918,6 +13922,7 @@ bool HopTVF::HopResultIterator::PopulateCurrentOutputFromPending() {
 absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>> HopTVF::CreateEvaluator(
     std::vector<TableValuedFunction::TvfEvaluatorArg> args,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     EvaluationContext* context) {
   GOOGLESQL_RET_CHECK(args.size() == 5);
 
@@ -14122,6 +14127,7 @@ absl::StatusOr<std::unique_ptr<EvaluatorTableIterator>>
 BatchVectorSearchTVFWithProtoOptions::CreateEvaluator(
     std::vector<TableValuedFunction::TvfEvaluatorArg> args,
     std::shared_ptr<FunctionSignature> function_call_signature,
+    std::shared_ptr<const TVFSignature> tvf_signature,
     EvaluationContext* context) {
   GOOGLESQL_RET_CHECK(args.size() == 8);
 

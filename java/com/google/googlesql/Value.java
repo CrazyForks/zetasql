@@ -1226,14 +1226,14 @@ public class Value implements Serializable {
           GoogleSQLStrings.toBytesLiteral(getProtoValue().toByteArray()), type.typeName());
     }
     if (type.isStruct()) {
-      List<String> fieldsSql = new ArrayList<String>();
+      List<String> fieldsSql = new ArrayList<>();
       for (Value fieldValue : getFieldList()) {
         fieldsSql.add(fieldValue.getSQL());
       }
       return String.format("%s(%s)", type.typeName(), Joiner.on(", ").join(fieldsSql));
     }
     if (type.isArray()) {
-      List<String> elementsSql = new ArrayList<String>();
+      List<String> elementsSql = new ArrayList<>();
       for (Value element : getElementList()) {
         elementsSql.add(element.getSQL());
       }
@@ -1326,7 +1326,7 @@ public class Value implements Serializable {
       if (type.asStruct().getFieldCount() == 0) {
         return "STRUCT()";
       }
-      List<String> fieldsSql = new ArrayList<String>();
+      List<String> fieldsSql = new ArrayList<>();
       for (Value fieldValue : getFieldList()) {
         fieldsSql.add(fieldValue.getSQLLiteral());
       }
@@ -1335,7 +1335,7 @@ public class Value implements Serializable {
           (type.asStruct().getFieldCount() == 1 ? "STRUCT" : ""), Joiner.on(", ").join(fieldsSql));
     }
     if (type.isArray()) {
-      List<String> elementsSql = new ArrayList<String>();
+      List<String> elementsSql = new ArrayList<>();
       for (Value element : getElementList()) {
         elementsSql.add(element.getSQLLiteral());
       }

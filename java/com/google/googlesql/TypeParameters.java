@@ -26,6 +26,7 @@ import com.google.googlesql.GoogleSQLTypeParameters.NumericTypeParametersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.StringTypeParametersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.TimestampTypeParametersProto;
 import com.google.googlesql.GoogleSQLTypeParameters.TypeParametersProto;
+import com.google.googlesql.GoogleSQLTypeParameters.VectorTypeParametersProto;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,7 @@ public final class TypeParameters implements Serializable {
    * field in TypeParametersProto.
    */
   private TypeParametersProto typeParametersProto = TypeParametersProto.getDefaultInstance();
+
   /** Stores type parameters for subfields for ARRAY/STRUCT types */
   private List<TypeParameters> childList = new ArrayList<>();
 
@@ -63,6 +65,11 @@ public final class TypeParameters implements Serializable {
     validateTypeParameters(proto);
     typeParametersProto =
         TypeParametersProto.newBuilder().setTimestampTypeParameters(proto).build();
+  }
+
+  public TypeParameters(VectorTypeParametersProto proto) {
+    validateTypeParameters(proto);
+    typeParametersProto = TypeParametersProto.newBuilder().setVectorTypeParameters(proto).build();
   }
 
   public TypeParameters(ExtendedTypeParametersProto proto) {
@@ -97,6 +104,11 @@ public final class TypeParameters implements Serializable {
     return typeParametersProto.getTimestampTypeParameters();
   }
 
+  public VectorTypeParametersProto getVectorTypeParameters() {
+    Preconditions.checkState(isVectorTypeParameters());
+    return typeParametersProto.getVectorTypeParameters();
+  }
+
   public ExtendedTypeParametersProto getExtendedTypeParameters() {
     Preconditions.checkState(isExtendedTypeParameters());
     return typeParametersProto.getExtendedTypeParameters();
@@ -107,6 +119,7 @@ public final class TypeParameters implements Serializable {
         && !typeParametersProto.hasNumericTypeParameters()
         && !typeParametersProto.hasTimestampTypeParameters()
         && !typeParametersProto.hasExtendedTypeParameters()
+        && !typeParametersProto.hasVectorTypeParameters()
         && childList.isEmpty();
   }
 
@@ -120,6 +133,10 @@ public final class TypeParameters implements Serializable {
 
   public boolean isTimestampTypeParameters() {
     return typeParametersProto.hasTimestampTypeParameters();
+  }
+
+  public boolean isVectorTypeParameters() {
+    return typeParametersProto.hasVectorTypeParameters();
   }
 
   public boolean isExtendedTypeParameters() {
@@ -161,6 +178,9 @@ public final class TypeParameters implements Serializable {
     }
     if (proto.hasTimestampTypeParameters()) {
       return new TypeParameters(proto.getTimestampTypeParameters());
+    }
+    if (proto.hasVectorTypeParameters()) {
+      return new TypeParameters(proto.getVectorTypeParameters());
     }
     List<TypeParameters> childList = new ArrayList<>();
     for (TypeParametersProto child : proto.getChildListList()) {
@@ -211,6 +231,9 @@ public final class TypeParameters implements Serializable {
     if (isTimestampTypeParameters()) {
       return timestampTypeParametersDebugString(typeParametersProto.getTimestampTypeParameters());
     }
+    if (isVectorTypeParameters()) {
+      return vectorTypeParametersDebugString(typeParametersProto.getVectorTypeParameters());
+    }
     // Extended type may has childList.
     StringBuilder debugStringBuilder = new StringBuilder();
     if (isExtendedTypeParameters()) {
@@ -246,6 +269,10 @@ public final class TypeParameters implements Serializable {
   private static String timestampTypeParametersDebugString(
       TimestampTypeParametersProto parameters) {
     return "(precision=" + parameters.getPrecision() + ")";
+  }
+
+  private static String vectorTypeParametersDebugString(VectorTypeParametersProto parameters) {
+    return "(length=" + parameters.getLength() + ")";
   }
 
   private static String extendedTypeParametersDebugString() {
@@ -293,6 +320,14 @@ public final class TypeParameters implements Serializable {
         precision >= 0 && precision <= 12 && precision % 3 == 0,
         "precision can only be 0, 3, 6, 9, or 12, actual precision: %s",
         String.valueOf(precision));
+  }
+
+  private static void validateTypeParameters(VectorTypeParametersProto proto) {
+    if (proto.hasLength()) {
+      long length = proto.getLength();
+      Preconditions.checkArgument(
+          length > 0, "length must be larger than 0, actual length: %s", String.valueOf(length));
+    }
   }
 
   private static void validateTypeParameters(StringTypeParametersProto proto) {

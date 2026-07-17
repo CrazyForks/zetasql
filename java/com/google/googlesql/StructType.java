@@ -161,7 +161,7 @@ public class StructType extends Type {
 
   @Override
   public String typeName(ProductMode productMode) {
-    List<String> strings = new ArrayList<String>();
+    List<String> strings = new ArrayList<>();
     for (StructField field : fields) {
       if (!field.getName().isEmpty()) {
         strings.add(
@@ -178,7 +178,7 @@ public class StructType extends Type {
 
   @Override
   public String debugString(boolean details) {
-    List<String> strings = new ArrayList<String>();
+    List<String> strings = new ArrayList<>();
     for (StructField field : fields) {
       if (!field.getName().isEmpty()) {
         strings.add(String.format("%s %s", GoogleSQLStrings.toIdentifierLiteral(field.getName()),

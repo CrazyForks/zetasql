@@ -2133,6 +2133,55 @@ TEST_P(MacroExpanderParameterizedTest, DoesNotExpandDefineMacroStatements) {
 }
 
 TEST_P(MacroExpanderParameterizedTest,
+       DoesNotExpandDefinePublicPrivateMacroStatements) {
+  MacroCatalog macro_catalog;
+  RegisterMacros(
+      "DEFINE MACRO x a;\n"
+      "DEFINE MACRO y b;\n",
+      macro_catalog);
+
+  EXPECT_THAT(
+      ExpandMacros("DEFINE PUBLIC MACRO $x $y; DEFINE PRIVATE MACRO $y $x",
+                   macro_catalog,
+                   /*is_strict=*/GetParam()),
+      IsOkAndHolds(AllOf(
+          TokensEq(std::vector<TokenWithLocation>{
+              {Token::KW_DEFINE_FOR_MACROS, MakeLocation(0, 6), "DEFINE", ""},
+              {Token::KW_PUBLIC, MakeLocation(7, 13), "PUBLIC", " "},
+              {Token::KW_MACRO, MakeLocation(14, 19), "MACRO", " "},
+              {Token::MACRO_INVOCATION, MakeLocation(20, 22), "$x", " "},
+              {Token::MACRO_INVOCATION, MakeLocation(23, 25), "$y", " "},
+              {Token::SEMICOLON, MakeLocation(25, 26), ";", ""},
+              {Token::KW_DEFINE_FOR_MACROS, MakeLocation(27, 33), "DEFINE",
+               " "},
+              {Token::KW_PRIVATE, MakeLocation(34, 41), "PRIVATE", " "},
+              {Token::KW_MACRO, MakeLocation(42, 47), "MACRO", " "},
+              {Token::MACRO_INVOCATION, MakeLocation(48, 50), "$y", " "},
+              {Token::MACRO_INVOCATION, MakeLocation(51, 53), "$x", " "},
+              {Token::EOI, MakeLocation(53, 53), "", ""},
+          }),
+          HasWarnings(IsEmpty()))));
+}
+
+TEST_P(MacroExpanderParameterizedTest, ExpandsDefinePublicTableStatements) {
+  MacroCatalog macro_catalog;
+  RegisterMacros("DEFINE MACRO x a;\n", macro_catalog);
+
+  EXPECT_THAT(ExpandMacros("DEFINE PUBLIC TABLE $x()", macro_catalog,
+                           /*is_strict=*/GetParam()),
+              IsOkAndHolds(AllOf(
+                  TokensEq(std::vector<TokenWithLocation>{
+                      {Token::KW_DEFINE, MakeLocation(0, 6), "DEFINE", ""},
+                      {Token::KW_PUBLIC, MakeLocation(7, 13), "PUBLIC", " "},
+                      {Token::KW_TABLE, MakeLocation(14, 19), "TABLE", " "},
+                      {Token::IDENTIFIER, MakeLocation(kDefsFileName, 15, 16),
+                       "a", " ", MakeLocation(20, 24)},
+                      {Token::EOI, MakeLocation(24, 24), "", ""},
+                  }),
+                  HasWarnings(IsEmpty()))));
+}
+
+TEST_P(MacroExpanderParameterizedTest,
        DefineStatementsAreNotSpecialExceptAtTheStart) {
   MacroCatalog macro_catalog;
   RegisterMacros("DEFINE MACRO x a;\n", macro_catalog);

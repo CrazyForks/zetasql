@@ -4206,3 +4206,31 @@ create table function tvf_any_table_mix_fixed(t1 any table, t2 table<x numeric(1
 --
 CreateTableFunctionStmt(name_path=tvf_any_table_mix_fixed, argument_name_list=[t1, t2], signature=(ANY TABLE t1, TABLE<x NUMERIC type_parameters:(precision=10,scale=2)> t2) -> ANY TABLE, language="SQL", code="select * from t1 union all select * from t2")
 ==
+
+# TVF relation to relation coercion (no casing mismatch). Output name should match signature (colb).
+[language_features=MAXIMUM,+TABLE_VALUED_FUNCTIONS,+CREATE_TABLE_FUNCTION]
+[no_java]
+create table function mytvf_coercion(t table<a int32>) returns table<colb int64> as select a as colb from t;
+--
+CreateTableFunctionStmt
++-name_path=mytvf_coercion
++-argument_name_list=[t]
++-signature=(TABLE<a INT32> t) -> TABLE<colb INT64>
++-has_explicit_return_schema=TRUE
++-language="SQL"
++-code="select a as colb from t"
++-query=
+| +-ProjectScan
+|   +-column_list=[$subquery1.colb#2]
+|   +-expr_list=
+|   | +-colb#2 :=
+|   |   +-Cast(INT32 -> INT64)
+|   |     +-ColumnRef(type=INT32, column=t.a#1)
+|   +-input_scan=
+|     +-ProjectScan
+|       +-column_list=[t.a#1]
+|       +-input_scan=
+|         +-RelationArgumentScan(column_list=[t.a#1], name="t")
++-output_column_list=
+  +-$subquery1.colb#2 AS colb [INT64]
+==

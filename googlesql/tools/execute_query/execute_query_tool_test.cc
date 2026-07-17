@@ -1071,6 +1071,21 @@ static void RunFileBasedTest(
       absl::StrReplaceAll(output.str(), {{" \n", "<space removed>\n"}}));
 }
 
+TEST(ExecuteQuery, DefineMacroWithVisibilityError) {
+  absl::FlagSaver fs;
+  ExecuteQueryConfig config;
+  std::ostringstream output;
+  GOOGLESQL_EXPECT_OK(ExecuteQuery("DEFINE PUBLIC MACRO m1 1;", config, output));
+  EXPECT_THAT(output.str(),
+              HasSubstr("Macro visibility can be set only within a module"));
+
+  output.str("");
+  output.clear();
+  GOOGLESQL_EXPECT_OK(ExecuteQuery("DEFINE PRIVATE MACRO m1 1;", config, output));
+  EXPECT_THAT(output.str(),
+              HasSubstr("Macro visibility can be set only within a module"));
+}
+
 TEST(ExecuteQuery, FileBasedTest) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_descriptor_pool, "none");

@@ -2238,7 +2238,8 @@ SELECT 1 AS key
 <a id="pivot_pipe_operator"></a>
 
 <pre class="lang-sql prettyprint no-copy">
-|> <span class="kwd">PIVOT</span> (aggregate_expression FOR input_column IN (pivot_column [, ...])) [[AS] alias]
+|> <span class="kwd">PIVOT</span> (aggregate_expression [[AS] prefix]
+   FOR input_column IN (value [[AS] pivot_column] [, ...])) [[AS] table_alias]
 </pre>
 
 **Description**
@@ -2246,7 +2247,16 @@ SELECT 1 AS key
 Rotates rows into columns. The `PIVOT` pipe operator behaves the same as the
 [`PIVOT` operator][pivot-operator] in standard syntax.
 
-**Example**
+The output table has one pivot column for each value provided in the list.
+Each pivot column has an explicit name if provided, or a string
+representation of `value` if not. If `prefix` is specified, the prefix is
+appended to the `pivot_column` name with an underscore in the format
+`prefix_pivot_column`.
+
+Specify `table_alias` to assign an alias to the result table produced by the
+pivot operation.
+
+**Examples**
 
 ```googlesql
 (
@@ -2268,6 +2278,34 @@ Rotates rows into columns. The `PIVOT` pipe operator behaves the same as the
  | kale    | 55 | 45   |
  | apple   | 8  | 10   |
  +---------+----+------*/
+```
+
+The following example includes `pivot_column` aliases (`first_quarter` and
+`second_quarter`) for the rotated columns and a `table_alias` (`pivoted_sales`)
+for the result table. The subsequent `SELECT` operator references the table
+alias to select all columns:
+
+```googlesql
+(
+  SELECT "kale" AS product, 51 AS sales, "Q1" AS quarter
+  UNION ALL
+  SELECT "kale" AS product, 4 AS sales, "Q1" AS quarter
+  UNION ALL
+  SELECT "kale" AS product, 45 AS sales, "Q2" AS quarter
+  UNION ALL
+  SELECT "apple" AS product, 8 AS sales, "Q1" AS quarter
+  UNION ALL
+  SELECT "apple" AS product, 10 AS sales, "Q2" AS quarter
+)
+|> PIVOT(SUM(sales) FOR quarter IN ('Q1' AS first_quarter, 'Q2' AS second_quarter)) AS pivoted_sales
+|> SELECT pivoted_sales.*;
+
+/*---------+---------------+----------------+
+ | product | first_quarter | second_quarter |
+ +---------+---------------+----------------+
+ | kale    | 55            | 45             |
+ | apple   | 8             | 10             |
+ +---------+---------------+----------------*/
 ```
 
 [pivot-operator]: https://github.com/google/googlesql/blob/master/docs/query-syntax.md#pivot_operator

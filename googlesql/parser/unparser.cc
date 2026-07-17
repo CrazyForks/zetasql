@@ -6544,7 +6544,13 @@ void Unparser::visitASTGraphPropertyNameAndValue(
 
 void Unparser::visitASTDefineMacroStatement(const ASTDefineMacroStatement* node,
                                             void* data) {
-  print("DEFINE MACRO ");
+  print("DEFINE ");
+  if (node->visibility() == ASTDefineMacroStatement::PUBLIC) {
+    print("PUBLIC ");
+  } else if (node->visibility() == ASTDefineMacroStatement::PRIVATE) {
+    print("PRIVATE ");
+  }
+  print("MACRO ");
   node->name()->Accept(this, data);
   node->body()->Accept(this, data);
 }

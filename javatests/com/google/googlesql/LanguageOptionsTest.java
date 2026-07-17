@@ -61,7 +61,7 @@ public class LanguageOptionsTest {
     assertThat(options.serialize().getSupportedStatementKindsCount()).isEqualTo(1);
     assertThat(options.supportsStatementKind(ResolvedNodeKind.RESOLVED_QUERY_STMT)).isTrue();
     assertThat(options.supportsStatementKind(ResolvedNodeKind.RESOLVED_BEGIN_STMT)).isFalse();
-    Set<ResolvedNodeKind> supported = new HashSet<ResolvedNodeKind>();
+    Set<ResolvedNodeKind> supported = new HashSet<>();
     options.setSupportedStatementKinds(supported);
     assertThat(options.serialize().getSupportedStatementKindsCount()).isEqualTo(0);
     assertThat(options.supportsStatementKind(ResolvedNodeKind.RESOLVED_QUERY_STMT)).isTrue();
