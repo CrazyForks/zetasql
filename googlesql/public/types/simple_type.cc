@@ -223,6 +223,9 @@ absl::StatusOr<const TypeKindInfo*> GetSimpleTypeKindInfo(TypeKind kind) {
         GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_COLUMN_LIST_SPEC,
                                           /*internal=*/false,
                                           FEATURE_COLUMN_LIST_SPEC));
+        GOOGLESQL_RETURN_IF_ERROR(create_and_assign(TYPE_VARIANT,
+                                          /*internal=*/false,
+                                          FEATURE_VARIANT_TYPE));
         return result;
       }());
 

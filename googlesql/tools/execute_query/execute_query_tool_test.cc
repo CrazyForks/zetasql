@@ -32,6 +32,7 @@
 #include "googlesql/public/options.pb.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
+#include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/testdata/test_schema.pb.h"
 #include "googlesql/tools/execute_query/execute_query_writer.h"
 #include "gmock/gmock.h"
@@ -57,6 +58,7 @@ namespace {
 
 using googlesql_test::EmptyMessage;
 using googlesql_test::KitchenSinkPB;
+using testing::Contains;
 using testing::HasSubstr;
 using testing::IsEmpty;
 using testing::Not;
@@ -1097,6 +1099,40 @@ TEST(ExecuteQuery, FileBasedTest) {
 
   EXPECT_TRUE(file_based_test_driver::RunTestCasesFromFiles(pattern,
                                                             &RunFileBasedTest));
+}
+
+struct FakeExecuteQueryWriter : public ExecuteQueryWriter {
+ public:
+  absl::Status resolved(const ResolvedNode& ast) override {
+    return absl::OkStatus();
+  }
+
+  absl::Status rewritten(absl::string_view rewriter_name,
+                         const ResolvedNode& ast) override {
+    rewrite_steps.push_back(std::string(rewriter_name));
+    return absl::OkStatus();
+  }
+
+  void FlushStatement(bool at_end, std::string error_msg) override {}
+
+  std::vector<std::string> rewrite_steps;
+};
+
+TEST(ExecuteQuery, RewritesCallWriterCallback) {
+  ExecuteQueryConfig config;
+  GOOGLESQL_ASSERT_OK(InitializeExecuteQueryConfig(config));
+  config.clear_tool_modes();
+  config.add_tool_mode(ToolMode::kResolve);
+  config.mutable_analyzer_options().mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_TYPEOF_FUNCTION);
+  config.mutable_analyzer_options().enable_rewrite(
+      ResolvedASTRewrite::REWRITE_TYPEOF_FUNCTION);
+
+  FakeExecuteQueryWriter writer;
+  GOOGLESQL_EXPECT_OK(ExecuteQuery("SELECT TYPEOF(1)", config, writer));
+
+  EXPECT_FALSE(writer.rewrite_steps.empty());
+  EXPECT_THAT(writer.rewrite_steps, Contains("TypeofFunctionRewriter"));
 }
 
 }  // namespace

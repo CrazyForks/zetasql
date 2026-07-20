@@ -56,7 +56,7 @@ TEST(ExecuteQueryStreamWriterTest, ResolvedSelect) {
                              &analyzer_output));
   std::ostringstream output;
   GOOGLESQL_EXPECT_OK(ExecuteQueryStreamWriter{output}.resolved(
-      *analyzer_output->resolved_statement(), /*post_rewrite=*/false));
+      *analyzer_output->resolved_statement()));
   EXPECT_EQ(output.str(), R"(QueryStmt
 +-output_column_list=
 | +-$query.$col1#1 AS `$col1` [INT64]
@@ -152,6 +152,31 @@ Error: Test error
 | foo   | true  |
 | bar   | false |
 +-------+-------+
+
+)");
+}
+
+TEST(ExecuteQueryStreamWriterTest, Rewritten) {
+  SimpleCatalog catalog("simple_catalog");
+  TypeFactory type_factory;
+  std::unique_ptr<const AnalyzerOutput> analyzer_output;
+  GOOGLESQL_EXPECT_OK(AnalyzeStatement("SELECT 1", {}, &catalog, &type_factory,
+                             &analyzer_output));
+  std::ostringstream output;
+  GOOGLESQL_EXPECT_OK(ExecuteQueryStreamWriter{output}.rewritten(
+      "TestRewriter", *analyzer_output->resolved_statement()));
+  EXPECT_EQ(output.str(), R"(
+Resolved AST after rewrite TestRewriter:
+QueryStmt
++-output_column_list=
+| +-$query.$col1#1 AS `$col1` [INT64]
++-query=
+  +-ProjectScan
+    +-column_list=[$query.$col1#1]
+    +-expr_list=
+    | +-$col1#1 := Literal(type=INT64, value=1)
+    +-input_scan=
+      +-SingleRowScan
 
 )");
 }

@@ -96,6 +96,17 @@ class InternalAnalyzerOptions {
   static void ClearGraphProperty(const AnalyzerOptions& options) {
     options.data_->graph_properties.clear();
   }
+
+  static void SetDebugRewriteStepCallback(
+      AnalyzerOptions& options,
+      AnalyzerOptions::Data::RewriteStepCallback callback) {
+    options.data_->debug_rewrite_step_callback = std::move(callback);
+  }
+
+  static const AnalyzerOptions::Data::RewriteStepCallback&
+  GetDebugRewriteStepCallback(const AnalyzerOptions& options) {
+    return options.data_->debug_rewrite_step_callback;
+  }
 };
 }  // namespace googlesql
 

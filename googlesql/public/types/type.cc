@@ -396,6 +396,12 @@ constexpr TypeKindInfoList MakeTypeKindInfoList() {
       .specificity = 38,
       .simple = true,
   };
+  kinds[TYPE_VARIANT] = {
+      .name = "VARIANT",
+      .cost = 39,
+      .specificity = 39,
+      .simple = false,
+  };
 
   return kinds;
 }

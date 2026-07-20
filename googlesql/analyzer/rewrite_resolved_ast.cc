@@ -217,6 +217,13 @@ ApplyBuiltinRewritersToFixedPoint(
       GOOGLESQL_RET_CHECK(rewriter_input != nullptr)
           << "Rewriter " << rewriter->Name() << " returned nullptr on input\n";
 
+      const auto& callback =
+          InternalAnalyzerOptions::GetDebugRewriteStepCallback(
+              analyzer_options);
+      if (callback) {
+        GOOGLESQL_RETURN_IF_ERROR(callback(rewriter->Name(), *rewriter_input));
+      }
+
       // For the time being, any rewriter that we call Rewrite on is making
       // meaningful changes to the ResolvedAST tree, so we unconditionally
       // record that it activates. When rewriters are cheaper on no-op, that

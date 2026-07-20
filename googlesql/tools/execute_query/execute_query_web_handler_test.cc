@@ -599,15 +599,18 @@ TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextAddSubtract) {
       ExecuteQueryWebRequest({"analyze"}, ExecuteQueryConfig::SqlMode::kQuery,
                              SQLBuilder::TargetSyntaxMode::kStandard, query,
                              "none", "MAXIMUM", "", "NONE", "+FLATTEN"),
-      FakeQueryWebTemplates("{{> body}}", "",
-                            "{{#statements}}"
-                            "{{#result_analyzed_post_rewrite}}"
-                            "rewrites applied: "
-                            "{{{result_analyzed_post_rewrite}}}"
-                            "{{/result_analyzed_post_rewrite}}"
-                            "{{/statements}}"),
+      FakeQueryWebTemplates(
+          "{{> body}}", "",
+          "{{#statements}}"
+          "{{#has_rewrites}}"
+          "rewrites applied: "
+          "final={{final_rewriter_name}}:{{{result_analyzed_final}}}"
+          "{{#result_analyzed_rewrites}}{{rewriter_name}}:{{{ast}}}{{/"
+          "result_analyzed_rewrites}}"
+          "{{/has_rewrites}}"
+          "{{/statements}}"),
       result));
-  EXPECT_THAT(result, HasSubstr("rewrites applied:"));
+  EXPECT_THAT(result, HasSubstr("rewrites applied: final=FlattenRewriter:"));
   EXPECT_THAT(result, Not(HasSubstr(expected_text_without_rewrite)));
 
   EXPECT_TRUE(HandleRequest(
@@ -619,9 +622,9 @@ TEST(ExecuteQueryWebHandlerTest, TestEnabledAstRewritesTextAddSubtract) {
                             "{{#result_analyzed}}"
                             "{{{result_analyzed}}}"
                             "{{/result_analyzed}}"
-                            "{{#result_analyzed_post_rewrite}}"
+                            "{{#has_rewrites}}"
                             "rewrites applied!"
-                            "{{/result_analyzed_post_rewrite}}"
+                            "{{/has_rewrites}}"
                             "{{/statements}}"),
       result));
   EXPECT_THAT(result, Not(HasSubstr("rewrites applied!")));

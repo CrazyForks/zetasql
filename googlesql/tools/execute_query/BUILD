@@ -400,6 +400,7 @@ cc_library(
         "//googlesql/base:ret_check",
         "//googlesql/base:status",
         "//googlesql/base:strings",
+        "//googlesql/common:internal_analyzer_options",
         "//googlesql/common:options_utils",
         "//googlesql/parser:parse_tree",
         "//googlesql/parser:parse_tree_serializer",

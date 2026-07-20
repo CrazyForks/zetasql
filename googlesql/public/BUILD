@@ -2628,6 +2628,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
         "@com_google_protobuf//:protobuf_lite",
     ],

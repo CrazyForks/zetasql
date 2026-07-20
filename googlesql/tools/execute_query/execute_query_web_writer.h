@@ -67,7 +67,10 @@ class ExecuteQueryWebWriter : public ExecuteQueryWriter {
     return absl::OkStatus();
   }
 
-  absl::Status resolved(const ResolvedNode& ast, bool post_rewrite) override;
+  absl::Status resolved(const ResolvedNode& ast) override;
+
+  absl::Status rewritten(absl::string_view rewriter_name,
+                         const ResolvedNode& ast) override;
 
   absl::Status unanalyze(absl::string_view unanalyze_string) override {
     current_statement_params_["result_unanalyzed"] =
@@ -117,6 +120,7 @@ class ExecuteQueryWebWriter : public ExecuteQueryWriter {
   mstch::map &template_params_;
   mstch::map current_statement_params_;
   mstch::array statement_params_array_;
+  std::vector<mstch::map> current_rewrites_;
   std::string log_messages_;
   bool got_results_{false};
 };

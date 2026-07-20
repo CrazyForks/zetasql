@@ -56,13 +56,16 @@ class ExecuteQueryWriter {
     return WriteOperationString("unparsed", unparse_string);
   }
 
-  // This can be called twice per statement.
-  // The first time always has `post_rewrite` false.
-  // Optionally, if we have post-rewrite output that's different, this
-  // can be called again with `post_rewrite` true.
-  virtual absl::Status resolved(const ResolvedNode& ast, bool post_rewrite) {
+  // Called once per statement with the initial resolved AST from the analyzer.
+  virtual absl::Status resolved(const ResolvedNode& ast) {
     return absl::UnimplementedError(
         "ExecuteQueryWriter::resolved is not implemented");
+  }
+
+  // Called after each rewrite step if enabled.
+  virtual absl::Status rewritten(absl::string_view rewriter_name,
+                                 const ResolvedNode& ast) {
+    return absl::OkStatus();
   }
   virtual absl::Status unanalyze(absl::string_view unanalyze_string) {
     return WriteOperationString("unanalyze", unanalyze_string);
@@ -132,7 +135,9 @@ class ExecuteQueryStreamWriter : public ExecuteQueryWriter {
   ExecuteQueryStreamWriter(const ExecuteQueryStreamWriter&) = delete;
   ExecuteQueryStreamWriter& operator=(const ExecuteQueryStreamWriter&) = delete;
 
-  absl::Status resolved(const ResolvedNode& ast, bool post_rewrite) override;
+  absl::Status resolved(const ResolvedNode& ast) override;
+  absl::Status rewritten(absl::string_view rewriter_name,
+                         const ResolvedNode& ast) override;
   absl::Status explained(const ResolvedNode& ast,
                          absl::string_view explain) override;
   absl::Status executed(const ResolvedNode& ast,

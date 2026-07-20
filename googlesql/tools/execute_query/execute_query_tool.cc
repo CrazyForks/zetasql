@@ -31,6 +31,7 @@
 #include <vector>
 
 
+#include "googlesql/common/internal_analyzer_options.h"
 #include "googlesql/common/options_utils.h"
 #include "googlesql/parser/parse_tree.h"
 #include "googlesql/parser/parser.h"
@@ -438,8 +439,7 @@ class EvaluatorCallback : public StatementEvaluatorCallback {
     GOOGLESQL_RETURN_IF_ERROR(writer_.StartStatement(/*is_first=*/false));
     (void)writer_.statement_text(segment_text);
     if (config_.tool_modes().contains(ToolMode::kResolve)) {
-      GOOGLESQL_RETURN_IF_ERROR(writer_.resolved(*resolved_stmt,
-                                       /*post_rewrite=*/false));
+      GOOGLESQL_RETURN_IF_ERROR(writer_.resolved(*resolved_stmt));
     }
 
     if (!iters.empty()) {
@@ -457,8 +457,7 @@ class EvaluatorCallback : public StatementEvaluatorCallback {
     GOOGLESQL_RETURN_IF_ERROR(writer_.StartStatement(/*is_first=*/false));
     (void)writer_.statement_text(segment_text);
     if (config_.tool_modes().contains(ToolMode::kResolve)) {
-      GOOGLESQL_RETURN_IF_ERROR(writer_.resolved(*resolved_stmt,
-                                       /*post_rewrite=*/false));
+      GOOGLESQL_RETURN_IF_ERROR(writer_.resolved(*resolved_stmt));
     }
 
     if (result.ok()) {
@@ -1180,13 +1179,9 @@ static absl::StatusOr<const ResolvedNode*> AnalyzeSql(
     }
   }
 
-  std::string pre_rewrite_debug_string;
   if (config.has_tool_mode(ToolMode::kResolve)) {
     GOOGLESQL_RET_CHECK_NE((*analyzer_output)->resolved_node(), nullptr);
-    GOOGLESQL_RETURN_IF_ERROR(writer.resolved(*(*analyzer_output)->resolved_node(),
-                                    /*post_rewrite=*/false));
-    pre_rewrite_debug_string =
-        (*analyzer_output)->resolved_node()->DebugString();
+    GOOGLESQL_RETURN_IF_ERROR(writer.resolved(*(*analyzer_output)->resolved_node()));
   }
 
   // Apply rewrites.
@@ -1195,16 +1190,10 @@ static absl::StatusOr<const ResolvedNode*> AnalyzeSql(
       config.analyzer_options(), sql, config.catalog(), config.type_factory(),
       const_cast<AnalyzerOutput&>(**analyzer_output)));
   GOOGLESQL_RET_CHECK_NE((*analyzer_output)->resolved_node(), nullptr);
+  // Note: Rewritten Resolved ASTs are outputted via debug rewrite step
+  // callbacks.
 
   if (config.has_tool_mode(ToolMode::kResolve)) {
-    std::string post_rewrite_debug_string =
-        (*analyzer_output)->resolved_node()->DebugString();
-    if (pre_rewrite_debug_string != post_rewrite_debug_string) {
-      // Only show a rewritten Resolved AST if it changed.
-      GOOGLESQL_RETURN_IF_ERROR(writer.resolved(*(*analyzer_output)->resolved_node(),
-                                      /*post_rewrite=*/true));
-    }
-
     if (!(*analyzer_output)->deprecation_warnings().empty()) {
       GOOGLESQL_RETURN_IF_ERROR(writer.log("Deprecation warnings:"));
       for (const auto& warning : (*analyzer_output)->deprecation_warnings()) {
@@ -2502,6 +2491,18 @@ absl::Status ExecuteQuery(absl::string_view sql, ExecuteQueryConfig& config,
     config.mutable_analyzer_options().mutable_language()->EnableLanguageFeature(
         FEATURE_STATEMENT_WITH_PIPE_OPERATORS);
   }
+
+  if (config.tool_modes().contains(ToolMode::kResolve)) {
+    InternalAnalyzerOptions::SetDebugRewriteStepCallback(
+        config.mutable_analyzer_options(),
+        [&writer](absl::string_view rewriter_name, const ResolvedNode& node) {
+          return writer.rewritten(rewriter_name, node);
+        });
+  }
+  auto cleanup_callbacks = absl::MakeCleanup([&config] {
+    InternalAnalyzerOptions::SetDebugRewriteStepCallback(
+        config.mutable_analyzer_options(), nullptr);
+  });
 
   std::string script(sql);
   if (config.sql_mode() == SqlMode::kScript) {

@@ -99,11 +99,16 @@ ExecuteQueryStreamWriter::ExecuteQueryStreamWriter(std::ostream& out,
                                                    bool use_box_glyphs)
     : stream_{out}, use_box_glyphs_(use_box_glyphs) {}
 
-absl::Status ExecuteQueryStreamWriter::resolved(const ResolvedNode& ast,
-                                                bool post_rewrite) {
-  if (post_rewrite) {
-    stream_ << "\nResolved AST rewritten to:\n";
-  }
+absl::Status ExecuteQueryStreamWriter::resolved(const ResolvedNode& ast) {
+  stream_ << ast.DebugString(ResolvedNode::DebugStringConfig{
+                 .use_box_glyphs = use_box_glyphs_})
+          << '\n';
+  return absl::OkStatus();
+}
+
+absl::Status ExecuteQueryStreamWriter::rewritten(
+    absl::string_view rewriter_name, const ResolvedNode& ast) {
+  stream_ << "\nResolved AST after rewrite " << rewriter_name << ":\n";
   stream_ << ast.DebugString(ResolvedNode::DebugStringConfig{
                  .use_box_glyphs = use_box_glyphs_})
           << '\n';

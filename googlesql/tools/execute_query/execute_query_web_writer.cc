@@ -258,17 +258,31 @@ absl::Status ExecuteQueryWebWriter::parsed(
   return absl::OkStatus();
 }
 
-absl::Status ExecuteQueryWebWriter::resolved(const ResolvedNode& ast,
-                                             bool post_rewrite) {
+absl::Status ExecuteQueryWebWriter::resolved(const ResolvedNode& ast) {
   // The result_analyzed string contains HTML, so the template contains
   // `result_analyzed` in a triple mustache to disable HTML escaping.
   // We make sure that the string is HTML-escaped before inserting it into the
   // template.
-  current_statement_params_[absl::StrCat("result_analyzed",
-                                         post_rewrite ? "_post_rewrite" : "")] =
+  current_statement_params_["result_analyzed"] =
       DecorateASTDebugStringWithHTMLTags(
           ast.DebugString(ResolvedNode::DebugStringConfig{
               .print_created_columns = true, .use_box_glyphs = true}));
+  got_results_ = true;
+  return absl::OkStatus();
+}
+
+absl::Status ExecuteQueryWebWriter::rewritten(absl::string_view rewriter_name,
+                                              const ResolvedNode& ast) {
+  std::string formatted_ast = DecorateASTDebugStringWithHTMLTags(
+      ast.DebugString(ResolvedNode::DebugStringConfig{
+          .print_created_columns = true, .use_box_glyphs = true}));
+
+  current_rewrites_.push_back(mstch::map{
+      {"rewriter_name", std::string(rewriter_name)},
+      {"ast", formatted_ast},
+  });
+
+  current_statement_params_["has_rewrites"] = true;
   got_results_ = true;
   return absl::OkStatus();
 }
@@ -338,6 +352,17 @@ void ExecuteQueryWebWriter::FlushStatement(bool at_end, std::string error_msg) {
       current_statement_params_["not_is_last"] = true;
     }
 
+    if (!current_rewrites_.empty()) {
+      current_statement_params_.emplace("result_analyzed_final",
+                                        current_rewrites_.back()["ast"]);
+      current_statement_params_.emplace(
+          "final_rewriter_name", current_rewrites_.back()["rewriter_name"]);
+      if (current_rewrites_.size() > 1) {
+        current_statement_params_["result_analyzed_rewrites"] = mstch::array(
+            current_rewrites_.begin(), current_rewrites_.end() - 1);
+      }
+    }
+
     // This would be preferred, but I can't get it work on these boost
     // variant types, so I'm maintaining the array separately and copying it
     // back into the map every time it gets updated.
@@ -355,6 +380,7 @@ void ExecuteQueryWebWriter::FlushStatement(bool at_end, std::string error_msg) {
   got_results_ = false;
   current_statement_params_.clear();
   log_messages_.clear();
+  current_rewrites_.clear();
 }
 
 }  // namespace googlesql

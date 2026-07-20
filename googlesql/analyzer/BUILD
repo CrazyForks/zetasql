@@ -800,6 +800,7 @@ cc_test(
         "//googlesql/base:check",
         "//googlesql/base/testing:googlesql_gtest_main",
         "//googlesql/base/testing:status_matchers",
+        "//googlesql/common:internal_analyzer_options",
         "//googlesql/public:analyzer",
         "//googlesql/public:analyzer_options",
         "//googlesql/public:analyzer_output",

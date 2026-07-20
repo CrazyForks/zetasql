@@ -25,7 +25,7 @@ option cc_enable_arenas = true;
 option java_package = "com.google.googlesql";
 option java_outer_classname = "GoogleSQLType";
 
-// NEXT_ID: 39
+// NEXT_ID: 40
 enum TypeKind {
   // User code that switches on this enum must have a default case so
   // builds won't break if new enums get added.
@@ -107,6 +107,9 @@ enum TypeKind {
   // Represents a specification for a list of columns.
   // Controlled by FEATURE_COLUMN_LIST_SPEC.
   TYPE_COLUMN_LIST_SPEC = 38;
+
+  // VARIANT type is controlled by FEATURE_VARIANT_TYPE
+  TYPE_VARIANT = 39;
 }
 //
 // This represents the serialized form of the googlesql::Type.

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "googlesql/base/atomic_sequence_num.h"
+#include "googlesql/common/internal_analyzer_options.h"
 #include "googlesql/base/testing/status_matchers.h"  
 #include "googlesql/public/analyzer.h"
 #include "googlesql/public/analyzer_options.h"
@@ -47,6 +48,7 @@ namespace googlesql {
 
 using ::testing::Eq;
 using ::testing::NotNull;
+using ::absl_testing::StatusIs;
 
 TEST(RewriteResolvedAstTest, RewriterDoesNotConflictWithExpressionColumnNames) {
   // The map function rewriters use a variable called "m" and a variable called
@@ -337,6 +339,57 @@ TEST(RewriteResolvedAstTest,
   // not have any way to track the current value of the max column ID. It must
   // call `GetNext()` to get the next value, which mutates the sequence number.
   EXPECT_THAT(sequence_number.GetNext(), Eq(4));
+}
+
+TEST(RewriteResolvedAstTest, CallbackCalledOnSingleRewrite) {
+  TypeFactory types;
+  SimpleCatalog catalog("catalog", &types);
+  GOOGLESQL_ASSERT_OK(catalog.AddBuiltinFunctionsAndTypes(
+      BuiltinFunctionOptions::AllReleasedFunctions()));
+
+  AnalyzerOptions options;
+  options.mutable_language()->DisableAllLanguageFeatures();
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_TYPEOF_FUNCTION);
+  options.enable_rewrite(ResolvedASTRewrite::REWRITE_TYPEOF_FUNCTION);
+
+  int callback_count = 0;
+  InternalAnalyzerOptions::SetDebugRewriteStepCallback(
+      options,
+      [&callback_count](absl::string_view rewriter_name,
+                        const ResolvedNode& node) -> absl::Status {
+        EXPECT_EQ(rewriter_name, "TypeofFunctionRewriter");
+        callback_count++;
+        return absl::OkStatus();
+      });
+
+  std::unique_ptr<const AnalyzerOutput> output;
+  GOOGLESQL_ASSERT_OK(AnalyzeStatement(R"sql(SELECT TYPEOF(1))sql", options, &catalog,
+                             &types, &output));
+  EXPECT_EQ(callback_count, 1);
+}
+
+TEST(RewriteResolvedAstTest, DebugRewriteStepCallbackFailsRewrite) {
+  TypeFactory types;
+  SimpleCatalog catalog("catalog", &types);
+  GOOGLESQL_ASSERT_OK(catalog.AddBuiltinFunctionsAndTypes(
+      BuiltinFunctionOptions::AllReleasedFunctions()));
+
+  AnalyzerOptions options;
+  options.mutable_language()->DisableAllLanguageFeatures();
+  options.mutable_language()->EnableLanguageFeature(
+      LanguageFeature::FEATURE_TYPEOF_FUNCTION);
+  options.enable_rewrite(ResolvedASTRewrite::REWRITE_TYPEOF_FUNCTION);
+
+  InternalAnalyzerOptions::SetDebugRewriteStepCallback(
+      options,
+      [](absl::string_view rewriter_name, const ResolvedNode& node)
+          -> absl::Status { return absl::InternalError("Callback failed"); });
+
+  std::unique_ptr<const AnalyzerOutput> output;
+  EXPECT_THAT(AnalyzeStatement(R"sql(SELECT TYPEOF(1))sql", options, &catalog,
+                               &types, &output),
+              StatusIs(absl::StatusCode::kInternal, "Callback failed"));
 }
 
 }  // namespace googlesql

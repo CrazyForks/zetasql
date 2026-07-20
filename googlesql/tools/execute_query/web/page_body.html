@@ -152,24 +152,33 @@
             {{/result_executed}}
 
             {{#result_analyzed}}
-            <!--
-              If we only have `result_analyzed`, just show it inline.
-              If we also have `result_analyzed_post_rewrite`, show both inside
-              collapsible <details> blocks, with the second open by default.
-            -->
             <h3>Analyze</h3>
-            {{#result_analyzed_post_rewrite}}
-            <details>
-              <summary>Pre-rewrite</summary>
-            {{/result_analyzed_post_rewrite}}
-            <pre class="output analyzed"><code class="language-less">{{{result_analyzed}}}</code></pre>
-            {{#result_analyzed_post_rewrite}}
-            </details>
-            <details open=true>
-              <summary>Post-rewrite</summary>
-            <pre class="output analyzed"><code class="language-less">{{{result_analyzed_post_rewrite}}}</code></pre>
-            </details>
-            {{/result_analyzed_post_rewrite}}
+            <!--
+              If we have rewrites, show Pre-rewrite and all rewrite steps
+              inside collapsible details blocks, with the last step (post-rewrite)
+              open by default.
+              Otherwise, just show the single analyzed Resolved AST inline.
+            -->
+            {{#has_rewrites}}
+              <details>
+                <summary>Show Rewrite Steps</summary>
+                <details>
+                  <summary>Pre-rewrite</summary>
+                  <pre class="output analyzed"><code class="language-less">{{{result_analyzed}}}</code></pre>
+                </details>
+                {{#result_analyzed_rewrites}}
+                <details>
+                  <summary>Rewrite: {{rewriter_name}}</summary>
+                  <pre class="output analyzed"><code class="language-less">{{{ast}}}</code></pre>
+                </details>
+                {{/result_analyzed_rewrites}}
+                <p class="final-step-note">Final step produced by: {{final_rewriter_name}}</p>
+              </details>
+              <pre class="output analyzed"><code class="language-less">{{{result_analyzed_final}}}</code></pre>
+            {{/has_rewrites}}
+            {{^has_rewrites}}
+              <pre class="output analyzed"><code class="language-less">{{{result_analyzed}}}</code></pre>
+            {{/has_rewrites}}
             {{/result_analyzed}}
 
             {{#result_parsed}}

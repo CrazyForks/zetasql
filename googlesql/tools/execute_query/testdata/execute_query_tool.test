@@ -823,7 +823,30 @@ QueryStmt
       └─SingleRowScan
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite SqlFunctionInliner:
+QueryStmt
+├─output_column_list=
+│ └─$query.$col1#1 AS `$col1` [DOUBLE]
+└─query=
+  └─ProjectScan
+    ├─column_list=[$query.$col1#1]
+    ├─expr_list=
+    │ └─$col1#1 :=
+    │   └─WithExpr
+    │     ├─type=DOUBLE
+    │     ├─assignment_list=
+    │     │ └─x#2 := Literal(type=INT64, value=123)
+    │     └─expr=
+    │       └─FunctionCall(GoogleSQL:$multiply(DOUBLE, DOUBLE) -> DOUBLE)
+    │         ├─FunctionCall(GoogleSQL:sqrt(DOUBLE) -> DOUBLE)
+    │         │ └─Cast(INT64 -> DOUBLE)
+    │         │   └─ColumnRef(type=INT64, column=$inlined_f.x#2)
+    │         └─Literal(type=DOUBLE, value=2)
+    └─input_scan=
+      └─SingleRowScan
+
+
+Resolved AST after rewrite WithExprRewriter:
 QueryStmt
 ├─output_column_list=
 │ └─$query.$col1#1 AS `$col1` [DOUBLE]
@@ -1567,7 +1590,7 @@ InsertStmt
 └─column_access_list=WRITE,WRITE
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite InsertDmlValuesRewriter:
 InsertStmt
 ├─table_scan=
 │ └─TableScan(column_list=KeyValue.[Key#1, Value#2], table=KeyValue, column_index_list=[0, 1])
@@ -2381,7 +2404,7 @@ QueryStmt
         └─subpipeline_sql="( |> EXTEND 66 )"
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite PipeIfRewriter:
 QueryStmt
 ├─output_column_list=
 │ ├─KeyValue.Key#1 AS Key [INT64]
@@ -3063,6 +3086,39 @@ SELECT 1 AS a, 'x' AS b
 
 SELECT 1;
 --
+\
+Resolved AST after rewrite GeneralizedQueryStmtRewriter:
+MultiStmt
+└─statement_list=
+  ├─CreateWithEntryStmt
+  │ └─with_entry=
+  │   └─WithEntry
+  │     ├─with_query_name="$fork_cte_1"
+  │     └─with_subquery=
+  │       └─ProjectScan
+  │         ├─column_list=$query.[a#1, b#2]
+  │         ├─expr_list=
+  │         │ ├─a#1 := Literal(type=INT64, value=1)
+  │         │ └─b#2 := Literal(type=STRING, value="x")
+  │         └─input_scan=
+  │           └─SingleRowScan
+  ├─QueryStmt
+  │ ├─output_column_list=
+  │ │ └─$query.a#1 AS a [INT64]
+  │ └─query=
+  │   └─ProjectScan
+  │     ├─column_list=[$query.a#1]
+  │     └─input_scan=
+  │       └─WithRefScan(column_list=$query.[a#1, b#2], with_query_name="$fork_cte_1")
+  └─QueryStmt
+    ├─output_column_list=
+    │ └─$query.b#2 AS b [STRING]
+    └─query=
+      └─ProjectScan
+        ├─column_list=[$query.b#2]
+        └─input_scan=
+          └─WithRefScan(column_list=$query.[a#1, b#2], with_query_name="$fork_cte_1")
+
 MultiStmt
 └─statement_list=
   ├─CreateWithEntryStmt
@@ -3458,7 +3514,55 @@ Flatten
     └─field_idx=0
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite FlattenRewriter:
+WithExpr
+├─type=ARRAY<INT64>
+├─assignment_list=
+│ └─injected#1 :=
+│   └─GetStructField
+│     ├─type=ARRAY<STRUCT<x INT64>>
+│     ├─expr=
+│     │ └─Literal(type=STRUCT<ar ARRAY<STRUCT<x INT64>>>, value={ar:[{x:1}]})
+│     └─field_idx=0
+└─expr=
+  └─FunctionCall(GoogleSQL:if(BOOL, ARRAY<INT64>, ARRAY<INT64>) -> ARRAY<INT64>)
+    ├─FunctionCall(GoogleSQL:$is_null(ARRAY<STRUCT<x INT64>>) -> BOOL)
+    │ └─ColumnRef(type=ARRAY<STRUCT<x INT64>>, column=$flatten_input.injected#1)
+    ├─Literal(type=ARRAY<INT64>, value=NULL)
+    └─SubqueryExpr
+      ├─type=ARRAY<INT64>
+      ├─subquery_type=ARRAY
+      ├─parameter_list=
+      │ └─ColumnRef(type=ARRAY<STRUCT<x INT64>>, column=$flatten_input.injected#1)
+      └─subquery=
+        └─OrderByScan
+          ├─column_list=[$flatten.injected#4]
+          ├─is_ordered=TRUE
+          ├─input_scan=
+          │ └─ProjectScan
+          │   ├─column_list=[$flatten.injected#2, $offset.injected#3, $flatten.injected#4]
+          │   ├─expr_list=
+          │   │ └─injected#4 :=
+          │   │   └─GetStructField
+          │   │     ├─type=INT64
+          │   │     ├─expr=
+          │   │     │ └─ColumnRef(type=STRUCT<x INT64>, column=$flatten.injected#2)
+          │   │     └─field_idx=0
+          │   └─input_scan=
+          │     └─ArrayScan
+          │       ├─column_list=[$flatten.injected#2, $offset.injected#3]
+          │       ├─array_expr_list=
+          │       │ └─ColumnRef(type=ARRAY<STRUCT<x INT64>>, column=$flatten_input.injected#1, is_correlated=TRUE)
+          │       ├─element_column_list=[$flatten.injected#2]
+          │       └─array_offset_column=
+          │         └─ColumnHolder(column=$offset.injected#3)
+          └─order_by_item_list=
+            └─OrderByItem
+              └─column_ref=
+                └─ColumnRef(type=INT64, column=$offset.injected#3)
+
+
+Resolved AST after rewrite WithExprRewriter:
 SubqueryExpr
 ├─type=ARRAY<INT64>
 ├─subquery_type=SCALAR
@@ -3556,7 +3660,57 @@ SubpipelineStmt
       └─$pipe_describe.Describe#2 AS Describe [STRING]
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite SubpipelineStmtRewriter:
+GeneralizedQueryStmt
+├─output_schema=
+│ └─OutputSchema
+│   └─output_column_list=
+│     └─$pipe_describe.Describe#2 AS Describe [STRING]
+└─query=
+  └─DescribeScan
+    ├─column_list=[$pipe_describe.Describe#2]
+    ├─input_scan=
+    │ └─TableScan(table=ShowTables, alias="ShowTables")
+    └─describe_expr=
+      └─Describe#2 := Literal(type=STRING, value="**Columns**:\nTable Alias  Column Name  Type\n-----------  -----------  ------\nShowTables   TableName    STRING\n\n**Table Aliases**:\nTable Alias  Columns\n-----------  ---------\nShowTables   TableName\n")
+
+
+Resolved AST after rewrite PipeDescribeRewriter:
+GeneralizedQueryStmt
+├─output_schema=
+│ └─OutputSchema
+│   └─output_column_list=
+│     └─$pipe_describe.Describe#2 AS Describe [STRING]
+└─query=
+  └─SetOperationScan
+    ├─column_list=[$pipe_describe.Describe#2]
+    ├─op_type=UNION_ALL
+    └─input_item_list=
+      ├─SetOperationItem
+      │ ├─scan=
+      │ │ └─ProjectScan
+      │ │   ├─column_list=[$rewrite_describe.$null#3]
+      │ │   ├─expr_list=
+      │ │   │ └─$null#3 := Literal(type=STRING, value=NULL)
+      │ │   └─input_scan=
+      │ │     └─FilterScan
+      │ │       ├─input_scan=
+      │ │       │ └─TableScan(table=ShowTables, alias="ShowTables")
+      │ │       └─filter_expr=
+      │ │         └─Literal(type=BOOL, value=false)
+      │ └─output_column_list=[$rewrite_describe.$null#3]
+      └─SetOperationItem
+        ├─scan=
+        │ └─ProjectScan
+        │   ├─column_list=[$rewrite_describe.$describe#4]
+        │   ├─expr_list=
+        │   │ └─$describe#4 := Literal(type=STRING, value="**Columns**:\nTable Alias  Column Name  Type\n-----------  -----------  ------\nShowTables   TableName    STRING\n\n**Table Aliases**:\nTable Alias  Columns\n-----------  ---------\nShowTables   TableName\n")
+        │   └─input_scan=
+        │     └─SingleRowScan
+        └─output_column_list=[$rewrite_describe.$describe#4]
+
+
+Resolved AST after rewrite GeneralizedQueryStmtRewriter:
 QueryStmt
 ├─output_column_list=
 │ └─$pipe_describe.Describe#2 AS Describe [STRING]
@@ -3666,7 +3820,28 @@ SubpipelineStmt
       └─$pipe_extend.$col1#2 AS `$col1` [INT64]
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite SubpipelineStmtRewriter:
+GeneralizedQueryStmt
+├─output_schema=
+│ └─OutputSchema
+│   └─output_column_list=
+│     ├─DescribeTable.Describe#1 AS Describe [STRING]
+│     └─$pipe_extend.$col1#2 AS `$col1` [INT64]
+└─query=
+  └─FilterScan
+    ├─column_list=[DescribeTable.Describe#1, $pipe_extend.$col1#2]
+    ├─input_scan=
+    │ └─ProjectScan
+    │   ├─column_list=[DescribeTable.Describe#1, $pipe_extend.$col1#2]
+    │   ├─expr_list=
+    │   │ └─$col1#2 := Literal(type=INT64, value=123)
+    │   └─input_scan=
+    │     └─TableScan(column_list=[DescribeTable.Describe#1], table=DescribeTable, column_index_list=[0], alias="DescribeTable")
+    └─filter_expr=
+      └─Literal(type=BOOL, value=true)
+
+
+Resolved AST after rewrite GeneralizedQueryStmtRewriter:
 QueryStmt
 ├─output_column_list=
 │ ├─DescribeTable.Describe#1 AS Describe [STRING]
@@ -3807,7 +3982,43 @@ SubpipelineStmt
       └─$pipe_extend.len#2 AS len [INT64]
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite SubpipelineStmtRewriter:
+GeneralizedQueryStmt
+├─output_schema=
+│ └─OutputSchema
+│   └─output_column_list=
+│     ├─ShowTables.TableName#1 AS TableName [STRING]
+│     └─$pipe_extend.len#2 AS len [INT64]
+└─query=
+  └─OrderByScan
+    ├─column_list=[ShowTables.TableName#1, $pipe_extend.len#2]
+    ├─is_ordered=TRUE
+    ├─input_scan=
+    │ └─ProjectScan
+    │   ├─column_list=[ShowTables.TableName#1, $pipe_extend.len#2]
+    │   ├─expr_list=
+    │   │ └─len#2 :=
+    │   │   └─FunctionCall(GoogleSQL:length(STRING) -> INT64)
+    │   │     └─ColumnRef(type=STRING, column=ShowTables.TableName#1)
+    │   └─input_scan=
+    │     └─FilterScan
+    │       ├─column_list=[ShowTables.TableName#1]
+    │       ├─input_scan=
+    │       │ └─TableScan(column_list=[ShowTables.TableName#1], table=ShowTables, column_index_list=[0], alias="ShowTables")
+    │       └─filter_expr=
+    │         └─FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+    │           ├─ColumnRef(type=STRING, column=ShowTables.TableName#1)
+    │           └─Literal(type=STRING, value="%Array%")
+    └─order_by_item_list=
+      ├─OrderByItem
+      │ └─column_ref=
+      │   └─ColumnRef(type=INT64, column=$pipe_extend.len#2)
+      └─OrderByItem
+        └─column_ref=
+          └─ColumnRef(type=STRING, column=ShowTables.TableName#1)
+
+
+Resolved AST after rewrite GeneralizedQueryStmtRewriter:
 QueryStmt
 ├─output_column_list=
 │ ├─ShowTables.TableName#1 AS TableName [STRING]
@@ -4004,7 +4215,30 @@ SubpipelineStmt
                     └─Literal(type=STRING, value="%e%")
 
 
-Resolved AST rewritten to:
+Resolved AST after rewrite SubpipelineStmtRewriter:
+GeneralizedQueryStmt
+└─query=
+  └─PipeCreateTableScan
+    └─create_table_as_select_stmt=
+      └─CreateTableAsSelectStmt
+        ├─name_path=SomeTables
+        ├─create_scope=CREATE_TEMP
+        ├─column_definition_list=
+        │ └─ColumnDefinition(name="TableName", type=STRING, column=SomeTables.TableName#2)
+        ├─output_column_list=
+        │ └─ShowTables.TableName#1 AS TableName [STRING]
+        └─query=
+          └─FilterScan
+            ├─column_list=[ShowTables.TableName#1]
+            ├─input_scan=
+            │ └─TableScan(column_list=[ShowTables.TableName#1], table=ShowTables, column_index_list=[0], alias="ShowTables")
+            └─filter_expr=
+              └─FunctionCall(GoogleSQL:$like(STRING, STRING) -> BOOL)
+                ├─ColumnRef(type=STRING, column=ShowTables.TableName#1)
+                └─Literal(type=STRING, value="%e%")
+
+
+Resolved AST after rewrite GeneralizedQueryStmtRewriter:
 CreateTableAsSelectStmt
 ├─name_path=SomeTables
 ├─create_scope=CREATE_TEMP

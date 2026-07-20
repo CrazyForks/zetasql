@@ -40,7 +40,9 @@
 #include "googlesql/public/types/annotation.h"
 #include "googlesql/public/types/type_factory.h"
 #include "googlesql/resolved_ast/resolved_ast.h"
+#include "googlesql/resolved_ast/resolved_node.h"
 #include "googlesql/base/case.h"
+#include "gtest/gtest_prod.h"
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
@@ -922,6 +924,7 @@ class AnalyzerOptions {
   // Defined in googlesql/common/internal_analyzer_options.h.
   friend class InternalAnalyzerOptions;
   friend class AnalyzerOptionsTest;
+  FRIEND_TEST(AnalyzerOptionsTest, ClassAndProtoSize);
 
   // ======================================================================
   // NOTE: Please update options.proto and AnalyzerOptions.java accordingly
@@ -968,6 +971,13 @@ class AnalyzerOptions {
     // query). Callbacks run in vector order; the first to return a non-OK
     // status short-circuits the rest and the analyzer returns that error.
     std::vector<PreRewriteCallback> pre_rewrite_callbacks;
+
+    // Callback function that runs after each built-in rewrite step. This is
+    // intended only for debugging and developer tools (like execute_query) to
+    // inspect intermediate AST states.
+    using RewriteStepCallback = std::function<absl::Status(
+        absl::string_view rewriter_name, const ResolvedNode& resolved_node)>;
+    RewriteStepCallback debug_rewrite_step_callback;
 
     // Defined positional parameters. Only used in positional parameter mode.
     // Index 0 corresponds with the query parameter at position 1 and so on.
