@@ -91,3 +91,30 @@ message SimpleGraphElementDynamicPropertiesProto {
 message SimpleGraphElementDynamicLabelProto {
   optional string label_expression = 1;
 }
+
+// Serialized form of a SimplePropertyGraphType. A property graph type is the
+// logical, table-binding-free analogue of a property graph, so it reuses the
+// label and property-declaration protos but has element *types* instead of
+// element tables.
+message SimplePropertyGraphTypeProto {
+  repeated string name_path = 1;
+  repeated SimplePropertyGraphElementTypeProto node_types = 2;
+  repeated SimplePropertyGraphElementTypeProto edge_types = 3;
+  repeated SimpleGraphElementLabelProto labels = 4;
+  repeated SimpleGraphPropertyDeclarationProto property_declarations = 5;
+}
+
+message SimplePropertyGraphElementTypeProto {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    NODE = 1;
+    EDGE = 2;
+  }
+  optional string name = 1;
+  repeated string property_graph_type_name_path = 2;
+  optional Kind kind = 3;
+  repeated string label_names = 4;
+  // The FROM/TO node type names. Only set for edge types; either may be absent.
+  optional string source_node_type_name = 5;
+  optional string dest_node_type_name = 6;
+}

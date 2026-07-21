@@ -1091,7 +1091,7 @@ public class SimpleCatalogTest {
             "The number of fields of SimpleCatalogProto has changed, "
                 + "please also update the serialization code accordingly.")
         .that(SimpleCatalogProto.getDescriptor().getFields())
-        .hasSize(14);
+        .hasSize(15);
     assertWithMessage(
             "The number of fields in SimpleCatalog class has changed, "
                 + "please also update the proto and serialization code accordingly.")

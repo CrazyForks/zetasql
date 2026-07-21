@@ -145,6 +145,11 @@ class SimpleCatalog : public EnumerableCatalog {
                                 const FindOptions& options) override
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  using Catalog::GetPropertyGraphType;
+  absl::Status GetPropertyGraphType(
+      absl::string_view name, const PropertyGraphType*& property_graph_type,
+      const FindOptions& options) override ABSL_LOCKS_EXCLUDED(mutex_);
+
   // For suggestions we look from the last level of <mistyped_path>:
   //  - Whether the object exists directly in sub-catalogs.
   //  - If not above, whether there is a single name that's misspelled in the
@@ -158,6 +163,8 @@ class SimpleCatalog : public EnumerableCatalog {
   std::string SuggestConstant(
       const absl::Span<const std::string>& mistyped_path) override;
   std::string SuggestPropertyGraph(
+      absl::Span<const std::string> mistyped_path) override;
+  std::string SuggestPropertyGraphType(
       absl::Span<const std::string> mistyped_path) override;
 
   // TODO: Implement SuggestModel function.
@@ -329,6 +336,25 @@ class SimpleCatalog : public EnumerableCatalog {
   bool AddOwnedPropertyGraphIfNotPresent(
       absl::string_view name,
       std::unique_ptr<const PropertyGraph> property_graph)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Property Graph Types. Property graph types share the catalog's namespace
+  // with tables and property graphs, so a name is unique across all three.
+  void AddPropertyGraphType(absl::string_view name,
+                            const PropertyGraphType* property_graph_type)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+  void AddPropertyGraphType(const PropertyGraphType* property_graph_type)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+  void AddOwnedPropertyGraphType(
+      absl::string_view name,
+      std::unique_ptr<const PropertyGraphType> property_graph_type)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+  void AddOwnedPropertyGraphType(
+      std::unique_ptr<const PropertyGraphType> property_graph_type)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+  bool AddOwnedPropertyGraphTypeIfNotPresent(
+      absl::string_view name,
+      std::unique_ptr<const PropertyGraphType> property_graph_type)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Add GoogleSQL built-in function definitions into this catalog. `options`
@@ -580,6 +606,8 @@ class SimpleCatalog : public EnumerableCatalog {
       absl::flat_hash_set<const Procedure*>* output) const override;
   absl::Status GetPropertyGraphs(
       absl::flat_hash_set<const PropertyGraph*>* output) const override;
+  absl::Status GetPropertyGraphTypes(
+      absl::flat_hash_set<const PropertyGraphType*>* output) const override;
 
   // Accessors for reading a copy of the object lists in this SimpleCatalog.
   // This is intended primarily for tests.
@@ -596,6 +624,8 @@ class SimpleCatalog : public EnumerableCatalog {
   std::vector<const Constant*> constants() const ABSL_LOCKS_EXCLUDED(mutex_);
   std::vector<const PropertyGraph*> property_graphs() const
       ABSL_LOCKS_EXCLUDED(mutex_);
+  std::vector<const PropertyGraphType*> property_graph_types() const
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Accessors for reading a copy of the key (object-name) lists in this
   // SimpleCatalog. Note that all keys are lower case.
@@ -608,6 +638,8 @@ class SimpleCatalog : public EnumerableCatalog {
   std::vector<std::string> connection_names() const ABSL_LOCKS_EXCLUDED(mutex_);
   std::vector<std::string> constant_names() const ABSL_LOCKS_EXCLUDED(mutex_);
   std::vector<std::string> property_graph_names() const
+      ABSL_LOCKS_EXCLUDED(mutex_);
+  std::vector<std::string> property_graph_type_names() const
       ABSL_LOCKS_EXCLUDED(mutex_);
 
  protected:
@@ -661,6 +693,9 @@ class SimpleCatalog : public EnumerableCatalog {
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   void AddPropertyGraphLocked(absl::string_view name,
                               const PropertyGraph* graph)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void AddPropertyGraphTypeLocked(absl::string_view name,
+                                  const PropertyGraphType* graph_type)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   int RemoveFunctionsLocked(
@@ -734,6 +769,8 @@ class SimpleCatalog : public EnumerableCatalog {
       ABSL_GUARDED_BY(mutex_);
   absl::flat_hash_map<std::string, const PropertyGraph*> property_graphs_
       ABSL_GUARDED_BY(mutex_);
+  absl::flat_hash_map<std::string, const PropertyGraphType*>
+      property_graph_types_ ABSL_GUARDED_BY(mutex_);
 
   std::vector<std::unique_ptr<const Table>> owned_tables_
       ABSL_GUARDED_BY(mutex_);
@@ -755,6 +792,8 @@ class SimpleCatalog : public EnumerableCatalog {
       ABSL_GUARDED_BY(mutex_);
   std::vector<std::unique_ptr<const PropertyGraph>> owned_property_graphs_
       ABSL_GUARDED_BY(mutex_);
+  std::vector<std::unique_ptr<const PropertyGraphType>>
+      owned_property_graph_types_ ABSL_GUARDED_BY(mutex_);
 
   // Subcatalogs added for googlesql function namespaces. Kept separate from
   // owned_catalogs_ to keep them as SimpleCatalog types.

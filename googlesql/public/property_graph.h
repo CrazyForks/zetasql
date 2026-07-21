@@ -44,6 +44,9 @@ class GraphElementLabel;
 class GraphPropertyDeclaration;
 class GraphDynamicLabel;
 class GraphDynamicProperties;
+class PropertyGraphElementType;
+class PropertyGraphNodeType;
+class PropertyGraphEdgeType;
 
 ABSL_DEPRECATED(
     "Do not use this function. It exists only as a bridge until all callers of "
@@ -483,6 +486,178 @@ class GraphDynamicProperties {
   template <class GraphDynamicPropertiesSubclass>
   const GraphDynamicPropertiesSubclass* GetAs() const {
     return static_cast<const GraphDynamicPropertiesSubclass*>(this);
+  }
+};
+
+// Represents an element (node or edge) type in a property graph type.
+//
+// A PropertyGraphElementType is the logical, table-binding-free analogue of a
+// GraphElementTable: it exposes a set of GraphElementLabels (at least its
+// default label, which shares the element type's name) but has no underlying
+// input table, key columns, or property definitions. The property declarations
+// exposed by the element type are reached through its GraphElementLabels.
+class PropertyGraphElementType {
+ public:
+  enum class Kind { kNode, kEdge };
+  virtual ~PropertyGraphElementType() = default;
+
+  // Returns the name which is a unique identifier of a PropertyGraphElementType
+  // in the property graph type. This is also the name of its default label.
+  virtual std::string Name() const = 0;
+
+  // Returns the owning property graph type's name path, top-down and fully
+  // qualified.
+  virtual absl::Span<const std::string> PropertyGraphTypeNamePath() const = 0;
+
+  // IMPORTANT: Intended for debugging only. DO NOT USE THIS FUNCTION for actual
+  // logic. It is ambiguous as individual name parts may contain dots.
+  //
+  // Returns a representation of the fully-qualified name of this
+  // PropertyGraphElementType, including property graph type name.
+  virtual std::string FullName() const {
+    return ::googlesql::FullName(PropertyGraphTypeNamePath(), Name());
+  }
+
+  // Returns the kind of this element type.
+  virtual PropertyGraphElementType::Kind kind() const = 0;
+  virtual const PropertyGraphEdgeType* AsEdgeType() const { return nullptr; }
+  virtual const PropertyGraphNodeType* AsNodeType() const { return nullptr; }
+
+  // Finds the GraphElementLabel on this PropertyGraphElementType with the
+  // <name>. Use name instead of fully-qualified name for the label. Returns
+  // error status if there is no such GraphElementLabel.
+  virtual absl::Status FindLabelByName(
+      absl::string_view name, const GraphElementLabel*& label) const = 0;
+
+  // Returns all GraphElementLabels exposed by this PropertyGraphElementType.
+  virtual absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const = 0;
+
+  // Returns whether or not this PropertyGraphElementType is a specific
+  // interface or implementation.
+  template <class PropertyGraphElementTypeSubclass>
+  bool Is() const {
+    return dynamic_cast<const PropertyGraphElementTypeSubclass*>(this) !=
+           nullptr;
+  }
+
+  // Returns this PropertyGraphElementType as PropertyGraphElementTypeSubclass*.
+  // Must only be used when it is known that the object *is* this subclass,
+  // which can be checked using Is() before calling GetAs().
+  template <class PropertyGraphElementTypeSubclass>
+  const PropertyGraphElementTypeSubclass* GetAs() const {
+    return static_cast<const PropertyGraphElementTypeSubclass*>(this);
+  }
+};
+
+class PropertyGraphNodeType : public PropertyGraphElementType {
+ public:
+  PropertyGraphElementType::Kind kind() const override { return Kind::kNode; }
+  const PropertyGraphNodeType* AsNodeType() const override { return this; }
+};
+
+class PropertyGraphEdgeType : public PropertyGraphElementType {
+ public:
+  PropertyGraphElementType::Kind kind() const override { return Kind::kEdge; }
+  const PropertyGraphEdgeType* AsEdgeType() const override { return this; }
+
+  // Returns the FROM (source) node type, or nullptr if unspecified. An edge
+  // type may specify FROM alone, TO alone, both, or neither. The returned node
+  // type is owned by, and lives within, the same PropertyGraphType as this edge
+  // type.
+  virtual const PropertyGraphNodeType* GetSourceNodeType() const = 0;
+
+  // Returns the TO (destination) node type, or nullptr if unspecified. An edge
+  // type may specify FROM alone, TO alone, both, or neither. The returned node
+  // type is owned by, and lives within, the same PropertyGraphType as this edge
+  // type.
+  virtual const PropertyGraphNodeType* GetDestNodeType() const = 0;
+};
+
+// A property graph type object. A property graph type describes only the
+// logical shape of a graph -- its element types, their default labels, and the
+// property declarations exposed by those labels -- with no physical table
+// bindings. It is the type analogue of a PropertyGraph.
+//
+// The PropertyGraphType owns unique instances of PropertyGraphElementType
+// (PropertyGraphNodeType and PropertyGraphEdgeType), GraphElementLabel and
+// GraphPropertyDeclarations.
+// TODO: Support derived properties, measures, and property
+// options.
+// Objects owned by a PropertyGraphType may refer to
+// other objects only within the same property graph type. For example,
+// GraphElementLabel could refer to a set of GraphPropertyDeclarations,
+// PropertyGraphEdgeType could refer to PropertyGraphNodeType as its
+// source/destination node type etc.
+class PropertyGraphType {
+ public:
+  virtual ~PropertyGraphType() = default;
+
+  // Get the property graph type name.
+  virtual std::string Name() const { return NamePath().back(); }
+
+  // Returns the name path, top-down and fully qualified.
+  virtual absl::Span<const std::string> NamePath() const = 0;
+
+  // IMPORTANT: Intended for debugging only. DO NOT USE THIS FUNCTION for actual
+  // logic. It is ambiguous as individual name parts may contain dots.
+  //
+  // Returns a representation of the fully-qualified name of this
+  // PropertyGraphType, including nested catalog names.
+  virtual std::string FullName() const {
+    return ::googlesql::FullName(NamePath());
+  }
+
+  // Finds the GraphElementLabel in this PropertyGraphType with the <name>.
+  // Use name instead of fully-qualified name for the label.
+  // Returns error status if there is no such GraphElementLabel.
+  virtual absl::Status FindLabelByName(
+      absl::string_view name, const GraphElementLabel*& label) const = 0;
+
+  // Finds the GraphPropertyDeclaration with the <name> exposed by any
+  // GraphElementLabel in this PropertyGraphType.
+  // Use name instead of fully-qualified name for the property declaration.
+  // Returns error status if there is no such GraphPropertyDeclaration.
+  virtual absl::Status FindPropertyDeclarationByName(
+      absl::string_view name,
+      const GraphPropertyDeclaration*& property_declaration) const = 0;
+
+  // Finds the PropertyGraphElementType in this PropertyGraphType with the
+  // <name>. Use name instead of fully-qualified name for the element type.
+  // Returns error status if there is no such PropertyGraphElementType.
+  virtual absl::Status FindElementTypeByName(
+      absl::string_view name,
+      const PropertyGraphElementType*& element_type) const = 0;
+
+  // Returns all PropertyGraphNodeTypes owned by this PropertyGraphType.
+  virtual absl::Status GetNodeTypes(
+      absl::flat_hash_set<const PropertyGraphNodeType*>& output) const = 0;
+
+  // Returns all PropertyGraphEdgeTypes owned by this PropertyGraphType.
+  virtual absl::Status GetEdgeTypes(
+      absl::flat_hash_set<const PropertyGraphEdgeType*>& output) const = 0;
+
+  // Returns all GraphElementLabels owned by this PropertyGraphType.
+  virtual absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const = 0;
+
+  // Returns all GraphPropertyDeclarations owned by this PropertyGraphType.
+  virtual absl::Status GetPropertyDeclarations(
+      absl::flat_hash_set<const GraphPropertyDeclaration*>& output) const = 0;
+
+  // Returns whether or not this PropertyGraphType is a specific interface or
+  // implementation.
+  template <class PropertyGraphTypeSubclass>
+  bool Is() const {
+    return dynamic_cast<const PropertyGraphTypeSubclass*>(this) != nullptr;
+  }
+
+  // Returns this PropertyGraphType as PropertyGraphTypeSubclass*. Must only be
+  // used when it is known that the object *is* this subclass, which can be
+  // checked using Is() before calling GetAs().
+  template <class PropertyGraphTypeSubclass>
+  const PropertyGraphTypeSubclass* GetAs() const {
+    return static_cast<const PropertyGraphTypeSubclass*>(this);
   }
 };
 

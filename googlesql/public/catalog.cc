@@ -24,6 +24,7 @@
 
 #include "googlesql/public/catalog_helper.h"
 #include "googlesql/public/evaluator_table_iterator.h"
+#include "googlesql/public/property_graph.h"
 #include "googlesql/public/strings.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -485,6 +486,32 @@ absl::Status Catalog::FindPropertyGraph(
   return absl::OkStatus();
 }
 
+absl::Status Catalog::FindPropertyGraphType(
+    const absl::Span<const std::string> path,
+    const PropertyGraphType*& property_graph_type, const FindOptions& options) {
+  property_graph_type = nullptr;
+  if (path.empty()) {
+    return EmptyNamePathInternalError("PropertyGraphType");
+  }
+
+  const std::string& name = path.front();
+  if (path.size() > 1) {
+    Catalog* catalog = nullptr;
+    GOOGLESQL_RETURN_IF_ERROR(GetCatalog(name, &catalog, options));
+    if (catalog == nullptr) {
+      return PropertyGraphTypeNotFoundError(path);
+    }
+    const absl::Span<const std::string> path_suffix = path.subspan(1);
+    return catalog->FindPropertyGraphType(path_suffix, property_graph_type,
+                                          options);
+  }
+  GOOGLESQL_RETURN_IF_ERROR(GetPropertyGraphType(name, property_graph_type, options));
+  if (property_graph_type == nullptr) {
+    return PropertyGraphTypeNotFoundError(path);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Catalog::FindObject(absl::Span<const std::string> path,
                                  const Table** object,
                                  const FindOptions& options) {
@@ -500,6 +527,12 @@ absl::Status Catalog::FindObject(absl::Span<const std::string> path,
                                  const PropertyGraph** object,
                                  const FindOptions& options) {
   return FindPropertyGraph(path, *object, options);
+}
+
+absl::Status Catalog::FindObject(absl::Span<const std::string> path,
+                                 const PropertyGraphType** object,
+                                 const FindOptions& options) {
+  return FindPropertyGraphType(path, *object, options);
 }
 
 absl::StatusOr<TypeListView> Catalog::GetExtendedTypeSuperTypes(
@@ -558,6 +591,11 @@ std::string Catalog::SuggestEnumValue(const EnumType* type,
 }
 
 std::string Catalog::SuggestPropertyGraph(
+    absl::Span<const std::string> mistyped_path) {
+  return "";
+}
+
+std::string Catalog::SuggestPropertyGraphType(
     absl::Span<const std::string> mistyped_path) {
   return "";
 }
@@ -641,6 +679,14 @@ absl::Status Catalog::GetPropertyGraph(absl::string_view name,
                       "GetPropertyGraph is not implemented yet.");
 }
 
+absl::Status Catalog::GetPropertyGraphType(
+    absl::string_view name, const PropertyGraphType*& property_graph_type,
+    const FindOptions& options) {
+  property_graph_type = nullptr;
+  return absl::Status(absl::StatusCode::kUnimplemented,
+                      "GetPropertyGraphType is not implemented yet.");
+}
+
 absl::Status Catalog::GenericNotFoundError(
     absl::string_view object_type, absl::Span<const std::string> path) const {
   const std::string& name = path.front();
@@ -712,6 +758,11 @@ absl::Status Catalog::ConversionNotFoundError(
 absl::Status Catalog::PropertyGraphNotFoundError(
     const absl::Span<const std::string> path) const {
   return GenericNotFoundError("PropertyGraph", path);
+}
+
+absl::Status Catalog::PropertyGraphTypeNotFoundError(
+    const absl::Span<const std::string> path) const {
+  return GenericNotFoundError("PropertyGraphType", path);
 }
 
 absl::Status Catalog::EmptyNamePathInternalError(

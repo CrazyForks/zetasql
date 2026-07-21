@@ -48,6 +48,7 @@ namespace googlesql {
 class SimpleGraphPropertyDeclaration;
 class SimpleGraphElementLabel;
 class ElementTableCommonInternal;
+class PropertyGraphElementTypeCommonInternal;
 
 class SimplePropertyGraph : public PropertyGraph {
  public:
@@ -516,6 +517,170 @@ class SimpleGraphDynamicProperties : public GraphDynamicProperties {
   const ResolvedExpr* resolved_expr_;
   friend class InternalPropertyGraph;
 };
+// A SimpleCatalog-owned implementation of PropertyGraphType. Mirrors
+// SimplePropertyGraph, but holds element *types* (no physical table binding).
+class SimplePropertyGraphType : public PropertyGraphType {
+ public:
+  explicit SimplePropertyGraphType(std::vector<std::string> name_path)
+      : name_path_(std::move(name_path)) {}
+
+  SimplePropertyGraphType(
+      std::vector<std::string> name_path,
+      std::vector<std::unique_ptr<const PropertyGraphNodeType>> node_types,
+      std::vector<std::unique_ptr<const PropertyGraphEdgeType>> edge_types,
+      std::vector<std::unique_ptr<const GraphElementLabel>> labels,
+      std::vector<std::unique_ptr<const GraphPropertyDeclaration>>
+          property_declarations);
+
+  absl::Span<const std::string> NamePath() const override { return name_path_; }
+
+  absl::Status FindLabelByName(absl::string_view name,
+                               const GraphElementLabel*& label) const override;
+
+  absl::Status FindPropertyDeclarationByName(
+      absl::string_view name,
+      const GraphPropertyDeclaration*& property_declaration) const override;
+
+  absl::Status FindElementTypeByName(
+      absl::string_view name,
+      const PropertyGraphElementType*& element_type) const override;
+
+  absl::Status GetNodeTypes(
+      absl::flat_hash_set<const PropertyGraphNodeType*>& output) const override;
+
+  absl::Status GetEdgeTypes(
+      absl::flat_hash_set<const PropertyGraphEdgeType*>& output) const override;
+
+  absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const override;
+
+  absl::Status GetPropertyDeclarations(
+      absl::flat_hash_set<const GraphPropertyDeclaration*>& output)
+      const override;
+
+  // Add a node type.
+  void AddNodeType(std::unique_ptr<const PropertyGraphNodeType> node_type) {
+    node_types_map_.try_emplace(absl::AsciiStrToLower(node_type->Name()),
+                                std::move(node_type));
+  }
+
+  // Add an edge type.
+  void AddEdgeType(std::unique_ptr<const PropertyGraphEdgeType> edge_type) {
+    edge_types_map_.try_emplace(absl::AsciiStrToLower(edge_type->Name()),
+                                std::move(edge_type));
+  }
+
+  // Add a label.
+  void AddLabel(std::unique_ptr<const GraphElementLabel> label) {
+    labels_map_.try_emplace(absl::AsciiStrToLower(label->Name()),
+                            std::move(label));
+  }
+
+  // Add a property declaration.
+  void AddPropertyDeclaration(
+      std::unique_ptr<const GraphPropertyDeclaration> property_declaration) {
+    property_dcls_map_.try_emplace(
+        absl::AsciiStrToLower(property_declaration->Name()),
+        std::move(property_declaration));
+  }
+
+  absl::Status Serialize(FileDescriptorSetMap* file_descriptor_set_map,
+                         SimplePropertyGraphTypeProto* proto) const;
+
+  static absl::StatusOr<std::unique_ptr<SimplePropertyGraphType>> Deserialize(
+      const SimplePropertyGraphTypeProto& proto,
+      const TypeDeserializer& type_deserializer, SimpleCatalog* catalog);
+
+ private:
+  const std::vector<std::string> name_path_;
+  absl::flat_hash_map<std::string,
+                      std::unique_ptr<const GraphPropertyDeclaration>>
+      property_dcls_map_;
+  absl::flat_hash_map<std::string, std::unique_ptr<const GraphElementLabel>>
+      labels_map_;
+  absl::flat_hash_map<std::string, std::unique_ptr<const PropertyGraphNodeType>>
+      node_types_map_;
+  absl::flat_hash_map<std::string, std::unique_ptr<const PropertyGraphEdgeType>>
+      edge_types_map_;
+};
+
+class SimplePropertyGraphNodeType : public PropertyGraphNodeType {
+ public:
+  SimplePropertyGraphNodeType(
+      absl::string_view name,
+      absl::Span<const std::string> property_graph_type_name_path,
+      const absl::flat_hash_set<const GraphElementLabel*>& labels);
+
+  ~SimplePropertyGraphNodeType() override;
+
+  std::string Name() const override;
+  absl::Span<const std::string> PropertyGraphTypeNamePath() const override;
+
+  absl::Status FindLabelByName(absl::string_view name,
+                               const GraphElementLabel*& label) const override;
+
+  absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const override;
+
+  absl::Status Serialize(SimplePropertyGraphElementTypeProto* proto) const;
+
+  static absl::StatusOr<std::unique_ptr<SimplePropertyGraphNodeType>>
+  Deserialize(
+      const SimplePropertyGraphElementTypeProto& proto,
+      const absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>&
+          labels);
+
+ private:
+  const std::unique_ptr<const PropertyGraphElementTypeCommonInternal>
+      element_internal_;
+};
+
+class SimplePropertyGraphEdgeType : public PropertyGraphEdgeType {
+ public:
+  // `source_node_type` and `dest_node_type` are the FROM/TO node types, or
+  // nullptr if the endpoint is unspecified. They must outlive this edge type;
+  // in practice both are owned by the same PropertyGraphType and the node types
+  // are created before the edge types that reference them.
+  SimplePropertyGraphEdgeType(
+      absl::string_view name,
+      absl::Span<const std::string> property_graph_type_name_path,
+      const absl::flat_hash_set<const GraphElementLabel*>& labels,
+      const PropertyGraphNodeType* source_node_type,
+      const PropertyGraphNodeType* dest_node_type);
+
+  ~SimplePropertyGraphEdgeType() override;
+
+  std::string Name() const override;
+  absl::Span<const std::string> PropertyGraphTypeNamePath() const override;
+
+  absl::Status FindLabelByName(absl::string_view name,
+                               const GraphElementLabel*& label) const override;
+
+  absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const override;
+
+  const PropertyGraphNodeType* GetSourceNodeType() const override;
+  const PropertyGraphNodeType* GetDestNodeType() const override;
+
+  absl::Status Serialize(SimplePropertyGraphElementTypeProto* proto) const;
+
+  // `node_types` maps lowercased node-type name to the corresponding node type,
+  // and must contain any node type named by this edge's FROM/TO endpoints.
+  static absl::StatusOr<std::unique_ptr<SimplePropertyGraphEdgeType>>
+  Deserialize(
+      const SimplePropertyGraphElementTypeProto& proto,
+      const absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>&
+          labels,
+      const absl::flat_hash_map<std::string, const PropertyGraphNodeType*>&
+          node_types);
+
+ private:
+  const std::unique_ptr<const PropertyGraphElementTypeCommonInternal>
+      element_internal_;
+  const PropertyGraphNodeType* const source_node_type_;
+  const PropertyGraphNodeType* const dest_node_type_;
+};
+
 }  // namespace googlesql
 
 #endif  // GOOGLESQL_PUBLIC_SIMPLE_PROPERTY_GRAPH_H_

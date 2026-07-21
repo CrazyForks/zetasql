@@ -191,6 +191,15 @@ absl::Status SimpleCatalog::GetPropertyGraph(
   return absl::OkStatus();
 }
 
+absl::Status SimpleCatalog::GetPropertyGraphType(
+    absl::string_view name, const PropertyGraphType*& property_graph_type,
+    const FindOptions& options) {
+  absl::ReaderMutexLock l(mutex_);
+  property_graph_type =
+      googlesql_base::FindPtrOrNull(property_graph_types_, absl::AsciiStrToLower(name));
+  return absl::OkStatus();
+}
+
 std::string SimpleCatalog::SuggestTable(
     const absl::Span<const std::string>& mistyped_path) {
   if (mistyped_path.empty()) {
@@ -337,8 +346,20 @@ std::string SimpleCatalog::SuggestConstant(
   return "";
 }
 
-std::string SimpleCatalog::SuggestPropertyGraph(
-    absl::Span<const std::string> mistyped_path) {
+namespace {
+
+// Shared implementation for `SimpleCatalog::SuggestPropertyGraph` and
+// `SimpleCatalog::SuggestPropertyGraphType`. `find_fn` and `suggest_fn`
+// dispatch to the matching `Catalog` virtual methods: for `PropertyGraph`, to
+// `Catalog::FindPropertyGraph` and `Catalog::SuggestPropertyGraph`; for
+// `PropertyGraphType`, to `Catalog::FindPropertyGraphType` and
+// `Catalog::SuggestPropertyGraphType`. `schema_object_names` supplies the local
+// schema object name list used for fuzzy matching.
+template <typename T, typename FindFn, typename SuggestFn>
+std::string SuggestPropertyGraphOrType(
+    SimpleCatalog* self, absl::Span<const std::string> mistyped_path,
+    const std::vector<std::string>& schema_object_names, FindFn find_fn,
+    SuggestFn suggest_fn) {
   if (mistyped_path.empty()) {
     // Nothing to suggest here.
     return "";
@@ -347,30 +368,29 @@ std::string SimpleCatalog::SuggestPropertyGraph(
   const std::string& name = mistyped_path.front();
   if (mistyped_path.length() > 1) {
     Catalog* catalog = nullptr;
-    if (GetCatalog(name, &catalog).ok() && catalog != nullptr) {
+    if (self->GetCatalog(name, &catalog).ok() && catalog != nullptr) {
       absl::Span<const std::string> mistyped_path_suffix =
           mistyped_path.subspan(1, mistyped_path.length());
       const std::string closest_name =
-          catalog->SuggestPropertyGraph(mistyped_path_suffix);
+          suggest_fn(catalog, mistyped_path_suffix);
       if (!closest_name.empty()) {
         return absl::StrCat(catalog->FullName(), ".", closest_name);
       }
     }
     return "";
   }
-  const FindOptions& find_options = FindOptions();
-  const PropertyGraph* property_graph = nullptr;
-  if (FindPropertyGraph({name}, property_graph, find_options).ok()) {
-    return property_graph->Name();
+  const Catalog::FindOptions find_options;
+  const T* object = nullptr;
+  if (find_fn(self, {name}, object, find_options).ok()) {
+    return object->Name();
   }
 
-  std::vector<Catalog*> sub_catalogs = catalogs();
+  std::vector<Catalog*> sub_catalogs = self->catalogs();
   std::string closest_name;
   for (auto sub_catalog : sub_catalogs) {
-    if ((sub_catalog->FindPropertyGraph({name}, property_graph, find_options)
-             .ok())) {
+    if (find_fn(sub_catalog, {name}, object, find_options).ok()) {
       const std::string result =
-          absl::StrCat(sub_catalog->FullName(), ".", property_graph->Name());
+          absl::StrCat(sub_catalog->FullName(), ".", object->Name());
       // We choose the name which occurs lexicographically first to keep the
       // result deterministic and independent of the order of sub-catalogs.
       if (closest_name.empty() || closest_name.compare(result) > 0) {
@@ -381,16 +401,44 @@ std::string SimpleCatalog::SuggestPropertyGraph(
   if (!closest_name.empty()) {
     return closest_name;
   }
-  closest_name =
-      ClosestName(absl::AsciiStrToLower(name), property_graph_names());
+  closest_name = ClosestName(absl::AsciiStrToLower(name), schema_object_names);
   if (!closest_name.empty() &&
-      FindPropertyGraph({closest_name}, property_graph).ok()) {
-    return property_graph->Name();
+      find_fn(self, {closest_name}, object, find_options).ok()) {
+    return object->Name();
   }
 
   // No suggestion obtained.
   return "";
 }
+
+}  // namespace
+
+std::string SimpleCatalog::SuggestPropertyGraph(
+    absl::Span<const std::string> mistyped_path) {
+  return SuggestPropertyGraphOrType<PropertyGraph>(
+      this, mistyped_path, property_graph_names(),
+      [](Catalog* catalog, absl::Span<const std::string> path,
+         const PropertyGraph*& output, const FindOptions& find_options) {
+        return catalog->FindPropertyGraph(path, output, find_options);
+      },
+      [](Catalog* catalog, absl::Span<const std::string> path) {
+        return catalog->SuggestPropertyGraph(path);
+      });
+}
+
+std::string SimpleCatalog::SuggestPropertyGraphType(
+    absl::Span<const std::string> mistyped_path) {
+  return SuggestPropertyGraphOrType<PropertyGraphType>(
+      this, mistyped_path, property_graph_type_names(),
+      [](Catalog* catalog, absl::Span<const std::string> path,
+         const PropertyGraphType*& output, const FindOptions& find_options) {
+        return catalog->FindPropertyGraphType(path, output, find_options);
+      },
+      [](Catalog* catalog, absl::Span<const std::string> path) {
+        return catalog->SuggestPropertyGraphType(path);
+      });
+}
+
 void SimpleCatalog::AddTable(absl::string_view name, const Table* table) {
   absl::MutexLock l(&mutex_);
   const std::string canonical_name = absl::AsciiStrToLower(name);
@@ -485,6 +533,21 @@ void SimpleCatalog::AddPropertyGraphLocked(
   const std::string canonical_name = absl::AsciiStrToLower(name);
   googlesql_base::InsertOrDie(&global_names_, canonical_name);
   googlesql_base::InsertOrDie(&property_graphs_, canonical_name, property_graph);
+}
+
+void SimpleCatalog::AddPropertyGraphType(
+    absl::string_view name, const PropertyGraphType* property_graph_type) {
+  absl::MutexLock l(mutex_);
+  AddPropertyGraphTypeLocked(name, property_graph_type);
+}
+
+void SimpleCatalog::AddPropertyGraphTypeLocked(
+    absl::string_view name, const PropertyGraphType* property_graph_type) {
+  // Property graph types share the catalog's namespace with property graphs and
+  // tables, so they are registered in `global_names_` as well.
+  const std::string canonical_name = absl::AsciiStrToLower(name);
+  googlesql_base::InsertOrDie(&global_names_, canonical_name);
+  googlesql_base::InsertOrDie(&property_graph_types_, canonical_name, property_graph_type);
 }
 
 void SimpleCatalog::AddOwnedTable(absl::string_view name,
@@ -615,6 +678,19 @@ void SimpleCatalog::AddOwnedPropertyGraph(
   absl::MutexLock l(&mutex_);
   AddPropertyGraphLocked(name, property_graph.get());
   owned_property_graphs_.push_back(std::move(property_graph));
+}
+
+void SimpleCatalog::AddPropertyGraphType(
+    const PropertyGraphType* property_graph_type) {
+  AddPropertyGraphType(property_graph_type->Name(), property_graph_type);
+}
+
+void SimpleCatalog::AddOwnedPropertyGraphType(
+    absl::string_view name,
+    std::unique_ptr<const PropertyGraphType> property_graph_type) {
+  absl::MutexLock l(mutex_);
+  AddPropertyGraphTypeLocked(name, property_graph_type.get());
+  owned_property_graph_types_.push_back(std::move(property_graph_type));
 }
 
 void SimpleCatalog::AddTable(const Table* table) {
@@ -871,6 +947,29 @@ bool SimpleCatalog::AddOwnedPropertyGraphIfNotPresent(
     return false;
   }
   owned_property_graphs_.push_back(std::move(property_graph));
+  return true;
+}
+
+void SimpleCatalog::AddOwnedPropertyGraphType(
+    std::unique_ptr<const PropertyGraphType> property_graph_type) {
+  const std::string name = property_graph_type->Name();
+  AddOwnedPropertyGraphType(name, std::move(property_graph_type));
+}
+
+bool SimpleCatalog::AddOwnedPropertyGraphTypeIfNotPresent(
+    absl::string_view name,
+    std::unique_ptr<const PropertyGraphType> property_graph_type) {
+  const std::string canonical_name = absl::AsciiStrToLower(name);
+  absl::MutexLock l(mutex_);
+
+  // Property graph types share the catalog's namespace with property graphs and
+  // tables, so uniqueness is enforced against `global_names_`.
+  if (!googlesql_base::InsertIfNotPresent(&global_names_, canonical_name) ||
+      !googlesql_base::InsertIfNotPresent(&property_graph_types_, canonical_name,
+                               property_graph_type.get())) {
+    return false;
+  }
+  owned_property_graph_types_.push_back(std::move(property_graph_type));
   return true;
 }
 
@@ -1403,6 +1502,21 @@ absl::Status SimpleCatalog::DeserializeImpl(
     }
   }
 
+  for (const SimplePropertyGraphTypeProto& property_graph_type_proto :
+       proto.property_graph_type()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<SimplePropertyGraphType> property_graph_type,
+        SimplePropertyGraphType::Deserialize(property_graph_type_proto,
+                                             type_deserializer, catalog));
+    const std::string name = property_graph_type->Name();
+    if (!AddOwnedPropertyGraphTypeIfNotPresent(
+            name, std::move(property_graph_type))) {
+      return ::googlesql_base::InvalidArgumentErrorBuilder()
+             << "Duplicate property graph type '" << name
+             << "' in serialized catalog";
+    }
+  }
+
   return absl::OkStatus();
 }
 
@@ -1636,6 +1750,23 @@ absl::Status SimpleCatalog::SerializeImpl(
     GOOGLESQL_RETURN_IF_ERROR(simple_property_graph->Serialize(
         file_descriptor_set_map, proto->add_property_graph()));
   }
+
+  const absl::btree_map<std::string, const PropertyGraphType*>
+      property_graph_types(property_graph_types_.begin(),
+                           property_graph_types_.end());
+  for (const auto& entry : property_graph_types) {
+    absl::string_view graph_type_name = entry.first;
+    const PropertyGraphType* const property_graph_type = entry.second;
+    if (!property_graph_type->Is<SimplePropertyGraphType>()) {
+      return ::googlesql_base::UnknownErrorBuilder()
+             << "Cannot serialize non-SimplePropertyGraphType "
+             << graph_type_name;
+    }
+    const SimplePropertyGraphType* const simple_property_graph_type =
+        property_graph_type->GetAs<SimplePropertyGraphType>();
+    GOOGLESQL_RETURN_IF_ERROR(simple_property_graph_type->Serialize(
+        file_descriptor_set_map, proto->add_property_graph_type()));
+  }
   return absl::OkStatus();
 }
 
@@ -1708,6 +1839,15 @@ absl::Status SimpleCatalog::GetPropertyGraphs(
   GOOGLESQL_RET_CHECK(output->empty());
   absl::MutexLock lock(mutex_);
   InsertValuesFromMap(property_graphs_, output);
+  return absl::OkStatus();
+}
+
+absl::Status SimpleCatalog::GetPropertyGraphTypes(
+    absl::flat_hash_set<const PropertyGraphType*>* output) const {
+  GOOGLESQL_RET_CHECK_NE(output, nullptr);
+  GOOGLESQL_RET_CHECK(output->empty());
+  absl::MutexLock lock(mutex_);
+  InsertValuesFromMap(property_graph_types_, output);
   return absl::OkStatus();
 }
 
@@ -1836,6 +1976,23 @@ std::vector<const PropertyGraph*> SimpleCatalog::property_graphs() const {
   std::vector<const PropertyGraph*> property_graphs;
   googlesql_base::AppendValuesFromMap(property_graphs_, &property_graphs);
   return property_graphs;
+}
+
+std::vector<std::string> SimpleCatalog::property_graph_type_names() const {
+  absl::MutexLock l(mutex_);
+  std::vector<std::string> property_graph_type_names;
+  property_graph_type_names.reserve(property_graph_types_.size());
+  googlesql_base::AppendKeysFromMap(property_graph_types_, &property_graph_type_names);
+  return property_graph_type_names;
+}
+
+std::vector<const PropertyGraphType*> SimpleCatalog::property_graph_types()
+    const {
+  absl::MutexLock l(mutex_);
+  std::vector<const PropertyGraphType*> property_graph_types;
+  property_graph_types.reserve(property_graph_types_.size());
+  googlesql_base::AppendValuesFromMap(property_graph_types_, &property_graph_types);
+  return property_graph_types;
 }
 
 SimpleTable::SimpleTable(absl::string_view name,

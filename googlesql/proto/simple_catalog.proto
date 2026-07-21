@@ -55,4 +55,5 @@ message SimpleCatalogProto {
   repeated SimpleConnectionProto connection = 12;
   repeated SimpleModelProto model = 13;
   repeated SimpleSequenceProto sequence = 14;
+  repeated SimplePropertyGraphTypeProto property_graph_type = 15;
 }

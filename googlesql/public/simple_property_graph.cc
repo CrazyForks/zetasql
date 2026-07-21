@@ -1073,4 +1073,469 @@ SimpleGraphDynamicProperties::Deserialize(
       proto.properties_expression());
 }
 
+// Stores the shared logical state of a node/edge element type: its name, the
+// owning property graph type's name path, and the labels it exposes. This is
+// the type analogue of ElementTableCommonInternal, minus all physical binding.
+class PropertyGraphElementTypeCommonInternal {
+ public:
+  PropertyGraphElementTypeCommonInternal(
+      absl::string_view name,
+      absl::Span<const std::string> property_graph_type_name_path,
+      const absl::flat_hash_set<const GraphElementLabel*>& labels)
+      : name_(name),
+        property_graph_type_name_path_(property_graph_type_name_path.begin(),
+                                       property_graph_type_name_path.end()) {
+    labels_map_.reserve(labels.size());
+    for (const auto label : labels) {
+      labels_map_.try_emplace(absl::AsciiStrToLower(label->Name()), label);
+    }
+  }
+
+  std::string Name() const { return name_; }
+
+  absl::Span<const std::string> PropertyGraphTypeNamePath() const {
+    return property_graph_type_name_path_;
+  }
+
+  absl::Status FindLabelByName(absl::string_view name,
+                               const GraphElementLabel*& label) const {
+    label = nullptr;
+    auto found = labels_map_.find(absl::AsciiStrToLower(name));
+    if (found != labels_map_.end()) {
+      label = found->second;
+      return absl::OkStatus();
+    }
+    return absl::NotFoundError(absl::StrFormat("Label '%s' not found.", name));
+  }
+
+  absl::Status GetLabels(
+      absl::flat_hash_set<const GraphElementLabel*>& output) const {
+    GOOGLESQL_RET_CHECK(output.empty());
+    output.reserve(labels_map_.size());
+    for (const auto& pair : labels_map_) {
+      output.emplace(pair.second);
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  const std::string name_;
+  const std::vector<std::string> property_graph_type_name_path_;
+  absl::flat_hash_map<std::string, const GraphElementLabel*> labels_map_;
+};
+
+static absl::Status SerializeElementType(
+    const PropertyGraphElementType& element_type,
+    SimplePropertyGraphElementTypeProto* proto) {
+  proto->Clear();
+  proto->set_name(element_type.Name());
+  for (absl::string_view path_name : element_type.PropertyGraphTypeNamePath()) {
+    proto->add_property_graph_type_name_path(path_name);
+  }
+  absl::flat_hash_set<const GraphElementLabel*> labels_output;
+  GOOGLESQL_RETURN_IF_ERROR(element_type.GetLabels(labels_output));
+  // Always keep ordered for serialization.
+  absl::btree_set<std::string> label_names;
+  for (const auto label : labels_output) {
+    label_names.emplace(label->Name());
+  }
+  for (const auto& label_name : label_names) {
+    proto->add_label_names(label_name);
+  }
+  return absl::OkStatus();
+}
+
+static absl::flat_hash_set<const GraphElementLabel*>
+DeserializeElementTypeLabels(
+    const SimplePropertyGraphElementTypeProto& proto,
+    const absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>&
+        unowned_labels) {
+  absl::flat_hash_set<const GraphElementLabel*> labels;
+  for (const auto& label_name : proto.label_names()) {
+    const auto found = unowned_labels.find(label_name);
+    if (found != unowned_labels.end()) {
+      labels.insert(found->second);
+    }
+  }
+  return labels;
+}
+
+SimplePropertyGraphNodeType::SimplePropertyGraphNodeType(
+    absl::string_view name,
+    absl::Span<const std::string> property_graph_type_name_path,
+    const absl::flat_hash_set<const GraphElementLabel*>& labels)
+    : element_internal_(
+          std::make_unique<PropertyGraphElementTypeCommonInternal>(
+              name, property_graph_type_name_path, labels)) {}
+
+SimplePropertyGraphNodeType::~SimplePropertyGraphNodeType() = default;
+
+std::string SimplePropertyGraphNodeType::Name() const {
+  return element_internal_->Name();
+}
+
+absl::Span<const std::string>
+SimplePropertyGraphNodeType::PropertyGraphTypeNamePath() const {
+  return element_internal_->PropertyGraphTypeNamePath();
+}
+
+absl::Status SimplePropertyGraphNodeType::FindLabelByName(
+    absl::string_view name, const GraphElementLabel*& label) const {
+  return element_internal_->FindLabelByName(name, label);
+}
+
+absl::Status SimplePropertyGraphNodeType::GetLabels(
+    absl::flat_hash_set<const GraphElementLabel*>& output) const {
+  return element_internal_->GetLabels(output);
+}
+
+absl::Status SimplePropertyGraphNodeType::Serialize(
+    SimplePropertyGraphElementTypeProto* proto) const {
+  GOOGLESQL_RETURN_IF_ERROR(SerializeElementType(*this, proto));
+  proto->set_kind(SimplePropertyGraphElementTypeProto::NODE);
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<SimplePropertyGraphNodeType>>
+SimplePropertyGraphNodeType::Deserialize(
+    const SimplePropertyGraphElementTypeProto& proto,
+    const absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>&
+        labels) {
+  return std::make_unique<SimplePropertyGraphNodeType>(
+      proto.name(), ToVector(proto.property_graph_type_name_path()),
+      DeserializeElementTypeLabels(proto, labels));
+}
+
+SimplePropertyGraphEdgeType::SimplePropertyGraphEdgeType(
+    absl::string_view name,
+    absl::Span<const std::string> property_graph_type_name_path,
+    const absl::flat_hash_set<const GraphElementLabel*>& labels,
+    const PropertyGraphNodeType* source_node_type,
+    const PropertyGraphNodeType* dest_node_type)
+    : element_internal_(
+          std::make_unique<const PropertyGraphElementTypeCommonInternal>(
+              name, property_graph_type_name_path, labels)),
+      source_node_type_(source_node_type),
+      dest_node_type_(dest_node_type) {}
+
+SimplePropertyGraphEdgeType::~SimplePropertyGraphEdgeType() = default;
+
+std::string SimplePropertyGraphEdgeType::Name() const {
+  return element_internal_->Name();
+}
+
+absl::Span<const std::string>
+SimplePropertyGraphEdgeType::PropertyGraphTypeNamePath() const {
+  return element_internal_->PropertyGraphTypeNamePath();
+}
+
+absl::Status SimplePropertyGraphEdgeType::FindLabelByName(
+    absl::string_view name, const GraphElementLabel*& label) const {
+  return element_internal_->FindLabelByName(name, label);
+}
+
+absl::Status SimplePropertyGraphEdgeType::GetLabels(
+    absl::flat_hash_set<const GraphElementLabel*>& output) const {
+  return element_internal_->GetLabels(output);
+}
+
+const PropertyGraphNodeType* SimplePropertyGraphEdgeType::GetSourceNodeType()
+    const {
+  return source_node_type_;
+}
+
+const PropertyGraphNodeType* SimplePropertyGraphEdgeType::GetDestNodeType()
+    const {
+  return dest_node_type_;
+}
+
+absl::Status SimplePropertyGraphEdgeType::Serialize(
+    SimplePropertyGraphElementTypeProto* proto) const {
+  GOOGLESQL_RETURN_IF_ERROR(SerializeElementType(*this, proto));
+  proto->set_kind(SimplePropertyGraphElementTypeProto::EDGE);
+  if (source_node_type_ != nullptr) {
+    proto->set_source_node_type_name(source_node_type_->Name());
+  }
+  if (dest_node_type_ != nullptr) {
+    proto->set_dest_node_type_name(dest_node_type_->Name());
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<SimplePropertyGraphEdgeType>>
+SimplePropertyGraphEdgeType::Deserialize(
+    const SimplePropertyGraphElementTypeProto& proto,
+    const absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>&
+        labels,
+    const absl::flat_hash_map<std::string, const PropertyGraphNodeType*>&
+        node_types) {
+  // Resolves an endpoint node-type name to its node type. The referenced node
+  // type is guaranteed to exist because node types are deserialized before edge
+  // types.
+  auto resolve_node_type = [&](absl::string_view node_type_name)
+      -> absl::StatusOr<const PropertyGraphNodeType*> {
+    auto it = node_types.find(absl::AsciiStrToLower(node_type_name));
+    if (it == node_types.end()) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Node type '%s' referenced by edge type '%s' was not found.",
+          node_type_name, proto.name()));
+    }
+    return it->second;
+  };
+
+  const PropertyGraphNodeType* source_node_type = nullptr;
+  if (proto.has_source_node_type_name()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(source_node_type,
+                     resolve_node_type(proto.source_node_type_name()));
+  }
+  const PropertyGraphNodeType* dest_node_type = nullptr;
+  if (proto.has_dest_node_type_name()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(dest_node_type,
+                     resolve_node_type(proto.dest_node_type_name()));
+  }
+  return std::make_unique<SimplePropertyGraphEdgeType>(
+      proto.name(), ToVector(proto.property_graph_type_name_path()),
+      DeserializeElementTypeLabels(proto, labels), source_node_type,
+      dest_node_type);
+}
+
+SimplePropertyGraphType::SimplePropertyGraphType(
+    std::vector<std::string> name_path,
+    std::vector<std::unique_ptr<const PropertyGraphNodeType>> node_types,
+    std::vector<std::unique_ptr<const PropertyGraphEdgeType>> edge_types,
+    std::vector<std::unique_ptr<const GraphElementLabel>> labels,
+    std::vector<std::unique_ptr<const GraphPropertyDeclaration>>
+        property_declarations)
+    : name_path_(std::move(name_path)) {
+  for (auto& node_type : node_types) {
+    AddNodeType(std::move(node_type));
+  }
+  for (auto& edge_type : edge_types) {
+    AddEdgeType(std::move(edge_type));
+  }
+  for (auto& label : labels) {
+    AddLabel(std::move(label));
+  }
+  for (auto& property_declaration : property_declarations) {
+    AddPropertyDeclaration(std::move(property_declaration));
+  }
+}
+
+absl::Status SimplePropertyGraphType::FindLabelByName(
+    absl::string_view name, const GraphElementLabel*& label) const {
+  label = nullptr;
+  auto found = labels_map_.find(absl::AsciiStrToLower(name));
+  if (found != labels_map_.end()) {
+    label = found->second.get();
+    return absl::OkStatus();
+  }
+  return absl::NotFoundError(absl::StrFormat("Label '%s' not found.", name));
+}
+
+absl::Status SimplePropertyGraphType::FindPropertyDeclarationByName(
+    absl::string_view name,
+    const GraphPropertyDeclaration*& property_declaration) const {
+  property_declaration = nullptr;
+  auto found = property_dcls_map_.find(absl::AsciiStrToLower(name));
+  if (found != property_dcls_map_.end()) {
+    property_declaration = found->second.get();
+    return absl::OkStatus();
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No declaration found for property '%s'.", name));
+}
+
+absl::Status SimplePropertyGraphType::FindElementTypeByName(
+    absl::string_view name,
+    const PropertyGraphElementType*& element_type) const {
+  element_type = nullptr;
+  const std::string lowercase_name = absl::AsciiStrToLower(name);
+  auto node_itr = node_types_map_.find(lowercase_name);
+  if (node_itr != node_types_map_.end()) {
+    element_type = node_itr->second.get();
+    return absl::OkStatus();
+  }
+  auto edge_itr = edge_types_map_.find(lowercase_name);
+  if (edge_itr != edge_types_map_.end()) {
+    element_type = edge_itr->second.get();
+    return absl::OkStatus();
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("Element type '%s' not found.", name));
+}
+
+absl::Status SimplePropertyGraphType::GetNodeTypes(
+    absl::flat_hash_set<const PropertyGraphNodeType*>& output) const {
+  GOOGLESQL_RET_CHECK(output.empty());
+  output.reserve(node_types_map_.size());
+  for (const auto& pair : node_types_map_) {
+    output.emplace(pair.second.get());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SimplePropertyGraphType::GetEdgeTypes(
+    absl::flat_hash_set<const PropertyGraphEdgeType*>& output) const {
+  GOOGLESQL_RET_CHECK(output.empty());
+  output.reserve(edge_types_map_.size());
+  for (const auto& pair : edge_types_map_) {
+    output.emplace(pair.second.get());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SimplePropertyGraphType::GetLabels(
+    absl::flat_hash_set<const GraphElementLabel*>& output) const {
+  GOOGLESQL_RET_CHECK(output.empty());
+  output.reserve(labels_map_.size());
+  for (const auto& pair : labels_map_) {
+    output.emplace(pair.second.get());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SimplePropertyGraphType::GetPropertyDeclarations(
+    absl::flat_hash_set<const GraphPropertyDeclaration*>& output) const {
+  GOOGLESQL_RET_CHECK(output.empty());
+  for (const auto& pair : property_dcls_map_) {
+    output.emplace(pair.second.get());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SimplePropertyGraphType::Serialize(
+    FileDescriptorSetMap* file_descriptor_set_map,
+    SimplePropertyGraphTypeProto* proto) const {
+  proto->Clear();
+  for (absl::string_view name : name_path_) {
+    proto->add_name_path(name);
+  }
+
+  // Always keep ordered for serialization.
+  absl::btree_map<std::string, const GraphElementLabel*> labels_map;
+  for (const auto& entry : labels_map_) {
+    labels_map.try_emplace(entry.first, entry.second.get());
+  }
+  for (const auto& entry : labels_map) {
+    absl::string_view name = entry.first;
+    const auto& label = entry.second;
+    if (!label->Is<SimpleGraphElementLabel>()) {
+      return ::googlesql_base::UnknownErrorBuilder()
+             << "Cannot serialize non-SimpleGraphElementLabel " << name;
+    }
+    GOOGLESQL_RETURN_IF_ERROR(label->GetAs<SimpleGraphElementLabel>()->Serialize(
+        proto->add_labels()));
+  }
+
+  // Always keep ordered for serialization.
+  absl::btree_map<std::string, const PropertyGraphNodeType*> node_types_map;
+  for (const auto& entry : node_types_map_) {
+    node_types_map.try_emplace(entry.first, entry.second.get());
+  }
+  for (const auto& entry : node_types_map) {
+    absl::string_view name = entry.first;
+    const auto& node_type = entry.second;
+    if (!node_type->Is<SimplePropertyGraphNodeType>()) {
+      return ::googlesql_base::UnknownErrorBuilder()
+             << "Cannot serialize non-SimplePropertyGraphNodeType " << name;
+    }
+    GOOGLESQL_RETURN_IF_ERROR(node_type->GetAs<SimplePropertyGraphNodeType>()->Serialize(
+        proto->add_node_types()));
+  }
+
+  // Always keep ordered for serialization.
+  absl::btree_map<std::string, const PropertyGraphEdgeType*> edge_types_map;
+  for (const auto& entry : edge_types_map_) {
+    edge_types_map.try_emplace(entry.first, entry.second.get());
+  }
+  for (const auto& entry : edge_types_map) {
+    absl::string_view name = entry.first;
+    const auto& edge_type = entry.second;
+    if (!edge_type->Is<SimplePropertyGraphEdgeType>()) {
+      return ::googlesql_base::UnknownErrorBuilder()
+             << "Cannot serialize non-SimplePropertyGraphEdgeType " << name;
+    }
+    GOOGLESQL_RETURN_IF_ERROR(edge_type->GetAs<SimplePropertyGraphEdgeType>()->Serialize(
+        proto->add_edge_types()));
+  }
+
+  // Always keep ordered for serialization.
+  absl::btree_map<std::string, const GraphPropertyDeclaration*>
+      property_dcls_map;
+  for (const auto& entry : property_dcls_map_) {
+    property_dcls_map.try_emplace(entry.first, entry.second.get());
+  }
+  for (const auto& entry : property_dcls_map) {
+    absl::string_view name = entry.first;
+    const auto property_dcl = entry.second;
+    if (!property_dcl->Is<SimpleGraphPropertyDeclaration>()) {
+      return ::googlesql_base::UnknownErrorBuilder()
+             << "Cannot serialize non-SimpleGraphPropertyDeclaration " << name;
+    }
+    GOOGLESQL_RETURN_IF_ERROR(
+        property_dcl->GetAs<SimpleGraphPropertyDeclaration>()->Serialize(
+            file_descriptor_set_map, proto->add_property_declarations()));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<SimplePropertyGraphType>>
+SimplePropertyGraphType::Deserialize(const SimplePropertyGraphTypeProto& proto,
+                                     const TypeDeserializer& type_deserializer,
+                                     SimpleCatalog* catalog) {
+  std::vector<std::unique_ptr<const PropertyGraphNodeType>> node_types;
+  std::vector<std::unique_ptr<const PropertyGraphEdgeType>> edge_types;
+  std::vector<std::unique_ptr<const GraphElementLabel>> labels;
+  std::vector<std::unique_ptr<const GraphPropertyDeclaration>>
+      property_declarations;
+  absl::flat_hash_map<std::string, const SimpleGraphElementLabel*>
+      unowned_labels;
+  absl::flat_hash_map<std::string, const SimpleGraphPropertyDeclaration*>
+      unowned_property_declarations;
+
+  // Deserialize property declarations and labels first, so that element types
+  // can reuse the same label instances.
+  for (const auto& property_dcl_proto : proto.property_declarations()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(
+        std::unique_ptr<SimpleGraphPropertyDeclaration> property_dcl,
+        SimpleGraphPropertyDeclaration::Deserialize(property_dcl_proto,
+                                                    type_deserializer));
+    unowned_property_declarations.try_emplace(property_dcl->Name(),
+                                              property_dcl.get());
+    property_declarations.push_back(std::move(property_dcl));
+  }
+
+  for (const auto& label_proto : proto.labels()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<SimpleGraphElementLabel> label,
+                     SimpleGraphElementLabel::Deserialize(
+                         label_proto, unowned_property_declarations));
+    unowned_labels.try_emplace(label->Name(), label.get());
+    labels.push_back(std::move(label));
+  }
+
+  // Deserialize node types before edge types, so that an edge type can resolve
+  // the FROM/TO node types it references.
+  absl::flat_hash_map<std::string, const PropertyGraphNodeType*> unowned_nodes;
+  for (const auto& node_type_proto : proto.node_types()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<SimplePropertyGraphNodeType> node_type,
+                     SimplePropertyGraphNodeType::Deserialize(node_type_proto,
+                                                              unowned_labels));
+    unowned_nodes.try_emplace(absl::AsciiStrToLower(node_type->Name()),
+                              node_type.get());
+    node_types.push_back(std::move(node_type));
+  }
+
+  for (const auto& edge_type_proto : proto.edge_types()) {
+    GOOGLESQL_ASSIGN_OR_RETURN(std::unique_ptr<SimplePropertyGraphEdgeType> edge_type,
+                     SimplePropertyGraphEdgeType::Deserialize(
+                         edge_type_proto, unowned_labels, unowned_nodes));
+    edge_types.push_back(std::move(edge_type));
+  }
+
+  return std::make_unique<SimplePropertyGraphType>(
+      ToVector(proto.name_path()), std::move(node_types), std::move(edge_types),
+      std::move(labels), std::move(property_declarations));
+}
+
 }  // namespace googlesql

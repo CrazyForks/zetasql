@@ -360,6 +360,17 @@ class Catalog {
                                          const PropertyGraph*& property_graph,
                                          const FindOptions& options);
 
+  absl::Status FindPropertyGraphType(
+      absl::Span<const std::string> path,
+      const PropertyGraphType*& property_graph_type) {
+    return FindPropertyGraphType(path, property_graph_type, FindOptions());
+  }
+
+  virtual absl::Status FindPropertyGraphType(
+      absl::Span<const std::string> path,
+      const PropertyGraphType*& property_graph_type,
+      const FindOptions& options);
+
   // Overloaded helper functions that forward the call to the appropriate
   // Find*() function based on the <object> argument type.
   absl::Status FindObject(absl::Span<const std::string> path,
@@ -368,6 +379,9 @@ class Catalog {
                           const Type** object, const FindOptions& options);
   absl::Status FindObject(absl::Span<const std::string> path,
                           const PropertyGraph** object,
+                          const FindOptions& options);
+  absl::Status FindObject(absl::Span<const std::string> path,
+                          const PropertyGraphType** object,
                           const FindOptions& options);
 
   // FindConversion looks up a Conversion between from_type and to_type with the
@@ -448,6 +462,8 @@ class Catalog {
   virtual std::string SuggestEnumValue(const EnumType* type,
                                        absl::string_view mistyped_value);
   virtual std::string SuggestPropertyGraph(
+      absl::Span<const std::string> mistyped_path);
+  virtual std::string SuggestPropertyGraphType(
       absl::Span<const std::string> mistyped_path);
   virtual std::string SuggestSequence(
       const absl::Span<const std::string>& mistyped_path);
@@ -557,6 +573,14 @@ class Catalog {
     return GetPropertyGraph(name, property_graph, FindOptions());
   }
 
+  virtual absl::Status GetPropertyGraphType(
+      absl::string_view name, const PropertyGraphType*& property_graph_type,
+      const FindOptions& options);
+  absl::Status GetPropertyGraphType(
+      absl::string_view name, const PropertyGraphType*& property_graph_type) {
+    return GetPropertyGraphType(name, property_graph_type, FindOptions());
+  }
+
   // Helper functions for getting canonical versions of NOT_FOUND error
   // messages.
   absl::Status GenericNotFoundError(absl::string_view object_type,
@@ -579,6 +603,8 @@ class Catalog {
       const FindConversionOptions& options) const;
   absl::Status PropertyGraphNotFoundError(
       absl::Span<const std::string> path) const;
+  absl::Status PropertyGraphTypeNotFoundError(
+      absl::Span<const std::string> path) const;
 
   // Templatized version of the previous functions.
   template <class ObjectType>
@@ -593,10 +619,11 @@ class Catalog {
             std::is_same<ObjectType, Type>::value ||
             std::is_same<ObjectType, Procedure>::value ||
             std::is_same<ObjectType, Constant>::value ||
-            std::is_same<ObjectType, PropertyGraph>::value,
+            std::is_same_v<ObjectType, PropertyGraph> ||
+            std::is_same_v<ObjectType, PropertyGraphType>,
         "ObjectNotFoundError only supports Function, TableValuedFunction, "
         "Table, Model, Connection, Sequence, Type, Procedure, Constant, "
-        "and Property Graph");
+        "Property Graph, and Property Graph Type");
     if (std::is_same<ObjectType, Function>::value) {
       return FunctionNotFoundError(path);
     } else if (std::is_same<ObjectType, TableValuedFunction>::value) {
@@ -617,6 +644,8 @@ class Catalog {
       return ConstantNotFoundError(path);
     } else if (std::is_same<ObjectType, PropertyGraph>::value) {
       return PropertyGraphNotFoundError(path);
+    } else if (std::is_same_v<ObjectType, PropertyGraphType>) {
+      return PropertyGraphTypeNotFoundError(path);
     }
   }
 
@@ -638,11 +667,12 @@ class Catalog {
             std::is_same<ObjectType, Sequence>::value ||
             std::is_same<ObjectType, Type>::value ||
             std::is_same<ObjectType, Procedure>::value ||
-            std::is_same<ObjectType, PropertyGraph>::value,
+            std::is_same_v<ObjectType, PropertyGraph> ||
+            std::is_same_v<ObjectType, PropertyGraphType>,
         "EmptyNamePathInternalError only supports Constant, Function, "
         "TableValuedFunction, Table, Model, Connection, Sequence, "
         "Type, and Procedure, "
-        "and PropertyGraph");
+        "PropertyGraph, and PropertyGraphType");
     if (std::is_same<ObjectType, Constant>::value) {
       return EmptyNamePathInternalError("Constant");
     } else if (std::is_same<ObjectType, Function>::value) {
@@ -663,6 +693,8 @@ class Catalog {
       return EmptyNamePathInternalError("Procedure");
     } else if (std::is_same<ObjectType, PropertyGraph>::value) {
       return EmptyNamePathInternalError("PropertyGraph");
+    } else if (std::is_same_v<ObjectType, PropertyGraphType>) {
+      return EmptyNamePathInternalError("PropertyGraphType");
     }
   }
 
@@ -735,13 +767,17 @@ class EnumerableCatalog : public Catalog {
     return absl::NotFoundError(
         "PropertyGraphs are not supported in this EnumerableCatalog");
   }
+  virtual absl::Status GetPropertyGraphTypes(
+      absl::flat_hash_set<const googlesql::PropertyGraphType*>* output) const {
+    return absl::NotFoundError(
+        "PropertyGraphTypes are not supported in this EnumerableCatalog");
+  }
   virtual absl::Status GetProcedures(
       absl::flat_hash_set<const googlesql::Procedure*>* output) const {
     return absl::NotFoundError(
         "Procedures are not supported in this EnumerableCatalog");
   }
 };
-
 
 // Captures userid information related to a table.
 class AnonymizationUserIdInfo {
